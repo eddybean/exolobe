@@ -22,7 +22,8 @@
     "postinstall": "bash scripts/patch-dev-electron.sh || true"
   },
   "dependencies": {
-    "audiotee": "^0.0.7"
+    "audiotee": "^0.0.7",
+    "node-llama-cpp": "^3.20.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
