@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Mac 向け Web 会議レコーダー（録音・文字起こし・話者識別・要約をすべてローカルで実行）",
   "main": "./out/main/index.js",
-  "author": "branch",
+  "author": "eddybean",
   "license": "MIT",
   "private": true,
   "type": "module",
