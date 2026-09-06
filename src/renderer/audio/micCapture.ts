@@ -1,4 +1,4 @@
-import { describeMicFailure } from './micErrors'
+import { MicSetupError, describeMicFailure, detailOf } from './micErrors'
 
 /**
  * マイク音声を 16bit PCM にして main プロセスへ送る。
@@ -72,6 +72,15 @@ export const startMicCapture = async (params: {
 
   try {
     await context.audioWorklet.addModule(workletUrl)
+  } catch (error: unknown) {
+    // CSP が blob: を塞いでいると、Chromium は理由を示さない AbortError
+    // （"The user aborted a request."）だけを返す。権限やデバイスの問題と
+    // 区別がつかないため、ここで何に失敗したかを明示する。
+    await context.close()
+    throw new MicSetupError(
+      `マイクの音声処理を初期化できませんでした（${detailOf(error)}）。`,
+      { cause: error }
+    )
   } finally {
     URL.revokeObjectURL(workletUrl)
   }

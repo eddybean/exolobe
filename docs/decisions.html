@@ -50,6 +50,7 @@
             <tr><td><a href="#adr-015">ADR-015</a></td><td>一覧データの持ち方</td><td>meta.json を正、index.json をキャッシュ</td></tr>
             <tr><td><a href="#adr-016">ADR-016</a></td><td>同梱バイナリのパス解決</td><td>unpacked の実パスを明示的に渡す</td></tr>
             <tr><td><a href="#adr-017">ADR-017</a></td><td>マイクが取れなかったときの録音</td><td>停止せず継続し、警告を出す</td></tr>
+            <tr><td><a href="#adr-018">ADR-018</a></td><td>レンダラーの CSP</td><td>script-src で blob: のみ追加で許可</td></tr>
           </tbody>
         </table>
       </div>
@@ -902,6 +903,66 @@
           この方針は React から切り出した関数に置き、「マイク失敗時に停止を呼ばないこと」を
           テストで固定しています。同じ退行を繰り返さないためです。
         </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-018">ADR-018 レンダラーの CSP</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-018</span>
+          <p class="adr__title">script-src で blob: だけを追加で許可する</p>
+        </div>
+
+        <h4>発見した不具合</h4>
+        <p>
+          マイクの権限を許可した直後に
+          <code>The user aborted a request.</code> とだけ表示され、マイク入力が録音されない
+          状態になっていました。権限は通っているのに原因が分からない、最も追いにくい形の失敗です。
+        </p>
+
+        <h4>原因</h4>
+        <p>
+          マイクの取り込みには <code>AudioWorklet</code> を使い、そのモジュールを Blob URL から
+          読み込んでいます。当初の CSP は <code>default-src 'self'</code> だけだったため
+          <code>blob:</code> が許可されておらず、<code>addModule()</code> がブロックされていました。
+          このとき Chromium は理由を示さず、<code>AbortError</code> の既定メッセージだけを返します。
+        </p>
+
+        <div class="measured">
+          <span class="measured__label">計測結果（Electron で CSP を変えて addModule を試行）</span>
+          default-src 'self' のみ            → NG AbortError "The user aborted a request."<br />
+          script-src に blob: を追加         → OK<br />
+          CSP ほぼ無制限                     → OK
+        </div>
+
+        <div class="verdict">
+          <strong>結論。</strong><code>script-src 'self' blob:</code> を追加します。
+          <code>default-src</code> は <code>'self'</code> のままに保ち、リモートのスクリプト読み込みは
+          引き続き許可しません。Blob URL は同一オリジン由来で、レンダラーは外部コンテンツを
+          読み込まず <code>contextIsolation</code> も有効なため、緩和の範囲は限定的です。
+        </div>
+
+        <h4>ワークレットを別ファイルにしなかった理由</h4>
+        <p>
+          <code>blob:</code> を使わず実ファイルとして配置する案もありますが、パッケージ済みアプリでは
+          レンダラーが <code>file://</code> から読み込まれるため、パス解決と <code>'self'</code> の
+          扱いが開発時と変わります。Blob なら開発時とパッケージ時で挙動が同じで、
+          配布物に追加のファイルも要りません。
+        </p>
+
+        <h4>あわせて直したこと</h4>
+        <ul>
+          <li>
+            この段階の失敗を <code>MicSetupError</code> として区別し、「マイクの音声処理を
+            初期化できませんでした」と何に失敗したかを明示するようにした。権限やデバイスの
+            問題と切り分けられる。
+          </li>
+          <li>
+            CSP の内容をテストで固定した。<code>script-src</code> に <code>blob:</code> と
+            <code>'self'</code> があること、リモート読み込みを許可しないこと、
+            <code>media-src</code> に <code>file:</code> があることを検証する。
+          </li>
+        </ul>
       </div>
 
       <h2>今後見直す可能性がある判断</h2>

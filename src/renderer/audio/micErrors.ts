@@ -23,6 +23,9 @@ export class MicPermissionError extends MicError {}
 /** 他アプリの占有など、上記以外の理由で使えない。 */
 export class MicUnavailableError extends MicError {}
 
+/** 取得はできたが、音声処理の準備に失敗した（CSP や AudioWorklet の問題）。 */
+export class MicSetupError extends MicError {}
+
 /** デバイスが見つからないときに getUserMedia が使う名前（旧称を含む）。 */
 const NOT_FOUND = new Set(['NotFoundError', 'DevicesNotFoundError', 'OverconstrainedError'])
 
@@ -60,7 +63,7 @@ export const describeMicFailure = (error: unknown): MicError => {
   return new MicUnavailableError(`マイクを使用できませんでした（${detailOf(error)}）。`, options)
 }
 
-const detailOf = (error: unknown): string => {
+export const detailOf = (error: unknown): string => {
   if (error instanceof Error) return error.message || error.name
   if (typeof error === 'string') return error
   return '原因不明'
