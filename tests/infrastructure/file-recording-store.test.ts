@@ -9,6 +9,7 @@ import {
 } from '@infrastructure/persistence/FileRecordingStore'
 import { createRecording, finishRecording, succeedStep } from '@domain/Recording'
 import { SELF_SPEAKER_ID } from '@domain/Speaker'
+import { ConfigurationError } from '@domain/errors'
 
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
 
@@ -42,6 +43,14 @@ describe('FileRecordingRepository', () => {
 
   it('保存先が空なら空の一覧を返す', async () => {
     expect(await repository.list()).toEqual([])
+  })
+
+  it('保存先が未設定でも一覧はエラーにせず空を返す（初回起動）', async () => {
+    const unconfigured = new FileRecordingRepository({
+      root: () => Promise.reject(new ConfigurationError('保存先が設定されていません。'))
+    })
+
+    expect(await unconfigured.list()).toEqual([])
   })
 
   it('新しい順に並べる', async () => {

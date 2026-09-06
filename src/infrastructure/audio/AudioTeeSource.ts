@@ -1,4 +1,4 @@
-import { AudioTee } from 'audiotee'
+import type { AudioTee } from 'audiotee'
 import { AppError } from '@domain/errors'
 import type { SystemAudioSource } from './DualTrackRecorder'
 
@@ -30,6 +30,10 @@ export class AudioTeeSource implements SystemAudioSource {
   }
 
   async start(params: { sampleRate: number }): Promise<void> {
+    // audiotee は ESM 専用パッケージなので、CJS の main プロセスからは
+    // 動的 import で読み込む（静的 import は require に変換されて失敗する）。
+    const { AudioTee } = await import('audiotee')
+
     // sampleRate を指定すると audiotee は 16bit モノラルへ変換して流す。
     const tee = new AudioTee({
       sampleRate: params.sampleRate,

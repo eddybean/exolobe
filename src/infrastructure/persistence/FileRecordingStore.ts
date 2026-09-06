@@ -13,7 +13,7 @@ import {
   type StepState,
   type StepStates
 } from '@domain/Recording'
-import { AppError } from '@domain/errors'
+import { AppError, ConfigurationError } from '@domain/errors'
 import type { Speaker } from '@domain/Speaker'
 import { toMarkdown } from '@domain/Transcript'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
@@ -106,7 +106,12 @@ export class FileRecordingRepository implements RecordingRepositoryPort {
   constructor(private readonly locator: StorageLocator) {}
 
   async list(): Promise<Recording[]> {
-    const root = await this.locator.root()
+    // 初回起動では保存先がまだ決まっていない。一覧の取得はアプリ起動直後に
+    // 走るので、ここで例外を投げると初期設定画面を出す前にエラーになる。
+    // 保存先が無い＝録音も無いので、空の一覧として扱う。
+    const root = await this.rootOrUndefined()
+    if (root === undefined) return []
+
     const cached = await readJson(join(root, INDEX_FILE))
     const records = Array.isArray(cached) ? cached.filter(isRecord) : await this.scan(root)
 
@@ -131,6 +136,15 @@ export class FileRecordingRepository implements RecordingRepositoryPort {
     const root = await this.locator.root()
     const remaining = (await this.list()).filter((recording) => recording.id !== id)
     await writeJsonAtomic(join(root, INDEX_FILE), remaining.map(toRecord))
+  }
+
+  private async rootOrUndefined(): Promise<string | undefined> {
+    try {
+      return await this.locator.root()
+    } catch (error: unknown) {
+      if (error instanceof ConfigurationError) return undefined
+      throw error
+    }
   }
 
   /** index.json が無い・壊れている場合に各ディレクトリの meta.json から作り直す。 */
