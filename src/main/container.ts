@@ -19,6 +19,7 @@ import {
   GetModelStatus
 } from '@application/usecases/models'
 import { AudioTeeSource } from '@infrastructure/audio/AudioTeeSource'
+import { resolveAudioTeeBinary } from '@infrastructure/audio/resolveAudioTeeBinary'
 import { DualTrackRecorder } from '@infrastructure/audio/DualTrackRecorder'
 import {
   FileRecordingArtifactStore,
@@ -61,7 +62,13 @@ export const createContainer = (): Container => {
 
   const repository = new FileRecordingRepository(locator)
   const artifacts = new FileRecordingArtifactStore(locator, join(userData, 'work'))
-  const recorder = new DualTrackRecorder(new AudioTeeSource())
+  // audiotee は自分の JS の位置からバイナリを探すため、パッケージ済みアプリでは
+  // asar 内のパスを解決してしまい起動できない。実パスを明示的に渡す。
+  const recorder = new DualTrackRecorder(
+    new AudioTeeSource(
+      resolveAudioTeeBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath })
+    )
+  )
   // モデルは再取得できるキャッシュなので、録音の保存先とは分けて置く。
   const models = new FileModelStore(join(userData, 'models'))
 

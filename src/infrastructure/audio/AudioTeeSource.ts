@@ -4,6 +4,9 @@ import type { SystemAudioSource } from './DualTrackRecorder'
 
 export class SystemAudioPermissionError extends AppError {}
 
+/** 同梱バイナリを起動できない（パスや実行権の問題）。 */
+export class SystemAudioBinaryError extends AppError {}
+
 /**
  * Core Audio Process Tap (macOS 14.2+) でデスクトップ音声を取得する。
  *
@@ -69,6 +72,16 @@ export class AudioTeeSource implements SystemAudioSource {
    */
   private describe(error: unknown): Error {
     const message = error instanceof Error ? error.message : String(error)
+
+    // asar 内のパスを spawn しようとすると ENOTDIR になる。権限の問題と
+    // 紛らわしいので切り分けて伝える。
+    if (/ENOTDIR|ENOENT|spawn/i.test(message)) {
+      return new SystemAudioBinaryError(
+        `システム音声の取得プログラムを起動できませんでした（${message}）。` +
+          'アプリの再インストールで解消しない場合は不具合の可能性があります。',
+        { cause: error }
+      )
+    }
 
     if (/permission|denied|not authorized|tap/i.test(message)) {
       return new SystemAudioPermissionError(

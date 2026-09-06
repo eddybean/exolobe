@@ -48,6 +48,8 @@
             <tr><td><a href="#adr-013">ADR-013</a></td><td>アプリ名</td><td>実行名は ASCII、表示名のみ日本語</td></tr>
             <tr><td><a href="#adr-014">ADR-014</a></td><td>配布時のコード署名</td><td>ad-hoc 署名を最低ラインとする</td></tr>
             <tr><td><a href="#adr-015">ADR-015</a></td><td>一覧データの持ち方</td><td>meta.json を正、index.json をキャッシュ</td></tr>
+            <tr><td><a href="#adr-016">ADR-016</a></td><td>同梱バイナリのパス解決</td><td>unpacked の実パスを明示的に渡す</td></tr>
+            <tr><td><a href="#adr-017">ADR-017</a></td><td>マイクが取れなかったときの録音</td><td>停止せず継続し、警告を出す</td></tr>
           </tbody>
         </table>
       </div>
@@ -775,6 +777,96 @@
           <li>壊れた JSON は「まだ無い」として扱い、起動を止めない。</li>
           <li>保存先が未設定でも一覧はエラーにせず空を返す。初期設定画面より先にエラーを出さないため。</li>
         </ul>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-016">ADR-016 同梱バイナリのパス解決</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-016</span>
+          <p class="adr__title">asar 内ではなく unpacked の実パスを明示的に渡す</p>
+        </div>
+
+        <h4>発見した不具合</h4>
+        <p>
+          開発時は動くのに、パッケージ済みアプリでは録音開始が必ず失敗しました。
+        </p>
+
+        <h4>原因</h4>
+        <p>
+          <code>audiotee</code> は自分の JS の位置からバイナリを探します
+          （<code>__dirname/../bin/audiotee</code>）。パッケージ済みアプリではその JS が asar の
+          中にあるため、解決されるパスも asar 内になります。<strong>asar は OS から見ると
+          1 つのファイル</strong>なので、その中のパスを子プロセスとして起動しようとすると
+          失敗します。
+        </p>
+
+        <div class="measured">
+          <span class="measured__label">計測結果（同じバイナリを 2 つのパスで spawn）</span>
+          .../app.asar/node_modules/audiotee/bin/audiotee           → NG: ENOTDIR<br />
+          .../app.asar.unpacked/node_modules/audiotee/bin/audiotee  → OK (exit 0)
+        </div>
+
+        <div class="verdict">
+          <strong>結論。</strong>Electron は <code>fs</code> の呼び出しを unpacked へ透過的に
+          振り替えますが、<code>child_process.spawn</code> は OS の実ファイルを直接見るため
+          振り替えが効きません。main プロセス側で unpacked の実パスを解決し、
+          <code>audiotee</code> に明示的に渡します。開発時は asar を使わないので
+          <code>undefined</code> を渡し、既定の解決に任せます。
+        </div>
+
+        <h4>あわせて確認したこと</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>対象</th><th>読み込み方</th><th>結果</th></tr></thead>
+            <tbody>
+              <tr><td><code>audiotee</code></td><td>spawn</td><td>影響あり → 修正</td></tr>
+              <tr><td><code>pipeline-worker.js</code></td><td>utilityProcess.fork</td><td>asar 内から正常に読み込める</td></tr>
+              <tr><td>ネイティブモジュール（.node）</td><td>require</td><td>Electron が unpacked へ振り替える</td></tr>
+              <tr><td><code>whisper-cli</code></td><td>spawn</td><td>extraResources なので asar の外にある</td></tr>
+              <tr><td><code>afconvert</code></td><td>spawn</td><td>OS 標準（<code>/usr/bin</code>）</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="note">
+          エラーメッセージも切り分けました。<code>ENOTDIR</code> / <code>ENOENT</code> は
+          権限の問題と紛らわしいため、権限エラーとは別の文言で伝えます。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-017">ADR-017 マイクが取れなかったときの録音</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-017</span>
+          <p class="adr__title">録音を止めず、警告を出して継続する</p>
+        </div>
+
+        <h4>当初の判断と、その誤り</h4>
+        <p>
+          当初は「自分の発話が残らない録音を黙って続けるべきでない」と考え、マイクの取得に
+          失敗したら録音を停止していました。しかしこれは
+          <strong>デスクトップ音声は録れているのに録音そのものを捨てる</strong>挙動で、
+          利用者から見ると停止ボタンが消え、一覧に空のアイテムだけが残ります。
+        </p>
+
+        <div class="verdict">
+          <strong>結論。</strong>相手の発言が残る録音には十分な価値があります。マイクが
+          取れなくても録音は継続し、自分の発言が入らないことは<strong>録音中ずっと出続ける
+          警告</strong>として伝えます。閉じられるエラーとは別枠にしているのは、録音が終わるまで
+          見えている必要があるためです。
+        </div>
+
+        <h4>区別していること</h4>
+        <ul>
+          <li><strong>マイクの失敗</strong> — 録音は続く。警告のみ。</li>
+          <li><strong>録音自体の失敗</strong> — 何も録れていないので例外。一覧にも残さない。</li>
+        </ul>
+        <p class="note">
+          この方針は React から切り出した関数に置き、「マイク失敗時に停止を呼ばないこと」を
+          テストで固定しています。同じ退行を繰り返さないためです。
+        </p>
       </div>
 
       <h2>今後見直す可能性がある判断</h2>
