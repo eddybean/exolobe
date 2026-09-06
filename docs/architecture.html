@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>アーキテクチャ — 会議レコーダー</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <nav class="topbar">
+      <div class="topbar__inner">
+        <span class="topbar__brand">会議レコーダー</span>
+        <a href="index.html">概要</a>
+        <a href="specification.html">仕様</a>
+        <a href="architecture.html" aria-current="page">アーキテクチャ</a>
+        <a href="decisions.html">意思決定記録</a>
+      </div>
+    </nav>
+
+    <main class="layout">
+      <h1>アーキテクチャ</h1>
+      <p class="lede">
+        中心にあるのは「ユースケースが外の世界を何も知らない」という一点です。
+        whisper も llama.cpp も Electron も、すべて外側の交換可能な部品として扱います。
+      </p>
+
+      <h2>層構造と依存の向き</h2>
+      <p>
+        依存は常に内向きです。<code>domain</code> は何にも依存せず、<code>application</code> は
+        <code>domain</code> と自分が定義したインターフェース（ポート）だけを知ります。
+        実装は外側にあり、内側の型に合わせて作られます。
+      </p>
+
+      <figure>
+        <svg viewBox="0 0 860 400" role="img" aria-label="層構造の図。外側から Frameworks、Interface Adapters、Use Cases、Entities の順に並び、依存の矢印はすべて内側を向いている">
+          <rect x="20" y="20" width="560" height="360" rx="12" class="d-fill" />
+          <rect x="20" y="20" width="560" height="360" rx="12" class="d-stroke" />
+          <text x="40" y="48" class="d-text-sm">Frameworks &amp; Drivers — src/main, src/preload, src/renderer</text>
+
+          <rect x="60" y="66" width="480" height="268" rx="10" class="d-fill-accent" />
+          <rect x="60" y="66" width="480" height="268" rx="10" class="d-stroke" />
+          <text x="80" y="94" class="d-text-sm">Interface Adapters — src/infrastructure</text>
+
+          <rect x="110" y="112" width="380" height="176" rx="8" class="d-fill" />
+          <rect x="110" y="112" width="380" height="176" rx="8" class="d-stroke" />
+          <text x="130" y="140" class="d-text-sm">Use Cases — src/application</text>
+
+          <rect x="170" y="158" width="260" height="84" rx="6" class="d-fill-accent" />
+          <rect x="170" y="158" width="260" height="84" rx="6" class="d-stroke-accent" />
+          <text x="300" y="196" class="d-text" text-anchor="middle" font-weight="600">Entities</text>
+          <text x="300" y="218" class="d-text-mono" text-anchor="middle">src/domain</text>
+
+          <path d="M 640 200 L 560 200" class="d-arrow" marker-end="url(#ah)" />
+          <path d="M 640 200 L 640 130 L 700 130" class="d-arrow" />
+          <text x="710" y="134" class="d-text-sm">依存の向き</text>
+          <text x="710" y="154" class="d-text-sm">（常に内向き）</text>
+
+          <text x="640" y="240" class="d-text-sm">内側は外側を</text>
+          <text x="640" y="260" class="d-text-sm">一切 import しない</text>
+
+          <defs>
+            <marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" class="d-text" />
+            </marker>
+          </defs>
+        </svg>
+        <figcaption>
+          この境界のおかげで、モデルやバックエンドの差し替えは結線ファイルと設定値だけで完結します。
+        </figcaption>
+      </figure>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>層</th><th>場所</th><th>知っていること</th><th>知らないこと</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Entities</td>
+              <td><code>src/domain</code></td>
+              <td>録音の状態遷移、文字起こしのマージ規則、設定の妥当性</td>
+              <td>ファイル、プロセス、ネットワーク、フレームワーク</td>
+            </tr>
+            <tr>
+              <td>Use Cases</td>
+              <td><code>src/application</code></td>
+              <td>domain と <code>ports/</code> のインターフェース</td>
+              <td>whisper、llama.cpp、Electron、ファイル形式</td>
+            </tr>
+            <tr>
+              <td>Interface Adapters</td>
+              <td><code>src/infrastructure</code></td>
+              <td>外部ツールの呼び出し方、ファイル形式、HTTP</td>
+              <td>UI、IPC、アプリのライフサイクル</td>
+            </tr>
+            <tr>
+              <td>Frameworks</td>
+              <td><code>src/main</code>, <code>src/preload</code>, <code>src/renderer</code></td>
+              <td>Electron、React、IPC</td>
+              <td>業務ルール（すべて内側に委ねる）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>ディレクトリ</h3>
+      <pre><code>src/
+├── domain/                 エンティティと業務ルール。依存ゼロ
+│   ├── Recording.ts        パイプラインのステップ状態と全体ステータスの導出
+│   ├── Transcript.ts       トラックのマージ、話者の割り当て、Markdown 整形
+│   ├── Speaker.ts          話者 ID の名前空間（self / remote / remote:spk0）
+│   ├── Settings.ts         既定値・部分マージ・バリデーション
+│   ├── ModelCatalog.ts     ダウンロード対象の URL・サイズ・チェックサム
+│   └── errors.ts           利用者向けメッセージを持つエラー型
+│
+├── application/
+│   ├── ports/              外界との境界。依存の向きを反転させる
+│   └── usecases/
+│       ├── StartRecording / StopRecording
+│       ├── ProcessRecording        停止後パイプラインのオーケストレーション
+│       ├── library.ts              一覧・詳細・メモ・話者名・設定
+│       └── models.ts               モデルの状態確認と取得
+│
+├── infrastructure/
+│   ├── audio/              audiotee, WAV I/O, ミキサー, afconvert
+│   ├── transcription/      whisper-cli の起動と JSON 解析
+│   ├── summarization/      node-llama-cpp、分割と統合
+│   ├── diarization/        sherpa-onnx、話者数の上限処理
+│   ├── download/           再開可能なダウンローダ、モデル配置
+│   ├── persistence/        録音メタデータと成果物ファイル
+│   └── settings/           設定 JSON
+│
+├── main/                   Electron main
+│   ├── container.ts        依存を結線する唯一の場所
+│   ├── ipc/handlers.ts     renderer からの入力を検証して usecase へ渡す
+│   ├── tray.ts             メニューバー
+│   └── worker/             パイプライン用の utilityProcess
+│
+├── preload/                contextBridge で型付き API を公開
+├── renderer/               React の UI
+└── shared/ipc.ts           main / renderer 間の DTO とチャンネル名</code></pre>
+
+      <h2>録音のプロセス構成</h2>
+      <p>
+        マイクとシステム音声は取得経路が異なります。マイクは <code>getUserMedia</code> が
+        レンダラー側の API であるためレンダラーで取り、システム音声は main が Core Audio Tap から
+        直接受け取ります。
+      </p>
+
+      <figure>
+        <svg viewBox="0 0 860 300" role="img" aria-label="録音の流れ。レンダラーのマイクと main のシステム音声がそれぞれ別の WAV に書き出される">
+          <rect x="20" y="30" width="240" height="110" rx="10" class="d-fill" />
+          <rect x="20" y="30" width="240" height="110" rx="10" class="d-stroke" />
+          <text x="40" y="56" class="d-text-sm">Renderer プロセス</text>
+          <text x="40" y="82" class="d-text">マイク</text>
+          <text x="40" y="104" class="d-text-mono">getUserMedia</text>
+          <text x="40" y="122" class="d-text-mono">→ AudioWorklet → Int16</text>
+
+          <rect x="20" y="170" width="240" height="100" rx="10" class="d-fill" />
+          <rect x="20" y="170" width="240" height="100" rx="10" class="d-stroke" />
+          <text x="40" y="196" class="d-text-sm">macOS</text>
+          <text x="40" y="222" class="d-text">システム音声</text>
+          <text x="40" y="244" class="d-text-mono">Core Audio Process Tap</text>
+
+          <path d="M 260 85 L 350 85" class="d-arrow" marker-end="url(#ah2)" />
+          <text x="270" y="76" class="d-text-sm">IPC</text>
+          <path d="M 260 220 L 350 220" class="d-arrow" marker-end="url(#ah2)" />
+          <text x="268" y="211" class="d-text-sm">audiotee</text>
+
+          <rect x="350" y="30" width="230" height="240" rx="10" class="d-fill-accent" />
+          <rect x="350" y="30" width="230" height="240" rx="10" class="d-stroke" />
+          <text x="370" y="56" class="d-text-sm">Main プロセス</text>
+          <text x="370" y="84" class="d-text" font-weight="600">DualTrackRecorder</text>
+          <text x="370" y="108" class="d-text-sm">書き込みを直列化し、</text>
+          <text x="370" y="128" class="d-text-sm">停止前に必ず流し切る</text>
+          <text x="370" y="160" class="d-text-sm">最初の PCM が届いた時刻の差を</text>
+          <text x="370" y="180" class="d-text-sm">オフセットとして記録</text>
+
+          <rect x="370" y="200" width="90" height="50" rx="6" class="d-fill" />
+          <rect x="370" y="200" width="90" height="50" rx="6" class="d-stroke" />
+          <text x="415" y="230" class="d-text-mono" text-anchor="middle">mic.wav</text>
+
+          <rect x="475" y="200" width="90" height="50" rx="6" class="d-fill" />
+          <rect x="475" y="200" width="90" height="50" rx="6" class="d-stroke" />
+          <text x="520" y="230" class="d-text-mono" text-anchor="middle">system.wav</text>
+
+          <path d="M 580 150 L 650 150" class="d-arrow" marker-end="url(#ah2)" />
+
+          <rect x="650" y="80" width="190" height="140" rx="10" class="d-fill" />
+          <rect x="650" y="80" width="190" height="140" rx="10" class="d-stroke" />
+          <text x="670" y="106" class="d-text-sm">停止後</text>
+          <text x="670" y="132" class="d-text">自分 = mic</text>
+          <text x="670" y="156" class="d-text">相手 = system</text>
+          <text x="670" y="186" class="d-text-sm">2 話者の分離が</text>
+          <text x="670" y="204" class="d-text-sm">推論なしで確定する</text>
+
+          <defs>
+            <marker id="ah2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" class="d-text" />
+            </marker>
+          </defs>
+        </svg>
+        <figcaption>
+          トラックを分けたまま保持することが、話者識別と文字起こし精度の両方を支えています。
+        </figcaption>
+      </figure>
+
+      <div class="note">
+        システム音声は <code>await</code> できないイベントコールバックで届きます。素朴に
+        fire-and-forget で書き込むと、停止時に未完了の書き込みが取りこぼされて音声が欠落します
+        （実際にテストがこの不具合を検出しました）。書き込みはプロミス鎖で直列化し、
+        停止前に必ず流し切っています。
+      </div>
+
+      <h2>停止後のパイプライン</h2>
+      <p>
+        ステップ同士は<strong>成果物ファイルを介してのみ</strong>つながります。次のステップは前の
+        ステップの戻り値ではなく、ディスク上のファイルを読みます。これにより個別リトライが
+        特別な仕組みなしに成立します。
+      </p>
+
+      <figure>
+        <svg viewBox="0 0 860 250" role="img" aria-label="パイプラインの依存関係。ミックスはエンコードに、文字起こしは話者識別と要約につながる">
+          <rect x="20" y="40" width="150" height="56" rx="8" class="d-fill-accent" />
+          <rect x="20" y="40" width="150" height="56" rx="8" class="d-stroke-accent" />
+          <text x="95" y="66" class="d-text" text-anchor="middle" font-weight="600">ミックス</text>
+          <text x="95" y="86" class="d-text-mono" text-anchor="middle">mix.wav</text>
+
+          <rect x="20" y="140" width="150" height="56" rx="8" class="d-fill-accent" />
+          <rect x="20" y="140" width="150" height="56" rx="8" class="d-stroke-accent" />
+          <text x="95" y="166" class="d-text" text-anchor="middle" font-weight="600">文字起こし</text>
+          <text x="95" y="186" class="d-text-mono" text-anchor="middle">transcript.json</text>
+
+          <path d="M 170 68 L 620 68" class="d-arrow" marker-end="url(#ah3)" />
+          <path d="M 170 168 L 300 168" class="d-arrow" marker-end="url(#ah3)" />
+          <path d="M 170 168 L 240 168 L 240 108 L 300 108" class="d-arrow" marker-end="url(#ah3)" />
+
+          <rect x="300" y="80" width="160" height="56" rx="8" class="d-fill" />
+          <rect x="300" y="80" width="160" height="56" rx="8" class="d-stroke" />
+          <text x="380" y="106" class="d-text" text-anchor="middle">話者識別</text>
+          <text x="380" y="126" class="d-text-sm" text-anchor="middle">任意</text>
+
+          <rect x="300" y="140" width="160" height="56" rx="8" class="d-fill" />
+          <rect x="300" y="140" width="160" height="56" rx="8" class="d-stroke" />
+          <text x="380" y="166" class="d-text" text-anchor="middle">要約</text>
+          <text x="380" y="186" class="d-text-mono" text-anchor="middle">summary.md</text>
+
+          <rect x="620" y="40" width="160" height="56" rx="8" class="d-fill" />
+          <rect x="620" y="40" width="160" height="56" rx="8" class="d-stroke" />
+          <text x="700" y="66" class="d-text" text-anchor="middle">エンコード</text>
+          <text x="700" y="86" class="d-text-mono" text-anchor="middle">audio.m4a</text>
+
+          <text x="500" y="230" class="d-text-sm" text-anchor="middle">矢印は「前段が失敗したら実行しない」関係を表す</text>
+
+          <defs>
+            <marker id="ah3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="currentColor" class="d-text" />
+            </marker>
+          </defs>
+        </svg>
+        <figcaption>
+          要約が失敗してもエンコードは実行されます。依存していないためです。
+        </figcaption>
+      </figure>
+
+      <h3>状態の持ち方</h3>
+      <ul>
+        <li>各ステップは <code>pending / running / done / failed</code> のいずれかを持ちます。</li>
+        <li>ステップ開始時点でも保存します。途中でアプリが落ちても「実行中で止まった」と分かります。</li>
+        <li>録音全体の状態はステップ群から導出します。実行中が最優先、次に失敗、最後に完了です。</li>
+        <li>中間 WAV は<strong>全ステップが揃うまで消しません</strong>。リトライで再利用するためです。</li>
+      </ul>
+
+      <h2>プロセス分離</h2>
+      <p>
+        推論は <code>utilityProcess</code> に隔離しています。llama.cpp と sherpa-onnx は数 GB の
+        メモリを使うネイティブコードで、main プロセスで動かすとネイティブ側のクラッシュが
+        ウィンドウごとアプリを落とすためです。
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>プロセス</th><th>担当</th><th>落ちたときの影響</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Main</td>
+              <td>録音、ファイル、IPC、トレイ</td>
+              <td>アプリ全体が終了する</td>
+            </tr>
+            <tr>
+              <td>Renderer</td>
+              <td>UI、マイク取得</td>
+              <td>画面が再読み込みされる。録音は main 側で継続</td>
+            </tr>
+            <tr>
+              <td>utilityProcess</td>
+              <td>ミックス、文字起こし、話者識別、要約、エンコード</td>
+              <td>
+                処理中のジョブは失われるが、録音済みファイルと状態はディスクに残る。
+                次の依頼でワーカーを作り直す
+              </td>
+            </tr>
+            <tr>
+              <td>子プロセス</td>
+              <td>audiotee、whisper-cli、afconvert</td>
+              <td>該当ステップのみ失敗する</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        ワーカーは Electron API を持たない Node 環境で動くため、<code>electron</code> を import しません。
+        必要なパス（<code>userData</code>、同梱リソース）は環境変数で渡しています。ジョブは 1 件ずつ
+        直列に処理します。whisper と LLM を同時にメモリへ載せると 16GB では足りないためです。
+      </p>
+
+      <h2>main と renderer の境界</h2>
+      <p>
+        <code>contextIsolation</code> は有効のままで、renderer は <code>ipcRenderer</code> にも Node API にも
+        触れません。preload が型付きの API だけを公開します。境界を越えるデータは <code>Date</code> や
+        クラスインスタンスを避け、プリミティブと素のオブジェクト（DTO）だけで表します。
+      </p>
+      <p>
+        renderer から届く値は信頼できないため、各 IPC ハンドラの入口で型を絞ってからユースケースへ
+        渡します。例外はそのまま返すと <code>Error invoking remote method</code> に包まれて読めなくなるので、
+        利用者向けメッセージだけを持つ Error に詰め替えています。
+      </p>
+
+      <h2>テスト</h2>
+      <p>
+        TDD で先にテストを書く方針です。ポートを Fake に差し替えれば、ユースケースはサーバーも DB も
+        起動せずに完全に検証できます。
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>層</th><th>テストの中心</th><th>I/O</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>domain</td>
+              <td>状態遷移、マージ規則、話者割り当て、バリデーション</td>
+              <td>なし</td>
+            </tr>
+            <tr>
+              <td>application</td>
+              <td>ユースケースの振る舞い、失敗の切り分け、リトライ</td>
+              <td>なし（Fake ポート）</td>
+            </tr>
+            <tr>
+              <td>infrastructure</td>
+              <td>WAV ヘッダ、整列とクリッピング、whisper 出力の解析、再開可能な取得</td>
+              <td>一時ディレクトリ、実 <code>afconvert</code></td>
+            </tr>
+            <tr>
+              <td>統合</td>
+              <td>録音から保存までを本番と同じ実装で通す（推論のみ差し替え）</td>
+              <td>実ファイル、実 <code>afconvert</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        現在 <strong>208 件</strong>。テストが実際に検出した不具合には、録音の書き込み競合による
+        音声欠落があります。
+      </p>
+
+      <h2>差し替えの手順</h2>
+      <p>各バックエンドはポートの裏にあるため、置き換えは局所的です。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>差し替えたいもの</th><th>ポート</th><th>触る場所</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>文字起こし（例: クラウド API）</td>
+              <td><code>TranscriptionPort</code></td>
+              <td>実装を 1 つ追加し、<code>pipeline-container.ts</code> の分岐に足す</td>
+            </tr>
+            <tr>
+              <td>要約</td>
+              <td><code>SummarizationPort</code></td>
+              <td>同上</td>
+            </tr>
+            <tr>
+              <td>話者識別</td>
+              <td><code>DiarizationPort</code></td>
+              <td>同上（無効時は <code>NullDiarizer</code>）</td>
+            </tr>
+            <tr>
+              <td>音声取得</td>
+              <td><code>SystemAudioSource</code></td>
+              <td><code>container.ts</code> の 1 行</td>
+            </tr>
+            <tr>
+              <td>保存形式</td>
+              <td><code>RecordingRepositoryPort</code> / <code>RecordingArtifactPort</code></td>
+              <td><code>container.ts</code> の 2 行</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>いずれの場合も <code>src/domain</code> と <code>src/application</code> は変更しません。</p>
+
+      <footer class="page-footer">
+        <a href="decisions.html">意思決定記録 →</a>
+      </footer>
+    </main>
+  </body>
+</html>

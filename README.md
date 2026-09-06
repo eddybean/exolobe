@@ -93,6 +93,17 @@ npm run dev
 置かれます。モデルは会議の成果物ではなく再取得できるキャッシュなので、
 保存先を圧迫させないためです。
 
+## ドキュメント
+
+`docs/` に HTML で置いています。ブラウザで直接開けます。
+
+| ページ | 内容 |
+| --- | --- |
+| [docs/index.html](docs/index.html) | 概要と現状 |
+| [docs/specification.html](docs/specification.html) | 仕様（動作要件・保存形式・画面・設定・非対応範囲） |
+| [docs/architecture.html](docs/architecture.html) | アーキテクチャ（層構造・プロセス構成・パイプライン） |
+| [docs/decisions.html](docs/decisions.html) | 意思決定記録。採用／不採用の根拠と実測値 |
+
 ## アーキテクチャ
 
 依存は常に内向き（`src/domain` が最も安定した中心）。

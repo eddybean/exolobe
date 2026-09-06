@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>仕様 — 会議レコーダー</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <nav class="topbar">
+      <div class="topbar__inner">
+        <span class="topbar__brand">会議レコーダー</span>
+        <a href="index.html">概要</a>
+        <a href="specification.html" aria-current="page">仕様</a>
+        <a href="architecture.html">アーキテクチャ</a>
+        <a href="decisions.html">意思決定記録</a>
+      </div>
+    </nav>
+
+    <main class="layout">
+      <h1>仕様</h1>
+      <p class="lede">
+        アプリが何をするか、何を保存するか、利用者が何を操作できるかをまとめます。
+        なぜその形になったかは<a href="decisions.html">意思決定記録</a>を参照してください。
+      </p>
+
+      <h2>動作要件</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>項目</th><th>要件</th><th>理由</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>macOS</td>
+              <td>14.2 以上</td>
+              <td>Core Audio Process Tap API の導入バージョン</td>
+            </tr>
+            <tr>
+              <td>CPU</td>
+              <td>Apple Silicon</td>
+              <td>whisper / LLM の Metal 高速化、配布ビルドが arm64 のみ</td>
+            </tr>
+            <tr>
+              <td>メモリ</td>
+              <td>16GB 以上</td>
+              <td>要約モデル（q4 で約 5GB）を読み込むため</td>
+            </tr>
+            <tr>
+              <td>空き容量</td>
+              <td>約 10GB</td>
+              <td>モデル 5.7GB ＋ 録音データ</td>
+            </tr>
+            <tr>
+              <td>ネットワーク</td>
+              <td>初回のモデル取得時のみ</td>
+              <td>以降は完全にオフラインで動作する</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>権限</h2>
+      <p>初回録音時に 2 つの許可を求めます。どちらも録音に必須です。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>権限</th><th>Info.plist キー</th><th>用途</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>オーディオ録音</td>
+              <td><code>NSAudioCaptureUsageDescription</code></td>
+              <td>会議相手の音声（システム出力）の取得</td>
+            </tr>
+            <tr>
+              <td>マイク</td>
+              <td><code>NSMicrophoneUsageDescription</code></td>
+              <td>自分の発言の録音</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note note--warn">
+        <strong>署名が必須です。</strong>
+        <code>NSAudioCaptureUsageDescription</code> による権限は署名済みバイナリでしか有効になりません。
+        無署名で配布するとシステム音声が取得できず、しかも原因が分かりにくい形で失敗します。
+        証明書が用意できない場合でも ad-hoc 署名は必ず行います。
+      </div>
+
+      <h2>録音</h2>
+      <ul>
+        <li>デスクトップ音声（相手）とマイク（自分）を<strong>別トラックで同時録音</strong>します。</li>
+        <li>録音・停止はどの画面でも画面下部のバーから操作できます。</li>
+        <li>ウィンドウを閉じていてもメニューバー（トレイ）から開始・停止できます。</li>
+        <li>録音中は経過時間とマイク入力レベルを表示します。</li>
+        <li>
+          既定は 16kHz モノラル。whisper が 16kHz を前提としており、会議音声には十分なためです。
+          設定で 8000〜48000Hz に変更できます。
+        </li>
+        <li>
+          データはメモリに溜めず<strong>逐次ディスクへ書き出します</strong>。クラッシュしても
+          そこまでの音声は残ります。
+        </li>
+      </ul>
+
+      <h2>停止後の処理</h2>
+      <p>
+        停止すると 5 つのステップが順に実行されます。処理中も UI は操作でき、進捗が一覧に反映されます。
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>#</th><th>ステップ</th><th>内容</th><th>依存</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td><td>ミックス</td>
+              <td>2 トラックを時刻整列し、クリッピング保護つきで 1 本の WAV に合成</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>2</td><td>文字起こし</td>
+              <td>whisper-cli を各トラックに個別実行し、話者 ID を付与してマージ</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>3</td><td>話者識別</td>
+              <td>相手トラックをクラスタリングし「参加者A / 参加者B …」に細分化（任意）</td>
+              <td>2</td>
+            </tr>
+            <tr>
+              <td>4</td><td>要約</td>
+              <td>文字起こしから日本語の議事録を生成</td>
+              <td>2</td>
+            </tr>
+            <tr>
+              <td>5</td><td>エンコード</td>
+              <td>ミックス済み WAV を AAC へ変換し、中間ファイルを削除</td>
+              <td>1</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="verdict">
+        <strong>失敗は依存するステップだけを止めます。</strong>
+        要約に失敗しても音声とエンコードは完了し、最も価値の高い成果物が守られます。
+        失敗したステップは詳細画面から個別に再実行できます。
+      </div>
+
+      <h2>話者識別</h2>
+      <p>2 段階で構成しています。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>段階</th><th>方法</th><th>精度</th><th>有効化</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>自分 / 参加者</td>
+              <td>トラックの由来で決定（推論なし）</td>
+              <td>常に正しい</td>
+              <td>常時</td>
+            </tr>
+            <tr>
+              <td>参加者A / B / C …</td>
+              <td>sherpa-onnx によるクラスタリング</td>
+              <td>環境依存</td>
+              <td>設定＋モデル取得時</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        話者名は詳細画面でクリックして変更できます。話者数の上限を超えたクラスタは、
+        発話時間の合計が短いものから捨てられ、汎用の「参加者」ラベルに戻ります。
+      </p>
+
+      <h2>保存されるファイル</h2>
+      <p>保存先は初期設定で選びます。1 回の録音が 1 ディレクトリにまとまります。</p>
+      <pre><code>&lt;保存先&gt;/
+├── index.json                        一覧用のキャッシュ
+└── 2026-09-06_1430_チーム定例/
+    ├── meta.json                     この録音の情報（一覧はここから再構築できる）
+    ├── audio.m4a                     AAC-LC 32kbps mono（1 時間あたり約 14MB）
+    ├── transcript.json               話者・時刻つき（機械可読）
+    ├── transcript.md                 コピペ用
+    ├── summary.md                    要約
+    └── note.md                       自分のメモ</code></pre>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>置き場所</th><th>内容</th><th>方針</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>利用者が選んだ保存先</td>
+              <td>音声・文字起こし・要約・メモ</td>
+              <td>他のツールでも読める形式（m4a / Markdown / JSON）のみを置く</td>
+            </tr>
+            <tr>
+              <td><code>~/Library/Application Support/…/work/</code></td>
+              <td>録音中の WAV、トラック情報</td>
+              <td>エンコード完了後に削除。保存先を汚さない</td>
+            </tr>
+            <tr>
+              <td><code>~/Library/Application Support/…/models/</code></td>
+              <td>ダウンロードしたモデル</td>
+              <td>再取得できるキャッシュなので保存先とは分ける</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        <code>index.json</code> はあくまで一覧表示を速くするためのキャッシュです。正は各ディレクトリの
+        <code>meta.json</code> で、<code>index.json</code> を失っても壊れても一覧は再構築されます。
+        利用者がディレクトリを整理・移動しても録音が消えません。書き込みは一時ファイル経由の置換で行うため、
+        中断しても壊れたファイルが残りません。
+      </p>
+
+      <h2>モデル</h2>
+      <p>初回起動時の画面からアプリ内でダウンロードできます。事前準備は不要です。</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>用途</th><th>モデル</th><th>サイズ</th><th>必須</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>文字起こし</td>
+              <td>whisper large-v3-turbo（q5_0）</td>
+              <td>574MB</td>
+              <td>はい</td>
+            </tr>
+            <tr>
+              <td>要約</td>
+              <td>Gemma 4 E4B（QAT q4_0）</td>
+              <td>5.2GB</td>
+              <td>はい</td>
+            </tr>
+            <tr>
+              <td>話者分割</td>
+              <td>pyannote segmentation 3.0</td>
+              <td>7MB</td>
+              <td>いいえ</td>
+            </tr>
+            <tr>
+              <td>話者埋め込み</td>
+              <td>3D-Speaker CAM++</td>
+              <td>28MB</td>
+              <td>いいえ</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li>中断でき、次回は<strong>途中から再開</strong>します（Range 要求）。</li>
+        <li>必須モデルは <strong>sha256 を検証</strong>します。壊れていれば保存せず破棄します。</li>
+        <li>完成するまで最終パスに置かないため、中断で壊れたモデルを掴むことがありません。</li>
+        <li>取得したパスは自動的に設定へ書き込まれます。利用者がパスを入力する必要はありません。</li>
+      </ul>
+      <p>
+        <strong>モデルが無くても録音は始められます。</strong>先に会議を録っておき、後から詳細画面で
+        文字起こしと要約だけを実行できます。
+      </p>
+
+      <h2>画面</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>画面</th><th>できること</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>操作バー（常時表示）</td>
+              <td>録音 / 停止、経過時間、マイク入力レベル、エラー表示</td>
+            </tr>
+            <tr>
+              <td>一覧</td>
+              <td>日付降順の表示、タイトル・要約による絞り込み、処理状態の確認</td>
+            </tr>
+            <tr>
+              <td>詳細</td>
+              <td>
+                音声再生、時刻クリックでのシーク、話者名の変更、文字起こしと要約の個別コピー、
+                メモの編集（自動保存）、失敗ステップの再実行、Finder で表示
+              </td>
+            </tr>
+            <tr>
+              <td>設定</td>
+              <td>
+                保存先、モデルの取得と指定、文字起こし言語、要約プロンプト、話者識別の有効化と上限、
+                サンプルレート、コーデック、ビットレート
+              </td>
+            </tr>
+            <tr>
+              <td>初期設定</td>
+              <td>保存先の選択、モデルの取得、権限についての案内</td>
+            </tr>
+            <tr>
+              <td>メニューバー</td>
+              <td>ウィンドウを閉じたままの録音 / 停止</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>設定できること</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>項目</th><th>既定値</th><th>備考</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>保存先</td><td>未設定</td><td>決まるまで録音を開始できない唯一の項目</td></tr>
+            <tr><td>文字起こしモデル</td><td>未設定</td><td>ダウンロードで自動設定</td></tr>
+            <tr><td>whisper-cli のパス</td><td><code>whisper-cli</code></td><td>既定のままなら同梱バイナリを優先</td></tr>
+            <tr><td>言語</td><td>日本語</td><td>英語 / 自動判定も選べる</td></tr>
+            <tr><td>要約モデル</td><td>未設定</td><td>GGUF なら差し替え可能</td></tr>
+            <tr><td>コンテキスト長</td><td>32768</td><td>1 時間の会議を分割せず要約できる長さ</td></tr>
+            <tr><td>要約プロンプト</td><td>議事録テンプレート</td><td><code>{{transcript}}</code> の位置に本文が入る</td></tr>
+            <tr><td>話者識別</td><td>有効</td><td>無効でも 2 話者には常に分かれる</td></tr>
+            <tr><td>話者数の上限</td><td>6</td><td>超過分は発話時間の短い順に捨てる</td></tr>
+            <tr><td>サンプルレート</td><td>16000 Hz</td><td>whisper の前提に合わせている</td></tr>
+            <tr><td>コーデック</td><td>AAC-LC</td><td>HE-AAC も選べるが 8kHz に落ちる</td></tr>
+            <tr><td>ビットレート</td><td>32 kbps</td><td>1 時間あたり約 14MB</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>対応していないこと</h2>
+      <ul>
+        <li><strong>リアルタイム字幕</strong>。録音中は推論を行わず、停止後にまとめて処理します。→ <a href="decisions.html#adr-009">ADR-009</a></li>
+        <li><strong>Intel Mac</strong>。配布ビルドは arm64 のみです。</li>
+        <li><strong>Windows / Linux</strong>。Core Audio Process Tap と afconvert が macOS 固有です。</li>
+        <li><strong>クラウドのモデル</strong>。ポートは分離してあるため追加は可能ですが、現状の実装はローカルのみです。</li>
+        <li><strong>既定以外の出力デバイス</strong>。audiotee は既定の出力デバイスのみを取得します。</li>
+        <li><strong>自動更新</strong>。Release からの手動ダウンロードのみです。</li>
+      </ul>
+
+      <footer class="page-footer">
+        <a href="architecture.html">アーキテクチャ →</a>
+      </footer>
+    </main>
+  </body>
+</html>

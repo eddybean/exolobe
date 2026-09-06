@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>意思決定記録 — 会議レコーダー</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <nav class="topbar">
+      <div class="topbar__inner">
+        <span class="topbar__brand">会議レコーダー</span>
+        <a href="index.html">概要</a>
+        <a href="specification.html">仕様</a>
+        <a href="architecture.html">アーキテクチャ</a>
+        <a href="decisions.html" aria-current="page">意思決定記録</a>
+      </div>
+    </nav>
+
+    <main class="layout">
+      <h1>意思決定記録</h1>
+      <p class="lede">
+        何を採用し、何を不採用にしたか。判断の背景と、実際に計測した値を残します。
+        後から読む人が同じ検討を繰り返さずに済むこと、そして前提が変わったときに
+        判断をやり直せることが目的です。
+      </p>
+
+      <h2>一覧</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>主題</th><th>結論</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><a href="#adr-001">ADR-001</a></td><td>デスクトップ音声の取得方式</td><td>Core Audio Process Tap</td></tr>
+            <tr><td><a href="#adr-002">ADR-002</a></td><td>アプリの実装スタック</td><td>Electron + React</td></tr>
+            <tr><td><a href="#adr-003">ADR-003</a></td><td>推論の実行場所</td><td>完全ローカル</td></tr>
+            <tr><td><a href="#adr-004">ADR-004</a></td><td>要約のバックエンド</td><td>node-llama-cpp</td></tr>
+            <tr><td><a href="#adr-004b">ADR-004b</a></td><td>要約モデル</td><td>Gemma 4 E4B (QAT q4_0)</td></tr>
+            <tr><td><a href="#adr-005">ADR-005</a></td><td>音声コーデック</td><td>AAC-LC</td></tr>
+            <tr><td><a href="#adr-006">ADR-006</a></td><td>話者識別の方式</td><td>トラック分離＋任意のクラスタリング</td></tr>
+            <tr><td><a href="#adr-007">ADR-007</a></td><td>whisper バイナリの配布</td><td>パッケージ時にビルドして同梱</td></tr>
+            <tr><td><a href="#adr-008">ADR-008</a></td><td>パイプラインの実行場所</td><td>utilityProcess に隔離</td></tr>
+            <tr><td><a href="#adr-009">ADR-009</a></td><td>文字起こしのタイミング</td><td>停止後にバックグラウンド処理</td></tr>
+            <tr><td><a href="#adr-010">ADR-010</a></td><td>ステップ失敗時の扱い</td><td>依存するステップだけを止める</td></tr>
+            <tr><td><a href="#adr-011">ADR-011</a></td><td>モデルの入手経路</td><td>アプリ内ダウンロード</td></tr>
+            <tr><td><a href="#adr-012">ADR-012</a></td><td>main / preload のモジュール形式</td><td>CJS</td></tr>
+            <tr><td><a href="#adr-013">ADR-013</a></td><td>アプリ名</td><td>実行名は ASCII、表示名のみ日本語</td></tr>
+            <tr><td><a href="#adr-014">ADR-014</a></td><td>配布時のコード署名</td><td>ad-hoc 署名を最低ラインとする</td></tr>
+            <tr><td><a href="#adr-015">ADR-015</a></td><td>一覧データの持ち方</td><td>meta.json を正、index.json をキャッシュ</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-001">ADR-001 デスクトップ音声の取得方式</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-001</span>
+          <p class="adr__title">Core Audio Process Tap でシステム出力を複製する</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          当初の要望は「仮想デバイスを用いず、画面の録画機能などでデスクトップ音声をキャプチャしたい」
+          でした。仮想デバイス不要という条件は満たせますが、画面録画 API が最善とは限りません。
+        </p>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>方式</th><th>判定</th><th>理由</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>BlackHole 等の仮想オーディオデバイス</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>要望により除外。利用者に別途インストールと出力先の切り替えを強いる</td>
+              </tr>
+              <tr>
+                <td>ScreenCaptureKit（<code>SCStream.capturesAudio</code>）</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>
+                  「画面収録」権限が必要で紫のインジケータが常時点灯する。映像処理のオーバーヘッドを伴う。
+                  ポストミキサー録音のためシステム音量を下げると録音音量も下がる
+                </td>
+              </tr>
+              <tr>
+                <td>Electron <code>getDisplayMedia</code> の loopback audio</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>
+                  macOS では Chromium の内部フラグ依存で不安定。Electron 39 で CoreAudio Tap が
+                  デフォルト化されるなど破壊的変更が続いており、不具合報告も多い
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Core Audio Process Tap</strong>（macOS 14.2+）</td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>下記</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>採用した理由</h4>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>観点</th><th>Core Audio Tap</th><th>ScreenCaptureKit</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>権限</td><td>オーディオ録音のみ</td><td>画面収録</td></tr>
+              <tr><td>収録インジケータ</td><td>出ない</td><td>紫のインジケータが点灯</td></tr>
+              <tr><td>システム音量の影響</td><td>受けない（プリミキサー）</td><td>追従する</td></tr>
+              <tr><td>映像処理</td><td>なし</td><td>あり</td></tr>
+              <tr><td>権限付与後の再起動</td><td>不要</td><td>求められることが多い</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>結論。</strong>要望の本質は「仮想デバイスを入れさせないこと」であり、画面録画 API は
+          そのための手段の一案にすぎませんでした。Core Audio Tap は同じ目的をより低い権限で、
+          より良い音質で達成します。実装は npm パッケージ <code>audiotee</code>（Swift バイナリの薄いラッパー）を
+          使い、Electron に同梱すると親アプリの署名を継承します。
+        </div>
+
+        <h4>受け入れた制約</h4>
+        <ul>
+          <li>macOS 14.2 以上が必須になる。</li>
+          <li>既定の出力デバイスからしか取得できない。会議中の出力先変更には追従しない。</li>
+          <li>権限の性質上、署名済みバイナリでなければ動かない（→ <a href="#adr-014">ADR-014</a>）。</li>
+        </ul>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-002">ADR-002 アプリの実装スタック</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-002</span>
+          <p class="adr__title">Electron + React を採用し、ネイティブ SwiftUI を見送る</p>
+        </div>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>案</th><th>判定</th><th>評価</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>ネイティブ SwiftUI</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>
+                  軽量・省電力・OS 統合は最良。macOS 26 の SpeechAnalyzer によるオンデバイス
+                  日本語文字起こしも使える。一方で UI と ML 周辺の実装コストが高く、
+                  推論エコシステム（whisper.cpp / llama.cpp / sherpa-onnx）の Node 連携が使えない
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Electron + React</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>
+                  UI の実装が速い。音声キャプチャは小さな Swift バイナリを子プロセスとして
+                  同梱すれば足りる。推論ライブラリの Node バインディングがそのまま使える
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>受け入れた代償</h4>
+        <ul>
+          <li>アプリサイズが約 142MB。</li>
+          <li>メモリ使用量がネイティブより多い。</li>
+          <li>OS の新 API（SpeechAnalyzer 等）をすぐには使えない。</li>
+        </ul>
+        <p class="note">
+          将来ネイティブへ移行する場合でも、業務ルールは <code>src/domain</code> と
+          <code>src/application</code> に閉じているため、書き換えの対象は外側の層に限られます。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-003">ADR-003 推論の実行場所</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-003</span>
+          <p class="adr__title">文字起こしも要約も完全にローカルで行う</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>会議の音声と議事録は機微情報を含みます。処理場所の選択はプライバシーとコストに直結します。</p>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>案</th><th>判定</th><th>評価</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>クラウド API（Whisper API / Claude API 等）</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>精度と要約品質は最高。ただし会議音声そのものが外部へ送信される。従量課金も発生する</td>
+              </tr>
+              <tr>
+                <td>ハイブリッド（文字起こしはローカル、要約はクラウド）</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>音声は守られるが、議事録の全文が外部へ出る</td>
+              </tr>
+              <tr>
+                <td><strong>完全ローカル</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>音声もテキストも一切外に出ない。オフラインでも動く。従量課金なし</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>結論。</strong>会議録音という用途では、機密性が要約品質より優先されます。
+          ただし <code>TranscriptionPort</code> と <code>SummarizationPort</code> を分離してあるため、
+          クラウド実装の追加は後からでも局所的な変更で済みます。
+        </div>
+
+        <h4>受け入れた代償</h4>
+        <ul>
+          <li>要約品質はクラウドの大規模モデルに劣る。</li>
+          <li>初回に約 5.7GB のモデルダウンロードが必要（→ <a href="#adr-011">ADR-011</a>）。</li>
+          <li>16GB のメモリでは whisper と LLM を同時に載せられず、逐次実行になる。</li>
+        </ul>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-004">ADR-004 要約のバックエンド</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-004</span>
+          <p class="adr__title">Ollama をやめて node-llama-cpp をアプリ内に取り込む</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          当初は Ollama の HTTP API を叩く設計でした。実装の途中で「Ollama に依存せずアプリ内に
+          バンドルできないか」という問いが出たため、再検討しました。
+        </p>
+
+        <h4>比較</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>観点</th><th>Ollama</th><th>node-llama-cpp</th></tr></thead>
+            <tbody>
+              <tr><td>利用者の事前準備</td><td>インストールと常駐が必要</td><td>不要</td></tr>
+              <tr><td>モデルの入手</td><td>Ollama が管理</td><td>アプリが管理（GGUF）</td></tr>
+              <tr><td>モデルのサイズ</td><td>約 5GB</td><td>約 5GB（差なし）</td></tr>
+              <tr><td>アプリサイズ</td><td>増えない</td><td>約 +80MB</td></tr>
+              <tr><td>メモリ解放</td><td>自動アンロード</td><td>明示的な <code>dispose()</code> が必要</td></tr>
+              <tr><td>失敗の分かりやすさ</td><td>「起動していない」が頻発</td><td>アプリ内で完結</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>結論。</strong>モデルのダウンロード量は変わらないため、Ollama の利点は
+          「アプリサイズが増えないこと」だけでした。それに対し「利用者が別ツールを入れて
+          常駐させる」という導入時の摩擦は大きく、割に合いません。
+          <code>@node-llama-cpp/mac-arm64-metal</code> のプリビルドがあることを確認して採用しました。
+        </div>
+
+        <h4>実装上の注意</h4>
+        <ul>
+          <li>16GB では whisper と同時に載せられないため、要約が終わったら必ず <code>dispose()</code> する。</li>
+          <li>ネイティブモジュールなので、パッケージ時に asar から展開する設定が要る。</li>
+          <li>ESM 専用パッケージのため、CJS の main からは動的 <code>import()</code> で読む（→ <a href="#adr-012">ADR-012</a>）。</li>
+        </ul>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-004b">ADR-004b 要約モデル</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-004b</span>
+          <p class="adr__title">Qwen3-8B から Gemma 4 E4B (QAT q4_0) へ変更する</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          当初の既定は Qwen3-8B でした。日本語に強いモデルとして Gemma 4 E4B の提案があり、
+          比較した結果こちらを既定にしました。
+        </p>
+
+        <h4>比較</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>観点</th><th>Qwen3-8B Q4_K_M</th><th>Gemma 4 E4B QAT q4_0</th></tr></thead>
+            <tbody>
+              <tr><td>コンテキスト長</td><td>8K</td><td><strong>128K</strong></td></tr>
+              <tr><td>ファイルサイズ</td><td>約 5GB</td><td>5.15GB</td></tr>
+              <tr><td>量子化</td><td>後付け量子化</td><td>QAT（量子化を考慮した学習）</td></tr>
+              <tr><td>1 時間の会議</td><td>分割要約が必要</td><td>一度に読める</td></tr>
+              <tr><td>配布元</td><td>コミュニティ</td><td>Google 公式（非 gated を確認済み）</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>決め手はコンテキスト長です。</strong>
+          分割要約は部分ごとに文脈が切れ、決定事項や担当者を取りこぼしやすくなります。
+          1 時間規模の会議を一度に読ませられることは、要約品質に直接効きます。
+          サイズはほぼ同じで容量面の利得はありません（E4B は「実効 4.5B」ですが総パラメータは約 8B）。
+          日本語の扱いと、q4 での劣化が小さい QAT 版であることも理由です。
+        </div>
+
+        <h4>付随する変更</h4>
+        <p>
+          既定のコンテキスト長を 8192 から 32768 へ引き上げました。128K すべてを使わないのは、
+          KV キャッシュがメモリを大きく消費するためです。32K あれば 16kHz の 1 時間の会議は
+          分割せずに収まります。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-005">ADR-005 音声コーデック</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-005</span>
+          <p class="adr__title">HE-AAC ではなく AAC-LC を既定にする</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          「ファイル容量を節約するためエンコードして抑えたい」という要望に対し、当初は低ビットレートに
+          強い HE-AAC（<code>aach</code>）を選びました。実測したところ想定と異なる挙動をしました。
+        </p>
+
+        <h4>実測</h4>
+        <p>16kHz モノラルの帯域制限ノイズ 60 秒を <code>-b 32000 -s 3</code> でエンコードした結果:</p>
+        <div class="measured">
+          <span class="measured__label">計測結果</span>
+          入力  n.wav          1,920,044 bytes  (16kHz mono 16bit = 256kbps)<br />
+          aach  out_aach.m4a      79,808 bytes  → 10 kbps / コア 8000 Hz<br />
+          aac   out_aac.m4a      239,487 bytes  → 31 kbps / 16000 Hz
+        </div>
+
+        <div class="verdict">
+          <strong>HE-AAC は指定ビットレートを無視していました。</strong>
+          <code>-b 32000</code> を与えてもコアを 8kHz・約 10kbps まで落とします。容量は 1/3 になりますが、
+          会議音声の明瞭さと、後から再度文字起こしできる余地を損ないます。AAC-LC は 16kHz と
+          指定ビットレートを維持し、<strong>1 時間あたり約 14MB</strong> に収まります。これは十分に小さく、
+          容量のために品質を犠牲にする理由がありません。
+        </div>
+
+        <h4>扱い</h4>
+        <ul>
+          <li>既定は AAC-LC。設定で HE-AAC も選べる（最小サイズを優先したい場合のため）。</li>
+          <li>この挙動はテストで固定してあり、既定を戻す変更は失敗する。</li>
+          <li><code>ffmpeg</code> は同梱しない。macOS 標準の <code>afconvert</code> で足りるため。</li>
+        </ul>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-006">ADR-006 話者識別の方式</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-006</span>
+          <p class="adr__title">トラック分離を土台にし、クラスタリングは任意で重ねる</p>
+        </div>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>案</th><th>判定</th><th>評価</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>混合音声にフルダイアライゼーション</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>精度が環境依存で誤りが出やすい。自分の声まで推論対象になり、確実に分かる情報を捨てている</td>
+              </tr>
+              <tr>
+                <td>2 話者分離のみ</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>実装は単純で 100% 正確だが、相手が複数人でも 1 人扱いになる</td>
+              </tr>
+              <tr>
+                <td><strong>段階実装</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>下記</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>設計</h4>
+        <p>
+          マイクとシステム音声を別トラックで録るため、<strong>「自分」と「相手」は推論なしで確定します</strong>。
+          その上で、相手トラックにだけ sherpa-onnx のクラスタリングを掛けて「参加者A / B / C …」へ
+          細分化します。自分のトラックを推論に掛けないぶん、精度と処理時間の両方で有利になります。
+        </p>
+
+        <h4>副次的な利点</h4>
+        <ul>
+          <li>文字起こしをトラックごとに実行するため、クロストークの影響を受けない。</li>
+          <li>クラスタリングが失敗しても、2 話者分離のまま処理を続行できる（<code>NullDiarizer</code>）。</li>
+          <li>話者名は詳細画面で手動変更できる。推論の誤りを利用者が直せる。</li>
+        </ul>
+
+        <h4>話者数の上限</h4>
+        <p>
+          sherpa-onnx の閾値クラスタリングは話者数を指定できず、雑音や短い相槌で実際より多くの
+          クラスタを作ります。発話時間の合計が長い話者から上限まで残し、あふれた分のターンは捨てます。
+          捨てられた区間は汎用の「参加者」ラベルに戻ります。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-007">ADR-007 whisper バイナリの配布</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-007</span>
+          <p class="adr__title">パッケージ時にビルドして同梱する</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          モデルファイルはアプリ内でダウンロードできますが、<code>whisper-cli</code> は実行バイナリです。
+          配布版の利用者に Homebrew を要求したくありません。
+        </p>
+
+        <h4>調査結果</h4>
+        <p>whisper.cpp の最新リリース資産を確認しました。</p>
+        <div class="measured">
+          <span class="measured__label">whisper.cpp リリース資産</span>
+          whisper-b4938-xcframework.zip      53.6 MB   ← ライブラリ（CLI ではない）<br />
+          whisper-bin-ubuntu-arm64.tar.gz     4.6 MB<br />
+          whisper-bin-ubuntu-x64.tar.gz       9.5 MB<br />
+          whisper-bin-Win32.zip               5.3 MB<br />
+          whisper-bin-x64.zip                 8.4 MB<br />
+          <span style="opacity:0.7">（macOS 向けの CLI バイナリは存在しない）</span>
+        </div>
+
+        <div class="verdict">
+          <strong>ダウンロードでは解決できません。</strong>
+          <code>scripts/build-whisper.sh</code> がパッケージ時に whisper.cpp を Metal 有効・静的リンクで
+          ビルドし、<code>resources/bin/whisper-cli</code> として同梱します。
+        </div>
+
+        <h4>実行時の解決順</h4>
+        <ol>
+          <li>設定に書かれたパス（既定値 <code>whisper-cli</code> 以外のとき）</li>
+          <li>同梱バイナリ（パッケージ済みアプリのとき）</li>
+          <li>PATH 上の <code>whisper-cli</code>（開発時）</li>
+        </ol>
+        <p>
+          設定を最優先にしているのは、手元でビルドした版や別バージョンを使いたいケースを
+          塞がないためです。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-008">ADR-008 パイプラインの実行場所</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-008</span>
+          <p class="adr__title">推論を utilityProcess に隔離する</p>
+        </div>
+
+        <h4>理由</h4>
+        <p>
+          llama.cpp と sherpa-onnx は数 GB のメモリを使うネイティブコードです。main プロセスで
+          動かすと、ネイティブ側のクラッシュがウィンドウごとアプリを落とします。録音済みの
+          データを扱うアプリでこれは受け入れられません。
+        </p>
+
+        <div class="verdict">
+          <strong>隔離の効果。</strong>ワーカーが落ちても main は生き残り、録音済みファイルと
+          各ステップの状態はディスクに残ります。利用者には「処理プロセスが終了しました」と伝え、
+          詳細画面から失敗したステップを再実行できます。
+        </div>
+
+        <h4>設計上の制約</h4>
+        <ul>
+          <li>
+            ワーカーは Electron API を持たない Node 環境で動くため <code>electron</code> を import できない。
+            必要なパスは環境変数で渡す。
+          </li>
+          <li>
+            ジョブは 1 件ずつ直列に処理する。whisper と LLM を同時に載せると 16GB では足りない。
+          </li>
+          <li>ワーカーは必要になったときに起動し、落ちたら次の依頼で作り直す。</li>
+        </ul>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-009">ADR-009 文字起こしのタイミング</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-009</span>
+          <p class="adr__title">録音中は推論せず、停止後にまとめて処理する</p>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>案</th><th>判定</th><th>評価</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>リアルタイム字幕＋後処理</td>
+                <td><span class="tag tag--defer">見送り</span></td>
+                <td>
+                  UX は良いが実装量が大きく、会議中の発熱・電池消費が増える。
+                  会議アプリと CPU を奪い合うリスクもある
+                </td>
+              </tr>
+              <tr>
+                <td><strong>停止後にバックグラウンド処理</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>録音中は軽量な書き込みのみ。精度が高く、実装もシンプル</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>
+          録音中に行うのは PCM のディスク書き込みだけです。会議そのものを妨げないことを優先しました。
+          リアルタイム字幕は将来の追加候補として残しています。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-010">ADR-010 ステップ失敗時の扱い</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-010</span>
+          <p class="adr__title">失敗は依存するステップだけを止める</p>
+        </div>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>案</th><th>判定</th><th>評価</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>1 つでも失敗したら全体を中止</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>要約に失敗しただけで音声すら残らない。最も価値の高い成果物を失う</td>
+              </tr>
+              <tr>
+                <td>失敗を無視して続行</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>文字起こしが無いのに要約を試みるなど、無意味な処理と分かりにくいエラーを生む</td>
+              </tr>
+              <tr>
+                <td><strong>依存関係を宣言して部分的に止める</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>下記</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>効果</h4>
+        <ul>
+          <li>要約が失敗しても、音声のミックスとエンコードは完了する。</li>
+          <li>文字起こしが失敗したら、話者識別と要約はスキップして理由を記録する。</li>
+          <li>ステップは成果物ファイル経由でのみつながるため、個別リトライが自然に成立する。</li>
+          <li>中間 WAV は全ステップが揃うまで消さない。リトライで再利用するため。</li>
+        </ul>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-011">ADR-011 モデルの入手経路</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-011</span>
+          <p class="adr__title">アプリ内でダウンロードし、設定へ自動反映する</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          当初はセットアップスクリプトで Homebrew とモデルを導入する前提でした。配布版の利用者に
+          ターミナル操作を求めるのは現実的ではありません。
+        </p>
+
+        <h4>設計</h4>
+        <p>数 GB のファイルを扱うため、次の 3 点を守っています。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>方針</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>完了するまで最終パスに置かない</td>
+                <td>中断で壊れたモデルを掴ませない。読み込み時に分かりにくいエラーになるため</td>
+              </tr>
+              <tr>
+                <td>Range 要求で再開する</td>
+                <td>不安定な回線で 5GB を最初からやり直させない。中断時も受信済みバイトは書き込んでから止める</td>
+              </tr>
+              <tr>
+                <td>sha256 を検証する</td>
+                <td>壊れていれば途中ファイルごと破棄する。残すと再開のたびに同じ失敗を繰り返すため</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>確認したこと</h4>
+        <ul>
+          <li>Google の Hugging Face リポジトリはライセンス同意で gate されていることが多いため、対象が非 gated であることを確認した。</li>
+          <li>チェックサムは実際のレスポンスヘッダから取得した実測値を埋め込んでいる。</li>
+        </ul>
+
+        <div class="verdict">
+          <strong>モデルが無くても録音は始められます。</strong>
+          必須にしているのは保存先の選択だけです。先に会議を録っておき、後から文字起こしと
+          要約を実行できます。5.7GB のダウンロードを待たせてから会議に臨ませる設計にはしません。
+        </div>
+
+        <p class="note">
+          モデルは録音の保存先ではなくアプリのデータディレクトリに置きます。
+          モデルは会議の成果物ではなく再取得できるキャッシュであり、利用者の保存先を
+          圧迫させないためです。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-012">ADR-012 main / preload のモジュール形式</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-012</span>
+          <p class="adr__title">electron-vite の既定である CJS を使う</p>
+        </div>
+
+        <h4>経緯</h4>
+        <p>
+          当初 <code>"type": "module"</code> で ESM 出力にしたところ起動に失敗し、
+          「Electron の ESM main では <code>electron</code> の名前付きインポートが解決できない」と
+          判断して CJS へ切り替えました。
+        </p>
+
+        <div class="note note--warn">
+          <strong>この判断理由は誤りでした。</strong>
+          実際の原因は、検証に使ったシェルに <code>ELECTRON_RUN_AS_NODE=1</code> が設定されており、
+          Electron が素の Node として起動していたことです。環境変数を解除した状態では
+          ESM main でも <code>import { app } from 'electron'</code> は正常に解決されます。
+        </div>
+
+        <h4>それでも CJS のままにした理由</h4>
+        <ul>
+          <li>electron-vite の既定であり、最も広く使われている構成である。</li>
+          <li>ESM 専用の <code>audiotee</code> と <code>node-llama-cpp</code> は動的 <code>import()</code> で読める。CJS 出力でも <code>import()</code> は <code>require</code> に変換されない。</li>
+          <li>既定から外れることで得られる利点が無い。</li>
+        </ul>
+
+        <p class="note">
+          起動しないときは <code>ELECTRON_RUN_AS_NODE</code> を確認してください。
+          この環境変数が設定されていると、Electron は GUI を起動せず <code>require('electron')</code> が
+          API を返しません。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-013">ADR-013 アプリ名</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-013</span>
+          <p class="adr__title">実行ファイル名は ASCII、表示名だけ日本語にする</p>
+        </div>
+
+        <h4>発見した不具合</h4>
+        <p>
+          <code>productName: 会議レコーダー</code> でパッケージすると、生成されたアプリが
+          <strong>起動直後に SIGTRAP で落ちました</strong>。ログもクラッシュレポートも出ません。
+        </p>
+
+        <h4>切り分け</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>検証</th><th>結果</th></tr></thead>
+            <tbody>
+              <tr><td>署名を外す</td><td>SIGKILL（arm64 は署名必須のため当然）</td></tr>
+              <tr><td><code>--deep</code> で署名し直す</td><td>SIGTRAP のまま</td></tr>
+              <tr><td>hardened runtime を外す</td><td>SIGTRAP のまま</td></tr>
+              <tr><td>同じ app.asar を開発版 Electron で実行</td><td><strong>正常に起動</strong>（＝アプリのコードは無実）</td></tr>
+              <tr><td><code>productName</code> を ASCII に変更</td><td><strong>正常に起動</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>原因は日本語の productName でした。</strong>
+          実行ファイル名・ヘルパーアプリ名・フレームワーク参照がすべてこの名前から生成されるためです。
+          <code>productName</code> を <code>Meeting Recorder</code> に戻し、利用者に見える名前は
+          <code>CFBundleDisplayName</code> で日本語にしました。Finder やメニューバーでは
+          従来どおり「会議レコーダー」と表示されます。
+        </div>
+
+        <p>
+          Release 資産のファイル名も <code>artifactName</code> で ASCII に固定しています。
+          日本語のままだと URL がパーセントエンコードされて扱いにくくなるためです。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-014">ADR-014 配布時のコード署名</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-014</span>
+          <p class="adr__title">証明書が無くても ad-hoc 署名は必ず行う</p>
+        </div>
+
+        <h4>制約</h4>
+        <p>
+          <code>NSAudioCaptureUsageDescription</code> による権限は<strong>署名済みバイナリでしか
+          有効になりません</strong>。無署名で配布すると、アプリは起動してもシステム音声が取得できず、
+          しかも原因が分かりにくい形で失敗します。
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>案</th><th>判定</th><th>結果</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>署名しない</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>機能しないアプリになる。選択肢として成立しない</td>
+              </tr>
+              <tr>
+                <td><strong>ad-hoc 署名</strong></td>
+                <td><span class="tag tag--adopt">採用（現状）</span></td>
+                <td>権限は機能する。ただし Gatekeeper に隔離され、利用者が一度だけ解除操作を要する</td>
+              </tr>
+              <tr>
+                <td>Developer ID 署名＋公証</td>
+                <td><span class="tag tag--defer">対応済み・未使用</span></td>
+                <td>Secrets を登録すれば自動で切り替わる。証明書の用意が前提</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>ad-hoc 署名で配布した場合、利用者側で一度だけ次の操作が必要です。</p>
+        <pre><code>xattr -dr com.apple.quarantine "/Applications/会議レコーダー.app"</code></pre>
+        <p>この手順は Release の説明文に自動で記載されます。</p>
+
+        <h4>開発時の注意</h4>
+        <p>
+          <code>electron-vite dev</code> は <code>node_modules</code> 内の Electron.app を起動するため、
+          そのままでは Info.plist に権限キーが無く、権限プロンプトが出ません。
+          <code>postinstall</code> でキーを注入して ad-hoc 再署名しています。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-015">ADR-015 一覧データの持ち方</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-015</span>
+          <p class="adr__title">meta.json を正とし、index.json はキャッシュとして扱う</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          保存先は利用者のディレクトリです。Finder で移動されたり、他のツールで整理されたり、
+          バックアップから部分的に復元されたりします。単一のインデックスファイルに依存すると、
+          その一箇所が壊れただけで一覧が消えます。
+        </p>
+
+        <div class="verdict">
+          <strong>結論。</strong>各録音ディレクトリの <code>meta.json</code> を正とし、
+          ルートの <code>index.json</code> は一覧表示を速くするためのキャッシュに留めます。
+          <code>index.json</code> が失われても壊れていても、<code>meta.json</code> から一覧を再構築します。
+        </div>
+
+        <h4>あわせて守っていること</h4>
+        <ul>
+          <li>書き込みは一時ファイル経由の置換で行う。中断しても壊れたファイルを残さない。</li>
+          <li>保存済み JSON は既定値へマージして読む。設定項目が増えても古いファイルが使える。</li>
+          <li>壊れた JSON は「まだ無い」として扱い、起動を止めない。</li>
+          <li>保存先が未設定でも一覧はエラーにせず空を返す。初期設定画面より先にエラーを出さないため。</li>
+        </ul>
+      </div>
+
+      <h2>今後見直す可能性がある判断</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>判断</th><th>見直しの引き金</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><a href="#adr-002">ADR-002</a> Electron</td>
+              <td>省電力やアプリサイズが問題になったとき。macOS の SpeechAnalyzer を使いたくなったとき</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-003">ADR-003</a> 完全ローカル</td>
+              <td>要約品質が実用に足りないと分かったとき（ポートは分離済み）</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-009">ADR-009</a> 後処理のみ</td>
+              <td>会議中に内容を確認したいという要求が出たとき</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-014">ADR-014</a> ad-hoc 署名</td>
+              <td>自分以外に配布するとき。Apple Developer Program への登録が前提</td>
+            </tr>
+            <tr>
+              <td>arm64 のみのビルド</td>
+              <td>Intel Mac の利用者が出たとき。whisper-cli をホスト依存でビルドしているため CI にジョブ追加が要る</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <footer class="page-footer">
+        <a href="index.html">← 概要へ戻る</a>
+      </footer>
+    </main>
+  </body>
+</html>

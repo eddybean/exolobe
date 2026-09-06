@@ -1,0 +1,409 @@
+/* 会議レコーダー ドキュメント共通スタイル。
+   ブラウザで直接開く前提のため、外部依存を持たず 1 ファイルで完結させる。 */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #fbfbfc;
+  --surface: #ffffff;
+  --surface-2: #f2f2f5;
+  --border: #e0e0e4;
+  --text: #16161a;
+  --text-muted: #63636b;
+  --accent: #0a58c2;
+  --accent-soft: #e8f0fd;
+  --good: #1f7a3f;
+  --good-soft: #e6f4ea;
+  --bad: #b3261e;
+  --bad-soft: #fce8e6;
+  --warn: #8a5a00;
+  --warn-soft: #fdf0d5;
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16161a;
+    --surface: #1e1e24;
+    --surface-2: #26262e;
+    --border: #35353f;
+    --text: #ececf1;
+    --text-muted: #a0a0ac;
+    --accent: #6fa8ff;
+    --accent-soft: #17233a;
+    --good: #6ddc93;
+    --good-soft: #13291c;
+    --bad: #ff8a80;
+    --bad-soft: #2e1614;
+    --warn: #f0c064;
+    --warn-soft: #2c2312;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  font-size: 15px;
+  line-height: 1.85;
+  text-rendering: optimizeLegibility;
+}
+
+.layout {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 24px 96px;
+}
+
+/* ── ナビゲーション ───────────────────────── */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar__inner {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 10px 24px;
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.topbar__brand {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  margin-right: auto;
+}
+
+.topbar a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 2px 0;
+  border-bottom: 2px solid transparent;
+}
+
+.topbar a:hover {
+  color: var(--text);
+}
+
+.topbar a[aria-current='page'] {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+/* ── 見出し ──────────────────────────── */
+
+h1 {
+  font-size: 30px;
+  line-height: 1.35;
+  margin: 40px 0 8px;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 21px;
+  margin: 48px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  letter-spacing: -0.005em;
+}
+
+h3 {
+  font-size: 16px;
+  margin: 28px 0 8px;
+}
+
+.lede {
+  font-size: 16px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+  max-width: 74ch;
+}
+
+p,
+li {
+  max-width: 78ch;
+}
+
+a {
+  color: var(--accent);
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  word-break: break-word;
+}
+
+pre {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 13px;
+}
+
+/* ── 表 ─────────────────────────────── */
+
+.table-wrap {
+  overflow-x: auto;
+  margin: 16px 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 520px;
+  font-size: 14px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+tbody tr:hover {
+  background: var(--surface-2);
+}
+
+/* ── 判定バッジ ──────────────────────── */
+
+.tag {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 1px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.tag--adopt {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.tag--reject {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.tag--defer {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+/* ── 意思決定カード ───────────────────── */
+
+.adr {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin: 18px 0;
+}
+
+.adr__head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.adr__id {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.adr__title {
+  font-size: 18px;
+  font-weight: 650;
+  margin: 0;
+  flex: 1;
+}
+
+.adr h4 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 18px 0 4px;
+}
+
+.adr h4:first-of-type {
+  margin-top: 12px;
+}
+
+.adr p:last-child,
+.adr ul:last-child {
+  margin-bottom: 0;
+}
+
+.verdict {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 10px 14px;
+  border-radius: 0 6px 6px 0;
+  margin: 12px 0;
+}
+
+.verdict strong {
+  color: var(--accent);
+}
+
+/* ── 補足ブロック ────────────────────── */
+
+.note {
+  border-left: 3px solid var(--border);
+  padding: 4px 0 4px 16px;
+  color: var(--text-muted);
+  margin: 16px 0;
+}
+
+.note--warn {
+  border-left-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--text);
+  padding: 12px 16px;
+  border-radius: 0 6px 6px 0;
+}
+
+.measured {
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+
+.measured__label {
+  font-family: -apple-system, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* ── カード一覧（トップ） ─────────────── */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin: 24px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cards li {
+  max-width: none;
+}
+
+.cards a {
+  display: block;
+  height: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cards a:hover {
+  border-color: var(--accent);
+}
+
+.cards strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.cards span {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── 図 ─────────────────────────────── */
+
+figure {
+  margin: 24px 0;
+}
+
+figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+figcaption {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* 図の中の色はトークンに追従させる */
+.d-fill { fill: var(--surface-2); }
+.d-fill-accent { fill: var(--accent-soft); }
+.d-stroke { stroke: var(--border); fill: none; }
+.d-stroke-accent { stroke: var(--accent); fill: none; }
+.d-text { fill: var(--text); font-size: 13px; font-family: -apple-system, 'Hiragino Sans', sans-serif; }
+.d-text-sm { fill: var(--text-muted); font-size: 11px; font-family: -apple-system, 'Hiragino Sans', sans-serif; }
+.d-text-mono { fill: var(--text-muted); font-size: 11px; font-family: var(--mono); }
+.d-arrow { stroke: var(--text-muted); fill: none; stroke-width: 1.5; }
+
+footer.page-footer {
+  margin-top: 72px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+@media print {
+  .topbar { position: static; }
+  body { font-size: 11pt; }
+}

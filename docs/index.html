@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>会議レコーダー ドキュメント</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <nav class="topbar">
+      <div class="topbar__inner">
+        <span class="topbar__brand">会議レコーダー</span>
+        <a href="index.html" aria-current="page">概要</a>
+        <a href="specification.html">仕様</a>
+        <a href="architecture.html">アーキテクチャ</a>
+        <a href="decisions.html">意思決定記録</a>
+      </div>
+    </nav>
+
+    <main class="layout">
+      <h1>会議レコーダー ドキュメント</h1>
+      <p class="lede">
+        Google Meet / Zoom などの Web 会議を Mac で録音し、文字起こし・話者識別・要約までを
+        この Mac の中だけで完結させるデスクトップアプリです。音声もテキストも外部には送信しません。
+      </p>
+
+      <ul class="cards">
+        <li>
+          <a href="specification.html">
+            <strong>仕様</strong>
+            <span>できること、動作要件、保存されるファイル、画面構成</span>
+          </a>
+        </li>
+        <li>
+          <a href="architecture.html">
+            <strong>アーキテクチャ</strong>
+            <span>層構造、依存の向き、処理パイプライン、プロセス構成</span>
+          </a>
+        </li>
+        <li>
+          <a href="decisions.html">
+            <strong>意思決定記録</strong>
+            <span>何を採用し、何を不採用にしたか。その根拠と実測値</span>
+          </a>
+        </li>
+      </ul>
+
+      <h2>このアプリを支えている 3 つの判断</h2>
+
+      <h3>1. 仮想オーディオデバイスを使わずにデスクトップ音声を録る</h3>
+      <p>
+        BlackHole のような仮想デバイスの導入も、画面収録の許可も求めません。macOS 14.2 以降の
+        <strong>Core Audio Process Tap</strong> でシステム出力を複製して取得します。権限は
+        「オーディオ録音のみ」で済み、画面収録の紫インジケータは点灯しません。
+        →&nbsp;<a href="decisions.html#adr-001">ADR-001</a>
+      </p>
+
+      <h3>2. 相手と自分を最初から別トラックで録る</h3>
+      <p>
+        システム音声（＝相手）とマイク（＝自分）を別々の WAV に同時録音します。これにより
+        <strong>2 話者の分離が推論なしで確定</strong>し、文字起こしもクロストークの影響を受けません。
+        相手側をさらに複数人へ分けるクラスタリングは、この土台の上に任意機能として乗せています。
+        →&nbsp;<a href="decisions.html#adr-006">ADR-006</a>
+      </p>
+
+      <h3>3. すべてローカルで完結させ、外部デーモンにも依存しない</h3>
+      <p>
+        文字起こしは whisper.cpp、要約は node-llama-cpp で動かします。Ollama のような常駐サーバーは
+        不要で、モデルはアプリが自分でダウンロードして管理します。配布版の利用者に Homebrew も
+        手動ダウンロードも求めません。
+        →&nbsp;<a href="decisions.html#adr-003">ADR-003</a>
+      </p>
+
+      <h2>現状</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>項目</th>
+              <th>状態</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>録音・文字起こし・話者識別・要約</td>
+              <td>実装済み</td>
+            </tr>
+            <tr>
+              <td>一覧 / 詳細 / 設定 / 初期設定の各画面</td>
+              <td>実装済み</td>
+            </tr>
+            <tr>
+              <td>モデルのアプリ内ダウンロード</td>
+              <td>実装済み</td>
+            </tr>
+            <tr>
+              <td>自動テスト</td>
+              <td>208 件（domain / application / infrastructure / 統合）</td>
+            </tr>
+            <tr>
+              <td>パッケージング（.dmg）</td>
+              <td>ローカルでビルドと起動を確認済み</td>
+            </tr>
+            <tr>
+              <td>GitHub Actions での Release</td>
+              <td>ワークフロー作成済み・未実行（リモート未設定のため）</td>
+            </tr>
+            <tr>
+              <td>Apple Developer 証明書による署名・公証</td>
+              <td>未対応（現状は ad-hoc 署名）</td>
+            </tr>
+            <tr>
+              <td>Intel Mac 向けビルド</td>
+              <td>未対応（arm64 のみ）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note note--warn">
+        <strong>実測に基づく注意点。</strong>
+        音声コーデックの既定は AAC-LC です。HE-AAC（<code>aach</code>）を 16kHz モノラルに指定すると
+        <code>afconvert</code> は指定ビットレートを無視してコアを 8kHz・約 10kbps まで落とします。
+        容量は小さくなりますが会議音声の明瞭さを損なうため採用していません。
+        →&nbsp;<a href="decisions.html#adr-005">ADR-005</a>
+      </div>
+
+      <footer class="page-footer">
+        このドキュメントはリポジトリの <code>docs/</code> に置かれています。
+        実装の詳細はソースコードのコメントを参照してください。
+      </footer>
+    </main>
+  </body>
+</html>
