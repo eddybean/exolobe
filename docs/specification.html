@@ -82,6 +82,15 @@
         </table>
       </div>
       <div class="note note--warn">
+        <strong>内蔵マイクが無い機種があります。</strong>
+        Mac mini や Mac Studio には内蔵マイクがありません。マイクが 1 つも接続されていない場合、
+        そのアプリは「システム設定 &gt; プライバシーとセキュリティ &gt; マイク」に<strong>現れません</strong>
+        （存在しないデバイスへの権限は要求できないため）。この状態でも
+        <strong>相手の音声のみで録音は続行されます</strong>。自分の発言も残したい場合は
+        外付けマイクを接続してください。
+      </div>
+
+      <div class="note note--warn">
         <strong>署名が必須です。</strong>
         <code>NSAudioCaptureUsageDescription</code> による権限は署名済みバイナリでしか有効になりません。
         無署名で配布するとシステム音声が取得できず、しかも原因が分かりにくい形で失敗します。

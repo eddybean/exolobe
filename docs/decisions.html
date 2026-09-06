@@ -863,6 +863,41 @@
           <li><strong>マイクの失敗</strong> — 録音は続く。警告のみ。</li>
           <li><strong>録音自体の失敗</strong> — 何も録れていないので例外。一覧にも残さない。</li>
         </ul>
+
+        <h4>失敗の理由も言い分ける</h4>
+        <p>
+          当初はマイクの失敗をすべて「権限を許可してください」と案内していました。しかし
+          <strong>マイクが 1 つも接続されていない場合、そのアプリは「システム設定 &gt;
+          プライバシーとセキュリティ &gt; マイク」に現れません</strong>。存在しないデバイスへの
+          権限は要求できないためです。この案内は、現れるはずのない項目を探させてしまいます。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>getUserMedia のエラー</th><th>実際の原因</th><th>案内</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>NotFoundError</code></td>
+                <td>入力デバイスが無い（Mac mini / Mac Studio には内蔵マイクが無い）</td>
+                <td>外付けマイクの接続を案内する。設定へは誘導しない</td>
+              </tr>
+              <tr>
+                <td><code>NotAllowedError</code></td>
+                <td>OS またはブラウザに拒否された</td>
+                <td>プライバシー設定へ誘導する</td>
+              </tr>
+              <tr>
+                <td><code>NotReadableError</code></td>
+                <td>他アプリが占有している</td>
+                <td>他のアプリの確認を促す</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">
+          エラー名はブラウザ実装によって揺れるため、<code>getUserMedia</code> を呼ぶ前に
+          <code>enumerateDevices()</code> で入力デバイスの有無を確かめ、無い場合は
+          確実に「接続されていない」として扱います。
+        </p>
         <p class="note">
           この方針は React から切り出した関数に置き、「マイク失敗時に停止を呼ばないこと」を
           テストで固定しています。同じ退行を繰り返さないためです。

@@ -1,3 +1,5 @@
+import { describeMicFailure } from './micErrors'
+
 /**
  * マイク音声を 16bit PCM にして main プロセスへ送る。
  *
@@ -34,8 +36,6 @@ export interface MicCapture {
   level(): number
 }
 
-export class MicPermissionError extends Error {}
-
 /**
  * マイクの取得を開始する。
  *
@@ -46,6 +46,12 @@ export const startMicCapture = async (params: {
   sampleRate: number
   onPcm: (pcm: ArrayBuffer) => void
 }): Promise<MicCapture> => {
+  // 入力デバイスが 1 つも無い場合、getUserMedia のエラー名はブラウザ実装によって
+  // 揺れる。先に列挙して判定した方が確実で、原因も正確に伝えられる。
+  if (!(await hasAudioInput())) {
+    throw describeMicFailure(namedError('NotFoundError'))
+  }
+
   let stream: MediaStream
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -58,10 +64,7 @@ export const startMicCapture = async (params: {
       }
     })
   } catch (error: unknown) {
-    throw new MicPermissionError(
-      'マイクを使用できませんでした。「システム設定 > プライバシーとセキュリティ > マイク」でこのアプリを許可してください。',
-      { cause: error }
-    )
+    throw describeMicFailure(error)
   }
 
   const context = new AudioContext({ sampleRate: params.sampleRate })
@@ -99,6 +102,28 @@ export const startMicCapture = async (params: {
       await context.close()
     }
   }
+}
+
+/**
+ * 入力デバイスが 1 つでもあるか。
+ *
+ * 権限を得る前の enumerateDevices はラベルを返さないが、デバイスの有無自体は
+ * 分かる。列挙に失敗した場合は判定できないので「ある」とみなし、
+ * getUserMedia 側の結果に委ねる。
+ */
+const hasAudioInput = async (): Promise<boolean> => {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    return devices.some((device) => device.kind === 'audioinput')
+  } catch {
+    return true
+  }
+}
+
+const namedError = (name: string): Error => {
+  const error = new Error(name)
+  error.name = name
+  return error
 }
 
 const peakOf = (samples: Int16Array): number => {
