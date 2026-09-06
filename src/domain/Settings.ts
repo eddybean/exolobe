@@ -1,5 +1,7 @@
 /** audiotee が受け付けるサンプルレート。whisper は 16kHz を前提とするためこれが既定。 */
-export const SUPPORTED_SAMPLE_RATES = [8_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000] as const
+export const SUPPORTED_SAMPLE_RATES: readonly number[] = [
+  8_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000
+]
 
 /** 要約プロンプト内で文字起こし本文に置き換えられるプレースホルダ。 */
 export const TRANSCRIPT_PLACEHOLDER = '{{transcript}}'
@@ -57,9 +59,13 @@ export interface Settings {
   readonly audio: AudioSettings
 }
 
-/** グループ単位で部分更新できるようにした設定パッチ。 */
+/**
+ * グループ単位で部分更新できるようにした設定パッチ。
+ * IPC や JSON 経由ではキーが存在したまま値だけ undefined になり得るため、
+ * 各キーは明示的に undefined を許容する（mergeSettings が既存値を保つ）。
+ */
 export type SettingsPatch = {
-  readonly storageDir?: string | null
+  readonly storageDir?: string | null | undefined
   readonly transcription?: Partial<TranscriptionSettings>
   readonly summarization?: Partial<SummarizationSettings>
   readonly diarization?: Partial<DiarizationSettings>
@@ -114,7 +120,7 @@ export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings =>
 export const validateSettings = (settings: Settings): string[] => {
   const errors: string[] = []
 
-  if (!SUPPORTED_SAMPLE_RATES.includes(settings.audio.sampleRate as never)) {
+  if (!SUPPORTED_SAMPLE_RATES.includes(settings.audio.sampleRate)) {
     errors.push(
       `サンプルレートは ${SUPPORTED_SAMPLE_RATES.join(', ')} のいずれかを指定してください。`
     )

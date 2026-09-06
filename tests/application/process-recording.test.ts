@@ -1,0 +1,278 @@
+import { beforeEach, describe, expect, it } from 'vitest'
+import { ProcessRecording } from '@application/usecases/ProcessRecording'
+import { PIPELINE_STEPS, createRecording, finishRecording } from '@domain/Recording'
+import { SELF_SPEAKER_ID } from '@domain/Speaker'
+import { mergeSettings, type SettingsPatch } from '@domain/Settings'
+import {
+  FakeArtifactStore,
+  FakeDiarizer,
+  FakeEncoder,
+  FakeMixer,
+  FakeProgressReporter,
+  FakeRecordingRepository,
+  FakeSettingsRepository,
+  FakeSummarizer,
+  FakeTranscriber
+} from './fakes'
+
+const startedAt = new Date('2026-09-06T14:30:00+09:00')
+
+const tracks = {
+  systemWavPath: '/work/rec-1/system.wav',
+  micWavPath: '/work/rec-1/mic.wav',
+  micOffsetMs: 120,
+  durationMs: 65_000
+}
+
+const build = async (settingsPatch: SettingsPatch = {}) => {
+  const repository = new FakeRecordingRepository()
+  const artifacts = new FakeArtifactStore()
+  const settingsRepo = new FakeSettingsRepository(
+    mergeSettings(await new FakeSettingsRepository().load(), settingsPatch)
+  )
+  const transcriber = new FakeTranscriber()
+  const diarizer = new FakeDiarizer()
+  const summarizer = new FakeSummarizer()
+  const mixer = new FakeMixer()
+  const encoder = new FakeEncoder()
+  const progress = new FakeProgressReporter()
+
+  const recording = finishRecording(createRecording({ id: 'rec-1', startedAt }), 65_000)
+  await repository.save(recording)
+  await artifacts.writeTracks(recording, tracks)
+
+  transcriber.byPath.set(tracks.micWavPath, [{ startMs: 0, endMs: 1000, text: 'おはようございます' }])
+  transcriber.byPath.set(tracks.systemWavPath, [
+    { startMs: 1500, endMs: 2500, text: 'よろしくお願いします' },
+    { startMs: 5000, endMs: 6000, text: '本題に入ります' }
+  ])
+
+  const deps = {
+    settings: settingsRepo,
+    repository,
+    artifacts,
+    mixer,
+    transcriber,
+    diarizer,
+    summarizer,
+    encoder,
+    progress
+  }
+
+  return { ...deps, recording, process: new ProcessRecording(deps) }
+}
+
+describe('ProcessRecording — 正常系', () => {
+  let ctx: Awaited<ReturnType<typeof build>>
+
+  beforeEach(async () => {
+    ctx = await build()
+  })
+
+  it('全ステップを完了し ready になる', async () => {
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.status).toBe('ready')
+    expect(PIPELINE_STEPS.every((step) => result.steps[step].status === 'done')).toBe(true)
+  })
+
+  it('2 トラックをオフセット付きでミックスする', async () => {
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.mixer.calls[0]?.tracks).toEqual([
+      { path: tracks.systemWavPath, offsetMs: 0 },
+      { path: tracks.micWavPath, offsetMs: 120 }
+    ])
+  })
+
+  it('マイクは自分・システム音声は相手として文字起こしする', async () => {
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.transcriber.calls).toEqual([
+      { wavPath: tracks.micWavPath, speakerId: 'self' },
+      { wavPath: tracks.systemWavPath, speakerId: 'remote' }
+    ])
+  })
+
+  it('文字起こしを時系列順にマージして保存する', async () => {
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    const saved = await ctx.artifacts.readTranscript(ctx.recording)
+
+    expect(saved?.segments.map((s) => [s.speakerId, s.text])).toEqual([
+      [SELF_SPEAKER_ID, 'おはようございます'],
+      ['remote', 'よろしくお願いします'],
+      ['remote', '本題に入ります']
+    ])
+  })
+
+  it('話者クラスタリングの結果を反映し、参加者ラベルを採番する', async () => {
+    ctx.diarizer.turns = [
+      { startMs: 1000, endMs: 3000, speaker: 'spk0' },
+      { startMs: 4500, endMs: 6500, speaker: 'spk1' }
+    ]
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    const saved = await ctx.artifacts.readTranscript(ctx.recording)
+
+    expect(saved?.segments.map((s) => s.speakerId)).toEqual([
+      SELF_SPEAKER_ID,
+      'remote:spk0',
+      'remote:spk1'
+    ])
+    expect(saved?.speakers).toEqual([
+      { id: SELF_SPEAKER_ID, kind: 'self', label: '自分' },
+      { id: 'remote:spk0', kind: 'remote', label: '参加者A' },
+      { id: 'remote:spk1', kind: 'remote', label: '参加者B' }
+    ])
+  })
+
+  it('要約には話者ラベル付きの Markdown を渡す', async () => {
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.summarizer.receivedTranscript).toContain('**[00:00] 自分**')
+    expect(ctx.summarizer.receivedTranscript).toContain('おはようございます')
+  })
+
+  it('ミックス済み WAV を設定のビットレートでエンコードする', async () => {
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.encoder.calls[0]).toEqual({
+      inputPath: '/work/rec-1/mix.wav',
+      outputPath: ctx.artifacts.audioPath(ctx.recording),
+      bitrateKbps: 32
+    })
+  })
+
+  it('全ステップ成功したときだけ中間ファイルを片付ける', async () => {
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])
+  })
+
+  it('各ステップの開始と完了を進捗として通知する', async () => {
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.progress.events.filter((e) => e.step === 'transcribe')).toEqual([
+      { recordingId: 'rec-1', step: 'transcribe', status: 'running' },
+      { recordingId: 'rec-1', step: 'transcribe', status: 'done' }
+    ])
+  })
+
+  it('ステップごとに状態を永続化する', async () => {
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    expect((await ctx.repository.find('rec-1'))?.status).toBe('ready')
+  })
+})
+
+describe('ProcessRecording — 話者クラスタリング無効', () => {
+  it('diarize をスキップして done 扱いにする', async () => {
+    const ctx = await build({ diarization: { enabled: false } })
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.diarizer.calls).toBe(0)
+    expect(result.steps.diarize.status).toBe('done')
+    expect(result.status).toBe('ready')
+  })
+})
+
+describe('ProcessRecording — 失敗時の切り分け', () => {
+  it('要約が失敗してもエンコードは実行し、音声は残す', async () => {
+    const ctx = await build()
+    ctx.summarizer.error = new Error('要約モデルが読み込めません')
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.summarize).toEqual({
+      status: 'failed',
+      error: '要約モデルが読み込めません'
+    })
+    expect(result.steps.encode.status).toBe('done')
+    expect(ctx.encoder.calls).toHaveLength(1)
+    expect(result.status).toBe('failed')
+  })
+
+  it('失敗が残っている間は中間ファイルを消さない', async () => {
+    const ctx = await build()
+    ctx.summarizer.error = new Error('要約モデルが読み込めません')
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    expect(ctx.artifacts.cleanedUp).toEqual([])
+  })
+
+  it('文字起こしが失敗したら依存する話者識別と要約は実行しない', async () => {
+    const ctx = await build()
+    ctx.transcriber.error = new Error('whisper-cli が見つかりません')
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.transcribe.status).toBe('failed')
+    expect(result.steps.diarize.status).toBe('failed')
+    expect(result.steps.diarize.error).toBe('前のステップ（文字起こし）が失敗したため実行しませんでした。')
+    expect(result.steps.summarize.status).toBe('failed')
+    expect(ctx.diarizer.calls).toBe(0)
+  })
+
+  it('ミックスが失敗したらエンコードも実行しない', async () => {
+    const ctx = await build()
+    ctx.mixer.error = new Error('WAV を読み込めません')
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.encode.status).toBe('failed')
+    expect(ctx.encoder.calls).toHaveLength(0)
+    // ミックスに依存しない文字起こしは実行される
+    expect(result.steps.transcribe.status).toBe('done')
+  })
+
+  it('話者識別だけ失敗しても文字起こしと要約は残る', async () => {
+    const ctx = await build()
+    ctx.diarizer.error = new Error('話者識別モデルが見つかりません')
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.diarize.status).toBe('failed')
+    expect(result.steps.summarize.status).toBe('done')
+    expect(await ctx.artifacts.readSummary(ctx.recording)).toBeDefined()
+  })
+
+  it('トラック情報が無ければ処理を開始できない', async () => {
+    const ctx = await build()
+    ctx.artifacts.tracks.clear()
+
+    await expect(ctx.process.execute({ recordingId: 'rec-1' })).rejects.toThrow(
+      '録音データが見つかりません。'
+    )
+  })
+
+  it('存在しない録音は処理できない', async () => {
+    const ctx = await build()
+    await expect(ctx.process.execute({ recordingId: 'unknown' })).rejects.toThrow(
+      '録音が見つかりません: unknown'
+    )
+  })
+})
+
+describe('ProcessRecording — 個別リトライ', () => {
+  it('指定したステップだけを再実行する', async () => {
+    const ctx = await build()
+    ctx.summarizer.error = new Error('要約モデルが読み込めません')
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    ctx.summarizer.clearError()
+    ctx.transcriber.calls.length = 0
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
+
+    expect(ctx.transcriber.calls).toHaveLength(0)
+    expect(result.steps.summarize.status).toBe('done')
+    expect(result.status).toBe('ready')
+  })
+
+  it('リトライで全ステップが揃えば中間ファイルを片付ける', async () => {
+    const ctx = await build()
+    ctx.summarizer.error = new Error('要約モデルが読み込めません')
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    ctx.summarizer.clearError()
+
+    await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
+    expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])
+  })
+})
