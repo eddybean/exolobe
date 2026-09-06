@@ -6,11 +6,13 @@ import { STATUS_LABELS, formatDateTime, formatDuration } from '../format'
 export const RecordingListView = ({
   recordings,
   selectedId,
-  onSelect
+  onSelect,
+  onDelete
 }: {
   recordings: readonly RecordingDto[]
   selectedId: string | undefined
   onSelect: (id: string) => void
+  onDelete: (id: string) => void
 }): ReactElement => {
   const [query, setQuery] = useState('')
 
@@ -47,14 +49,11 @@ export const RecordingListView = ({
       ) : (
         <ul className="list__items">
           {filtered.map((recording) => (
-            <li key={recording.id}>
-              <button
-                type="button"
-                className={
-                  recording.id === selectedId ? 'card card--selected' : 'card'
-                }
-                onClick={() => onSelect(recording.id)}
-              >
+            <li
+              key={recording.id}
+              className={recording.id === selectedId ? 'row row--selected' : 'row'}
+            >
+              <button type="button" className="card" onClick={() => onSelect(recording.id)}>
                 <div className="card__row">
                   <span className="card__title">{recording.title}</span>
                   <StatusBadge status={recording.status} />
@@ -66,6 +65,17 @@ export const RecordingListView = ({
                 {recording.summaryPreview && (
                   <p className="card__preview">{recording.summaryPreview}</p>
                 )}
+              </button>
+
+              {/* 選択中とホバー時だけ出す。一覧を眺めているときに誤って押させないため。 */}
+              <button
+                type="button"
+                className="row__delete"
+                onClick={() => onDelete(recording.id)}
+                title={`「${recording.title}」を削除`}
+                aria-label={`「${recording.title}」を削除`}
+              >
+                ✕
               </button>
             </li>
           ))}

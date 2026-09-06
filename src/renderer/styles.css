@@ -178,10 +178,21 @@ code {
   color: var(--text-muted);
 }
 
+.row {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+}
+
+.row--selected {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
 .card {
   width: 100%;
   text-align: left;
-  border: 1px solid transparent;
+  border: none;
   background: transparent;
   border-radius: var(--radius);
   padding: 10px;
@@ -190,9 +201,37 @@ code {
   gap: 4px;
 }
 
-.card--selected {
-  background: var(--surface-2);
-  border-color: var(--border);
+.card:hover {
+  background: transparent;
+}
+
+/* 削除は取り消せないので、常時は出さずホバーと選択時だけ見せる。 */
+.row__delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  line-height: 1;
+  border-radius: 6px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.row:hover .row__delete,
+.row--selected .row__delete,
+.row__delete:focus-visible {
+  opacity: 1;
+}
+
+.row__delete:hover {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  border-color: transparent;
+  color: var(--danger);
 }
 
 .card__row {
@@ -494,6 +533,15 @@ textarea:focus {
   padding: 2px 8px;
 }
 
+.danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
 /* ── 設定・初期設定 ─────────────────────────── */
 
 .settings,
@@ -693,6 +741,18 @@ textarea:focus {
   height: 100%;
   background: var(--success);
   transition: width 0.15s linear;
+}
+
+.transport__warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 460px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+  font-size: 12px;
 }
 
 .transport__error {

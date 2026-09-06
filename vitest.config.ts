@@ -7,7 +7,8 @@ export default defineConfig({
       '@domain': resolve('src/domain'),
       '@application': resolve('src/application'),
       '@infrastructure': resolve('src/infrastructure'),
-      '@shared': resolve('src/shared')
+      '@shared': resolve('src/shared'),
+      '@renderer': resolve('src/renderer')
     }
   },
   test: {

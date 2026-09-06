@@ -100,6 +100,8 @@ export interface RendererApi {
   renameRecording(recordingId: string, title: string): Promise<RecordingDto>
   renameSpeaker(recordingId: string, speakerId: string, label: string): Promise<Speaker[]>
   deleteRecording(recordingId: string): Promise<void>
+  /** 削除前の確認。ネイティブダイアログを出し、実行してよければ true を返す。 */
+  confirmDeleteRecording(recordingId: string): Promise<boolean>
   revealRecording(recordingId: string): Promise<void>
 
   getSetupState(): Promise<SetupStateDto>
@@ -131,6 +133,7 @@ export const IPC = {
   renameRecording: 'recordings:rename',
   renameSpeaker: 'recordings:renameSpeaker',
   deleteRecording: 'recordings:delete',
+  confirmDeleteRecording: 'recordings:confirmDelete',
   revealRecording: 'recordings:reveal',
   getSetupState: 'settings:setupState',
   getModelStatus: 'models:status',

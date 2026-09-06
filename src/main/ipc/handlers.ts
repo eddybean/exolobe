@@ -165,6 +165,30 @@ export const registerIpcHandlers = (
     })
   )
 
+  /**
+   * 削除は取り消せず、音声・文字起こし・要約・メモがまとめて消える。
+   * renderer 側の confirm はブロッキングで見た目も浮くため、OS のダイアログで確認する。
+   */
+  handle(IPC.confirmDeleteRecording, async (id: unknown): Promise<boolean> => {
+    const detail = await container.getRecordingDetail.execute(asString(id, '録音 ID'))
+    const window = getWindow()
+
+    const options = {
+      type: 'warning' as const,
+      buttons: ['削除', 'キャンセル'],
+      defaultId: 1,
+      cancelId: 1,
+      message: `「${detail.recording.title}」を削除しますか？`,
+      detail: '音声・文字起こし・要約・メモがすべて削除されます。この操作は取り消せません。'
+    }
+
+    const result = window
+      ? await dialog.showMessageBox(window, options)
+      : await dialog.showMessageBox(options)
+
+    return result.response === 0
+  })
+
   handle(IPC.deleteRecording, async (id: unknown): Promise<void> => {
     await container.deleteRecording.execute(asString(id, '録音 ID'))
     send(IPC.recordingsChanged)

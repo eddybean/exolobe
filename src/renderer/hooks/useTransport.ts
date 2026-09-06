@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TransportStateDto } from '@shared/ipc'
 import { startMicCapture, type MicCapture } from '../audio/micCapture'
+import { startRecordingSession } from '../session/startRecordingSession'
 
 export interface Transport {
   readonly state: TransportStateDto
   readonly elapsedMs: number
   readonly level: number
   readonly busy: boolean
+  /** 録音を開始できなかった、あるいは停止に失敗した。 */
   readonly error: string | undefined
+  /** 録音は続いているが、利用者に知らせるべきこと（マイクが取れなかった等）。 */
+  readonly warning: string | undefined
   start(title?: string): Promise<void>
   stop(): Promise<void>
   dismissError(): void
@@ -17,8 +21,8 @@ export interface Transport {
  * 録音の開始・停止と、その最中の表示（経過時間・入力レベル）をまとめる。
  *
  * マイクの取得はレンダラー側の責務なのでここで行い、システム音声は main が
- * Core Audio Tap から直接受け取る。開始は「main の録音開始 → マイク取得」の順で、
- * マイクが失敗したら録音自体を止めて中途半端な状態を残さない。
+ * Core Audio Tap から直接受け取る。開始時の方針（マイクが取れなくても録音は
+ * 続ける）は startRecordingSession に切り出してテストで固定している。
  */
 export const useTransport = (sampleRate: number): Transport => {
   const [state, setState] = useState<TransportStateDto>({ active: false })
@@ -26,6 +30,7 @@ export const useTransport = (sampleRate: number): Transport => {
   const [level, setLevel] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
+  const [warning, setWarning] = useState<string>()
 
   const mic = useRef<MicCapture | undefined>(undefined)
 
@@ -62,20 +67,18 @@ export const useTransport = (sampleRate: number): Transport => {
       if (busy) return
       setBusy(true)
       setError(undefined)
+      setWarning(undefined)
 
       try {
-        await window.recorder.startRecording(title)
-        try {
-          mic.current = await startMicCapture({
-            sampleRate,
-            onPcm: (pcm) => window.recorder.pushMicPcm(pcm)
-          })
-        } catch (micError: unknown) {
-          // マイクだけ失敗した場合、自分の発話が残らない録音になってしまう。
-          // 黙って続けず、いったん停止して利用者に判断させる。
-          await window.recorder.stopRecording().catch(() => undefined)
-          throw micError
-        }
+        const outcome = await startRecordingSession({
+          ...(title === undefined ? {} : { title }),
+          sampleRate,
+          api: window.recorder,
+          startMic: startMicCapture
+        })
+
+        mic.current = outcome.micCapture
+        if (outcome.warning) setWarning(outcome.warning)
       } catch (startError: unknown) {
         setError(messageOf(startError))
       } finally {
@@ -92,6 +95,7 @@ export const useTransport = (sampleRate: number): Transport => {
     try {
       await releaseMic()
       await window.recorder.stopRecording()
+      setWarning(undefined)
     } catch (stopError: unknown) {
       setError(messageOf(stopError))
     } finally {
@@ -108,6 +112,7 @@ export const useTransport = (sampleRate: number): Transport => {
     level,
     busy,
     error,
+    warning,
     start,
     stop,
     dismissError: () => setError(undefined)

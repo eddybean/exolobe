@@ -17,10 +17,12 @@ type Tab = 'summary' | 'note'
  */
 export const RecordingDetailView = ({
   detail,
-  onChanged
+  onChanged,
+  onDelete
 }: {
   detail: RecordingDetailDto
   onChanged: () => void
+  onDelete: () => void
 }): ReactElement => {
   const [tab, setTab] = useState<Tab>('summary')
   const [note, setNote] = useState(detail.note)
@@ -100,6 +102,9 @@ export const RecordingDetailView = ({
         <div className="detail__actions">
           <button type="button" onClick={() => void window.recorder.revealRecording(recordingId)}>
             Finder で表示
+          </button>
+          <button type="button" className="danger" onClick={onDelete}>
+            削除
           </button>
         </div>
       </header>

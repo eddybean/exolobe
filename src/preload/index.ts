@@ -44,6 +44,8 @@ const api: RendererApi = {
     ipcRenderer.invoke(IPC.renameSpeaker, recordingId, speakerId, label) as Promise<Speaker[]>,
   deleteRecording: (recordingId) =>
     ipcRenderer.invoke(IPC.deleteRecording, recordingId) as Promise<void>,
+  confirmDeleteRecording: (recordingId) =>
+    ipcRenderer.invoke(IPC.confirmDeleteRecording, recordingId) as Promise<boolean>,
   revealRecording: (recordingId) =>
     ipcRenderer.invoke(IPC.revealRecording, recordingId) as Promise<void>,
 

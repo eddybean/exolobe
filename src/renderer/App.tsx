@@ -51,6 +51,21 @@ export const App = (): ReactElement => {
     }
   }, [selectedId])
 
+  /**
+   * 削除は取り消せないため、まず main にネイティブの確認ダイアログを出させる。
+   * 選択中のものを消したときは選択を外し、詳細ペインを空に戻す。
+   */
+  const deleteRecording = useCallback(
+    async (id: string): Promise<void> => {
+      if (!(await window.recorder.confirmDeleteRecording(id))) return
+
+      await window.recorder.deleteRecording(id)
+      setSelectedId((current) => (current === id ? undefined : current))
+      await refreshList()
+    },
+    [refreshList]
+  )
+
   useEffect(() => {
     void refreshSetup()
   }, [refreshSetup])
@@ -112,9 +127,14 @@ export const App = (): ReactElement => {
               recordings={recordings}
               selectedId={selectedId}
               onSelect={setSelectedId}
+              onDelete={(id) => void deleteRecording(id)}
             />
             {detail ? (
-              <RecordingDetailView detail={detail} onChanged={() => void refreshDetail()} />
+              <RecordingDetailView
+                detail={detail}
+                onChanged={() => void refreshDetail()}
+                onDelete={() => void deleteRecording(detail.recording.id)}
+              />
             ) : (
               <section className="detail detail--empty">
                 <p>左の一覧から録音を選ぶと、文字起こし・要約・メモを表示します。</p>
