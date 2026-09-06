@@ -21,23 +21,37 @@ Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし�
 | メモリ | 16GB 以上 |
 | 空き容量 | 約 10GB（モデル用） |
 
-## セットアップ
+## 使い始める
+
+配布されたアプリを使う場合、事前に用意するものはありません。初回起動時の画面で
+保存先を選び、モデルの「ダウンロード」を押すだけです。
+
+| モデル | 用途 | サイズ |
+| --- | --- | --- |
+| whisper large-v3-turbo (q5_0) | 文字起こし | 574MB |
+| Gemma 4 E4B (QAT q4_0) | 要約 | 5.2GB |
+| pyannote segmentation / 3D-Speaker | 話者分割（任意） | 約 35MB |
+
+ダウンロードは中断でき、次回は途中から再開します。チェックサムを検証するため、
+壊れたモデルを掴むことはありません。**モデルが無くても録音は始められます**ので、
+先に会議を録っておいて、後から詳細画面で文字起こしと要約を実行できます。
+
+要約に Gemma 4 E4B を既定にしているのは **128K のコンテキスト**を持つためです。
+1 時間規模の会議でも分割せず一度に読ませられるので、部分要約で文脈が切れて
+決定事項を取りこぼすことがありません。日本語の扱いも強く、QAT 版なので q4 でも
+品質の劣化が小さく済みます。要約は `node-llama-cpp` でアプリ内から直接動かすため、
+Ollama のような常駐サーバーは不要です。
+
+### 開発者向け
 
 ```bash
 npm install
-npm run setup   # whisper.cpp とモデルを導入
+npm run setup   # whisper-cli を Homebrew で導入（開発時の近道）
 npm run dev
 ```
 
-`npm run setup` は Homebrew で `whisper-cpp` を入れ、`ggml-large-v3-turbo-q5_0` を
-`~/.cache/online-meeting-recorder/models/` へダウンロードします。
-
-要約モデル（GGUF）は別途用意し、設定画面で指定してください。16GB のメモリなら
-**Qwen3-8B の Q4_K_M（約 5GB）** が快適です。要約は `node-llama-cpp` でアプリ内から
-直接動かすため、Ollama のような常駐サーバーは不要です。
-
-初回起動時に初期設定画面が出ます。**保存先を選べば録音は始められます**。モデルは
-後から設定しても、詳細画面から文字起こし・要約だけを再実行できます。
+モデルはアプリの初期設定画面からダウンロードできるので、`npm run setup` が
+入れるのは `whisper-cli` だけです。
 
 ## 音声キャプチャの方式
 
@@ -75,6 +89,10 @@ npm run dev
 16kHz モノラルに指定すると `afconvert` が指定ビットレートを無視してコアを 8kHz・
 約 10kbps まで落とし、会議音声の明瞭さを損なうためです。
 
+モデルは録音の保存先ではなく `~/Library/Application Support/<アプリ名>/models/` に
+置かれます。モデルは会議の成果物ではなく再取得できるキャッシュなので、
+保存先を圧迫させないためです。
+
 ## アーキテクチャ
 
 依存は常に内向き（`src/domain` が最も安定した中心）。
@@ -109,11 +127,26 @@ src/
 ## 開発
 
 ```bash
-npm test         # 178 件（domain / application / infrastructure / 統合）
+npm test         # 208 件（domain / application / infrastructure / 統合）
 npm run typecheck
 npm run dev
 npm run build
+npm run package  # 配布用の .dmg を作る
 ```
+
+### whisper-cli の同梱
+
+whisper.cpp は macOS 向けの CLI バイナリを配布していません（リリース資産は
+xcframework と Linux/Windows 版のみ）。配布したアプリの利用者に Homebrew を
+求めないため、`npm run package` の中で `scripts/build-whisper.sh` が
+whisper.cpp を Metal 有効でビルドし、`resources/bin/whisper-cli` として同梱します。
+
+実行時は次の順で解決します。設定でパスを明示すればそれが最優先なので、
+手元でビルドした版を使うこともできます。
+
+1. 設定に書かれたパス（既定値 `whisper-cli` 以外のとき）
+2. 同梱バイナリ（パッケージ済みアプリのとき）
+3. PATH 上の `whisper-cli`（開発時）
 
 `postinstall` で `scripts/patch-dev-electron.sh` が走り、開発用の Electron.app に
 `NSAudioCaptureUsageDescription` と `NSMicrophoneUsageDescription` を注入して

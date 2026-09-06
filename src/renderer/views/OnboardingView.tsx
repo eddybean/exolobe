@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react'
 import type { SetupStateDto } from '@shared/ipc'
+import { ModelManager } from '../components/ModelManager'
 
 /**
  * 初回起動時の案内。
@@ -58,29 +59,25 @@ export const OnboardingView = ({
           </button>
         </li>
 
-        <li className={setup.needsTranscriptionModel ? 'todo' : 'done'}>
-          <div>
-            <strong>文字起こしモデルを用意する（任意）</strong>
-            <p>
-              ターミナルで <code>npm run setup</code> を実行すると whisper.cpp と
-              モデルが導入されます。設定画面でモデルのパスを指定してください。
-            </p>
-          </div>
-          <button type="button" onClick={onOpenSettings}>
-            設定へ
-          </button>
-        </li>
-
-        <li className={setup.needsSummarizationModel ? 'todo' : 'done'}>
-          <div>
-            <strong>要約モデルを用意する（任意）</strong>
-            <p>GGUF 形式のモデルを設定画面で指定します。常駐サーバーは不要です。</p>
-          </div>
-          <button type="button" onClick={onOpenSettings}>
-            設定へ
-          </button>
-        </li>
       </ol>
+
+      <h3 className="onboarding__section">モデルを取得する</h3>
+      <p className="onboarding__lead">
+        文字起こしと要約に使うモデルをダウンロードします。合計で約 5.7GB あり、
+        回線によっては時間がかかります。中断しても途中から再開できます。
+        <strong>モデルが無くても録音は始められます</strong>ので、
+        先に会議を録っておいて後から処理することもできます。
+      </p>
+
+      <ModelManager onChanged={onChanged} />
+
+      <p className="onboarding__note">
+        細かい設定や、手元にあるモデルの指定は
+        <button type="button" className="onboarding__link" onClick={onOpenSettings}>
+          設定画面
+        </button>
+        から行えます。
+      </p>
 
       <p className="onboarding__note">
         初回の録音時に「マイク」と「オーディオ録音」の許可を求められます。どちらも許可してください。

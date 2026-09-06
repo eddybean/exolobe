@@ -5,6 +5,7 @@ import type { SettingsPatch } from '@domain/Settings'
 import {
   IPC,
   toRecordingDto,
+  type ModelProgressDto,
   type ProgressEventDto,
   type RecordingDetailDto,
   type RecordingDto,
@@ -175,6 +176,46 @@ export const registerIpcHandlers = (
   })
 
   handle(IPC.getSetupState, async () => container.getSetupState.execute())
+
+  handle(IPC.getModelStatus, async () => container.getModelStatus.execute())
+
+  handle(IPC.downloadModel, async (id: unknown) => {
+    const modelId = asString(id, 'モデル ID')
+
+    try {
+      const settings = await container.downloadModel.execute({
+        id: modelId,
+        // 数 GB のダウンロードになるので、進捗を逐次 UI へ流す。
+        onProgress: (receivedBytes, totalBytes) =>
+          send(IPC.modelProgress, {
+            id: modelId,
+            receivedBytes,
+            status: 'downloading',
+            ...(totalBytes === undefined ? {} : { totalBytes })
+          } satisfies ModelProgressDto)
+      })
+
+      send(IPC.modelProgress, {
+        id: modelId,
+        receivedBytes: 0,
+        status: 'done'
+      } satisfies ModelProgressDto)
+      return settings
+    } catch (error: unknown) {
+      const message = toMessage(error)
+      send(IPC.modelProgress, {
+        id: modelId,
+        receivedBytes: 0,
+        status: message.includes('中止') ? 'cancelled' : 'failed',
+        error: message
+      } satisfies ModelProgressDto)
+      throw error
+    }
+  })
+
+  handle(IPC.cancelModelDownload, async (id: unknown) => {
+    container.cancelModelDownload.execute(asString(id, 'モデル ID'))
+  })
 
   handle(IPC.updateSettings, async (patch: unknown) => {
     const settings = await container.updateSettings.execute(patch as SettingsPatch)

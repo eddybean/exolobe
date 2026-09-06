@@ -91,7 +91,10 @@ export const defaultSettings = (): Settings => ({
   summarization: {
     provider: 'llama-cpp',
     modelPath: '',
-    contextSize: 8_192,
+    // 既定モデル（Gemma 4 E4B）は 128K まで扱えるが、KV キャッシュがメモリを
+    // 食うため 32K に留める。16kHz 1 時間の会議でも分割せず 1 回で要約でき、
+    // 分割による文脈の途切れを避けられる。
+    contextSize: 32_768,
     promptTemplate: DEFAULT_SUMMARY_PROMPT
   },
   diarization: {

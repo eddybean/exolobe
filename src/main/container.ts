@@ -13,12 +13,18 @@ import {
   UpdateNote,
   UpdateSettings
 } from '@application/usecases/library'
+import {
+  CancelModelDownload,
+  DownloadModel,
+  GetModelStatus
+} from '@application/usecases/models'
 import { AudioTeeSource } from '@infrastructure/audio/AudioTeeSource'
 import { DualTrackRecorder } from '@infrastructure/audio/DualTrackRecorder'
 import {
   FileRecordingArtifactStore,
   FileRecordingRepository
 } from '@infrastructure/persistence/FileRecordingStore'
+import { FileModelStore } from '@infrastructure/download/FileModelStore'
 import {
   JsonSettingsRepository,
   SettingsStorageLocator
@@ -43,6 +49,9 @@ export interface Container {
   readonly deleteRecording: DeleteRecording
   readonly updateSettings: UpdateSettings
   readonly getSetupState: GetSetupState
+  readonly getModelStatus: GetModelStatus
+  readonly downloadModel: DownloadModel
+  readonly cancelModelDownload: CancelModelDownload
 }
 
 export const createContainer = (): Container => {
@@ -53,6 +62,8 @@ export const createContainer = (): Container => {
   const repository = new FileRecordingRepository(locator)
   const artifacts = new FileRecordingArtifactStore(locator, join(userData, 'work'))
   const recorder = new DualTrackRecorder(new AudioTeeSource())
+  // モデルは再取得できるキャッシュなので、録音の保存先とは分けて置く。
+  const models = new FileModelStore(join(userData, 'models'))
 
   const library = { repository, artifacts }
   const capture = { repository, capture: recorder, artifacts }
@@ -76,6 +87,9 @@ export const createContainer = (): Container => {
     renameSpeaker: new RenameSpeaker(library),
     deleteRecording: new DeleteRecording(library),
     updateSettings: new UpdateSettings(settings),
-    getSetupState: new GetSetupState(settings)
+    getSetupState: new GetSetupState(settings),
+    getModelStatus: new GetModelStatus(settings, models),
+    downloadModel: new DownloadModel(settings, models),
+    cancelModelDownload: new CancelModelDownload(models)
   }
 }

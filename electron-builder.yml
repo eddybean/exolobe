@@ -1,0 +1,43 @@
+appId: com.branch.online-meeting-recorder
+productName: 会議レコーダー
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+
+# whisper-cli は whisper.cpp が macOS 版 CLI を配布していないため、
+# scripts/build-whisper.sh でビルドしたものをここから同梱する。
+extraResources:
+  - from: resources/bin
+    to: bin
+    filter:
+      - '**/*'
+
+# ネイティブモジュールは asar の中からは読み込めないため展開して置く。
+asarUnpack:
+  - '**/node_modules/node-llama-cpp/**'
+  - '**/node_modules/@node-llama-cpp/**'
+  - '**/node_modules/sherpa-onnx*/**'
+  - '**/node_modules/audiotee/**'
+
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [arm64]
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    # Core Audio Process Tap の権限。署名済みバイナリでのみ有効になる。
+    NSAudioCaptureUsageDescription: 会議相手の音声を録音するためにシステム音声を取得します。
+    NSMicrophoneUsageDescription: 会議中のあなたの発言を録音するためにマイクを使用します。
+    LSMinimumSystemVersion: '14.2'
+
+dmg:
+  title: ${productName}

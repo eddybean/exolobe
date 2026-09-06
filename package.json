@@ -18,7 +18,9 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "setup": "bash scripts/setup.sh",
-    "postinstall": "bash scripts/patch-dev-electron.sh || true"
+    "postinstall": "bash scripts/patch-dev-electron.sh || true",
+    "build:whisper": "bash scripts/build-whisper.sh",
+    "package": "npm run build && npm run build:whisper && electron-builder --config electron-builder.yml"
   },
   "dependencies": {
     "audiotee": "^0.0.7",
@@ -36,6 +38,7 @@
     "react-dom": "^19.0.0",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "electron-builder": "^25.1.8"
   }
 }

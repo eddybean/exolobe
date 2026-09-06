@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { DiarizationPort, ProgressReporterPort } from '@application/ports'
 import { ProcessRecording } from '@application/usecases/ProcessRecording'
@@ -15,6 +16,7 @@ import {
 import { LlamaCppSummarizer } from '@infrastructure/summarization/LlamaCppSummarizer'
 import { NodeLlamaSessionFactory } from '@infrastructure/summarization/NodeLlamaSessionFactory'
 import { WhisperCppTranscriber } from '@infrastructure/transcription/WhisperCppTranscriber'
+import { resolveWhisperBinary } from '@infrastructure/transcription/resolveWhisperBinary'
 import type { DiarizationSettings } from '@domain/Settings'
 
 /**
@@ -30,6 +32,7 @@ export const createPipeline = async (
   const settings = new JsonSettingsRepository(join(userDataPath, 'settings.json'))
   const locator = new SettingsStorageLocator(settings)
   const current = await settings.load()
+  const bundled = bundledWhisper()
 
   return new ProcessRecording({
     settings,
@@ -39,7 +42,10 @@ export const createPipeline = async (
     mixer: new TrackMixer(),
     encoder: new AfconvertEncoder(),
     transcriber: new WhisperCppTranscriber({
-      binaryPath: current.transcription.binaryPath,
+      binaryPath: resolveWhisperBinary({
+        configured: current.transcription.binaryPath,
+        ...(bundled === undefined ? {} : { bundled })
+      }),
       modelPath: current.transcription.modelPath
     }),
     diarizer: createDiarizer(current.diarization),
@@ -51,6 +57,18 @@ export const createPipeline = async (
       new NodeLlamaSessionFactory()
     )
   })
+}
+
+/**
+ * パッケージ済みアプリに同梱した whisper-cli。
+ * 開発中は存在しないので undefined を返し、PATH 上の whisper-cli にフォールバックする。
+ */
+const bundledWhisper = (): string | undefined => {
+  const resourcesPath = process.env['OMR_RESOURCES']
+  if (!resourcesPath) return undefined
+
+  const path = join(resourcesPath, 'bin', 'whisper-cli')
+  return existsSync(path) ? path : undefined
 }
 
 /** モデルが揃っていなければ推論を試みず、2 話者分離のまま処理を通す。 */

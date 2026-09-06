@@ -4,6 +4,8 @@ import type { Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import {
   IPC,
+  type ManagedAssetStatusDto,
+  type ModelProgressDto,
   type ProgressEventDto,
   type RecordingDetailDto,
   type RecordingDto,
@@ -46,6 +48,11 @@ const api: RendererApi = {
     ipcRenderer.invoke(IPC.revealRecording, recordingId) as Promise<void>,
 
   getSetupState: () => ipcRenderer.invoke(IPC.getSetupState) as Promise<SetupStateDto>,
+  getModelStatus: () =>
+    ipcRenderer.invoke(IPC.getModelStatus) as Promise<ManagedAssetStatusDto[]>,
+  downloadModel: (id) => ipcRenderer.invoke(IPC.downloadModel, id) as Promise<Settings>,
+  cancelModelDownload: (id) =>
+    ipcRenderer.invoke(IPC.cancelModelDownload, id) as Promise<void>,
   updateSettings: (patch: SettingsPatch) =>
     ipcRenderer.invoke(IPC.updateSettings, patch) as Promise<Settings>,
   chooseStorageDir: () =>
@@ -56,7 +63,8 @@ const api: RendererApi = {
 
   onProgress: (listener) => subscribe<ProgressEventDto>(IPC.progress, listener),
   onRecordingsChanged: (listener) => subscribe(IPC.recordingsChanged, () => listener()),
-  onTransportChanged: (listener) => subscribe<TransportStateDto>(IPC.transportChanged, listener)
+  onTransportChanged: (listener) => subscribe<TransportStateDto>(IPC.transportChanged, listener),
+  onModelProgress: (listener) => subscribe<ModelProgressDto>(IPC.modelProgress, listener)
 }
 
 contextBridge.exposeInMainWorld('recorder', api)

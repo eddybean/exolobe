@@ -45,7 +45,12 @@ export class PipelineClient {
 
     const worker = utilityProcess.fork(join(__dirname, 'pipeline-worker.js'), [], {
       // ワーカーは electron API を持たないため、必要なパスは環境変数で渡す。
-      env: { ...process.env, OMR_USER_DATA: app.getPath('userData') },
+      env: {
+        ...process.env,
+        OMR_USER_DATA: app.getPath('userData'),
+        // 同梱した whisper-cli の場所。開発中は空になり PATH 上の物が使われる。
+        ...(app.isPackaged ? { OMR_RESOURCES: process.resourcesPath } : {})
+      },
       stdio: 'inherit'
     })
 

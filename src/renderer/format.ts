@@ -1,3 +1,5 @@
+export { formatBytes } from '@domain/ModelCatalog'
+
 /** 経過時間・録音長を mm:ss（1 時間以上は h:mm:ss）で表す。 */
 export const formatDuration = (ms: number): string => {
   const total = Math.max(0, Math.floor(ms / 1000))

@@ -3,3 +3,7 @@ out/
 dist/
 .DS_Store
 *.log
+
+# パッケージ時に scripts/build-whisper.sh が生成する
+resources/bin/
+release/

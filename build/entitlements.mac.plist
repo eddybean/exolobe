@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- マイク入力。会議中の自分の発話を録音するために必要。 -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+
+  <!-- Electron / llama.cpp の JIT に必要。無いと起動時にクラッシュする。 -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <!-- 同梱した whisper-cli と audiotee を子プロセスとして起動する。 -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+
+  <!-- モデルのダウンロードに使う。 -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+</dict>
+</plist>

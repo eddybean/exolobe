@@ -48,6 +48,25 @@ export interface TransportStateDto {
   readonly active: boolean
 }
 
+/** モデル取得の進捗。UI はこれで各行のバーを描く。 */
+export interface ModelProgressDto {
+  readonly id: string
+  readonly receivedBytes: number
+  readonly totalBytes?: number
+  readonly status: 'downloading' | 'done' | 'failed' | 'cancelled'
+  readonly error?: string
+}
+
+export interface ManagedAssetStatusDto {
+  readonly id: string
+  readonly label: string
+  readonly description: string
+  readonly bytes: number
+  readonly optional: boolean
+  readonly installed: boolean
+  readonly path?: string
+}
+
 export interface ProgressEventDto {
   readonly recordingId: string
   readonly step: PipelineStep
@@ -84,6 +103,9 @@ export interface RendererApi {
   revealRecording(recordingId: string): Promise<void>
 
   getSetupState(): Promise<SetupStateDto>
+  getModelStatus(): Promise<ManagedAssetStatusDto[]>
+  downloadModel(id: string): Promise<Settings>
+  cancelModelDownload(id: string): Promise<void>
   updateSettings(patch: SettingsPatch): Promise<Settings>
   chooseStorageDir(): Promise<string | undefined>
   chooseFile(kind: 'whisper-model' | 'llm-model' | 'onnx-model'): Promise<string | undefined>
@@ -94,6 +116,7 @@ export interface RendererApi {
   onProgress(listener: (event: ProgressEventDto) => void): () => void
   onRecordingsChanged(listener: () => void): () => void
   onTransportChanged(listener: (state: TransportStateDto) => void): () => void
+  onModelProgress(listener: (event: ModelProgressDto) => void): () => void
 }
 
 /** IPC チャンネル名。main と preload で共有し、綴りのずれを防ぐ。 */
@@ -110,6 +133,10 @@ export const IPC = {
   deleteRecording: 'recordings:delete',
   revealRecording: 'recordings:reveal',
   getSetupState: 'settings:setupState',
+  getModelStatus: 'models:status',
+  downloadModel: 'models:download',
+  cancelModelDownload: 'models:cancel',
+  modelProgress: 'models:progress',
   updateSettings: 'settings:update',
   chooseStorageDir: 'settings:chooseStorageDir',
   chooseFile: 'settings:chooseFile',

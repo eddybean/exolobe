@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from 'react'
 import { SUPPORTED_SAMPLE_RATES, type Settings, type SettingsPatch } from '@domain/Settings'
 import type { SetupStateDto } from '@shared/ipc'
+import { ModelManager } from '../components/ModelManager'
 
 /**
  * 設定画面。保存先とモデルの指定がここに集まる。
@@ -70,6 +71,12 @@ export const SettingsView = ({
         </div>
       </Field>
 
+      <h3 className="settings__section">モデル</h3>
+      <p className="field__hint">
+        アプリが管理するモデルです。ダウンロードすると保存場所が自動で設定されます。
+      </p>
+      <ModelManager onChanged={onChanged} />
+
       <h3 className="settings__section">文字起こし</h3>
 
       <Field label="whisper モデル" hint="ggml 形式（.bin）のモデルを指定します。">
@@ -107,7 +114,7 @@ export const SettingsView = ({
 
       <h3 className="settings__section">要約</h3>
 
-      <Field label="要約モデル" hint="GGUF 形式のモデルを指定します（例: Qwen3-8B Q4_K_M）。">
+      <Field label="要約モデル" hint="GGUF 形式のモデルを指定します（既定: Gemma 4 E4B QAT q4_0）。">
         <div className="settings__path">
           <code>{settings.summarization.modelPath || '未設定'}</code>
           <button
