@@ -44,9 +44,17 @@ export interface DiarizationSettings {
   readonly embeddingModelPath: string
 }
 
+/**
+ * afconvert のコーデック指定。
+ * - `aac`  : AAC-LC。指定ビットレートを守り 16kHz を保つ。会議音声の既定。
+ * - `aach` : HE-AAC。より小さくなるがコアが 8kHz に落ち、指定ビットレートも守られない。
+ */
+export type AudioCodec = 'aac' | 'aach'
+
 export interface AudioSettings {
   readonly sampleRate: number
-  /** HE-AAC のビットレート。16kHz mono なら 32kbps で 1 時間あたり約 14MB。 */
+  readonly codec: AudioCodec
+  /** AAC-LC のビットレート。16kHz mono 32kbps で 1 時間あたり約 14MB。 */
   readonly bitrateKbps: number
 }
 
@@ -94,6 +102,7 @@ export const defaultSettings = (): Settings => ({
   },
   audio: {
     sampleRate: 16_000,
+    codec: 'aac',
     bitrateKbps: 32
   }
 })

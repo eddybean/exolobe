@@ -14,7 +14,13 @@ import type {
   TranscriptionPort
 } from '@application/ports'
 import type { PipelineStep, Recording } from '@domain/Recording'
-import { defaultSettings, mergeSettings, type Settings, type SettingsPatch } from '@domain/Settings'
+import {
+  defaultSettings,
+  mergeSettings,
+  type AudioCodec,
+  type Settings,
+  type SettingsPatch
+} from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import type { SpeakerTurn, TranscriptSegment } from '@domain/TranscriptSegment'
 
@@ -215,12 +221,13 @@ export class FakeMixer implements AudioMixerPort {
 }
 
 export class FakeEncoder implements AudioEncoderPort {
-  calls: { inputPath: string; outputPath: string; bitrateKbps: number }[] = []
+  calls: { inputPath: string; outputPath: string; codec: AudioCodec; bitrateKbps: number }[] = []
   error?: Error
 
   async encode(params: {
     inputPath: string
     outputPath: string
+    codec: AudioCodec
     bitrateKbps: number
   }): Promise<void> {
     if (this.error) throw this.error

@@ -1,5 +1,5 @@
 import type { PipelineStep, Recording } from '@domain/Recording'
-import type { Settings, SettingsPatch } from '@domain/Settings'
+import type { AudioCodec, Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import type { SpeakerTurn, TranscriptSegment } from '@domain/TranscriptSegment'
 
@@ -43,7 +43,12 @@ export interface AudioMixerPort {
 
 /** WAV を配布用の圧縮音声へ変換する。 */
 export interface AudioEncoderPort {
-  encode(params: { inputPath: string; outputPath: string; bitrateKbps: number }): Promise<void>
+  encode(params: {
+    inputPath: string
+    outputPath: string
+    codec: AudioCodec
+    bitrateKbps: number
+  }): Promise<void>
 }
 
 export interface TranscriptionPort {
