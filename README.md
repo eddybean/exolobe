@@ -119,6 +119,17 @@ npm run build
 `NSAudioCaptureUsageDescription` と `NSMicrophoneUsageDescription` を注入して
 ad-hoc 再署名します。これが無いと開発中に音声キャプチャの権限を取得できません。
 
+### モジュール形式について
+
+main / preload は electron-vite の既定である **CJS** で出力します。Electron 33 は
+ESM の main も扱えますが、ESM 専用の `audiotee` と `node-llama-cpp` は動的 `import()`
+で読み込めばよく（CJS 出力でも `import()` は `require` に変換されません）、既定の
+構成から外れる利点がありません。
+
+なお、シェルに `ELECTRON_RUN_AS_NODE=1` が設定されていると Electron が素の Node と
+して起動し、`require('electron')` が API を返さないため起動に失敗します。起動しない
+ときはこの環境変数を確認してください。
+
 テストは `~/.claude/rules/tdd.md` に従い先に書いています。ユースケースは Fake
 だけで完全に検証でき、サーバーも DB も起動しません。統合テストは実際の
 ファイル I/O と `afconvert` を通します。
