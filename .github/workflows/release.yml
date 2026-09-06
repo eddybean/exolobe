@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release を作るタグ名（例: v0.1.0）'
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  # scripts/build-whisper.sh が取得する whisper.cpp のバージョン。
+  # ここを変えるとキャッシュも自動的に無効になる。
+  WHISPER_VERSION: v1.7.4
+
+jobs:
+  build:
+    # Apple Silicon 向けにビルドするため arm64 のランナーを使う。
+    # whisper-cli はホストのアーキテクチャ向けにビルドされるため、
+    # x64 版が必要になったら macos-13 のジョブを足して成果物を統合する。
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 依存関係をインストール
+        run: npm ci
+
+      - name: 型チェック
+        run: npm run typecheck
+
+      - name: テスト
+        run: npm test
+
+      # whisper.cpp のビルドは数分かかるため、バージョンが変わらない限り使い回す。
+      - name: whisper-cli のキャッシュを復元
+        id: whisper-cache
+        uses: actions/cache@v4
+        with:
+          path: resources/bin
+          key: whisper-${{ runner.os }}-${{ runner.arch }}-${{ env.WHISPER_VERSION }}-${{ hashFiles('scripts/build-whisper.sh') }}
+
+      - name: whisper-cli をビルド
+        if: steps.whisper-cache.outputs.cache-hit != 'true'
+        run: npm run build:whisper
+
+      - name: アプリをビルド
+        run: npx electron-vite build
+
+      - name: 署名用の設定
+        id: signing
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+        run: |
+          if [ -n "$CSC_LINK" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Developer ID 証明書で署名します。"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::証明書が未設定のため ad-hoc 署名でビルドします。"
+            echo "::warning::利用者は初回起動時に quarantine の解除が必要になります。"
+          fi
+
+      - name: パッケージ（.dmg）を作成
+        env:
+          # 証明書があれば electron-builder が署名し、無ければ
+          # build/after-pack.cjs が ad-hoc 署名にフォールバックする。
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ steps.signing.outputs.signed }}
+          # 公証。3 つとも揃っている場合のみ electron-builder が実行する。
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # electron-builder の自動 publish は使わず、後段の gh で明示的に添付する。
+          GH_TOKEN: ''
+        run: npx electron-builder --config electron-builder.yml --mac --publish never
+
+      - name: 署名を確認
+        run: |
+          APP=$(find release/mac* -maxdepth 1 -name '*.app' | head -1)
+          echo "アプリ: $APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign --display --entitlements - "$APP" | head -40
+
+      - name: チェックサムを作成
+        working-directory: release
+        run: shasum -a 256 ./*.dmg > SHA256SUMS.txt
+
+      - name: 成果物を保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: |
+            release/*.dmg
+            release/SHA256SUMS.txt
+          retention-days: 14
+
+      - name: Release に添付
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          SIGNED: ${{ steps.signing.outputs.signed }}
+        run: |
+          set -euo pipefail
+
+          NOTE=""
+          if [ "$SIGNED" != "true" ]; then
+            NOTE=$'\n\n> **注意**: このビルドは Apple Developer 証明書で署名されていません。\n> 初回起動時に Gatekeeper に阻まれるため、次のコマンドで隔離属性を外してください。\n>\n> ```sh\n> xattr -dr com.apple.quarantine /Applications/会議レコーダー.app\n> ```'
+          fi
+
+          BODY="macOS 14.2 以上 / Apple Silicon 向けのビルドです。${NOTE}"
+
+          # 既存の Release があれば添付のみ、無ければ作成する。
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" ./release/*.dmg ./release/SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" ./release/*.dmg ./release/SHA256SUMS.txt \
+              --title "$TAG" \
+              --notes "$BODY" \
+              --generate-notes
+          fi

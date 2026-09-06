@@ -134,6 +134,40 @@ npm run build
 npm run package  # 配布用の .dmg を作る
 ```
 
+### リリース
+
+`v` から始まるタグを push すると [GitHub Actions](.github/workflows/release.yml) が
+macOS ランナーで .dmg をビルドし、Release に添付します。
+
+```bash
+npm version patch      # package.json の version を上げてタグを作る
+git push --follow-tags
+```
+
+証明書を用意しない場合は ad-hoc 署名でビルドされます。Core Audio Process Tap の
+権限は署名済みバイナリでしか有効にならないため、まったく署名しないという選択肢は
+ありません。ただし ad-hoc 署名の配布物は Gatekeeper に隔離されるので、利用者側で
+一度だけ次の操作が必要です（Release の説明文に自動で記載されます）。
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/会議レコーダー.app"
+```
+
+Apple Developer 証明書がある場合は、リポジトリの Secrets に登録すると
+electron-builder が正式な署名と公証を行い、この手順は不要になります。
+
+| Secret | 内容 |
+| --- | --- |
+| `MAC_CERT_P12_BASE64` | Developer ID Application 証明書（.p12）を base64 化したもの |
+| `MAC_CERT_PASSWORD` | その .p12 のパスワード |
+| `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` | 公証用（3 つ揃うと実行される） |
+
+**アプリ名は ASCII のままにしてください。** `productName` を日本語にすると、
+生成されたアプリが起動直後に SIGTRAP で落ちます（実行ファイル名・ヘルパーアプリ名・
+フレームワーク参照がすべてこの名前から作られるため）。利用者に見える名前は
+`CFBundleDisplayName` で日本語にしてあるので、Finder やメニューバーでは
+「会議レコーダー」と表示されます。
+
 ### whisper-cli の同梱
 
 whisper.cpp は macOS 向けの CLI バイナリを配布していません（リリース資産は

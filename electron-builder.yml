@@ -1,8 +1,20 @@
 appId: com.branch.online-meeting-recorder
-productName: 会議レコーダー
+
+# productName は必ず ASCII にする。
+# 日本語（会議レコーダー）にすると、生成されたアプリが起動直後に SIGTRAP で
+# 落ちる（実行ファイル名・ヘルパーアプリ名・フレームワーク参照がすべて
+# この名前から作られるため）。利用者に見える名前は下の CFBundleDisplayName で
+# 日本語にしているので、Finder やメニューバーでは「会議レコーダー」と表示される。
+productName: Meeting Recorder
+
+artifactName: ${name}-${version}-${arch}.${ext}
 directories:
   buildResources: build
   output: release
+
+# 証明書が無い環境では ad-hoc 署名にフォールバックする。
+# Core Audio Process Tap の権限は署名済みバイナリでしか有効にならないため。
+afterPack: build/after-pack.cjs
 
 files:
   - out/**
@@ -38,6 +50,8 @@ mac:
     NSAudioCaptureUsageDescription: 会議相手の音声を録音するためにシステム音声を取得します。
     NSMicrophoneUsageDescription: 会議中のあなたの発言を録音するためにマイクを使用します。
     LSMinimumSystemVersion: '14.2'
+    # Finder やメニューバーに出る表示名。実行ファイル名とは別に指定できる。
+    CFBundleDisplayName: 会議レコーダー
 
 dmg:
   title: ${productName}
