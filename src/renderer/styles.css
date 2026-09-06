@@ -316,9 +316,54 @@ code {
   gap: 16px;
 }
 
-.detail__header h2 {
+.detail__heading {
+  min-width: 0;
+  flex: 1;
+}
+
+.detail__title {
   margin: 0;
   font-size: 16px;
+}
+
+/* 見出しそのものを押して編集できる。ボタンらしさは控えめにする。 */
+.detail__title-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 2px 8px;
+  margin-left: -8px;
+  border-radius: 6px;
+  font: inherit;
+  text-align: left;
+  max-width: 100%;
+}
+
+.detail__title-button:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.detail__title-hint {
+  opacity: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.detail__title-button:hover .detail__title-hint,
+.detail__title-button:focus-visible .detail__title-hint {
+  opacity: 1;
+}
+
+.detail__title-input {
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  width: 100%;
+  padding: 2px 8px;
+  margin-left: -8px;
 }
 
 .detail__meta,

@@ -51,6 +51,7 @@
             <tr><td><a href="#adr-016">ADR-016</a></td><td>同梱バイナリのパス解決</td><td>unpacked の実パスを明示的に渡す</td></tr>
             <tr><td><a href="#adr-017">ADR-017</a></td><td>マイクが取れなかったときの録音</td><td>停止せず継続し、警告を出す</td></tr>
             <tr><td><a href="#adr-018">ADR-018</a></td><td>レンダラーの CSP</td><td>script-src で blob: のみ追加で許可</td></tr>
+            <tr><td><a href="#adr-019">ADR-019</a></td><td>ウィンドウ外からの録音操作</td><td>メニューバーアイコンとアプリメニューの二本立て</td></tr>
           </tbody>
         </table>
       </div>
@@ -961,6 +962,67 @@
             CSP の内容をテストで固定した。<code>script-src</code> に <code>blob:</code> と
             <code>'self'</code> があること、リモート読み込みを許可しないこと、
             <code>media-src</code> に <code>file:</code> があることを検証する。
+          </li>
+        </ul>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-019">ADR-019 ウィンドウ外からの録音操作</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-019</span>
+          <p class="adr__title">メニューバーアイコンとアプリケーションメニューの二本立てにする</p>
+        </div>
+
+        <h4>発見した不具合</h4>
+        <p>
+          ドキュメントには「メニューバーから録音・停止できる」と書いていましたが、
+          実際には<strong>何も表示されていませんでした</strong>。原因は 2 つあり、
+          どちらも単独で表示を妨げます。
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>原因</th><th>症状</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>埋め込んだアイコンの PNG が破損していた</td>
+                <td>
+                  ヘッダは正しいが画像データが壊れており、Electron 側では
+                  <code>isEmpty: true</code> / サイズ 0x0 の空画像になっていた
+                </td>
+              </tr>
+              <tr>
+                <td><code>Tray</code> の参照を保持していなかった</td>
+                <td>
+                  生成した <code>Tray</code> を変数に入れていなかったため GC で回収され、
+                  仮にアイコンが正しくても消える（Electron でよくある落とし穴）
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>結論。</strong>アイコンは円を描く生成器で作り直し、モジュール参照を
+          保持するようにしました。あわせて<strong>アプリケーションメニューにも「録音」を
+          追加</strong>しています。「メニューバー」は画面右上の常駐アイコンとも、アプリ名の
+          並ぶメニューとも解釈でき、どちらを探しても見つかる方が確実だからです。
+          ⌘R で開始、⌘. で停止できます。
+        </div>
+
+        <h4>再発を防ぐためにしたこと</h4>
+        <ul>
+          <li>
+            アイコンの base64 を独立モジュールに切り出し、PNG として妥当か
+            （署名・寸法・展開できること・透明なだけでないこと・RGB が黒であること）を
+            テストで検証する。手で作った値を貼るとヘッダだけ正しい壊れた画像を
+            埋め込みかねないため。
+          </li>
+          <li>
+            録音状態の変化を <code>TransportController</code> から購読できるようにし、
+            メニューとトレイの表示を追従させる。以前はトレイのクリック時にしか更新しておらず、
+            ウィンドウ側で停止すると表示が古いままになっていた。
           </li>
         </ul>
       </div>

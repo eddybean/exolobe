@@ -1,7 +1,8 @@
 import { join } from 'node:path'
-import { BrowserWindow, app, shell } from 'electron'
+import { BrowserWindow, app, shell, type Tray } from 'electron'
 import { createContainer } from './container'
 import { registerIpcHandlers } from './ipc/handlers'
+import { createApplicationMenu } from './menu'
 import { createTray } from './tray'
 
 /**
@@ -12,6 +13,12 @@ import { createTray } from './tray'
  */
 
 let mainWindow: BrowserWindow | undefined
+
+/**
+ * Tray は参照を保持し続けないと GC で回収され、メニューバーからアイコンが消える。
+ * Electron でよくある落とし穴で、実際にこれで表示されなくなっていた。
+ */
+let tray: Tray | undefined
 
 const createWindow = (): BrowserWindow => {
   const window = new BrowserWindow({
@@ -59,7 +66,10 @@ void app.whenReady().then(() => {
 
   mainWindow = createWindow()
   const controller = registerIpcHandlers(container, () => mainWindow)
-  createTray(controller, showWindow)
+
+  // どちらも「ウィンドウを見ていなくても録音を止められる」ための導線。
+  tray = createTray(controller, showWindow)
+  createApplicationMenu(controller, showWindow)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) showWindow()

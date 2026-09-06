@@ -1,6 +1,7 @@
 import { Menu, Tray, nativeImage } from 'electron'
 import { toMessage } from '@domain/errors'
 import type { TransportController } from './ipc/handlers'
+import { TRAY_ICON_PNG_BASE64 } from './trayIcon'
 
 /**
  * メニューバーからの録音操作。
@@ -9,8 +10,13 @@ import type { TransportController } from './ipc/handlers'
  * 開始・停止だけはウィンドウ無しでも常に届く場所に置く。
  */
 export const createTray = (controller: TransportController, showWindow: () => void): Tray => {
+  // 32x32 を scaleFactor 2 として渡すと、16pt のアイコンとして扱われ Retina で滲まない。
+  const icon = nativeImage.createFromBuffer(Buffer.from(TRAY_ICON_PNG_BASE64, 'base64'), {
+    width: 32,
+    height: 32,
+    scaleFactor: 2
+  })
   // テンプレート画像にしておくとライト／ダークの両方で自動的に色が合う。
-  const icon = nativeImage.createFromDataURL(ICON_DATA_URL)
   icon.setTemplateImage(true)
 
   const tray = new Tray(icon)
@@ -44,12 +50,9 @@ export const createTray = (controller: TransportController, showWindow: () => vo
   }
 
   refresh()
-  // 状態はここでしか変わらないため、開くたびに作り直して同期を保つ。
-  tray.on('click', refresh)
+  // 録音状態が変わったら表示を追従させる。クリック時だけの更新では、
+  // ウィンドウ側で停止したときにトレイの表示が古いままになる。
+  controller.onStateChanged(refresh)
 
   return tray
 }
-
-/** 16x16 の丸（録音インジケータ）。外部ファイルを持たずに済ませる。 */
-const ICON_DATA_URL =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAV0lEQVQ4jWNgGAWjYBSMglEwCkbBKBgFo2AUjIJRMApGwSgYBaNgFIyCUTAKRsEoGAWjYBSMglEwCkbBKBgFo2AUjIJRMApGwSgYBaNgFIyCUUAmAAAcvwABg0Y5ewAAAABJRU5ErkJggg=='

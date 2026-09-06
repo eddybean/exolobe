@@ -3,6 +3,7 @@ import type { PipelineStep } from '@domain/Recording'
 import type { RecordingDetailDto } from '@shared/ipc'
 import { STEP_LABELS, formatDateTime, formatDuration } from '../format'
 import { CopyButton } from '../components/CopyButton'
+import { EditableTitle } from '../components/EditableTitle'
 
 const PIPELINE_STEPS: PipelineStep[] = ['mix', 'transcribe', 'diarize', 'summarize', 'encode']
 
@@ -78,6 +79,24 @@ export const RecordingDetailView = ({
     [recordingId, onChanged]
   )
 
+  /**
+   * タイトルの変更。保存ディレクトリ名は変わらないので、既に書き出した
+   * ファイルの場所や外部ツールで開いていたパスは壊れない。
+   */
+  const renameTitle = useCallback(
+    async (title: string): Promise<void> => {
+      setError(undefined)
+      try {
+        await window.recorder.renameRecording(recordingId, title)
+        onChanged()
+      } catch (renameError: unknown) {
+        setError(messageOf(renameError))
+        throw renameError
+      }
+    },
+    [recordingId, onChanged]
+  )
+
   const retry = useCallback(
     (step: PipelineStep): void => {
       window.recorder
@@ -91,8 +110,8 @@ export const RecordingDetailView = ({
   return (
     <section className="detail">
       <header className="detail__header">
-        <div>
-          <h2>{detail.recording.title}</h2>
+        <div className="detail__heading">
+          <EditableTitle value={detail.recording.title} onCommit={renameTitle} />
           <p className="detail__meta">
             {formatDateTime(detail.recording.startedAt)}
             {detail.recording.durationMs > 0 &&

@@ -19,6 +19,8 @@ export interface TransportController {
   start(title?: string): Promise<RecordingDto>
   stop(): Promise<RecordingDto>
   state(): TransportStateDto
+  /** 録音状態の変化を購読する。メニューやトレイの表示を追従させるために使う。 */
+  onStateChanged(listener: () => void): void
 }
 
 /**
@@ -48,7 +50,13 @@ export const registerIpcHandlers = (
         }
       : { active: false }
 
-  const notifyTransport = (): void => send(IPC.transportChanged, transportState())
+  // renderer 以外（メニュー・トレイ）にも状態変化を伝える。
+  const stateListeners: (() => void)[] = []
+
+  const notifyTransport = (): void => {
+    send(IPC.transportChanged, transportState())
+    for (const listener of stateListeners) listener()
+  }
 
   // 重い推論は別プロセスで動かす。ネイティブライブラリが落ちても UI は生き残る。
   const pipeline = new PipelineClient((event: ProgressEventDto) => {
@@ -104,7 +112,10 @@ export const registerIpcHandlers = (
       return toRecordingDto(recording)
     },
 
-    state: transportState
+    state: transportState,
+    onStateChanged: (listener) => {
+      stateListeners.push(listener)
+    }
   }
 
   handle(IPC.listRecordings, async (): Promise<RecordingDto[]> => {
