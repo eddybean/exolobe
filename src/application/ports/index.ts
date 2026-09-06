@@ -88,7 +88,8 @@ export interface RecordingRepositoryPort {
 /** 1 件の録音に紐づくファイル群（音声・文字起こし・要約・メモ）。 */
 export interface RecordingArtifactPort {
   workDir(recording: Recording): string
-  audioPath(recording: Recording): string
+  /** 保存先に置く最終音声のパス。保存先は設定で変わるため非同期に解決する。 */
+  audioPath(recording: Recording): Promise<string>
 
   /** 停止時に確定したトラック情報。アプリ再起動後のリトライで必要になる。 */
   readTracks(recording: Recording): Promise<CapturedTracks | undefined>

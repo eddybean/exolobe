@@ -106,7 +106,7 @@ export class FakeArtifactStore implements RecordingArtifactPort {
   async writeTracks(recording: Recording, tracks: CapturedTracks): Promise<void> {
     this.tracks.set(recording.id, tracks)
   }
-  audioPath(recording: Recording): string {
+  async audioPath(recording: Recording): Promise<string> {
     return `/storage/${recording.slug}/audio.m4a`
   }
   async readTranscript(

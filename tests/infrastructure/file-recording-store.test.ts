@@ -1,0 +1,186 @@
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import {
+  FileRecordingArtifactStore,
+  FileRecordingRepository,
+  type StorageLocator
+} from '@infrastructure/persistence/FileRecordingStore'
+import { createRecording, finishRecording, succeedStep } from '@domain/Recording'
+import { SELF_SPEAKER_ID } from '@domain/Speaker'
+
+const startedAt = new Date('2026-09-06T14:30:00+09:00')
+
+let storage: string
+let work: string
+let locator: StorageLocator
+let repository: FileRecordingRepository
+let artifacts: FileRecordingArtifactStore
+
+const recording = createRecording({ id: 'rec-1', startedAt, title: 'チーム定例' })
+
+beforeEach(async () => {
+  storage = await mkdtemp(join(tmpdir(), 'omr-store-'))
+  work = await mkdtemp(join(tmpdir(), 'omr-work-'))
+  locator = { root: async () => storage }
+  repository = new FileRecordingRepository(locator)
+  artifacts = new FileRecordingArtifactStore(locator, work)
+})
+
+afterEach(async () => {
+  await rm(storage, { recursive: true, force: true })
+  await rm(work, { recursive: true, force: true })
+})
+
+describe('FileRecordingRepository', () => {
+  it('保存した録音を読み戻せる', async () => {
+    await repository.save(recording)
+
+    expect(await repository.find('rec-1')).toEqual(recording)
+  })
+
+  it('保存先が空なら空の一覧を返す', async () => {
+    expect(await repository.list()).toEqual([])
+  })
+
+  it('新しい順に並べる', async () => {
+    const older = createRecording({ id: 'old', startedAt: new Date('2026-09-01T10:00:00+09:00') })
+    await repository.save(older)
+    await repository.save(recording)
+
+    expect((await repository.list()).map((r) => r.id)).toEqual(['rec-1', 'old'])
+  })
+
+  it('同じ録音を保存し直しても重複しない', async () => {
+    await repository.save(recording)
+    await repository.save(finishRecording(recording, 1000))
+
+    const all = await repository.list()
+    expect(all).toHaveLength(1)
+    expect(all[0]?.status).toBe('processing')
+  })
+
+  it('録音ディレクトリにも meta.json を残す', async () => {
+    await repository.save(recording)
+
+    const meta = JSON.parse(
+      await readFile(join(storage, recording.slug, 'meta.json'), 'utf8')
+    ) as { id: string }
+    expect(meta.id).toBe('rec-1')
+  })
+
+  it('index.json を失っても meta.json から一覧を再構築する', async () => {
+    await repository.save(recording)
+    await rm(join(storage, 'index.json'))
+
+    expect((await repository.list()).map((r) => r.id)).toEqual(['rec-1'])
+  })
+
+  it('index.json が壊れていても meta.json から復旧する', async () => {
+    await repository.save(recording)
+    await writeFile(join(storage, 'index.json'), '{ broken', 'utf8')
+
+    expect((await repository.list()).map((r) => r.id)).toEqual(['rec-1'])
+  })
+
+  it('ステップの状態を保持して読み戻す', async () => {
+    const processed = { ...recording, steps: succeedStep(recording.steps, 'transcribe') }
+    await repository.save(processed)
+
+    expect((await repository.find('rec-1'))?.steps.transcribe).toEqual({ status: 'done' })
+  })
+
+  it('削除すると一覧から消える', async () => {
+    await repository.save(recording)
+    await repository.remove('rec-1')
+
+    expect(await repository.list()).toEqual([])
+  })
+})
+
+describe('FileRecordingArtifactStore', () => {
+  const segments = [
+    { startMs: 0, endMs: 1000, speakerId: SELF_SPEAKER_ID, text: 'おはようございます' }
+  ]
+  const speakers = [{ id: SELF_SPEAKER_ID, kind: 'self' as const, label: '自分' }]
+
+  it('文字起こしを JSON と Markdown の両方で保存する', async () => {
+    await artifacts.writeTranscript(recording, { segments, speakers })
+
+    expect(await artifacts.readTranscript(recording)).toEqual({ segments, speakers })
+    const markdown = await readFile(join(storage, recording.slug, 'transcript.md'), 'utf8')
+    expect(markdown).toBe('**[00:00] 自分**\nおはようございます')
+  })
+
+  it('未作成の文字起こしは undefined を返す', async () => {
+    expect(await artifacts.readTranscript(recording)).toBeUndefined()
+  })
+
+  it('要約とメモを保存先へ書き出す', async () => {
+    await artifacts.writeSummary(recording, '## 概要\n定例会')
+    await artifacts.writeNote(recording, '自分用メモ')
+
+    expect(await artifacts.readSummary(recording)).toBe('## 概要\n定例会')
+    expect(await artifacts.readNote(recording)).toBe('自分用メモ')
+  })
+
+  it('メモが無ければ空文字を返す', async () => {
+    expect(await artifacts.readNote(recording)).toBe('')
+  })
+
+  it('最終音声は保存先ディレクトリに置く', async () => {
+    expect(await artifacts.audioPath(recording)).toBe(join(storage, recording.slug, 'audio.m4a'))
+  })
+
+  it('中間ファイルは保存先ではなく作業ディレクトリに置く', async () => {
+    expect(artifacts.workDir(recording)).toBe(join(work, 'rec-1'))
+  })
+
+  it('トラック情報を保存して読み戻せる', async () => {
+    const tracks = {
+      systemWavPath: '/work/system.wav',
+      micWavPath: '/work/mic.wav',
+      micOffsetMs: 120,
+      durationMs: 65_000
+    }
+    await artifacts.writeTracks(recording, tracks)
+
+    expect(await artifacts.readTracks(recording)).toEqual(tracks)
+  })
+
+  it('中間ファイルの片付けで作業ディレクトリの WAV だけを消す', async () => {
+    await artifacts.writeTracks(recording, {
+      systemWavPath: 'x',
+      micWavPath: 'y',
+      micOffsetMs: 0,
+      durationMs: 0
+    })
+    await artifacts.writeSummary(recording, '要約')
+    await writeFile(join(artifacts.workDir(recording), 'mix.wav'), 'pcm', 'utf8')
+
+    await artifacts.cleanupIntermediates(recording)
+
+    await expect(stat(join(artifacts.workDir(recording), 'mix.wav'))).rejects.toThrow()
+    expect(await artifacts.readSummary(recording)).toBe('要約')
+  })
+
+  it('存在しない中間ファイルを消しても失敗しない', async () => {
+    await expect(artifacts.cleanupIntermediates(recording)).resolves.toBeUndefined()
+  })
+
+  it('削除すると保存先と作業ディレクトリの両方が消える', async () => {
+    await artifacts.writeSummary(recording, '要約')
+    await artifacts.writeTracks(recording, {
+      systemWavPath: 'x',
+      micWavPath: 'y',
+      micOffsetMs: 0,
+      durationMs: 0
+    })
+
+    await artifacts.removeAll(recording)
+
+    await expect(stat(join(storage, recording.slug))).rejects.toThrow()
+    await expect(stat(artifacts.workDir(recording))).rejects.toThrow()
+  })
+})

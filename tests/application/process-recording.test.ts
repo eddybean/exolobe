@@ -137,7 +137,7 @@ describe('ProcessRecording — 正常系', () => {
 
     expect(ctx.encoder.calls[0]).toEqual({
       inputPath: '/work/rec-1/mix.wav',
-      outputPath: ctx.artifacts.audioPath(ctx.recording),
+      outputPath: await ctx.artifacts.audioPath(ctx.recording),
       codec: 'aac',
       bitrateKbps: 32
     })

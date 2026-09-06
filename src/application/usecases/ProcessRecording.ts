@@ -227,7 +227,7 @@ export class ProcessRecording {
   private async encode({ recording, settings }: StepContext): Promise<void> {
     await this.deps.encoder.encode({
       inputPath: this.mixPath(recording),
-      outputPath: this.deps.artifacts.audioPath(recording),
+      outputPath: await this.deps.artifacts.audioPath(recording),
       codec: settings.audio.codec,
       bitrateKbps: settings.audio.bitrateKbps
     })
