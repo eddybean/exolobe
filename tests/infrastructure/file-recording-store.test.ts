@@ -19,7 +19,7 @@ let locator: StorageLocator
 let repository: FileRecordingRepository
 let artifacts: FileRecordingArtifactStore
 
-const recording = createRecording({ id: 'rec-1', startedAt, title: 'チーム定例' })
+const recording = createRecording({ id: 'rec-1', startedAt, title: 'サンプル会議' })
 
 beforeEach(async () => {
   storage = await mkdtemp(join(tmpdir(), 'omr-store-'))

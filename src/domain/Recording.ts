@@ -39,18 +39,15 @@ export const initialStepStates = (): StepStates =>
   ) as StepStates
 
 /**
- * 保存ディレクトリ名を組み立てる。ファイルシステムで問題になる文字を落とし、
- * ディレクトリ名だけで時系列に並ぶよう日時を先頭に置く。
+ * 保存ディレクトリ名を組み立てる。タイトルは後から自由にリネームできて
+ * ディレクトリ名には反映されないため、ここでは使わない。
+ * 開始日時 + id 先頭8桁だけで一意なディレクトリ名にする。
  */
-export const slugForRecording = (startedAt: Date, title: string): string => {
+export const slugForRecording = (startedAt: Date, id: string): string => {
   const { date, time } = formatDateTime(startedAt)
-  const safeTitle = title
-    .replace(/[/\\:*?"<>|]/g, '-')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+  const idSuffix = id.slice(0, 8)
 
-  return safeTitle ? `${date}_${time}_${safeTitle}` : `${date}_${time}`
+  return `${date}_${time}-${idSuffix}`
 }
 
 export const defaultTitle = (startedAt: Date): string => {
@@ -72,7 +69,7 @@ export const createRecording = (params: {
     durationMs: 0,
     status: 'recording',
     steps: initialStepStates(),
-    slug: slugForRecording(params.startedAt, title)
+    slug: slugForRecording(params.startedAt, params.id)
   }
 }
 

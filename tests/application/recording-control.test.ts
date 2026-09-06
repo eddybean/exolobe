@@ -43,10 +43,10 @@ describe('StartRecording', () => {
   })
 
   it('録音を作成して保存し、キャプチャを開始する', async () => {
-    const recording = await ctx.start.execute({ title: 'チーム定例' })
+    const recording = await ctx.start.execute({ title: 'サンプル会議' })
 
     expect(recording.status).toBe('recording')
-    expect(recording.slug).toBe('2026-09-06_1430_チーム定例')
+    expect(recording.slug).toBe('2026-09-06_1430-rec-1')
     expect(ctx.capture.isActive()).toBe(true)
     expect(await ctx.repository.find(recording.id)).toEqual(recording)
   })

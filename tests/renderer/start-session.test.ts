@@ -41,14 +41,14 @@ describe('startRecordingSession', () => {
     const ctx = build()
 
     const outcome = await startRecordingSession({
-      title: 'チーム定例',
+      title: 'サンプル会議',
       sampleRate: 16_000,
       api: ctx.api,
       startMic: ctx.startMic
     })
 
     expect(ctx.calls).toEqual(['startRecording', 'startMic'])
-    expect(ctx.api.startRecording).toHaveBeenCalledWith('チーム定例')
+    expect(ctx.api.startRecording).toHaveBeenCalledWith('サンプル会議')
     expect(outcome.micCapture).toBeDefined()
     expect(outcome.warning).toBeUndefined()
   })

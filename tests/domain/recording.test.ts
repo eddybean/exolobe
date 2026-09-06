@@ -85,15 +85,20 @@ describe('ステップの状態遷移', () => {
 })
 
 describe('slugForRecording', () => {
-  it('日時とタイトルから保存ディレクトリ名を作る', () => {
-    expect(slugForRecording(startedAt, 'チーム定例')).toBe('2026-09-06_1430_チーム定例')
+  it('日時と id 先頭8桁から保存ディレクトリ名を作る（タイトルは使わない）', () => {
+    expect(slugForRecording(startedAt, 'a1b2c3d4-e5f6-7890-abcd-ef1234567890')).toBe(
+      '2026-09-06_1430-a1b2c3d4'
+    )
   })
 
-  it('パス区切りや制御文字を除去する', () => {
-    expect(slugForRecording(startedAt, 'a/b:c\nd')).toBe('2026-09-06_1430_a-b-c-d')
+  it('id が短い場合はそのまま接尾辞にする', () => {
+    expect(slugForRecording(startedAt, 'r1')).toBe('2026-09-06_1430-r1')
   })
 
-  it('タイトルが空でも日時だけのディレクトリ名になる', () => {
-    expect(slugForRecording(startedAt, '   ')).toBe('2026-09-06_1430')
+  it('同時刻でも id が異なればディレクトリ名が衝突しない', () => {
+    const first = slugForRecording(startedAt, 'aaaaaaaa-0000-0000-0000-000000000000')
+    const second = slugForRecording(startedAt, 'bbbbbbbb-0000-0000-0000-000000000000')
+
+    expect(first).not.toBe(second)
   })
 })

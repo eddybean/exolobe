@@ -15,7 +15,7 @@ import { SELF_SPEAKER_ID, type Speaker } from '@domain/Speaker'
 import { FakeArtifactStore, FakeRecordingRepository, FakeSettingsRepository } from './fakes'
 
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
-const recording = createRecording({ id: 'rec-1', startedAt, title: 'チーム定例' })
+const recording = createRecording({ id: 'rec-1', startedAt, title: 'サンプル会議' })
 
 const speakers: Speaker[] = [
   { id: SELF_SPEAKER_ID, kind: 'self', label: '自分' },

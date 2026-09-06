@@ -120,7 +120,7 @@ describe('録音から保存までの一連の流れ', () => {
     const ctx = await build()
 
     // ── 録音 ──
-    const started = await ctx.start.execute({ title: 'チーム定例' })
+    const started = await ctx.start.execute({ title: 'サンプル会議' })
     ctx.source.emit(speechLike(2))
     await ctx.recorder.pushMicPcm(int16Buffer(speechLike(2)))
     const { recording } = await ctx.stop.execute(started.id)
