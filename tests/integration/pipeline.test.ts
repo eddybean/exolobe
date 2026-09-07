@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ProcessRecording } from '@application/usecases/ProcessRecording'
+import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import { StartRecording } from '@application/usecases/StartRecording'
 import { StopRecording } from '@application/usecases/StopRecording'
 import { GetRecordingDetail, ListRecordings } from '@application/usecases/library'
@@ -91,6 +92,7 @@ const build = async (options: { summarizerError?: Error } = {}) => {
       settings,
       repository,
       artifacts,
+      system: new NodeSystemResourceProbe(),
       transcriber,
       summarizer,
       progress: new FakeProgressReporter(),

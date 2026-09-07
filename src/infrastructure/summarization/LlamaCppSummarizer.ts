@@ -1,5 +1,6 @@
 import type { SummarizationPort } from '@application/ports'
 import { AppError } from '@domain/errors'
+import type { MemoryProtection } from '@domain/MemoryGuard'
 import { TRANSCRIPT_PLACEHOLDER } from '@domain/Settings'
 
 export class SummarizationError extends AppError {}
@@ -24,7 +25,11 @@ export interface LlmSession {
 }
 
 export interface LlmSessionFactory {
-  create(config: { modelPath: string; contextSize: number }): Promise<LlmSession>
+  create(config: {
+    modelPath: string
+    contextSize: number
+    protection: MemoryProtection
+  }): Promise<LlmSession>
 }
 
 /**
@@ -78,7 +83,11 @@ const CHUNK_PROMPT = [
  */
 export class LlamaCppSummarizer implements SummarizationPort {
   constructor(
-    private readonly config: { modelPath: string; contextSize: number },
+    private readonly config: {
+      modelPath: string
+      contextSize: number
+      protection: MemoryProtection
+    },
     private readonly factory: LlmSessionFactory
   ) {}
 

@@ -66,7 +66,11 @@ const factoryFor = (session: LlmSession): LlmSessionFactory => ({
 })
 
 describe('LlamaCppSummarizer', () => {
-  const config = { modelPath: '/models/qwen3-8b.gguf', contextSize: 8_192 }
+  const config = {
+    modelPath: '/models/qwen3-8b.gguf',
+    contextSize: 8_192,
+    protection: 'standard' as const
+  }
 
   it('コンテキストに収まる文字起こしは 1 回のプロンプトで要約する', async () => {
     const llm = new FakeLlm()
@@ -133,7 +137,7 @@ describe('LlamaCppSummarizer', () => {
 
   it('モデル未設定なら設定画面へ誘導する', async () => {
     const summarizer = new LlamaCppSummarizer(
-      { modelPath: '', contextSize: 8_192 },
+      { ...config, modelPath: '' },
       factoryFor(new FakeLlm())
     )
 

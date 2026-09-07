@@ -80,3 +80,29 @@ describe('validateSettings', () => {
     )
   })
 })
+
+describe('memoryProtection', () => {
+  it('既定は標準にする', () => {
+    // 何も設定していない利用者も OS ごと固まらないよう、既定で守る。
+    expect(defaultSettings().memoryProtection).toBe('standard')
+  })
+
+  it('部分更新でき、他の設定を壊さない', () => {
+    const merged = mergeSettings(defaultSettings(), { memoryProtection: 'off' })
+
+    expect(merged.memoryProtection).toBe('off')
+    expect(merged.summarization).toEqual(defaultSettings().summarization)
+  })
+
+  it('未指定なら既存の値を保つ', () => {
+    const base = { ...defaultSettings(), memoryProtection: 'conservative' as const }
+
+    expect(mergeSettings(base, { storageDir: '/x' }).memoryProtection).toBe('conservative')
+  })
+
+  it('未知の値は保存前に弾く', () => {
+    const settings = { ...defaultSettings(), memoryProtection: 'aggressive' } as never
+
+    expect(validateSettings(settings).length).toBeGreaterThan(0)
+  })
+})

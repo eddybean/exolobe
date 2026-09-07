@@ -16,6 +16,7 @@ import {
 } from '@infrastructure/settings/JsonSettingsRepository'
 import { LlamaCppSummarizer } from '@infrastructure/summarization/LlamaCppSummarizer'
 import { NodeLlamaSessionFactory } from '@infrastructure/summarization/NodeLlamaSessionFactory'
+import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import { WhisperCppTranscriber } from '@infrastructure/transcription/WhisperCppTranscriber'
 import { resolveWhisperBinary } from '@infrastructure/transcription/resolveWhisperBinary'
 import type { DiarizationSettings, TranscriptionSettings } from '@domain/Settings'
@@ -38,6 +39,7 @@ export const createPipeline = async (
   return new ProcessRecording({
     settings,
     progress,
+    system: new NodeSystemResourceProbe(),
     repository: new FileRecordingRepository(locator),
     artifacts: new FileRecordingArtifactStore(locator, join(userDataPath, 'work')),
     mixer: new TrackMixer(),
@@ -54,7 +56,8 @@ export const createPipeline = async (
     summarizer: new LlamaCppSummarizer(
       {
         modelPath: current.summarization.modelPath,
-        contextSize: current.summarization.contextSize
+        contextSize: current.summarization.contextSize,
+        protection: current.memoryProtection
       },
       new NodeLlamaSessionFactory()
     )

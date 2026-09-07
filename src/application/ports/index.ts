@@ -1,4 +1,5 @@
 import type { Folder } from '@domain/Folder'
+import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import type { AudioCodec, Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
@@ -81,6 +82,19 @@ export interface SummarizationPort {
     promptTemplate: string
     signal?: AbortSignal
   }): Promise<string>
+}
+
+/**
+ * OS 側の資源。重い推論に入る前の判断材料をユースケースへ渡す。
+ *
+ * ファイルサイズを同居させているのは、所要メモリの見積もりに実ファイルの大きさが
+ * 要るため。ModelCatalog の bytes はカタログ上の期待値でしかなく、利用者が自分の
+ * GGUF を選んだ場合には当てにならない。
+ */
+export interface SystemResourcePort {
+  memory(): Promise<MemorySnapshot>
+  /** 存在しない・読めない場合は undefined。 */
+  fileSize(path: string): Promise<number | undefined>
 }
 
 /** 録音のメタデータ一覧。保存先ルート配下の index.json が実体。 */

@@ -13,6 +13,7 @@ import {
   FakeRecordingRepository,
   FakeSettingsRepository,
   FakeSummarizer,
+  FakeSystemResource,
   FakeTranscriber
 } from './fakes'
 
@@ -37,6 +38,7 @@ const build = async (settingsPatch: SettingsPatch = {}) => {
   const mixer = new FakeMixer()
   const encoder = new FakeEncoder()
   const progress = new FakeProgressReporter()
+  const system = new FakeSystemResource()
 
   const recording = finishRecording(createRecording({ id: 'rec-1', startedAt }), 65_000)
   await repository.save(recording)
@@ -57,7 +59,8 @@ const build = async (settingsPatch: SettingsPatch = {}) => {
     diarizer,
     summarizer,
     encoder,
-    progress
+    progress,
+    system
   }
 
   return { ...deps, recording, process: new ProcessRecording(deps) }
@@ -304,6 +307,7 @@ describe('ProcessRecording — 処理中の利用者の編集', () => {
         repository: ctx.repository,
         artifacts: ctx.artifacts,
         mixer: ctx.mixer,
+        system: ctx.system,
         transcriber: ctx.transcriber,
         diarizer: ctx.diarizer,
         summarizer,
@@ -335,5 +339,91 @@ describe('ProcessRecording — 処理中の利用者の編集', () => {
 
     expect(result.title).toBe('定例ミーティング')
     expect((await ctx.repository.find('rec-1'))?.title).toBe('定例ミーティング')
+  })
+})
+
+describe('ProcessRecording — メモリガード', () => {
+  const GB = 1_024 ** 3
+  /** 既定モデルの実サイズ相当。要約に約 7GB を要する。 */
+  const GEMMA_BYTES = 5_154_941_280
+  const modelPath = '/models/gemma.gguf'
+
+  const buildWithModels = async (patch: SettingsPatch = {}) => {
+    const ctx = await build({ summarization: { modelPath }, ...patch })
+    ctx.system.sizes.set(modelPath, GEMMA_BYTES)
+    return ctx
+  }
+
+  it('空きが足りなければ要約を実行せず失敗として記録する', async () => {
+    const ctx = await buildWithModels()
+    ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 2 * GB }
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.summarize.status).toBe('failed')
+    expect(result.steps.summarize.error).toContain('メモリが不足')
+    // モデルに触れる前に止めるのが目的。要約自体は呼ばれない。
+    expect(ctx.summarizer.receivedTranscript).toBeUndefined()
+  })
+
+  it('要約を止めても音声の成果物は残す', async () => {
+    const ctx = await buildWithModels()
+    ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 2 * GB }
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    // ADR-010: 独立したステップは巻き添えにしない。
+    expect(result.steps.mix.status).toBe('done')
+    expect(result.steps.encode.status).toBe('done')
+    expect(result.steps.transcribe.status).toBe('done')
+  })
+
+  it('メモリ保護がオフなら空きが少なくても実行する', async () => {
+    const ctx = await buildWithModels({ memoryProtection: 'off' })
+    ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 0 }
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.summarize.status).toBe('done')
+  })
+
+  it('空きが十分なら従来どおり実行する', async () => {
+    const ctx = await buildWithModels()
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.status).toBe('ready')
+    expect(result.steps.summarize.status).toBe('done')
+  })
+
+  it('止めた理由を進捗として通知する', async () => {
+    const ctx = await buildWithModels()
+    ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 2 * GB }
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    const failed = ctx.progress.events.find(
+      (event) => event.step === 'summarize' && event.status === 'failed'
+    )
+    expect(failed?.error).toContain('メモリが不足')
+  })
+
+  it('モデルの実サイズが読めなければカタログ値で見積もる', async () => {
+    const ctx = await build({ summarization: { modelPath } })
+    // sizes に登録しない = stat に失敗した状況。
+    ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 2 * GB }
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.summarize.status).toBe('failed')
+  })
+
+  it('要約だけを再実行するときも判定する', async () => {
+    const ctx = await buildWithModels()
+    ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 2 * GB }
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
+
+    expect(result.steps.summarize.status).toBe('failed')
   })
 })
