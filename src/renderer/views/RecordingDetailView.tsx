@@ -3,6 +3,7 @@ import type { PipelineStep } from '@domain/Recording'
 import type { RecordingDetailDto } from '@shared/ipc'
 import { STEP_LABELS, formatDateTime, formatDuration } from '../format'
 import { CopyButton } from '../components/CopyButton'
+import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
 import { isAudioReady } from '../library/audio'
 
@@ -223,7 +224,9 @@ export const RecordingDetailView = ({
                 {detail.summary && <CopyButton text={detail.summary} label="要約をコピー" />}
               </div>
               {detail.summary ? (
-                <pre className="summary">{detail.summary}</pre>
+                <div className="summary">
+                  <Markdown source={detail.summary} />
+                </div>
               ) : (
                 <p className="panel__empty">まだ要約がありません。</p>
               )}

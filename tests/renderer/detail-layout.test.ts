@@ -40,3 +40,22 @@ describe('詳細画面の左右カラム', () => {
     expect(ruleFor('.tabs')).toMatch(/align-items:\s*center/)
   })
 })
+
+/**
+ * 要約ペインは Markdown を描くようになったが、パネルの中で収まるという性質は変わらない。
+ * ブラウザのレイアウト結果は単体テストで測れないので、崩す変更に気付けるよう宣言を固定する。
+ */
+describe('要約ペインの Markdown 表示', () => {
+  it('要約はパネルの中でスクロールする', () => {
+    expect(ruleFor('.summary')).toMatch(/overflow:\s*auto/)
+  })
+
+  it('段落内の改行を残す（要約の意味の区切りが潰れない）', () => {
+    // かつて .summary 自身が pre-wrap だった。Markdown 化で段落へ移した。
+    expect(ruleFor('.summary p')).toMatch(/white-space:\s*pre-wrap/)
+  })
+
+  it('コードブロックはパネルを横に押し広げず、自身の中で横スクロールする', () => {
+    expect(ruleFor('.summary pre')).toMatch(/overflow-x:\s*auto/)
+  })
+})
