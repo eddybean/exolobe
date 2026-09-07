@@ -53,6 +53,7 @@
             <tr><td><a href="#adr-018">ADR-018</a></td><td>レンダラーの CSP</td><td>script-src で blob: のみ追加で許可</td></tr>
             <tr><td><a href="#adr-019">ADR-019</a></td><td>ウィンドウ外からの録音操作</td><td>メニューバーアイコンとアプリメニューの二本立て</td></tr>
             <tr><td><a href="#adr-020">ADR-020</a></td><td>無音区間の文字起こし</td><td>whisper の VAD で発話区間だけを渡す</td></tr>
+            <tr><td><a href="#adr-021">ADR-021</a></td><td>要約の推論バックエンド（MLX 化）</td><td>見送り。GGUF / node-llama-cpp を継続</td></tr>
           </tbody>
         </table>
       </div>
@@ -1127,6 +1128,134 @@
         </p>
       </div>
 
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-021">ADR-021 要約の推論バックエンド（MLX 化）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-021</span>
+          <p class="adr__title">MLX への移行は見送り、GGUF / node-llama-cpp を継続する</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          このアプリは macOS 専用（arm64）です。Apple 純正の MLX は Apple Silicon 向けに
+          最適化されており、2026-03-30 には Ollama が Apple Silicon の推論エンジンを MLX へ
+          切り替えました。「GGUF ではなく MLX 形式にすれば要約が速くなるのではないか」という
+          問いが出たため、<a href="#adr-004">ADR-004</a> /
+          <a href="#adr-004b">ADR-004b</a> を再検討しました。
+        </p>
+
+        <h4>まず確認した前提</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>確認したこと</th><th>結果</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>既定モデル（Gemma 4 E4B）に MLX 版があるか</td>
+                <td>
+                  <strong>ある。</strong><code>mlx-community/gemma-4-E4B-it-qat-4bit</code> など、
+                  いま使っている QAT 版に対応する変換が公開されている
+                </td>
+              </tr>
+              <tr>
+                <td>node-llama-cpp（llama.cpp）が MLX を読めるか</td>
+                <td>
+                  <strong>読めない。</strong>GGUF と MLX（safetensors + MLX 独自量子化）は
+                  別系統のランタイムで、移行するなら
+                  <code>NodeLlamaSessionFactory</code> を丸ごと差し替えることになる
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          つまり「モデルが無いから不要」という理由では却下できません。判断は
+          <strong>速度の実利</strong>と<strong>移行コスト</strong>で決めました。
+        </p>
+
+        <h4>決め手は、このアプリの推論プロファイルが MLX の苦手側にあること</h4>
+        <p>
+          MLX が llama.cpp の 2〜3 倍という数字は、<strong>短いプロンプト × 長い生成</strong>
+          （チャット用途の decode）で出たものです。このアプリの要約は逆の形をしています。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>観点</th><th>チャット用途</th><th>このアプリの要約</th></tr></thead>
+            <tbody>
+              <tr><td>入力</td><td>数百トークン</td><td><strong>1 時間の会議 ≒ 32K トークン</strong></td></tr>
+              <tr><td>出力</td><td>長い（対話が続く）</td><td>議事録ぶんだけ（数百〜数千トークン）</td></tr>
+              <tr><td>支配的なコスト</td><td>decode</td><td><strong>prefill</strong></td></tr>
+              <tr><td>実行回数</td><td>連続</td><td>録音ごとに 1 回（毎回ロードして dispose）</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          MLX は llama.cpp のスライディングウィンドウキャッシュに対して full prefill 戦略を取るため
+          TTFT で不利になりやすく、<strong>30K トークンを超える文脈では Flash Attention を
+          有効にした llama.cpp より約 50% 遅い</strong>という計測が報告されています。
+          <code>defaultSettings()</code> の <code>contextSize: 32_768</code> は
+          まさにその領域です（<a href="#adr-004b">ADR-004b</a>）。
+        </p>
+
+        <h4>移行コスト</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Node から MLX を使う手段</th><th>判定</th><th>状況（2026-09 時点）</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><code>@frost-beta/mlx</code></td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>0.4.0 / 最終公開 2025-04。停滞している</td>
+              </tr>
+              <tr>
+                <td><code>node-mlx</code></td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>2.3.0 / 最終公開 2026-01。更新が細い</td>
+              </tr>
+              <tr>
+                <td><code>@mlx-node/lm</code></td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>
+                  活発だが 0.0.x。Gemma 4 に対応する一方、darwin-arm64 のプリビルドが
+                  macOS 26 デプロイターゲットで、旧 OS の利用者を切ることになる
+                </td>
+              </tr>
+              <tr>
+                <td>Python + <code>mlx-lm</code> を同梱</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>
+                  数百 MB 増、署名と notarize の負担。<a href="#adr-004">ADR-004</a> で
+                  捨てたはずの「外部ランタイム依存」に逆戻りする
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          加えて、MLX 版モデルは別途 4〜5GB のダウンロードになります。
+          <code>MANAGED_ASSETS</code> が形式ごとの二重管理になり、
+          <a href="#adr-011">ADR-011</a> の「アプリが入手を引き受ける」体験も複雑になります。
+        </p>
+
+        <div class="verdict">
+          <strong>結論。見送ります。</strong>
+          MLX の明確な利得はメモリ使用量が 7〜13% 少ないことですが、これは
+          「要約が終わったら必ず <code>dispose()</code> する」（<a href="#adr-004">ADR-004</a>）で
+          すでに対処済みの問題です。速度については、このアプリが使う長文脈 prefill は
+          MLX がむしろ不利な領域であり、<strong>成熟していないバインディングと
+          モデルの二重管理を引き受けてまで得るものがありません</strong>。
+        </div>
+
+        <h4>やるとしたら壊れない形になっている</h4>
+        <p>
+          <code>SummarizationPort</code> → <code>LlmSessionFactory</code> という seam が
+          すでにあるため、移行するときは <code>NodeLlamaSessionFactory</code> の隣に
+          <code>MlxSessionFactory</code> を足し、<code>pipeline-container.ts</code> で
+          <code>summarization.provider</code> により分岐するだけで済みます。
+          <strong>この見送りを理由に、いま seam を先回りして広げることはしません。</strong>
+        </p>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -1151,6 +1280,10 @@
             <tr>
               <td><a href="#adr-020">ADR-020</a> 既知の定型句のブロックリスト</td>
               <td>VAD だけで十分だと分かったとき。文言のハードコードは対症療法なので減らしたい</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-021">ADR-021</a> MLX を採らず GGUF を継続</td>
+              <td>MLX の長文脈 prefill が改善したとき。または Node バインディングが 1.x に到達し、プリビルドが旧 macOS もカバーしたとき</td>
             </tr>
             <tr>
               <td>arm64 のみのビルド</td>
