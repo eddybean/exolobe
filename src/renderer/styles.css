@@ -677,9 +677,121 @@ code {
   margin: 0;
   padding: 12px;
   overflow: auto;
-  white-space: pre-wrap;
   font-family: inherit;
   font-size: 13px;
+  line-height: 1.7;
+}
+
+/* 以下は Markdown レンダリング（components/Markdown.tsx）の描く要素のスタイル。 */
+
+.summary > :first-child {
+  margin-top: 0;
+}
+
+.summary > :last-child {
+  margin-bottom: 0;
+}
+
+.summary h1,
+.summary h2,
+.summary h3,
+.summary h4,
+.summary h5,
+.summary h6 {
+  margin: 20px 0 8px;
+  line-height: 1.4;
+}
+
+.summary h1 {
+  font-size: 17px;
+}
+
+.summary h2 {
+  font-size: 15px;
+}
+
+.summary h3 {
+  font-size: 14px;
+}
+
+.summary h4,
+.summary h5,
+.summary h6 {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.summary p {
+  margin: 0 0 10px;
+  /* 段落内の改行は要約の意味の区切りなので、折り返しと同じに潰さない。 */
+  white-space: pre-wrap;
+}
+
+.summary ul,
+.summary ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.summary li {
+  margin: 2px 0;
+}
+
+/* 入れ子のリストは、項目の中に入るぶんの余白だけを持たせる。 */
+.summary li > ul,
+.summary li > ol {
+  margin: 2px 0 0;
+}
+
+.summary a {
+  color: var(--accent);
+}
+
+.summary hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+.summary code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
+}
+
+.summary pre {
+  margin: 0 0 10px;
+  padding: 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  /* 長い行でパネル全体を横に押し広げず、コードの中だけでスクロールさせる。 */
+  overflow-x: auto;
+}
+
+.summary pre code {
+  padding: 0;
+  background: none;
+}
+
+.summary table {
+  border-collapse: collapse;
+  margin: 0 0 10px;
+  font-size: 12px;
+  /* 表が広いときもパネルの幅を超えないよう、はみ出しは .summary 側で吸収する。 */
+  max-width: 100%;
+}
+
+.summary th,
+.summary td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.summary th {
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
 }
 
 .note {
