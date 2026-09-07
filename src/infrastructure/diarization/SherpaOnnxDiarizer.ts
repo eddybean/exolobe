@@ -18,29 +18,47 @@ export class NullDiarizer implements DiarizationPort {
   }
 }
 
-/** sherpa-onnx が返す 1 区間。秒単位・クラスタ番号で表される。 */
-interface SherpaSegment {
-  start: number
-  end: number
-  speaker: number
+/** 話者識別が返す 1 区間。秒単位・クラスタ番号で表される。 */
+export interface DiarizationSegment {
+  readonly start: number
+  readonly end: number
+  readonly speaker: number
 }
 
 /**
- * sherpa-onnx のオフライン話者ダイアライゼーションで、相手トラックを話者ごとに分割する。
+ * 1 回の推論ぶんのセッション。sherpa-onnx を直接触らずこの seam を挟むことで、
+ * 正規化・変換・上限の各ロジックをネイティブ（WASM）無しで検証できる。
+ */
+export interface DiarizationSession {
+  /** モデルが前提とするサンプルレート。この値と違う音声を渡すと時刻がずれる。 */
+  readonly sampleRate: number
+  process(samples: Float32Array): DiarizationSegment[]
+  dispose(): void
+}
+
+export interface DiarizationSessionFactory {
+  create(config: {
+    segmentationModelPath: string
+    embeddingModelPath: string
+  }): Promise<DiarizationSession>
+}
+
+/**
+ * オフライン話者ダイアライゼーションで、相手トラックを話者ごとに分割する。
  *
  * 対象はシステム音声トラックだけでよい。マイクトラックは自分の発話であることが
  * 確定しているため推論に掛ける必要がなく、その分だけ精度と処理時間の両方で有利になる。
  *
- * N-API アドオンなので Electron の ABI に依存せずプリビルドがそのまま動くが、
- * 環境によっては読み込みに失敗し得る。呼び出し側（ProcessRecording）はこのステップの
- * 失敗を独立して扱い、文字起こしと要約は残す。
+ * 呼び出し側（ProcessRecording）はこのステップの失敗を独立して扱うので、
+ * ここで投げても文字起こしと要約は残る。
  */
 export class SherpaOnnxDiarizer implements DiarizationPort {
   constructor(
     private readonly config: {
       segmentationModelPath: string
       embeddingModelPath: string
-    }
+    },
+    private readonly factory: DiarizationSessionFactory
   ) {}
 
   async diarize(params: { wavPath: string; maxSpeakers: number }): Promise<SpeakerTurn[]> {
@@ -54,16 +72,18 @@ export class SherpaOnnxDiarizer implements DiarizationPort {
     // 無音しか無いトラックに推論を掛けても意味が無く、モデルによっては失敗する。
     if (audio.samples.length === 0) return []
 
-    const sherpa = await this.load()
+    const session = await this.factory.create(this.config)
 
     try {
-      const diarizer = new sherpa.OfflineSpeakerDiarization({
-        segmentation: { pyannote: { model: this.config.segmentationModelPath } },
-        embedding: { model: this.config.embeddingModelPath },
-        clustering: { numClusters: -1, threshold: 0.5 },
-        minDurationOn: 0.3,
-        minDurationOff: 0.5
-      })
+      // サンプルレートが違っても推論自体は通ってしまい、時刻だけが実際とずれた
+      // 結果になる。黙って壊れた話者ターンを書き込むより、このステップを落とす。
+      if (audio.sampleRate !== session.sampleRate) {
+        throw new DiarizationError(
+          `話者識別モデルは ${session.sampleRate} Hz の音声を前提としています` +
+            `（この録音は ${audio.sampleRate} Hz）。設定でサンプルレートを ` +
+            `${session.sampleRate} Hz にして録音し直すか、話者識別を無効にしてください。`
+        )
+      }
 
       // sherpa-onnx は [-1, 1] の Float32 を受け取る。
       const float = new Float32Array(audio.samples.length)
@@ -71,8 +91,7 @@ export class SherpaOnnxDiarizer implements DiarizationPort {
         float[i] = (audio.samples[i] ?? 0) / 32_768
       }
 
-      const segments = diarizer.process(float) as SherpaSegment[]
-      const turns = segments.map((segment) => ({
+      const turns = session.process(float).map((segment) => ({
         startMs: Math.round(segment.start * 1000),
         endMs: Math.round(segment.end * 1000),
         speaker: `spk${segment.speaker}`
@@ -80,25 +99,11 @@ export class SherpaOnnxDiarizer implements DiarizationPort {
 
       return limitSpeakers(turns, params.maxSpeakers)
     } catch (error: unknown) {
+      if (error instanceof DiarizationError) throw error
       throw new DiarizationError(`話者識別に失敗しました: ${toMessage(error)}`, { cause: error })
-    }
-  }
-
-  private async load(): Promise<{
-    OfflineSpeakerDiarization: new (config: unknown) => { process(samples: Float32Array): unknown }
-  }> {
-    try {
-      const module: unknown = await import('sherpa-onnx')
-      return module as {
-        OfflineSpeakerDiarization: new (config: unknown) => {
-          process(samples: Float32Array): unknown
-        }
-      }
-    } catch (error: unknown) {
-      throw new DiarizationError(
-        'sherpa-onnx を読み込めませんでした。話者識別を無効にすると、自分と参加者の 2 話者で処理を続行できます。',
-        { cause: error }
-      )
+    } finally {
+      // WASM ヒープ上のモデルは GC の対象外なので、必ず明示的に解放する。
+      session.dispose()
     }
   }
 }

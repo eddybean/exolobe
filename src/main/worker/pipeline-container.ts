@@ -5,6 +5,7 @@ import { ProcessRecording } from '@application/usecases/ProcessRecording'
 import { AfconvertEncoder } from '@infrastructure/audio/AfconvertEncoder'
 import { TrackMixer } from '@infrastructure/audio/TrackMixer'
 import { NullDiarizer, SherpaOnnxDiarizer } from '@infrastructure/diarization/SherpaOnnxDiarizer'
+import { SherpaOnnxSessionFactory } from '@infrastructure/diarization/SherpaOnnxSessionFactory'
 import {
   FileRecordingArtifactStore,
   FileRecordingRepository
@@ -89,8 +90,11 @@ const createDiarizer = (config: DiarizationSettings): DiarizationPort => {
     return new NullDiarizer()
   }
 
-  return new SherpaOnnxDiarizer({
-    segmentationModelPath: config.segmentationModelPath,
-    embeddingModelPath: config.embeddingModelPath
-  })
+  return new SherpaOnnxDiarizer(
+    {
+      segmentationModelPath: config.segmentationModelPath,
+      embeddingModelPath: config.embeddingModelPath
+    },
+    new SherpaOnnxSessionFactory()
+  )
 }
