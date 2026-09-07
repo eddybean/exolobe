@@ -542,6 +542,8 @@ code {
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--text-muted);
+  /* 一覧性が命なので、中身がどう増えてもバッヂ自体は 1 行に保つ。 */
+  white-space: nowrap;
 }
 
 .steps__item--running {
@@ -560,13 +562,6 @@ code {
 .steps__retry {
   padding: 0 6px;
   font-size: 11px;
-}
-
-.steps__error {
-  max-width: 340px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .panel {
