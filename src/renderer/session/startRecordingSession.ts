@@ -1,4 +1,5 @@
 import type { MicCapture } from '../audio/micCapture'
+import { messageOf } from '../errorMessage'
 
 /**
  * 録音開始時の方針を、React から切り離して表したもの。
@@ -56,5 +57,3 @@ export const startRecordingSession = async (params: {
   }
 }
 
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)

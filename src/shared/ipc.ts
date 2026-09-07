@@ -136,6 +136,9 @@ export interface RendererApi {
   getModelStatus(): Promise<ManagedAssetStatusDto[]>
   downloadModel(id: string): Promise<Settings>
   cancelModelDownload(id: string): Promise<void>
+  deleteModel(id: string): Promise<Settings>
+  /** 削除前の確認。ネイティブダイアログを出し、実行してよければ true を返す。 */
+  confirmDeleteModel(id: string): Promise<boolean>
   updateSettings(patch: SettingsPatch): Promise<Settings>
   chooseStorageDir(): Promise<string | undefined>
   chooseFile(kind: 'whisper-model' | 'llm-model' | 'onnx-model'): Promise<string | undefined>
@@ -176,6 +179,8 @@ export const IPC = {
   getModelStatus: 'models:status',
   downloadModel: 'models:download',
   cancelModelDownload: 'models:cancel',
+  deleteModel: 'models:delete',
+  confirmDeleteModel: 'models:confirmDelete',
   modelProgress: 'models:progress',
   updateSettings: 'settings:update',
   chooseStorageDir: 'settings:chooseStorageDir',

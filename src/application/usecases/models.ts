@@ -1,11 +1,12 @@
-import type { SettingsRepositoryPort } from '@application/ports'
+import type { RecordingRepositoryPort, SettingsRepositoryPort } from '@application/ports'
 import {
   MANAGED_ASSETS,
   findAsset,
   type ManagedAsset,
   type ManagedAssetId
 } from '@domain/ModelCatalog'
-import { ConfigurationError } from '@domain/errors'
+import { ConfigurationError, ModelInUseError } from '@domain/errors'
+import { isProcessing } from '@domain/Recording'
 import type { Settings } from '@domain/Settings'
 
 /** モデルファイルの置き場所と存在確認。 */
@@ -20,6 +21,8 @@ export interface ModelStorePort {
   ): Promise<string>
   /** 進行中のダウンロードを止める。 */
   cancel(id: ManagedAssetId): void
+  /** 管理下に置いたファイルを消す。無ければ何もしない。 */
+  remove(asset: ManagedAsset): Promise<void>
 }
 
 export interface ManagedAssetStatus {
@@ -94,6 +97,61 @@ export class DownloadModel {
     })
 
     return this.settings.save(asset.applyTo(path))
+  }
+}
+
+/**
+ * モデルを 1 つ削除し、設定の参照も外す。
+ *
+ * 消すのはアプリが models ディレクトリに置いたファイルだけ。設定が利用者の
+ * 選んだ外部パスを指している場合、そのファイルは他の用途で共有されている
+ * かもしれないので触らず、参照だけを外す。
+ *
+ * 管理下のファイルは設定の内容に関わらず消す。残しておくと GetModelStatus が
+ * 既定の保存場所を見て「取得済み」を返し続け、削除したのに消えていないように
+ * 見えるため。
+ */
+export class DeleteModel {
+  constructor(
+    private readonly settings: SettingsRepositoryPort,
+    private readonly store: ModelStorePort,
+    private readonly recordings: RecordingRepositoryPort
+  ) {}
+
+  async execute(id: string): Promise<Settings> {
+    const asset = findAsset(id)
+    if (!asset) {
+      throw new ConfigurationError(`不明なモデルです: ${id}`)
+    }
+
+    await this.ensureIdle()
+
+    await this.store.remove(asset)
+
+    const settings = await this.settings.load()
+    // 参照が既に空なら書き込まない。無用な settings.json の更新を避ける。
+    if (!configuredPath(settings, asset.id)) return settings
+
+    return this.settings.save(asset.applyTo(''))
+  }
+
+  /**
+   * 読み込み中のモデルを消すとジョブが途中で失敗するため、動いている間は断る。
+   * pending が残るだけの録音（リトライ待ち）は動いていないので妨げない。
+   */
+  private async ensureIdle(): Promise<void> {
+    const recordings = await this.recordings.list()
+
+    if (recordings.some((recording) => recording.status === 'recording')) {
+      throw new ModelInUseError(
+        '録音中はモデルを削除できません。録音を停止してから操作してください。'
+      )
+    }
+    if (recordings.some((recording) => isProcessing(recording.steps))) {
+      throw new ModelInUseError(
+        '処理中の録音があるためモデルを削除できません。完了してから操作してください。'
+      )
+    }
   }
 }
 

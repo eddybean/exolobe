@@ -67,6 +67,9 @@ const api: RendererApi = {
   downloadModel: (id) => ipcRenderer.invoke(IPC.downloadModel, id) as Promise<Settings>,
   cancelModelDownload: (id) =>
     ipcRenderer.invoke(IPC.cancelModelDownload, id) as Promise<void>,
+  deleteModel: (id) => ipcRenderer.invoke(IPC.deleteModel, id) as Promise<Settings>,
+  confirmDeleteModel: (id) =>
+    ipcRenderer.invoke(IPC.confirmDeleteModel, id) as Promise<boolean>,
   updateSettings: (patch: SettingsPatch) =>
     ipcRenderer.invoke(IPC.updateSettings, patch) as Promise<Settings>,
   chooseStorageDir: () =>

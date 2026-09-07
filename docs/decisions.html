@@ -55,6 +55,7 @@
             <tr><td><a href="#adr-020">ADR-020</a></td><td>無音区間の文字起こし</td><td>whisper の VAD で発話区間だけを渡す</td></tr>
             <tr><td><a href="#adr-021">ADR-021</a></td><td>要約の推論バックエンド（MLX 化）</td><td>見送り。GGUF / node-llama-cpp を継続</td></tr>
             <tr><td><a href="#adr-022">ADR-022</a></td><td>文字起こしモデルの見直し</td><td>継続。whisper large-v3-turbo（q5_0）のまま</td></tr>
+            <tr><td><a href="#adr-023">ADR-023</a></td><td>モデルの削除とアンインストール時のクリーンアップ</td><td>設定画面から個別削除。自動クリーンアップは見送り</td></tr>
           </tbody>
         </table>
       </div>
@@ -1361,6 +1362,92 @@
         </p>
       </div>
 
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-023">ADR-023 モデルの削除とアンインストール時のクリーンアップ（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-023</span>
+          <p class="adr__title">設定画面から 1 件ずつ削除できるようにし、アンインストール時の自動クリーンアップは見送る</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          <a href="#adr-011">ADR-011</a> でアプリがモデルの入手を引き受けるようにした結果、
+          <code>~/Library/Application Support/&lt;app&gt;/models/</code> には合計 6GB 近くが溜まります。
+          取得する導線はありましたが、<strong>減らす導線がありませんでした</strong>。
+          話者分割（任意）を試してやめた場合や、容量を空けたい場合に手立てがない状態です。
+        </p>
+
+        <h4>削除するのは「アプリが置いたファイル」だけにする</h4>
+        <p>
+          設定には <code>chooseFile</code> で利用者が自分のファイルを指定する逃げ道があります
+          （外付けドライブに置いた大きなモデルなど）。この参照先を消すと、
+          <strong>アプリが管理していない、他の用途と共有しているかもしれないファイル</strong>を
+          消すことになります。そのため <code>FileModelStore.remove()</code> は
+          <code>models/</code> 配下だけを対象にし、外部パスに対しては設定の参照を外すに留めます。
+        </p>
+        <p>
+          一方、<code>models/</code> 配下のファイルは設定が何を指していても消します。
+          残すと <code>GetModelStatus</code> が既定の保存場所を見て「取得済み」を返し続け、
+          削除したのに消えていないように見えるためです。
+          アーカイブ配布のもの（話者分割）は展開先ディレクトリごと消します
+          — <code>model.onnx</code> だけ消しても同梱の付随ファイルが残り、次の取得で残骸と混ざります。
+        </p>
+
+        <h4>録音中・処理中は断る</h4>
+        <p>
+          ワーカーが読み込んでいる最中のモデルを消すと、ジョブが途中で失敗します
+          （<a href="#adr-008">ADR-008</a> のワーカー隔離があるのでアプリは落ちませんが、
+          利用者から見れば原因の分からない失敗です）。<code>DeleteModel</code> は
+          <code>status === 'recording'</code> か <code>isProcessing(steps)</code> の録音があれば断ります。
+          <strong>pending が残るだけの録音（リトライ待ち）は動いていない</strong>ので妨げません
+          — <a href="#adr-010">ADR-010</a> の「失敗しても他は進む」設計上、
+          未完了の録音はライブラリに残り続けるためです。
+        </p>
+
+        <h4>アンインストール時の自動クリーンアップは実現できない</h4>
+        <p>
+          macOS で <code>.app</code> をゴミ箱に入れる削除には、
+          <strong>OS 側のフックが一切ありません</strong>。インストーラ形式ではないので
+          アンインストールスクリプトを走らせる仕組みもなく、
+          サンドボックス化していないため（Core Audio Process Tap の権限のため
+          <a href="#adr-014">ADR-014</a> の署名構成を採っている）コンテナの自動削除も働きません。
+          つまり「アプリの削除を検知して残りを消す」は設計の選択肢ではなく、不可能です。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>代替案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>設定画面に「アプリのデータをすべて削除」ボタン</td>
+                <td><span class="tag tag--reject">今回は見送り</span></td>
+                <td>唯一確実に動く方法だが、個別削除で容量の問題は解消する。まとめて消す要求が実際に出てから作る</td>
+              </tr>
+              <tr>
+                <td>DMG にアンインストーラを同梱</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>配布物が増え、署名・公証の対象も増える（<a href="#adr-014">ADR-014</a>）。得られるのは残骸の削除だけ</td>
+              </tr>
+              <tr>
+                <td>常駐プロセスでアプリの存在を監視</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>アプリを消した後も何かが残り続けることになり、目的と矛盾する</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>結論。個別削除だけを入れます。</strong>
+          残るのは <code>models/</code>・<code>settings.json</code>・<code>work/</code> で、
+          いずれも <code>~/Library/Application Support/</code> 配下という
+          <strong>macOS で残骸が置かれる標準の場所</strong>です。
+          会議の成果物は保存先（<a href="#adr-015">ADR-015</a>）にあり、
+          そちらはアプリを消しても残るべきものなので、そもそもクリーンアップの対象ではありません。
+        </div>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -1393,6 +1480,10 @@
             <tr>
               <td><a href="#adr-022">ADR-022</a> whisper large-v3-turbo を継続</td>
               <td>whisper.cpp 本体が Qwen3-ASR 級のモデルを取り込んだとき。または transcribe.cpp / CrispASR が安定し、whisper-cli と同じ手軽さで同梱できるようになったとき</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-023">ADR-023</a> 一括クリーンアップを持たない</td>
+              <td>「アプリを消す前にデータを全部消したい」という要求が実際に出たとき。設定画面のボタンとして足すのが最も確実</td>
             </tr>
             <tr>
               <td>arm64 のみのビルド</td>
