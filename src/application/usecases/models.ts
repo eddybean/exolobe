@@ -110,6 +110,8 @@ const configuredPath = (settings: Settings, id: ManagedAssetId): string => {
   switch (id) {
     case 'transcription-model':
       return settings.transcription.modelPath
+    case 'vad-model':
+      return settings.transcription.vadModelPath
     case 'summarization-model':
       return settings.summarization.modelPath
     case 'diarization-segmentation':

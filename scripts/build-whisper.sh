@@ -6,7 +6,7 @@
 # 求めないため、パッケージ作成時にここでビルドして同梱する。
 set -euo pipefail
 
-WHISPER_VERSION="${WHISPER_VERSION:-v1.7.4}"
+WHISPER_VERSION="${WHISPER_VERSION:-v1.9.3}"
 BUILD_DIR="${TMPDIR:-/tmp}/omr-whisper-build"
 OUT_DIR="$(cd "$(dirname "$0")/.." && pwd)/resources/bin"
 

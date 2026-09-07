@@ -40,9 +40,10 @@ class FakeModelStore implements ModelStorePort {
 }
 
 describe('ModelCatalog', () => {
-  it('文字起こしと要約のモデルは必須、話者識別は任意にする', () => {
+  it('文字起こし・無音検出・要約のモデルは必須、話者識別は任意にする', () => {
     expect(requiredAssets().map((a) => a.id)).toEqual([
       'transcription-model',
+      'vad-model',
       'summarization-model'
     ])
   })
@@ -64,6 +65,7 @@ describe('ModelCatalog', () => {
 
     expect(patches).toEqual([
       { transcription: { modelPath: '/p' } },
+      { transcription: { vadModelPath: '/p' } },
       { summarization: { modelPath: '/p' } },
       { diarization: { segmentationModelPath: '/p' } },
       { diarization: { embeddingModelPath: '/p' } }
@@ -87,7 +89,7 @@ describe('GetModelStatus', () => {
       store
     ).execute()
 
-    expect(status).toHaveLength(4)
+    expect(status).toHaveLength(5)
     expect(status.every((s) => !s.installed)).toBe(true)
     expect(status[0]?.path).toBeUndefined()
   })

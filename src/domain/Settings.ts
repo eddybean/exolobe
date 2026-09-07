@@ -28,6 +28,16 @@ export interface TranscriptionSettings {
   readonly modelPath: string
   /** whisper に渡す言語コード。`auto` で自動判定。 */
   readonly language: string
+  /**
+   * 無音区間を whisper に渡さない（VAD）。
+   *
+   * 会議では自分も相手も大半の時間は喋っていない。無音をそのまま whisper に
+   * 通すと「ご視聴ありがとうございました」のような、学習データ由来の文が
+   * 生成されて議事録に混ざる。既定で有効にする。
+   */
+  readonly vadEnabled: boolean
+  /** VAD モデル（ggml 形式の Silero）のパス。未取得なら空文字。 */
+  readonly vadModelPath: string
 }
 
 export interface SummarizationSettings {
@@ -86,7 +96,9 @@ export const defaultSettings = (): Settings => ({
     provider: 'whisper-cpp',
     binaryPath: 'whisper-cli',
     modelPath: '',
-    language: 'ja'
+    language: 'ja',
+    vadEnabled: true,
+    vadModelPath: ''
   },
   summarization: {
     provider: 'llama-cpp',
