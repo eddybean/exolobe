@@ -112,6 +112,31 @@ export const SettingsView = ({
         </select>
       </Field>
 
+      <Field
+        label="無音区間を文字起こししない"
+        hint="喋っていない時間を whisper に渡しません。無効にすると、無音から「ご視聴ありがとうございました」のような文が生まれることがあります。無音検出モデルが未取得のときは自動的に無効になります。"
+      >
+        <input
+          type="checkbox"
+          checked={settings.transcription.vadEnabled}
+          onChange={(event) => update({ transcription: { vadEnabled: event.target.checked } })}
+        />
+      </Field>
+
+      <Field label="無音検出モデル" hint="whisper.cpp 向けの ggml 形式 Silero VAD（.bin）。">
+        <div className="settings__path">
+          <code>{settings.transcription.vadModelPath || '未設定'}</code>
+          <button
+            type="button"
+            onClick={() =>
+              pickFile('whisper-model', (path) => ({ transcription: { vadModelPath: path } }))
+            }
+          >
+            選択
+          </button>
+        </div>
+      </Field>
+
       <h3 className="settings__section">要約</h3>
 
       <Field label="要約モデル" hint="GGUF 形式のモデルを指定します（既定: Gemma 4 E4B QAT q4_0）。">

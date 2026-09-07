@@ -9,6 +9,14 @@ describe('defaultSettings', () => {
     expect(settings.diarization.enabled).toBe(true)
     expect(settings.audio.sampleRate).toBe(16_000)
   })
+
+  it('無音区間の除外を既定で有効にする', () => {
+    const settings = defaultSettings()
+
+    expect(settings.transcription.vadEnabled).toBe(true)
+    // モデルは初期設定画面で取得するため、既定では未設定。
+    expect(settings.transcription.vadModelPath).toBe('')
+  })
 })
 
 describe('isConfigured', () => {
@@ -53,6 +61,14 @@ describe('validateSettings', () => {
   it('話者数の上限が 2 未満なら弾く', () => {
     const settings = mergeSettings(defaultSettings(), { diarization: { maxSpeakers: 1 } })
     expect(validateSettings(settings)).toContain('話者数の上限は 2 以上を指定してください。')
+  })
+
+  it('VAD モデルが未取得でも保存を妨げない', () => {
+    // モデルが無ければ VAD 無しで文字起こしするだけなので、設定としては妥当。
+    const settings = mergeSettings(defaultSettings(), {
+      transcription: { vadEnabled: true, vadModelPath: '' }
+    })
+    expect(validateSettings(settings)).toEqual([])
   })
 
   it('要約プロンプトに文字起こしの差し込み位置が無ければ弾く', () => {

@@ -9,6 +9,7 @@ import type { SettingsPatch } from './Settings'
 
 export type ManagedAssetId =
   | 'transcription-model'
+  | 'vad-model'
   | 'summarization-model'
   | 'diarization-segmentation'
   | 'diarization-embedding'
@@ -50,6 +51,20 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     sha256: '394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2',
     optional: false,
     applyTo: (path) => ({ transcription: { modelPath: path } })
+  },
+  {
+    id: 'vad-model',
+    label: '無音検出モデル',
+    description:
+      'Silero VAD。喋っていない区間を文字起こしから除き、無音から生まれる誤った文章を防ぎます。',
+    url: 'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin',
+    fileName: 'ggml-silero-v5.1.2.bin',
+    bytes: 885_098,
+    sha256: '29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf',
+    // 1MB 未満と極小で、文字起こしの品質に直結するため任意扱いにしない。
+    // 未取得でも VAD 無しで文字起こしは動くので、録音を妨げることはない。
+    optional: false,
+    applyTo: (path) => ({ transcription: { vadModelPath: path } })
   },
   {
     id: 'summarization-model',

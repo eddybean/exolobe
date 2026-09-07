@@ -20,7 +20,7 @@ permissions:
 env:
   # scripts/build-whisper.sh が取得する whisper.cpp のバージョン。
   # ここを変えるとキャッシュも自動的に無効になる。
-  WHISPER_VERSION: v1.7.4
+  WHISPER_VERSION: v1.9.3
 
 jobs:
   build:

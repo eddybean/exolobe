@@ -46,9 +46,41 @@ export const parseWhisperJson = (raw: string, speakerId: string): TranscriptSegm
 /** whisper が挿入する非発話マーカーと余分な空白を落とす。 */
 const NON_SPEECH = /^(\[[^\]]*\]|\([^)]*\)|♪+|＊+)$/
 
+/**
+ * 無音区間で whisper が生みやすい定型句。VAD をすり抜けた分の保険。
+ *
+ * whisper の学習データには字幕が大量に含まれるため、音声が無いと動画の
+ * 締めの決まり文句を出力する。セグメント全体がこれらと一致したときだけ
+ * 落とす（部分一致で消すと「資料の共有ありがとうございました」のような
+ * 本物の発言まで失われる）。
+ *
+ * 載せるのは動画の文脈でしか出てこない固有性の高い言い回しに限る。
+ * 「終わり」のような短く汎用的な語は、会議の締めで実際に発せられたものと
+ * 区別がつかず、黙って消すほうが害が大きい。
+ */
+const HALLUCINATIONS: readonly string[] = [
+  'ご視聴ありがとうございました',
+  'ご視聴ありがとうございます',
+  'ご清聴ありがとうございました',
+  'ご清聴ありがとうございます',
+  '最後までご視聴いただきありがとうございました',
+  'チャンネル登録よろしくお願いします',
+  'チャンネル登録高評価よろしくお願いします',
+  'この動画が良かったと思ったらチャンネル登録よろしくお願いします',
+  '次回の動画でお会いしましょう'
+]
+
+/** 末尾の句読点や感嘆符は揺れるだけで意味を持たないため、比較前に落とす。 */
+const stripTrailingPunctuation = (text: string): string =>
+  text.replace(/[。．.、，,！!？?〜~…\s]+$/u, '')
+
+const isHallucination = (text: string): boolean =>
+  HALLUCINATIONS.includes(stripTrailingPunctuation(text))
+
 const normalizeText = (text: string): string => {
   const trimmed = text.trim()
-  return NON_SPEECH.test(trimmed) ? '' : trimmed
+  if (NON_SPEECH.test(trimmed) || isHallucination(trimmed)) return ''
+  return trimmed
 }
 
 /** whisper-cli を起動する処理。テストで差し替えられるよう切り出す。 */
@@ -68,13 +100,17 @@ const defaultRunner: WhisperRunner = ({ binaryPath, argv }) =>
     })
   })
 
-const describeFailure = (binaryPath: string, error: unknown, stderr: string): string => {
+/** whisper-cli の失敗を利用者が次に何をすべきか分かる文言へ翻訳する。 */
+export const describeFailure = (binaryPath: string, error: unknown, stderr: string): string => {
   const message = toMessage(error)
   if (/ENOENT/.test(message)) {
     return `文字起こしに必要な ${binaryPath} が見つかりません。'npm run setup' を実行してください。`
   }
   if (/failed to initialize|load model|no such file/i.test(`${message}${stderr}`)) {
     return 'whisper のモデルを読み込めませんでした。設定画面でモデルのパスを確認してください。'
+  }
+  if (/unknown argument: --vad|invalid argument: --vad/i.test(`${message}${stderr}`)) {
+    return `${binaryPath} が無音区間の除外（VAD）に対応していません。whisper.cpp を v1.7.6 以降に更新するか、設定画面で無音区間の除外を無効にしてください。`
   }
   return `文字起こしに失敗しました: ${message}`
 }
@@ -87,7 +123,13 @@ const describeFailure = (binaryPath: string, error: unknown, stderr: string): st
  */
 export class WhisperCppTranscriber implements TranscriptionPort {
   constructor(
-    private readonly config: { binaryPath: string; modelPath: string; threads?: number },
+    private readonly config: {
+      binaryPath: string
+      modelPath: string
+      /** 指定があるときだけ VAD を有効にする。未取得なら空文字が来る。 */
+      vadModelPath?: string
+      threads?: number
+    },
     private readonly run: WhisperRunner = defaultRunner
   ) {}
 
@@ -117,6 +159,11 @@ export class WhisperCppTranscriber implements TranscriptionPort {
       '--output-file',
       outputPrefix,
       '--no-prints',
+      // 拍手や物音を表すトークンを抑制する。VAD をすり抜けた雑音の分だけ効く。
+      '--suppress-nst',
+      ...(this.config.vadModelPath
+        ? ['--vad', '--vad-model', this.config.vadModelPath]
+        : []),
       ...(this.config.threads ? ['--threads', String(this.config.threads)] : [])
     ]
 

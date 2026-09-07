@@ -17,7 +17,7 @@ import { LlamaCppSummarizer } from '@infrastructure/summarization/LlamaCppSummar
 import { NodeLlamaSessionFactory } from '@infrastructure/summarization/NodeLlamaSessionFactory'
 import { WhisperCppTranscriber } from '@infrastructure/transcription/WhisperCppTranscriber'
 import { resolveWhisperBinary } from '@infrastructure/transcription/resolveWhisperBinary'
-import type { DiarizationSettings } from '@domain/Settings'
+import type { DiarizationSettings, TranscriptionSettings } from '@domain/Settings'
 
 /**
  * パイプライン用の依存を組み立てる。
@@ -46,7 +46,8 @@ export const createPipeline = async (
         configured: current.transcription.binaryPath,
         ...(bundled === undefined ? {} : { bundled })
       }),
-      modelPath: current.transcription.modelPath
+      modelPath: current.transcription.modelPath,
+      vadModelPath: resolveVadModel(current.transcription)
     }),
     diarizer: createDiarizer(current.diarization),
     summarizer: new LlamaCppSummarizer(
@@ -69,6 +70,17 @@ const bundledWhisper = (): string | undefined => {
 
   const path = join(resourcesPath, 'bin', 'whisper-cli')
   return existsSync(path) ? path : undefined
+}
+
+/**
+ * 無音区間の除外に使う VAD モデル。
+ *
+ * 設定で無効にされているか、モデルが未取得・削除済みなら空文字を返す。
+ * その場合 whisper は音声全体を読むだけで、文字起こし自体は従来どおり動く。
+ */
+const resolveVadModel = (config: TranscriptionSettings): string => {
+  if (!config.vadEnabled || !config.vadModelPath) return ''
+  return existsSync(config.vadModelPath) ? config.vadModelPath : ''
 }
 
 /** モデルが揃っていなければ推論を試みず、2 話者分離のまま処理を通す。 */

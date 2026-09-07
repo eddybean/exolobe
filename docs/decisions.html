@@ -52,6 +52,7 @@
             <tr><td><a href="#adr-017">ADR-017</a></td><td>マイクが取れなかったときの録音</td><td>停止せず継続し、警告を出す</td></tr>
             <tr><td><a href="#adr-018">ADR-018</a></td><td>レンダラーの CSP</td><td>script-src で blob: のみ追加で許可</td></tr>
             <tr><td><a href="#adr-019">ADR-019</a></td><td>ウィンドウ外からの録音操作</td><td>メニューバーアイコンとアプリメニューの二本立て</td></tr>
+            <tr><td><a href="#adr-020">ADR-020</a></td><td>無音区間の文字起こし</td><td>whisper の VAD で発話区間だけを渡す</td></tr>
           </tbody>
         </table>
       </div>
@@ -1027,6 +1028,105 @@
         </ul>
       </div>
 
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-020">ADR-020 無音区間の文字起こし</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-020</span>
+          <p class="adr__title">whisper の VAD で発話区間だけを渡す</p>
+        </div>
+
+        <h4>発見した不具合</h4>
+        <p>
+          文字起こしに <strong>「ご視聴ありがとうございました」が頻繁に混ざる</strong>という
+          報告がありました。マイクトラックは会議中ずっと録り続けており、自分が喋るのは
+          全体の 2 割程度です。残りの無音を whisper に通すと、言語モデルとしての性質から
+          <strong>学習データ（YouTube 字幕）に多い定型句が生成されます</strong>。
+          相手トラックにも同じことが起きます。
+        </p>
+        <p>
+          手元で再現させた結果がこれです。10 秒の微小ノイズ、発話、20 秒の微小ノイズを
+          繋いだ音声を渡すと、発話していない 30 秒目に文章が現れました。
+        </p>
+        <pre><code>[     0- 12280ms] 来週の予定を確認します
+[ 30000- 32360ms] ご視聴ありがとうございました</code></pre>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>方式</th><th>判定</th><th>理由</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>自前のエネルギーベース VAD で前段フィルタ</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>
+                  追加のモデル配布は不要だが、しきい値の調整が環境依存になる。
+                  発話区間を切り出したあとタイムスタンプを元の時間軸へ戻す処理も自前で持つことになる
+                </td>
+              </tr>
+              <tr>
+                <td>whisper へ全体を渡し、無音区間に載ったセグメントを後段で捨てる</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>
+                  ハルシネーションの発生自体は止められず、無音に対する推論時間も従来どおり掛かる
+                </td>
+              </tr>
+              <tr>
+                <td><strong>whisper.cpp の <code>--vad</code>（Silero VAD）</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>下記</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>結論。</strong>whisper.cpp を <strong>v1.7.4 から v1.9.3 へ更新</strong>し、
+          <code>--vad --vad-model</code> で Silero VAD を有効にしました。VAD モデルは
+          <strong>0.9MB</strong> と極小なので、モデルカタログに必須として加えています。
+          同じ音声で試すと、ハルシネーションは消え、発話区間の時刻も
+          <code>9990-12250ms</code> と正確になりました
+          （VAD 無しでは <code>0-12280ms</code> と誤っていた）。
+          タイムスタンプは whisper.cpp が元の音声の時間軸へ戻すため、こちらでの変換は不要です。
+        </div>
+
+        <h4>併せて入れた二段構え</h4>
+        <ul>
+          <li>
+            <code>--suppress-nst</code> で非発話トークンを抑制する。VAD をすり抜けた
+            雑音の分に効く。
+          </li>
+          <li>
+            既知の定型句（「ご視聴ありがとうございました」など）を、
+            <strong>セグメント全体が完全一致したときだけ</strong>落とす。部分一致で消すと
+            「資料の共有ありがとうございました」のような本物の発言まで失われるため。
+          </li>
+        </ul>
+
+        <h4>壊さないための逃げ道</h4>
+        <ul>
+          <li>
+            VAD モデルが未取得・削除済み、または設定で無効にされていれば
+            <code>--vad</code> を渡さない。<strong>従来どおり文字起こしは動きます</strong>。
+            <a href="#adr-006">ADR-006</a> の話者分割モデルと同じ扱いです。
+          </li>
+          <li>
+            設定で古い <code>whisper-cli</code> を指している場合に備え、
+            <code>--vad</code> を知らないバイナリのエラーは
+            「v1.7.6 以降に更新するか、設定で無効にしてください」という文言へ翻訳する。
+          </li>
+        </ul>
+
+        <h4>残した判断</h4>
+        <p>
+          マイク取得時の <code>autoGainControl</code> は無音時の室内ノイズを持ち上げるため、
+          この現象を悪化させている可能性があります。ただし声の小さい話者には有利に働くため、
+          今回は変更していません。
+        </p>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -1047,6 +1147,10 @@
             <tr>
               <td><a href="#adr-014">ADR-014</a> ad-hoc 署名</td>
               <td>自分以外に配布するとき。Apple Developer Program への登録が前提</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-020">ADR-020</a> 既知の定型句のブロックリスト</td>
+              <td>VAD だけで十分だと分かったとき。文言のハードコードは対症療法なので減らしたい</td>
             </tr>
             <tr>
               <td>arm64 のみのビルド</td>
