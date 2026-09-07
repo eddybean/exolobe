@@ -201,7 +201,7 @@ export const RecordingDetailView = ({
           </div>
 
           {tab === 'summary' ? (
-            <div className="panel panel--fill">
+            <div className="panel">
               <div className="panel__header">
                 <h3>要約</h3>
                 {detail.summary && <CopyButton text={detail.summary} label="要約をコピー" />}
@@ -213,7 +213,7 @@ export const RecordingDetailView = ({
               )}
             </div>
           ) : (
-            <div className="panel panel--fill">
+            <div className="panel">
               <div className="panel__header">
                 <h3>メモ</h3>
                 <span className="panel__hint">{noteSaved ? '保存済み' : '保存中…'}</span>
