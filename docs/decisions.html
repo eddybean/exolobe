@@ -56,6 +56,7 @@
             <tr><td><a href="#adr-021">ADR-021</a></td><td>要約の推論バックエンド（MLX 化）</td><td>見送り。GGUF / node-llama-cpp を継続</td></tr>
             <tr><td><a href="#adr-022">ADR-022</a></td><td>文字起こしモデルの見直し</td><td>継続。whisper large-v3-turbo（q5_0）のまま</td></tr>
             <tr><td><a href="#adr-023">ADR-023</a></td><td>モデルの削除とアンインストール時のクリーンアップ</td><td>設定画面から個別削除。自動クリーンアップは見送り</td></tr>
+            <tr><td><a href="#adr-024">ADR-024</a></td><td>メモリ不足時の重い推論</td><td>実行前に確認し、足りなければそのステップだけ失敗させる</td></tr>
           </tbody>
         </table>
       </div>
@@ -1448,6 +1449,123 @@
         </div>
       </div>
 
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-024">ADR-024 メモリ不足時の重い推論（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-024</span>
+          <p class="adr__title">実行前に空きメモリを確認し、足りなければそのステップだけを失敗させる</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          要約は 5.15GB のモデルを一度にメモリへ載せます。実機で測ったところ、
+          モデル本体が約 5.69GB、32K のコンテキストが約 1.27GB で、合計およそ 7GB でした
+          （node-llama-cpp の <code>GgufInsights</code> による見積もり）。
+        </p>
+        <p>
+          これまでのガードは「ジョブを 1 件ずつ直列に処理する」（<a href="#adr-008">ADR-008</a>）と
+          「要約が終わったら必ず <code>dispose()</code> する」（<a href="#adr-004">ADR-004</a>）の 2 つでした。
+          どちらも<strong>アプリ内部の同時実行を防ぐだけで、アプリの外の状況は一切見ていません</strong>。
+          16GB の機体で会議アプリとブラウザが 8GB を使っている状態から要約に入ると、
+          macOS が圧縮とスワップに追われ、会議そのものを巻き添えにします。
+        </p>
+
+        <h4>不採用にした案</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>案</th><th>見送った理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>足りなければコンテキスト長を下げて実行する（縮退）</td>
+                <td>分割要約は文脈が切れて決定事項を取りこぼす。<a href="#adr-004b">ADR-004b</a> で
+                    コンテキスト長を選択の決め手にしたのに、それを黙って捨てることになる。
+                    品質が落ちたことは利用者に見えない</td>
+              </tr>
+              <tr>
+                <td>空くまで待ってから実行する</td>
+                <td>いつ終わるか分からない処理になる。会議直後に議事録を見たい利用者にとって、
+                    「失敗して再実行できる」方が状況を把握しやすい</td>
+              </tr>
+              <tr>
+                <td>ダイアログで利用者に確認する</td>
+                <td>停止後の処理はバックグラウンドで走る（<a href="#adr-009">ADR-009</a>）。
+                    そこに同期的な確認を挟むと、席を外している間ずっと止まる</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>結論。</strong>重いステップに入る前に空きメモリを確認し、足りなければ
+          <code>failStep</code> で<strong>そのステップだけを失敗として記録します</strong>。
+          <a href="#adr-010">ADR-010</a> の仕組みにそのまま乗るので、要約が止まっても
+          ミックス・文字起こし・エンコードは完走し、音声と文字起こしは残ります。
+          利用者は他のアプリを閉じてから、詳細画面の「再実行」を押すだけで済みます。
+        </div>
+
+        <h4>ガードは二重にする</h4>
+        <ul>
+          <li>
+            <strong>事前チェック</strong>（<code>ProcessRecording</code>）。ネイティブコードに
+            触れる前に止めるので、失敗が確実に「扱えるエラー」になる。
+          </li>
+          <li>
+            <strong>内蔵ガード</strong>（node-llama-cpp）。調べたところ
+            <code>ramPadding</code> は指定しなくても既定で RAM の 25%（上限 6GB）、
+            <code>vramPadding</code> は VRAM の 8%（上限 1.6GB）を確保していました。
+            つまり内蔵ガードは<strong>すでに効いていた</strong>ので、こちらの役目は
+            「保守的」のときに締めることだけです。<strong>緩める方向には触りません</strong>。
+            既定を下回る値を渡すと締めるどころか緩めてしまうため、必ず大きい方を採ります。
+          </li>
+        </ul>
+
+        <h4>空きメモリの数え方</h4>
+        <p>
+          <code>os.freemem()</code> は macOS では純粋な free ページしか数えず、常に
+          「空きが無い」と答えます。そこで <code>vm_stat</code> を読みますが、
+          <strong>どのページを空きとみなすかで答えが 2 倍以上変わります</strong>。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>数え方</th><th>同一時点での値</th></tr></thead>
+            <tbody>
+              <tr><td>free + inactive + speculative + purgeable</td><td>4.85GiB（30.3%）</td></tr>
+              <tr><td><strong>総量 − wired − compressor 占有</strong></td><td><strong>9.72GiB（60.8%）</strong></td></tr>
+              <tr><td><code>kern.memorystatus_level</code>（OS 自身の判断）</td><td>59%</td></tr>
+              <tr><td>node-llama-cpp の <code>getVramState().free</code></td><td>12.71GB</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="verdict">
+          <strong>後者を採ります。</strong>前者で実装したところ、実際に要約が動く機体で
+          「標準」が要約を拒みました（空き 4.91GiB / 必要 8.46GiB）。
+          <strong>動く環境で拒む誤検知は、ガードが無いことより悪い</strong>結果です。
+          active・inactive な匿名ページも、大きな要求が来れば macOS が圧縮して回すため、
+          空きとして数えてよい。この式は OS が jetsam の判断に使う
+          <code>kern.memorystatus_level</code> と 2 ポイント差で一致しており、
+          OS 自身の見立てに合わせたことになります。
+        </div>
+
+        <h4>設定</h4>
+        <p>
+          <code>memoryProtection</code> を「保守的 / 標準 / オフ」の 3 段階で持ちます。既定は「標準」。
+          「オフ」が外すのは<strong>事前チェックだけ</strong>で、node-llama-cpp の内蔵の余白は
+          そのまま残します。外せば OS が固まりやすくなり、この ADR の目的に反するためです。
+        </p>
+
+        <h4>見積もりの精度について</h4>
+        <p>
+          所要メモリはモデルのファイルサイズとコンテキスト長からの粗い見積もりです。
+          係数は実機の実測（モデルはファイルの約 1.10 倍、KV キャッシュは約 18.4KB/トークン ＋
+          固定 0.62GB）に基づき、安全側へ丸めてあります。モデルを差し替えれば係数はずれますが、
+          桁を外さない見積もりで目的は足ります。テストは<strong>実測値を下回らないこと</strong>と
+          <strong>実測の 1.3 倍を超えないこと</strong>の両方で固定しており、
+          過小（素通り）と過大（誤検知）のどちらにも倒れないようにしています。
+        </p>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -1484,6 +1602,10 @@
             <tr>
               <td><a href="#adr-023">ADR-023</a> 一括クリーンアップを持たない</td>
               <td>「アプリを消す前にデータを全部消したい」という要求が実際に出たとき。設定画面のボタンとして足すのが最も確実</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-024">ADR-024</a> メモリ見積もりの係数を Gemma 4 E4B に合わせている</td>
+              <td>既定の要約モデルを変えたとき。実測し直して係数を合わせる必要がある</td>
             </tr>
             <tr>
               <td>arm64 のみのビルド</td>

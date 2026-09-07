@@ -12,9 +12,11 @@ import type {
   RecordingRepositoryPort,
   SettingsRepositoryPort,
   SummarizationPort,
+  SystemResourcePort,
   TranscriptionPort
 } from '@application/ports'
 import type { Folder } from '@domain/Folder'
+import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import {
   defaultSettings,
@@ -263,5 +265,22 @@ export class FakeProgressReporter implements ProgressReporterPort {
     error?: string
   }): void {
     this.events.push(event)
+  }
+}
+
+export class FakeSystemResource implements SystemResourcePort {
+  /** 既定は 16GB 中 14GB 空き。どのステップも通る状態。 */
+  snapshot: MemorySnapshot = {
+    totalBytes: 16 * 1_024 ** 3,
+    availableBytes: 14 * 1_024 ** 3
+  }
+  /** パスごとのファイルサイズ。未登録なら undefined を返す。 */
+  sizes = new Map<string, number>()
+
+  async memory(): Promise<MemorySnapshot> {
+    return this.snapshot
+  }
+  async fileSize(path: string): Promise<number | undefined> {
+    return this.sizes.get(path)
   }
 }

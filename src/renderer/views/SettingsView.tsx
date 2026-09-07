@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react'
+import { type MemoryProtection } from '@domain/MemoryGuard'
 import { SUPPORTED_SAMPLE_RATES, type Settings, type SettingsPatch } from '@domain/Settings'
 import type { SetupStateDto } from '@shared/ipc'
 import { ModelManager } from '../components/ModelManager'
@@ -138,6 +139,22 @@ export const SettingsView = ({
       </Field>
 
       <h3 className="settings__section">要約</h3>
+
+      <Field
+        label="メモリ保護"
+        hint="空きメモリが足りないとき、文字起こしと要約を実行せず失敗として記録します。音声とエンコードは残るので、他のアプリを閉じてから詳細画面で再実行できます。"
+      >
+        <select
+          value={settings.memoryProtection}
+          onChange={(event) =>
+            update({ memoryProtection: event.target.value as MemoryProtection })
+          }
+        >
+          <option value="conservative">保守的（OS に多く空ける）</option>
+          <option value="standard">標準</option>
+          <option value="off">オフ（確認せず実行する）</option>
+        </select>
+      </Field>
 
       <Field label="要約モデル" hint="GGUF 形式のモデルを指定します（既定: Gemma 4 E4B QAT q4_0）。">
         <div className="settings__path">

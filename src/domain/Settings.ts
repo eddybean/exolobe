@@ -1,3 +1,5 @@
+import { isMemoryProtection, type MemoryProtection } from '@domain/MemoryGuard'
+
 /** audiotee が受け付けるサンプルレート。whisper は 16kHz を前提とするためこれが既定。 */
 export const SUPPORTED_SAMPLE_RATES: readonly number[] = [
   8_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000
@@ -71,6 +73,12 @@ export interface AudioSettings {
 export interface Settings {
   /** ユーザーが初期設定で選ぶ保存先。未選択なら null。 */
   readonly storageDir: string | null
+  /**
+   * 重い推論の前に空きメモリを確認する強さ。
+   *
+   * 文字起こしと要約の両方に効くため、どのグループにも属さない。
+   */
+  readonly memoryProtection: MemoryProtection
   readonly transcription: TranscriptionSettings
   readonly summarization: SummarizationSettings
   readonly diarization: DiarizationSettings
@@ -84,6 +92,7 @@ export interface Settings {
  */
 export type SettingsPatch = {
   readonly storageDir?: string | null | undefined
+  readonly memoryProtection?: MemoryProtection | undefined
   readonly transcription?: Partial<TranscriptionSettings>
   readonly summarization?: Partial<SummarizationSettings>
   readonly diarization?: Partial<DiarizationSettings>
@@ -92,6 +101,7 @@ export type SettingsPatch = {
 
 export const defaultSettings = (): Settings => ({
   storageDir: null,
+  memoryProtection: 'standard',
   transcription: {
     provider: 'whisper-cpp',
     binaryPath: 'whisper-cli',
@@ -134,6 +144,8 @@ const mergeGroup = <T extends object>(base: T, patch: Partial<T> | undefined): T
 
 export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings => ({
   storageDir: patch.storageDir === undefined ? base.storageDir : patch.storageDir,
+  memoryProtection:
+    patch.memoryProtection === undefined ? base.memoryProtection : patch.memoryProtection,
   transcription: mergeGroup(base.transcription, patch.transcription),
   summarization: mergeGroup(base.summarization, patch.summarization),
   diarization: mergeGroup(base.diarization, patch.diarization),
@@ -154,6 +166,9 @@ export const validateSettings = (settings: Settings): string[] => {
   }
   if (settings.diarization.maxSpeakers < 2) {
     errors.push('話者数の上限は 2 以上を指定してください。')
+  }
+  if (!isMemoryProtection(settings.memoryProtection)) {
+    errors.push('メモリ保護は「保守的」「標準」「オフ」のいずれかを指定してください。')
   }
   if (settings.summarization.contextSize < 1_024) {
     errors.push('要約モデルのコンテキスト長は 1024 以上を指定してください。')

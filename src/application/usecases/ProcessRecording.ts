@@ -8,6 +8,7 @@ import type {
   RecordingRepositoryPort,
   SettingsRepositoryPort,
   SummarizationPort,
+  SystemResourcePort,
   TranscriptionPort
 } from '@application/ports'
 import {
@@ -22,6 +23,13 @@ import {
   type StepStates
 } from '@domain/Recording'
 import { PipelineStepError, RecordingNotFoundError, toMessage } from '@domain/errors'
+import {
+  estimateSummarizationBytes,
+  estimateTranscriptionBytes,
+  insufficientMemory,
+  type MemoryDemand
+} from '@domain/MemoryGuard'
+import { findAsset } from '@domain/ModelCatalog'
 import type { Settings } from '@domain/Settings'
 import {
   REMOTE_SPEAKER_ID,
@@ -43,6 +51,7 @@ export interface ProcessRecordingDeps {
   readonly summarizer: SummarizationPort
   readonly encoder: AudioEncoderPort
   readonly progress: ProgressReporterPort
+  readonly system: SystemResourcePort
 }
 
 /** 各ステップが必要とする先行ステップ。先行が失敗したステップは実行せずスキップする。 */
@@ -129,6 +138,19 @@ export class ProcessRecording {
     }
 
     const { recording } = context
+
+    // モデルを読み込む前に断ることで、失敗を扱えるエラーにし OS を巻き込まない。
+    const shortage = await this.checkMemory(step, context)
+    if (shortage) {
+      this.deps.progress.report({
+        recordingId: recording.id,
+        step,
+        status: 'failed',
+        error: shortage
+      })
+      return failStep(steps, step, shortage)
+    }
+
     this.deps.progress.report({ recordingId: recording.id, step, status: 'running' })
 
     // 途中でアプリが落ちても「実行中で止まった」ことが分かるよう、開始時点で保存する。
@@ -144,6 +166,72 @@ export class ProcessRecording {
       this.deps.progress.report({ recordingId: recording.id, step, status: 'failed', error: message })
       return failStep(running, step, message)
     }
+  }
+
+  /**
+   * 重いステップの所要メモリを見積もり、空きが足りなければ理由を返す。
+   *
+   * 対象は数 GB のモデルを載せる文字起こしと要約だけ。ミックスやエンコードは
+   * ストリーム処理で、判定する意味がない。
+   */
+  private async checkMemory(
+    step: PipelineStep,
+    { settings }: StepContext
+  ): Promise<string | undefined> {
+    if (settings.memoryProtection === 'off') return undefined
+
+    const demand = await this.demandOf(step, settings)
+    if (!demand) return undefined
+
+    return insufficientMemory({
+      snapshot: await this.deps.system.memory(),
+      demand,
+      protection: settings.memoryProtection
+    })
+  }
+
+  private async demandOf(
+    step: PipelineStep,
+    settings: Settings
+  ): Promise<MemoryDemand | undefined> {
+    switch (step) {
+      case 'transcribe': {
+        const modelFileBytes = await this.modelBytes(
+          settings.transcription.modelPath,
+          'transcription-model'
+        )
+        if (modelFileBytes === undefined) return undefined
+        return {
+          bytes: estimateTranscriptionBytes({ modelFileBytes }),
+          label: STEP_LABELS.transcribe
+        }
+      }
+      case 'summarize': {
+        const modelFileBytes = await this.modelBytes(
+          settings.summarization.modelPath,
+          'summarization-model'
+        )
+        if (modelFileBytes === undefined) return undefined
+        return {
+          bytes: estimateSummarizationBytes({
+            modelFileBytes,
+            contextSize: settings.summarization.contextSize
+          }),
+          label: STEP_LABELS.summarize
+        }
+      }
+      default:
+        return undefined
+    }
+  }
+
+  /**
+   * モデルの大きさ。実ファイルを優先し、読めなければカタログの既定値で代用する。
+   * どちらも得られない場合は判定を諦める（見積もれないことを理由に止めない）。
+   */
+  private async modelBytes(path: string, assetId: string): Promise<number | undefined> {
+    if (!path) return undefined
+    return (await this.deps.system.fileSize(path)) ?? findAsset(assetId)?.bytes
   }
 
   /**
