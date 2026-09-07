@@ -509,6 +509,21 @@ code {
   width: 100%;
 }
 
+/*
+ * エンコードが終わるまで音声ファイルは存在せず再生できない。プレーヤーごと
+ * 隠すと左右パネルの上端を揃えた行構成が動くため、置いたまま無効に見せる。
+ */
+.player-slot--pending .player {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.player-slot__hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .steps {
   list-style: none;
   display: flex;
@@ -623,6 +638,13 @@ code {
 .segment__time:hover {
   text-decoration: underline;
   background: transparent;
+}
+
+/* エンコード前は再生できないので、時刻ジャンプも押せないことを見せる。 */
+.segment__time:disabled {
+  opacity: 0.4;
+  cursor: default;
+  text-decoration: none;
 }
 
 .segment__text {

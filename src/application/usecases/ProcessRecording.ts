@@ -18,6 +18,7 @@ import {
   succeedStep,
   type PipelineStep,
   type Recording,
+  type RecordingStatus,
   type StepStates
 } from '@domain/Recording'
 import { PipelineStepError, RecordingNotFoundError, toMessage } from '@domain/errors'
@@ -103,8 +104,7 @@ export class ProcessRecording {
       steps = await this.runStep(step, steps, context)
     }
 
-    const processed: Recording = { ...recording, steps, status: overallStatus(steps) }
-    await this.deps.repository.save(processed)
+    const processed = await this.saveSteps(recording, steps, overallStatus(steps))
 
     // 中間 WAV はリトライで再利用するため、全ステップが揃ってから消す。
     if (processed.status === 'ready') {
@@ -133,7 +133,7 @@ export class ProcessRecording {
 
     // 途中でアプリが落ちても「実行中で止まった」ことが分かるよう、開始時点で保存する。
     const running = startStep(steps, step)
-    await this.deps.repository.save({ ...recording, steps: running, status: 'processing' })
+    await this.saveSteps(recording, running, 'processing')
 
     try {
       await this.executeStep(step, context)
@@ -144,6 +144,24 @@ export class ProcessRecording {
       this.deps.progress.report({ recordingId: recording.id, step, status: 'failed', error: message })
       return failStep(running, step, message)
     }
+  }
+
+  /**
+   * ステップの状態だけを保存する。
+   *
+   * パイプラインは数分走るため、その間に利用者はフォルダ移動やリネームをする。
+   * 開始時に読んだ録音をそのまま書き戻すとその編集を巻き戻してしまうので、
+   * 毎回最新を読み直し、このユースケースが持ち主である steps と status だけを重ねる。
+   */
+  private async saveSteps(
+    snapshot: Recording,
+    steps: StepStates,
+    status: RecordingStatus
+  ): Promise<Recording> {
+    const latest = (await this.deps.repository.find(snapshot.id)) ?? snapshot
+    const merged: Recording = { ...latest, steps, status }
+    await this.deps.repository.save(merged)
+    return merged
   }
 
   private async executeStep(step: PipelineStep, context: StepContext): Promise<void> {

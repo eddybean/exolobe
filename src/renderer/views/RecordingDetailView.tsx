@@ -4,6 +4,7 @@ import type { RecordingDetailDto } from '@shared/ipc'
 import { STEP_LABELS, formatDateTime, formatDuration } from '../format'
 import { CopyButton } from '../components/CopyButton'
 import { EditableTitle } from '../components/EditableTitle'
+import { isAudioReady } from '../library/audio'
 
 const PIPELINE_STEPS: PipelineStep[] = ['mix', 'transcribe', 'diarize', 'summarize', 'encode']
 
@@ -32,6 +33,8 @@ export const RecordingDetailView = ({
   const audioRef = useRef<HTMLAudioElement>(null)
 
   const recordingId = detail.recording.id
+  // エンコードが終わるまで音声ファイルは無い。再生手段はまとめて無効にする。
+  const audioReady = isAudioReady(detail.recording)
 
   // 別の録音に切り替わったら編集中の内容を持ち越さない。
   useEffect(() => {
@@ -138,8 +141,20 @@ export const RecordingDetailView = ({
 
       <div className="detail__body">
         <div className="detail__left">
-          {/* file: スキームで保存先の音声をそのまま再生する */}
-          <audio ref={audioRef} controls src={`file://${detail.audioPath}`} className="player" />
+          <div className={audioReady ? 'player-slot' : 'player-slot player-slot--pending'}>
+            {/* file: スキームで保存先の音声をそのまま再生する。まだ無いなら src を張らない */}
+            <audio
+              ref={audioRef}
+              controls
+              className="player"
+              {...(audioReady ? { src: `file://${detail.audioPath}` } : {})}
+            />
+            {!audioReady && (
+              <p className="player-slot__hint">
+                エンコードが終わると再生できます。処理が終わるまでお待ちください。
+              </p>
+            )}
+          </div>
 
           <div className="panel">
             <div className="panel__header">
@@ -157,7 +172,8 @@ export const RecordingDetailView = ({
                       type="button"
                       className="segment__time"
                       onClick={() => seek(segment.startMs)}
-                      title="この位置から再生"
+                      disabled={!audioReady}
+                      title={audioReady ? 'この位置から再生' : 'エンコードが終わると再生できます'}
                     >
                       {formatDuration(segment.startMs)}
                     </button>

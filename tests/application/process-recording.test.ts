@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ProcessRecording } from '@application/usecases/ProcessRecording'
-import { PIPELINE_STEPS, createRecording, finishRecording } from '@domain/Recording'
+import { PIPELINE_STEPS, createRecording, finishRecording, type Recording } from '@domain/Recording'
+import type { SummarizationPort } from '@application/ports'
 import { SELF_SPEAKER_ID } from '@domain/Speaker'
 import { mergeSettings, type SettingsPatch } from '@domain/Settings'
 import {
@@ -275,5 +276,64 @@ describe('ProcessRecording — 個別リトライ', () => {
 
     await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
     expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])
+  })
+})
+
+describe('ProcessRecording — 処理中の利用者の編集', () => {
+  /**
+   * パイプラインは数分走るため、その間に利用者はフォルダ移動やリネームをする。
+   * 開始時のスナップショットを丸ごと書き戻すと、その編集が巻き戻ってしまう。
+   * 要約ステップの最中に編集が入った状況を再現する。
+   */
+  const buildWithEditDuringSummarize = async (
+    edit: (recording: Recording) => Recording
+  ): Promise<{ ctx: Awaited<ReturnType<typeof build>>; process: ProcessRecording }> => {
+    const ctx = await build()
+    const summarizer: SummarizationPort = {
+      summarize: async () => {
+        const current = await ctx.repository.find('rec-1')
+        await ctx.repository.save(edit(current as Recording))
+        return '## 概要\nテスト要約'
+      }
+    }
+
+    return {
+      ctx,
+      process: new ProcessRecording({
+        settings: ctx.settings,
+        repository: ctx.repository,
+        artifacts: ctx.artifacts,
+        mixer: ctx.mixer,
+        transcriber: ctx.transcriber,
+        diarizer: ctx.diarizer,
+        summarizer,
+        encoder: ctx.encoder,
+        progress: ctx.progress
+      })
+    }
+  }
+
+  it('フォルダへ移動されたら、その分類を保ったまま完了する', async () => {
+    const { ctx, process } = await buildWithEditDuringSummarize((recording) => ({
+      ...recording,
+      folderId: 'folder-1'
+    }))
+
+    const result = await process.execute({ recordingId: 'rec-1' })
+
+    expect(result.folderId).toBe('folder-1')
+    expect((await ctx.repository.find('rec-1'))?.folderId).toBe('folder-1')
+  })
+
+  it('タイトルを変更されたら、その名前を保ったまま完了する', async () => {
+    const { ctx, process } = await buildWithEditDuringSummarize((recording) => ({
+      ...recording,
+      title: '定例ミーティング'
+    }))
+
+    const result = await process.execute({ recordingId: 'rec-1' })
+
+    expect(result.title).toBe('定例ミーティング')
+    expect((await ctx.repository.find('rec-1'))?.title).toBe('定例ミーティング')
   })
 })
