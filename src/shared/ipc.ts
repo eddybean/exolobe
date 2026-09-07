@@ -1,3 +1,4 @@
+import type { Folder } from '@domain/Folder'
 import type { PipelineStep, Recording, RecordingStatus } from '@domain/Recording'
 import type { Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
@@ -21,6 +22,14 @@ export interface RecordingDto {
   readonly steps: Record<PipelineStep, { status: string; error?: string }>
   readonly slug: string
   readonly summaryPreview?: string
+  /** 分類先フォルダの id。未設定なら未分類。 */
+  readonly folderId?: string
+}
+
+export interface FolderDto {
+  readonly id: string
+  readonly name: string
+  readonly parentId?: string
 }
 
 export interface RecordingDetailDto {
@@ -85,7 +94,14 @@ export const toRecordingDto = (
   status: recording.status,
   steps: recording.steps as RecordingDto['steps'],
   slug: recording.slug,
-  ...(summaryPreview === undefined ? {} : { summaryPreview })
+  ...(summaryPreview === undefined ? {} : { summaryPreview }),
+  ...(recording.folderId === undefined ? {} : { folderId: recording.folderId })
+})
+
+export const toFolderDto = (folder: Folder): FolderDto => ({
+  id: folder.id,
+  name: folder.name,
+  ...(folder.parentId === undefined ? {} : { parentId: folder.parentId })
 })
 
 /** preload が contextBridge で公開する API の形。renderer はこれだけを見る。 */
@@ -104,6 +120,13 @@ export interface RendererApi {
   confirmDeleteRecording(recordingId: string): Promise<boolean>
   revealRecording(recordingId: string): Promise<void>
 
+  listFolders(): Promise<FolderDto[]>
+  createFolder(params: { name: string; parentId?: string }): Promise<FolderDto>
+  renameFolder(folderId: string, name: string): Promise<FolderDto>
+  moveFolder(folderId: string, parentId?: string): Promise<void>
+  deleteFolder(folderId: string): Promise<void>
+  moveRecordingToFolder(recordingId: string, folderId?: string): Promise<RecordingDto>
+
   getSetupState(): Promise<SetupStateDto>
   getModelStatus(): Promise<ManagedAssetStatusDto[]>
   downloadModel(id: string): Promise<Settings>
@@ -117,6 +140,7 @@ export interface RendererApi {
 
   onProgress(listener: (event: ProgressEventDto) => void): () => void
   onRecordingsChanged(listener: () => void): () => void
+  onFoldersChanged(listener: () => void): () => void
   onTransportChanged(listener: (state: TransportStateDto) => void): () => void
   onModelProgress(listener: (event: ModelProgressDto) => void): () => void
 }
@@ -135,6 +159,13 @@ export const IPC = {
   deleteRecording: 'recordings:delete',
   confirmDeleteRecording: 'recordings:confirmDelete',
   revealRecording: 'recordings:reveal',
+  listFolders: 'folders:list',
+  createFolder: 'folders:create',
+  renameFolder: 'folders:rename',
+  moveFolder: 'folders:move',
+  deleteFolder: 'folders:delete',
+  moveRecordingToFolder: 'recordings:moveFolder',
+  foldersChanged: 'folders:changed',
   getSetupState: 'settings:setupState',
   getModelStatus: 'models:status',
   downloadModel: 'models:download',

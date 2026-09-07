@@ -4,6 +4,14 @@ import { app } from 'electron'
 import { StartRecording } from '@application/usecases/StartRecording'
 import { StopRecording } from '@application/usecases/StopRecording'
 import {
+  CreateFolder,
+  DeleteFolder,
+  ListFolders,
+  MoveFolder,
+  MoveRecordingToFolder,
+  RenameFolder
+} from '@application/usecases/folders'
+import {
   DeleteRecording,
   GetRecordingDetail,
   GetSetupState,
@@ -21,6 +29,7 @@ import {
 import { AudioTeeSource } from '@infrastructure/audio/AudioTeeSource'
 import { resolveAudioTeeBinary } from '@infrastructure/audio/resolveAudioTeeBinary'
 import { DualTrackRecorder } from '@infrastructure/audio/DualTrackRecorder'
+import { FileFolderRepository } from '@infrastructure/persistence/FileFolderStore'
 import {
   FileRecordingArtifactStore,
   FileRecordingRepository
@@ -48,6 +57,12 @@ export interface Container {
   readonly renameRecording: RenameRecording
   readonly renameSpeaker: RenameSpeaker
   readonly deleteRecording: DeleteRecording
+  readonly listFolders: ListFolders
+  readonly createFolder: CreateFolder
+  readonly renameFolder: RenameFolder
+  readonly moveFolder: MoveFolder
+  readonly deleteFolder: DeleteFolder
+  readonly moveRecordingToFolder: MoveRecordingToFolder
   readonly updateSettings: UpdateSettings
   readonly getSetupState: GetSetupState
   readonly getModelStatus: GetModelStatus
@@ -62,6 +77,12 @@ export const createContainer = (): Container => {
 
   const repository = new FileRecordingRepository(locator)
   const artifacts = new FileRecordingArtifactStore(locator, join(userData, 'work'))
+  const folderRepository = new FileFolderRepository(locator)
+  const folderDeps = {
+    folders: folderRepository,
+    recordings: repository,
+    ids: { next: () => randomUUID() }
+  }
   // audiotee は自分の JS の位置からバイナリを探すため、パッケージ済みアプリでは
   // asar 内のパスを解決してしまい起動できない。実パスを明示的に渡す。
   const recorder = new DualTrackRecorder(
@@ -93,6 +114,12 @@ export const createContainer = (): Container => {
     renameRecording: new RenameRecording(library),
     renameSpeaker: new RenameSpeaker(library),
     deleteRecording: new DeleteRecording(library),
+    listFolders: new ListFolders(folderDeps),
+    createFolder: new CreateFolder(folderDeps),
+    renameFolder: new RenameFolder(folderDeps),
+    moveFolder: new MoveFolder(folderDeps),
+    deleteFolder: new DeleteFolder(folderDeps),
+    moveRecordingToFolder: new MoveRecordingToFolder(folderDeps),
     updateSettings: new UpdateSettings(settings),
     getSetupState: new GetSetupState(settings),
     getModelStatus: new GetModelStatus(settings, models),

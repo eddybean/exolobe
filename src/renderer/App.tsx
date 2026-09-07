@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
-import type { RecordingDetailDto, RecordingDto, SetupStateDto } from '@shared/ipc'
+import type { FolderDto, RecordingDetailDto, RecordingDto, SetupStateDto } from '@shared/ipc'
+import { FolderSidebar, type FolderSelection } from './components/FolderSidebar'
 import { TransportBar } from './components/TransportBar'
 import { useTransport } from './hooks/useTransport'
 import { OnboardingView } from './views/OnboardingView'
@@ -21,6 +22,8 @@ export const App = (): ReactElement => {
   const [recordings, setRecordings] = useState<RecordingDto[]>([])
   const [selectedId, setSelectedId] = useState<string>()
   const [detail, setDetail] = useState<RecordingDetailDto>()
+  const [folders, setFolders] = useState<FolderDto[]>([])
+  const [selectedFolder, setSelectedFolder] = useState<FolderSelection>('all')
 
   const transport = useTransport(setup?.settings.audio.sampleRate ?? 16_000)
 
@@ -35,6 +38,10 @@ export const App = (): ReactElement => {
 
   const refreshList = useCallback(async (): Promise<void> => {
     setRecordings(await window.recorder.listRecordings())
+  }, [])
+
+  const refreshFolders = useCallback(async (): Promise<void> => {
+    setFolders(await window.recorder.listFolders())
   }, [])
 
   const refreshDetail = useCallback(async (): Promise<void> => {
@@ -82,6 +89,11 @@ export const App = (): ReactElement => {
     void refreshDetail()
   }, [refreshDetail])
 
+  useEffect(() => {
+    void refreshFolders()
+    return window.recorder.onFoldersChanged(() => void refreshFolders())
+  }, [refreshFolders])
+
   if (!setup) {
     return <main className="app app--loading">読み込み中…</main>
   }
@@ -123,9 +135,29 @@ export const App = (): ReactElement => {
 
         {screen === 'library' && (
           <div className="library">
+            <FolderSidebar
+              folders={folders}
+              selected={selectedFolder}
+              onSelect={setSelectedFolder}
+              onCreateFolder={(params) => void window.recorder.createFolder(params)}
+              onRenameFolder={(folderId, name) =>
+                void window.recorder.renameFolder(folderId, name)
+              }
+              onDeleteFolder={(folderId) => {
+                void window.recorder.deleteFolder(folderId)
+                setSelectedFolder((current) => (current === folderId ? 'all' : current))
+              }}
+              onMoveFolder={(folderId, parentId) =>
+                void window.recorder.moveFolder(folderId, parentId)
+              }
+              onMoveRecording={(recordingId, folderId) =>
+                void window.recorder.moveRecordingToFolder(recordingId, folderId)
+              }
+            />
             <RecordingListView
               recordings={recordings}
               selectedId={selectedId}
+              selectedFolderId={selectedFolder}
               onSelect={setSelectedId}
               onDelete={(id) => void deleteRecording(id)}
             />

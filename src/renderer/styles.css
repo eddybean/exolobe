@@ -135,8 +135,162 @@ code {
 
 .library {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 200px 320px 1fr;
   height: 100%;
+}
+
+/* ── フォルダ ───────────────────────────────── */
+
+.folders {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--surface);
+}
+
+.folders__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 8px 12px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.folders__header h2 {
+  font-size: 13px;
+  margin: 0;
+}
+
+.folders__add {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  line-height: 1;
+  border-color: transparent;
+  background: transparent;
+}
+
+.folders__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.folders__list .folders__list {
+  padding: 2px 0 2px 0;
+}
+
+.folders__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  padding: 6px 12px;
+  text-align: left;
+  gap: 4px;
+}
+
+.folders__row:hover {
+  background: var(--surface-2);
+}
+
+.folders__row--active {
+  background: var(--surface-2);
+  border-color: var(--border);
+  font-weight: 600;
+}
+
+.folders__row--drop {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--accent);
+}
+
+.folders__row-label {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folders__row-input {
+  flex: 1;
+  padding: 2px 4px;
+}
+
+.folders__row-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.folders__row:hover .folders__row-actions {
+  opacity: 1;
+}
+
+.folders__row-actions button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  line-height: 1;
+  font-size: 11px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.folders__row-actions button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ── モーダル ───────────────────────────────── */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, black 40%, transparent);
+  display: grid;
+  place-items: center;
+  z-index: 100;
+}
+
+.modal {
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 24px color-mix(in srgb, black 20%, transparent);
+}
+
+.modal__title {
+  margin: 0;
+  font-size: 14px;
+}
+
+.modal__input {
+  width: 100%;
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* ── 一覧 ───────────────────────────────── */
@@ -592,7 +746,6 @@ textarea:focus {
 .settings,
 .onboarding {
   padding: 20px 24px 32px;
-  max-width: 720px;
   overflow-y: auto;
   height: 100%;
 }

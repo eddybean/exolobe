@@ -4,7 +4,9 @@ import { toMessage } from '@domain/errors'
 import type { SettingsPatch } from '@domain/Settings'
 import {
   IPC,
+  toFolderDto,
   toRecordingDto,
+  type FolderDto,
   type ModelProgressDto,
   type ProgressEventDto,
   type RecordingDetailDto,
@@ -210,6 +212,53 @@ export const registerIpcHandlers = (
     shell.showItemInFolder(detail.audioPath)
   })
 
+  handle(IPC.listFolders, async (): Promise<FolderDto[]> => {
+    const folders = await container.listFolders.execute()
+    return folders.map(toFolderDto)
+  })
+
+  handle(IPC.createFolder, async (params: unknown): Promise<FolderDto> => {
+    const { name, parentId } = asFolderCreateParams(params)
+    const folder = await container.createFolder.execute({ name, parentId })
+    send(IPC.foldersChanged)
+    return toFolderDto(folder)
+  })
+
+  handle(IPC.renameFolder, async (id: unknown, name: unknown): Promise<FolderDto> => {
+    const folder = await container.renameFolder.execute({
+      folderId: asString(id, 'フォルダ ID'),
+      name: asString(name, 'フォルダ名')
+    })
+    send(IPC.foldersChanged)
+    return toFolderDto(folder)
+  })
+
+  handle(IPC.moveFolder, async (id: unknown, parentId: unknown): Promise<void> => {
+    await container.moveFolder.execute({
+      folderId: asString(id, 'フォルダ ID'),
+      parentId: typeof parentId === 'string' ? parentId : undefined
+    })
+    send(IPC.foldersChanged)
+  })
+
+  handle(IPC.deleteFolder, async (id: unknown): Promise<void> => {
+    await container.deleteFolder.execute({ folderId: asString(id, 'フォルダ ID') })
+    send(IPC.foldersChanged)
+    send(IPC.recordingsChanged)
+  })
+
+  handle(
+    IPC.moveRecordingToFolder,
+    async (id: unknown, folderId: unknown): Promise<RecordingDto> => {
+      const recording = await container.moveRecordingToFolder.execute({
+        recordingId: asString(id, '録音 ID'),
+        folderId: typeof folderId === 'string' ? folderId : undefined
+      })
+      send(IPC.recordingsChanged)
+      return toRecordingDto(recording)
+    }
+  )
+
   handle(IPC.getSetupState, async () => container.getSetupState.execute())
 
   handle(IPC.getModelStatus, async () => container.getModelStatus.execute())
@@ -330,6 +379,15 @@ const asStep = (value: unknown): PipelineStep => {
     throw new Error('再実行するステップの指定が不正です。')
   }
   return value as PipelineStep
+}
+
+const asFolderCreateParams = (value: unknown): { name: string; parentId?: string } => {
+  if (typeof value !== 'object' || value === null || !('name' in value)) {
+    throw new Error('フォルダ名が指定されていません。')
+  }
+  const candidate = value as { name: unknown; parentId?: unknown }
+  const name = asString(candidate.name, 'フォルダ名')
+  return typeof candidate.parentId === 'string' ? { name, parentId: candidate.parentId } : { name }
 }
 
 const asFileKind = (value: unknown): keyof typeof FILE_FILTERS => {

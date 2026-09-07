@@ -24,6 +24,8 @@ export interface Recording {
   readonly steps: StepStates
   /** 保存先ルートからの相対ディレクトリ名。 */
   readonly slug: string
+  /** 分類先フォルダの id。未設定なら未分類。 */
+  readonly folderId?: string | undefined
 }
 
 const pad = (value: number): string => String(value).padStart(2, '0')

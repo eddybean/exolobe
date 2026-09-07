@@ -6,26 +6,37 @@ import { STATUS_LABELS, formatDateTime, formatDuration } from '../format'
 export const RecordingListView = ({
   recordings,
   selectedId,
+  selectedFolderId,
   onSelect,
   onDelete
 }: {
   recordings: readonly RecordingDto[]
   selectedId: string | undefined
+  /** サイドバーで選ばれているフォルダ。'all' は絞り込みなし、'unfiled' は未分類のみ。 */
+  selectedFolderId: 'all' | 'unfiled' | string
   onSelect: (id: string) => void
   onDelete: (id: string) => void
 }): ReactElement => {
   const [query, setQuery] = useState('')
 
+  const byFolder = useMemo(() => {
+    if (selectedFolderId === 'all') return recordings
+    if (selectedFolderId === 'unfiled') {
+      return recordings.filter((recording) => recording.folderId === undefined)
+    }
+    return recordings.filter((recording) => recording.folderId === selectedFolderId)
+  }, [recordings, selectedFolderId])
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    if (!needle) return recordings
+    if (!needle) return byFolder
 
-    return recordings.filter((recording) =>
+    return byFolder.filter((recording) =>
       [recording.title, recording.summaryPreview ?? ''].some((text) =>
         text.toLowerCase().includes(needle)
       )
     )
-  }, [recordings, query])
+  }, [byFolder, query])
 
   return (
     <section className="list">
@@ -52,6 +63,11 @@ export const RecordingListView = ({
             <li
               key={recording.id}
               className={recording.id === selectedId ? 'row row--selected' : 'row'}
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData('application/x-recording-id', recording.id)
+                event.dataTransfer.effectAllowed = 'move'
+              }}
             >
               <button type="button" className="card" onClick={() => onSelect(recording.id)}>
                 <div className="card__row">

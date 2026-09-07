@@ -5,6 +5,7 @@ import type {
   CapturedTracks,
   ClockPort,
   DiarizationPort,
+  FolderRepositoryPort,
   IdGeneratorPort,
   ProgressReporterPort,
   RecordingArtifactPort,
@@ -13,6 +14,7 @@ import type {
   SummarizationPort,
   TranscriptionPort
 } from '@application/ports'
+import type { Folder } from '@domain/Folder'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import {
   defaultSettings,
@@ -85,6 +87,17 @@ export class FakeRecordingRepository implements RecordingRepositoryPort {
   }
   async remove(id: string): Promise<void> {
     this.records.delete(id)
+  }
+}
+
+export class FakeFolderRepository implements FolderRepositoryPort {
+  folders: Folder[] = []
+
+  async list(): Promise<Folder[]> {
+    return this.folders
+  }
+  async replaceAll(folders: readonly Folder[]): Promise<void> {
+    this.folders = [...folders]
   }
 }
 

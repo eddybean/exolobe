@@ -4,6 +4,7 @@ import type { Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import {
   IPC,
+  type FolderDto,
   type ManagedAssetStatusDto,
   type ModelProgressDto,
   type ProgressEventDto,
@@ -49,6 +50,16 @@ const api: RendererApi = {
   revealRecording: (recordingId) =>
     ipcRenderer.invoke(IPC.revealRecording, recordingId) as Promise<void>,
 
+  listFolders: () => ipcRenderer.invoke(IPC.listFolders) as Promise<FolderDto[]>,
+  createFolder: (params) => ipcRenderer.invoke(IPC.createFolder, params) as Promise<FolderDto>,
+  renameFolder: (folderId, name) =>
+    ipcRenderer.invoke(IPC.renameFolder, folderId, name) as Promise<FolderDto>,
+  moveFolder: (folderId, parentId) =>
+    ipcRenderer.invoke(IPC.moveFolder, folderId, parentId) as Promise<void>,
+  deleteFolder: (folderId) => ipcRenderer.invoke(IPC.deleteFolder, folderId) as Promise<void>,
+  moveRecordingToFolder: (recordingId, folderId) =>
+    ipcRenderer.invoke(IPC.moveRecordingToFolder, recordingId, folderId) as Promise<RecordingDto>,
+
   getSetupState: () => ipcRenderer.invoke(IPC.getSetupState) as Promise<SetupStateDto>,
   getModelStatus: () =>
     ipcRenderer.invoke(IPC.getModelStatus) as Promise<ManagedAssetStatusDto[]>,
@@ -65,6 +76,7 @@ const api: RendererApi = {
 
   onProgress: (listener) => subscribe<ProgressEventDto>(IPC.progress, listener),
   onRecordingsChanged: (listener) => subscribe(IPC.recordingsChanged, () => listener()),
+  onFoldersChanged: (listener) => subscribe(IPC.foldersChanged, () => listener()),
   onTransportChanged: (listener) => subscribe<TransportStateDto>(IPC.transportChanged, listener),
   onModelProgress: (listener) => subscribe<ModelProgressDto>(IPC.modelProgress, listener)
 }

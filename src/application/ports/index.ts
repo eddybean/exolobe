@@ -1,3 +1,4 @@
+import type { Folder } from '@domain/Folder'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import type { AudioCodec, Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
@@ -112,6 +113,12 @@ export interface RecordingArtifactPort {
   /** エンコード後に不要になる中間 WAV を片付ける。 */
   cleanupIntermediates(recording: Recording): Promise<void>
   removeAll(recording: Recording): Promise<void>
+}
+
+/** フォルダの定義（id/名前/親子関係）。保存先ルートの folders.json が実体。 */
+export interface FolderRepositoryPort {
+  list(): Promise<Folder[]>
+  replaceAll(folders: readonly Folder[]): Promise<void>
 }
 
 export interface SettingsRepositoryPort {

@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type {
   CapturedTracks,
@@ -17,6 +17,7 @@ import { AppError, ConfigurationError } from '@domain/errors'
 import type { Speaker } from '@domain/Speaker'
 import { toMarkdown } from '@domain/Transcript'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
+import { readJson, writeJsonAtomic } from './jsonFile'
 
 export class StorageError extends AppError {}
 
@@ -41,6 +42,7 @@ interface RecordingRecord {
   status: RecordingStatus
   steps: Record<string, StepState>
   slug: string
+  folderId?: string
 }
 
 const toRecord = (recording: Recording): RecordingRecord => ({
@@ -50,7 +52,8 @@ const toRecord = (recording: Recording): RecordingRecord => ({
   durationMs: recording.durationMs,
   status: recording.status,
   steps: recording.steps,
-  slug: recording.slug
+  slug: recording.slug,
+  ...(recording.folderId === undefined ? {} : { folderId: recording.folderId })
 })
 
 const isRecord = (value: unknown): value is RecordingRecord => {
@@ -74,25 +77,9 @@ const toDomain = (record: RecordingRecord): Recording => {
     durationMs: record.durationMs,
     status: record.status,
     steps: steps as StepStates,
-    slug: record.slug
+    slug: record.slug,
+    ...(record.folderId === undefined ? {} : { folderId: record.folderId })
   }
-}
-
-const readJson = async (path: string): Promise<unknown> => {
-  try {
-    return JSON.parse(await readFile(path, 'utf8')) as unknown
-  } catch {
-    // 未作成・壊れた JSON はどちらも「まだ無い」として扱い、起動を止めない。
-    return undefined
-  }
-}
-
-/** 書き込み途中の電源断で壊れたファイルを残さないよう、一時ファイル経由で置換する。 */
-const writeJsonAtomic = async (path: string, value: unknown): Promise<void> => {
-  await mkdir(dirname(path), { recursive: true })
-  const temporary = `${path}.tmp`
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
-  await rename(temporary, path)
 }
 
 /**

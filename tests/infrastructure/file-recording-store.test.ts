@@ -106,6 +106,12 @@ describe('FileRecordingRepository', () => {
 
     expect(await repository.list()).toEqual([])
   })
+
+  it('フォルダIDを保持して読み戻す', async () => {
+    await repository.save({ ...recording, folderId: 'f1' })
+
+    expect((await repository.find('rec-1'))?.folderId).toBe('f1')
+  })
 })
 
 describe('FileRecordingArtifactStore', () => {
