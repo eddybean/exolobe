@@ -32,6 +32,11 @@ export interface AudioCapturePort {
   start(params: { workDir: string; sampleRate: number }): Promise<void>
   stop(): Promise<CapturedTracks>
   isActive(): boolean
+  /**
+   * 前回の読み出し以降に届いたシステム音声の peak（0〜1）。
+   * UI の入力レベル表示専用で、録音の成果物には影響しない。
+   */
+  systemLevel(): number
 }
 
 /** 2 トラックを時刻整列して 1 本の WAV にまとめる。 */

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TransportStateDto } from '@shared/ipc'
 import { startMicCapture, type MicCapture } from '../audio/micCapture'
+import { readInputLevel } from '../session/readInputLevel'
 import { startRecordingSession } from '../session/startRecordingSession'
 
 export interface Transport {
@@ -48,12 +49,30 @@ export const useTransport = (sampleRate: number): Transport => {
     }
 
     const startedAtMs = state.startedAtMs
+    let stopped = false
+    // デスクトップ音声のレベル取得は IPC 越しなので、遅れたときに次々と
+    // 積み増して順序が入れ替わらないよう、1 回ずつに限る。
+    let reading = false
+
     const timer = window.setInterval(() => {
       setElapsedMs(Date.now() - startedAtMs)
-      setLevel(mic.current?.level() ?? 0)
+      if (reading) return
+
+      reading = true
+      void readInputLevel({
+        micLevel: mic.current?.level,
+        systemLevel: window.recorder.getSystemAudioLevel
+      }).then((next) => {
+        reading = false
+        // 取得は非同期なので、録音が終わった後の結果でメーターを戻さない。
+        if (!stopped) setLevel(next)
+      })
     }, 200)
 
-    return () => window.clearInterval(timer)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+    }
   }, [state.active, state.startedAtMs])
 
   const releaseMic = useCallback(async (): Promise<void> => {

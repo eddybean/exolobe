@@ -111,6 +111,11 @@ export interface RendererApi {
   startRecording(title?: string): Promise<RecordingDto>
   stopRecording(): Promise<RecordingDto>
   getTransportState(): Promise<TransportStateDto>
+  /**
+   * デスクトップ音声の入力レベル（0〜1）。録音中に UI が定期的に取りに来る。
+   * マイクと違い main 側でしか観測できないため、ここだけ pull で渡す。
+   */
+  getSystemAudioLevel(): Promise<number>
   retryStep(recordingId: string, step: PipelineStep): Promise<RecordingDto>
   updateNote(recordingId: string, note: string): Promise<void>
   renameRecording(recordingId: string, title: string): Promise<RecordingDto>
@@ -152,6 +157,7 @@ export const IPC = {
   startRecording: 'transport:start',
   stopRecording: 'transport:stop',
   getTransportState: 'transport:state',
+  getSystemAudioLevel: 'transport:systemLevel',
   retryStep: 'pipeline:retry',
   updateNote: 'recordings:updateNote',
   renameRecording: 'recordings:rename',
