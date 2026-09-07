@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TransportStateDto } from '@shared/ipc'
 import { startMicCapture, type MicCapture } from '../audio/micCapture'
+import { messageOf } from '../errorMessage'
 import { readInputLevel } from '../session/readInputLevel'
 import { startRecordingSession } from '../session/startRecordingSession'
 
@@ -138,5 +139,3 @@ export const useTransport = (sampleRate: number): Transport => {
   }
 }
 
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)

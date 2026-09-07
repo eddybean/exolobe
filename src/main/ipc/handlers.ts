@@ -1,6 +1,7 @@
 import { BrowserWindow, dialog, ipcMain, shell, type FileFilter } from 'electron'
 import type { PipelineStep } from '@domain/Recording'
-import { toMessage } from '@domain/errors'
+import { ConfigurationError, toMessage } from '@domain/errors'
+import { findAsset, formatBytes } from '@domain/ModelCatalog'
 import type { SettingsPatch } from '@domain/Settings'
 import {
   IPC,
@@ -301,6 +302,36 @@ export const registerIpcHandlers = (
   handle(IPC.cancelModelDownload, async (id: unknown) => {
     container.cancelModelDownload.execute(asString(id, 'モデル ID'))
   })
+
+  /**
+   * 削除自体は取り消せるが、要約モデルは 5GB あり再取得に数十分かかる。
+   * 誤操作の代償が大きいので、録音削除と同じく OS のダイアログで確認する。
+   */
+  handle(IPC.confirmDeleteModel, async (id: unknown): Promise<boolean> => {
+    const modelId = asString(id, 'モデル ID')
+    const asset = findAsset(modelId)
+    if (!asset) throw new ConfigurationError(`不明なモデルです: ${modelId}`)
+
+    const window = getWindow()
+    const options = {
+      type: 'warning' as const,
+      buttons: ['削除', 'キャンセル'],
+      defaultId: 1,
+      cancelId: 1,
+      message: `「${asset.label}」を削除しますか？`,
+      detail: `もう一度使うには ${formatBytes(asset.bytes)} のダウンロードが必要になります。`
+    }
+
+    const result = window
+      ? await dialog.showMessageBox(window, options)
+      : await dialog.showMessageBox(options)
+
+    return result.response === 0
+  })
+
+  handle(IPC.deleteModel, async (id: unknown) =>
+    container.deleteModel.execute(asString(id, 'モデル ID'))
+  )
 
   handle(IPC.updateSettings, async (patch: unknown) => {
     const settings = await container.updateSettings.execute(patch as SettingsPatch)

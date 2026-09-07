@@ -27,9 +27,12 @@ export class FileModelStore implements ModelStorePort {
 
   pathFor(asset: ManagedAsset): string {
     // アーカイブは展開後のファイルを指す。
-    return asset.entryPath
-      ? join(this.modelsDir, asset.entryPath)
-      : join(this.modelsDir, asset.fileName)
+    return asset.entryPath ? join(this.modelsDir, asset.entryPath) : this.downloadPathFor(asset)
+  }
+
+  /** 配布元から落ちてくるファイルそのものの置き場所。 */
+  private downloadPathFor(asset: ManagedAsset): string {
+    return join(this.modelsDir, asset.fileName)
   }
 
   async exists(path: string): Promise<boolean> {
@@ -45,6 +48,24 @@ export class FileModelStore implements ModelStorePort {
     this.running.get(id)?.abort()
   }
 
+  /**
+   * 管理下に置いたファイルを消す。設定が指す外部パスには触れない
+   * （利用者が自分で用意したファイルを消してしまわないため）。
+   *
+   * アーカイブ配布のものは展開先ディレクトリごと消す。model.onnx だけ消しても
+   * 同梱の付随ファイルが残り、次の取得で古い残骸と混ざるため。
+   * 中断で残った途中までのアーカイブも同時に片付ける。
+   */
+  async remove(asset: ManagedAsset): Promise<void> {
+    const targets = asset.entryPath
+      ? [join(this.modelsDir, topLevel(asset.entryPath)), this.downloadPathFor(asset)]
+      : [this.downloadPathFor(asset)]
+
+    for (const target of targets) {
+      await rm(target, { recursive: true, force: true })
+    }
+  }
+
   async fetch(
     asset: ManagedAsset,
     options: { onProgress?: (received: number, total: number | undefined) => void }
@@ -56,9 +77,7 @@ export class FileModelStore implements ModelStorePort {
     this.running.set(asset.id, controller)
 
     // アーカイブは一度ダウンロードしてから展開する。
-    const downloadPath = asset.archive
-      ? join(this.modelsDir, asset.fileName)
-      : finalPath
+    const downloadPath = asset.archive ? this.downloadPathFor(asset) : finalPath
 
     try {
       await mkdir(dirname(downloadPath), { recursive: true })
@@ -104,3 +123,6 @@ export class FileModelStore implements ModelStorePort {
     }
   }
 }
+
+/** 展開先の最上位ディレクトリ名。'a/b/c.onnx' なら 'a'。 */
+const topLevel = (entryPath: string): string => entryPath.split('/')[0] ?? entryPath

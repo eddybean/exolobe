@@ -19,6 +19,9 @@ export class RecordingNotFoundError extends AppError {
   }
 }
 
+/** 使用中のモデルを消そうとした。録音や処理が終われば解消する。 */
+export class ModelInUseError extends AppError {}
+
 /** パイプラインの 1 ステップが失敗した。 */
 export class PipelineStepError extends AppError {}
 

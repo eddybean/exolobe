@@ -23,6 +23,7 @@ import {
 } from '@application/usecases/library'
 import {
   CancelModelDownload,
+  DeleteModel,
   DownloadModel,
   GetModelStatus
 } from '@application/usecases/models'
@@ -68,6 +69,7 @@ export interface Container {
   readonly getModelStatus: GetModelStatus
   readonly downloadModel: DownloadModel
   readonly cancelModelDownload: CancelModelDownload
+  readonly deleteModel: DeleteModel
 }
 
 export const createContainer = (): Container => {
@@ -124,6 +126,7 @@ export const createContainer = (): Container => {
     getSetupState: new GetSetupState(settings),
     getModelStatus: new GetModelStatus(settings, models),
     downloadModel: new DownloadModel(settings, models),
-    cancelModelDownload: new CancelModelDownload(models)
+    cancelModelDownload: new CancelModelDownload(models),
+    deleteModel: new DeleteModel(settings, models, repository)
   }
 }

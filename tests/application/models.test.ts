@@ -1,20 +1,29 @@
 import { describe, expect, it } from 'vitest'
 import {
   CancelModelDownload,
+  DeleteModel,
   DownloadModel,
   GetModelStatus,
   type ModelStorePort
 } from '@application/usecases/models'
 import { MANAGED_ASSETS, formatBytes, requiredAssets } from '@domain/ModelCatalog'
 import type { ManagedAsset, ManagedAssetId } from '@domain/ModelCatalog'
+import {
+  initialStepStates,
+  startStep,
+  succeedStep,
+  type Recording,
+  type StepStates
+} from '@domain/Recording'
 import { defaultSettings } from '@domain/Settings'
-import { FakeSettingsRepository } from './fakes'
+import { FakeRecordingRepository, FakeSettingsRepository } from './fakes'
 
 class FakeModelStore implements ModelStorePort {
   /** 存在するとみなすパス。 */
   present = new Set<string>()
   fetched: string[] = []
   cancelled: string[] = []
+  removed: string[] = []
   failWith?: Error
 
   pathFor(asset: ManagedAsset): string {
@@ -36,6 +45,10 @@ class FakeModelStore implements ModelStorePort {
   }
   cancel(id: ManagedAssetId): void {
     this.cancelled.push(id)
+  }
+  async remove(asset: ManagedAsset): Promise<void> {
+    this.removed.push(asset.id)
+    this.present.delete(this.pathFor(asset))
   }
 }
 
@@ -199,5 +212,131 @@ describe('CancelModelDownload', () => {
     new CancelModelDownload(store).execute('nope')
 
     expect(store.cancelled).toEqual([])
+  })
+})
+
+
+/** 保存済みの録音を 1 件だけ作る。状態の違いだけを見たいので中身は最小にする。 */
+const recordingWith = (params: {
+  status: Recording['status']
+  steps?: StepStates
+}): Recording => ({
+  id: 'rec-1',
+  title: '会議',
+  startedAt: new Date('2026-09-07T10:00:00+09:00'),
+  durationMs: 60_000,
+  status: params.status,
+  steps: params.steps ?? initialStepStates(),
+  slug: '2026-09-07_1000-rec-1'
+})
+
+const doneSteps = (): StepStates =>
+  ['mix', 'transcribe', 'diarize', 'summarize', 'encode'].reduce<StepStates>(
+    (steps, step) => succeedStep(steps, step as 'mix'),
+    initialStepStates()
+  )
+
+describe('DeleteModel', () => {
+  const deleter = (
+    settings: FakeSettingsRepository,
+    store: FakeModelStore,
+    recordings = new FakeRecordingRepository()
+  ): DeleteModel => new DeleteModel(settings, store, recordings)
+
+  it('管理下のファイルを消し、設定の参照も外す', async () => {
+    const store = new FakeModelStore()
+    store.present.add('/models/gemma-4-E4B_q4_0-it.gguf')
+
+    const base = defaultSettings()
+    const settings = new FakeSettingsRepository({
+      ...base,
+      summarization: { ...base.summarization, modelPath: '/models/gemma-4-E4B_q4_0-it.gguf' }
+    })
+
+    const updated = await deleter(settings, store).execute('summarization-model')
+
+    expect(store.removed).toEqual(['summarization-model'])
+    expect(updated.summarization.modelPath).toBe('')
+  })
+
+  it('自分で選んだ外部ファイルは消さず、参照だけ外す', async () => {
+    const store = new FakeModelStore()
+    store.present.add('/custom/whisper.bin')
+
+    const base = defaultSettings()
+    const settings = new FakeSettingsRepository({
+      ...base,
+      transcription: { ...base.transcription, modelPath: '/custom/whisper.bin' }
+    })
+
+    const updated = await deleter(settings, store).execute('transcription-model')
+
+    expect(store.present.has('/custom/whisper.bin')).toBe(true)
+    expect(updated.transcription.modelPath).toBe('')
+  })
+
+  it('設定が空でも管理下に残ったファイルは消す', async () => {
+    const store = new FakeModelStore()
+    store.present.add('/models/ggml-large-v3-turbo-q5_0.bin')
+
+    await deleter(new FakeSettingsRepository(defaultSettings()), store).execute(
+      'transcription-model'
+    )
+
+    expect(store.present.has('/models/ggml-large-v3-turbo-q5_0.bin')).toBe(false)
+  })
+
+  it('録音中は削除しない', async () => {
+    const store = new FakeModelStore()
+    const recordings = new FakeRecordingRepository()
+    await recordings.save(recordingWith({ status: 'recording' }))
+
+    await expect(
+      deleter(new FakeSettingsRepository(defaultSettings()), store, recordings).execute(
+        'summarization-model'
+      )
+    ).rejects.toThrow('録音中')
+    expect(store.removed).toEqual([])
+  })
+
+  it('パイプラインの実行中は削除しない', async () => {
+    const store = new FakeModelStore()
+    const recordings = new FakeRecordingRepository()
+    await recordings.save(
+      recordingWith({
+        status: 'processing',
+        steps: startStep(initialStepStates(), 'transcribe')
+      })
+    )
+
+    await expect(
+      deleter(new FakeSettingsRepository(defaultSettings()), store, recordings).execute(
+        'transcription-model'
+      )
+    ).rejects.toThrow('処理中')
+    expect(store.removed).toEqual([])
+  })
+
+  it('動いていない録音が残っていても削除できる', async () => {
+    const store = new FakeModelStore()
+    const recordings = new FakeRecordingRepository()
+    await recordings.save(recordingWith({ status: 'ready', steps: doneSteps() }))
+    // リトライ待ちで pending が残る録音も「実行中」とは見なさない。
+    await recordings.save({
+      ...recordingWith({ status: 'processing' }),
+      id: 'rec-2'
+    })
+
+    await deleter(new FakeSettingsRepository(defaultSettings()), store, recordings).execute(
+      'summarization-model'
+    )
+
+    expect(store.removed).toEqual(['summarization-model'])
+  })
+
+  it('未知の ID は拒否する', async () => {
+    await expect(
+      deleter(new FakeSettingsRepository(), new FakeModelStore()).execute('nope')
+    ).rejects.toThrow('不明なモデルです: nope')
   })
 })
