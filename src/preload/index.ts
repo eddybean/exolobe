@@ -35,6 +35,7 @@ const api: RendererApi = {
   stopRecording: () => ipcRenderer.invoke(IPC.stopRecording) as Promise<RecordingDto>,
   getTransportState: () =>
     ipcRenderer.invoke(IPC.getTransportState) as Promise<TransportStateDto>,
+  getSystemAudioLevel: () => ipcRenderer.invoke(IPC.getSystemAudioLevel) as Promise<number>,
   retryStep: (recordingId, step: PipelineStep) =>
     ipcRenderer.invoke(IPC.retryStep, recordingId, step) as Promise<RecordingDto>,
   updateNote: (recordingId, note) =>

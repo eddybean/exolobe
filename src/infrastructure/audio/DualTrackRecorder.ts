@@ -30,6 +30,11 @@ interface CaptureState {
    * 取りこぼされ、音声が欠落する。
    */
   writes: Promise<void>
+  /**
+   * UI が最後に読み出して以降に届いたシステム音声の peak。
+   * 表示のためだけの値なので、書き込みの成否とは無関係に保つ。
+   */
+  systemPeak: number
   systemFirstChunkAt?: number
   micFirstChunkAt?: number
   error?: Error
@@ -75,7 +80,13 @@ export class DualTrackRecorder implements AudioCapturePort {
       sampleRate: params.sampleRate
     })
 
-    this.state = { workDir: params.workDir, system, mic, writes: Promise.resolve() }
+    this.state = {
+      workDir: params.workDir,
+      system,
+      mic,
+      writes: Promise.resolve(),
+      systemPeak: 0
+    }
 
     try {
       await this.source.start({ sampleRate: params.sampleRate })
@@ -86,6 +97,21 @@ export class DualTrackRecorder implements AudioCapturePort {
       this.state = undefined
       throw error
     }
+  }
+
+  /**
+   * 前回の読み出し以降に届いたシステム音声の peak を返し、その値を捨てる。
+   *
+   * 保持し続けると音が止まってもメーターが下がらないため、読み出しでリセットする。
+   * 読み出す側（UI）が一定間隔で呼ぶ前提で、その間隔ぶんの最大値になる。
+   */
+  systemLevel(): number {
+    const state = this.state
+    if (!state) return 0
+
+    const peak = state.systemPeak
+    state.systemPeak = 0
+    return peak
   }
 
   /** レンダラーの AudioWorklet から届いた 16bit PCM を書き足す。 */
@@ -103,6 +129,7 @@ export class DualTrackRecorder implements AudioCapturePort {
     if (!state || pcm.length === 0) return
 
     state.systemFirstChunkAt ??= this.now()
+    state.systemPeak = Math.max(state.systemPeak, peakOf(pcm))
     this.enqueue(state, () => state.system.write(pcm))
   }
 
@@ -150,4 +177,18 @@ export class DualTrackRecorder implements AudioCapturePort {
     if (systemFirstChunkAt === undefined || micFirstChunkAt === undefined) return 0
     return Math.round(micFirstChunkAt - systemFirstChunkAt)
   }
+}
+
+/**
+ * 16bit PCM の振幅の最大値を 0〜1 で表す。
+ * 実効値（RMS）ではなく peak なのは、短い発話でもメーターが振れる方が
+ * 「音が録れているか」の確認に向くため。
+ */
+const peakOf = (pcm: Buffer): number => {
+  let max = 0
+  for (let offset = 0; offset + 1 < pcm.length; offset += 2) {
+    const magnitude = Math.abs(pcm.readInt16LE(offset))
+    if (magnitude > max) max = magnitude
+  }
+  return max / 32_768
 }

@@ -166,6 +166,39 @@ describe('DualTrackRecorder', () => {
     await expect(recorder.stop()).resolves.toMatchObject({ durationMs: 0 })
   })
 
+  it('システム音声のレベルは直近に届いた PCM の peak を 0〜1 で返す', async () => {
+    await start()
+    source.emit([0, 16_384, -8_192])
+
+    expect(recorder.systemLevel()).toBeCloseTo(0.5, 5)
+  })
+
+  it('読み出したレベルは持ち越さない（音が止まればメーターも落ちる）', async () => {
+    await start()
+    source.emit([32_767])
+    recorder.systemLevel()
+
+    expect(recorder.systemLevel()).toBe(0)
+  })
+
+  it('読み出しの間に複数の PCM が届いたら最大値を返す', async () => {
+    await start()
+    source.emit([1_000])
+    source.emit([16_384])
+    source.emit([2_000])
+
+    expect(recorder.systemLevel()).toBeCloseTo(0.5, 5)
+  })
+
+  it('録音していないときのレベルは 0 とする', async () => {
+    expect(recorder.systemLevel()).toBe(0)
+    await start()
+    source.emit([32_767])
+    await recorder.stop()
+
+    expect(recorder.systemLevel()).toBe(0)
+  })
+
   it('停止すると音声ソースも止める', async () => {
     await start()
     await recorder.stop()

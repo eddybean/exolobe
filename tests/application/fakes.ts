@@ -56,6 +56,8 @@ export class FakeAudioCapture implements AudioCapturePort {
     durationMs: 65_000
   }
   startError?: Error
+  /** UI の音量メーター用に返すシステム音声のレベル。 */
+  level = 0
 
   async start(params: { workDir: string; sampleRate: number }): Promise<void> {
     if (this.startError) throw this.startError
@@ -68,6 +70,9 @@ export class FakeAudioCapture implements AudioCapturePort {
   }
   isActive(): boolean {
     return this.active
+  }
+  systemLevel(): number {
+    return this.active ? this.level : 0
   }
 }
 

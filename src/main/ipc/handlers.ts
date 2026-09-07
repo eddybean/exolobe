@@ -144,6 +144,7 @@ export const registerIpcHandlers = (
   )
   handle(IPC.stopRecording, async () => controller.stop())
   handle(IPC.getTransportState, async () => transportState())
+  handle(IPC.getSystemAudioLevel, async () => container.recorder.systemLevel())
 
   handle(IPC.retryStep, async (id: unknown, step: unknown): Promise<RecordingDto> => {
     const recording = await pipeline.run({

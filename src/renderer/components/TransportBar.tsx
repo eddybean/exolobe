@@ -44,7 +44,7 @@ export const TransportBar = ({ transport }: { transport: Transport }): ReactElem
         </div>
       )}
 
-      <div className="transport__meter" title="マイク入力レベル">
+      <div className="transport__meter" title="入力レベル（マイク／デスクトップ音声）">
         <div className="transport__meter-fill" style={{ width: `${Math.round(level * 100)}%` }} />
       </div>
 

@@ -413,6 +413,13 @@ code {
   flex: 1;
 }
 
+/* JSX は要素間の改行を落とすため、指定しないとボタン同士が接して並ぶ。 */
+.detail__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
 .detail__title {
   margin: 0;
   font-size: 16px;

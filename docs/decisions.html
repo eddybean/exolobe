@@ -54,6 +54,7 @@
             <tr><td><a href="#adr-019">ADR-019</a></td><td>ウィンドウ外からの録音操作</td><td>メニューバーアイコンとアプリメニューの二本立て</td></tr>
             <tr><td><a href="#adr-020">ADR-020</a></td><td>無音区間の文字起こし</td><td>whisper の VAD で発話区間だけを渡す</td></tr>
             <tr><td><a href="#adr-021">ADR-021</a></td><td>要約の推論バックエンド（MLX 化）</td><td>見送り。GGUF / node-llama-cpp を継続</td></tr>
+            <tr><td><a href="#adr-022">ADR-022</a></td><td>文字起こしモデルの見直し</td><td>継続。whisper large-v3-turbo（q5_0）のまま</td></tr>
           </tbody>
         </table>
       </div>
@@ -1256,6 +1257,110 @@
         </p>
       </div>
 
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-022">ADR-022 文字起こしモデルの見直し（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-022</span>
+          <p class="adr__title">whisper large-v3-turbo（q5_0）を継続する</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          文字起こしは <code>MANAGED_ASSETS</code> の <code>transcription-model</code> 1 件で
+          決まっており、既定は whisper large-v3-turbo の q5_0 量子化です。
+          日本語向けにもっと精度の高いモデルが出ていないかを 2026-09-07 時点で再確認しました。
+        </p>
+
+        <h4>Whisper 側に新しい基盤モデルは出ていない</h4>
+        <p>
+          large-v3 / large-v3-turbo が依然として最新の重みで、2026 年の whisper.cpp の更新
+          （v1.8.4、2026-03）は ggml の同期・GPU デバイス選択・ネイティブ VAD といった
+          <strong>ランタイム側の改善</strong>であり、精度が変わる話ではありません。
+          OpenAI の新しい音声認識（gpt-4o-transcribe 系）は API 専用で、重みは公開されていません
+          — <a href="#adr-003">ADR-003</a> の完全ローカル方針では最初から選べません。
+        </p>
+
+        <h4>日本語精度で turbo を上回るのは Qwen3-ASR だけ</h4>
+        <p>第三者による日本語 ASR ベンチマーク（2026-02 / 2026-08）の結果です。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>モデル</th><th>WER</th><th>CER</th><th>備考</th></tr></thead>
+            <tbody>
+              <tr><td>Qwen3-ASR-1.7B</td><td>0.185</td><td>0.140</td><td>最高精度。文脈補完が強い</td></tr>
+              <tr><td><strong>whisper large-v3-turbo（現行）</strong></td><td><strong>0.218</strong></td><td><strong>0.184</strong></td><td>2 位。多言語 99 言語と安定性</td></tr>
+              <tr><td>Voxtral-mini</td><td>0.239</td><td>0.212</td><td>可読性優先</td></tr>
+              <tr><td>Granite 4.1-2b</td><td>0.281</td><td>0.262</td><td>クリアな音声向き</td></tr>
+              <tr><td>Cohere Transcribe</td><td>0.327</td><td>0.297</td><td>ノイズに強いという報告もある</td></tr>
+              <tr><td>Parakeet TDT 0.6b</td><td>0.344</td><td>0.321</td><td>超高速だが日本語は落ちる</td></tr>
+              <tr><td>ReazonSpeech nemo-v2</td><td>0.348</td><td>0.329</td><td>日本語メディア特化</td></tr>
+              <tr><td>Kotoba-whisper v2.0</td><td>0.534</td><td>0.495</td><td>日本語特化だが自然会話に弱い</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          日本語特化モデル（Kotoba-whisper、ReazonSpeech）は ggml 版が公開されていて
+          <strong>差し替えるだけで動く</strong>という点では最も手軽ですが、
+          会議のような自然会話では turbo より明確に劣るため乗り換える理由になりません。
+        </p>
+
+        <h4>Qwen3-ASR を採るとランタイムごと入れ替わる</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>導入経路</th><th>判定</th><th>状況（2026-09 時点）</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>whisper.cpp が対応するのを待つ</td>
+                <td><span class="tag tag--reject">不可</span></td>
+                <td>Whisper 系のみ。Parakeet の対応要望（issue #3118）も未マージ</td>
+              </tr>
+              <tr>
+                <td>transcribe.cpp / CrispASR（ggml マルチバックエンド）</td>
+                <td><span class="tag tag--reject">時期尚早</span></td>
+                <td>
+                  2026-06 に登場し Qwen3-ASR を含む 16 系統に対応するが、まだ若い。
+                  <code>whisper-cli</code> を同梱してビルドする現在の
+                  <a href="#adr-011">ADR-011</a> の配布形を作り直すことになる
+                </td>
+              </tr>
+              <tr>
+                <td>MLX 版（mlx-community）</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td><a href="#adr-021">ADR-021</a> と同じ理由。Node から MLX を使う経路が成熟していない</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>ハルシネーションは対処済みで、乗り換え理由にはならない</h4>
+        <p>
+          2026-08 の比較では large-v3-turbo が 1 発話で同じ語句を繰り返し、その 1 件だけで
+          CER 5,525% という異常値を出しています。これは
+          <a href="#adr-020">ADR-020</a> で扱った無音区間のハルシネーションと同じ現象で、
+          VAD（<code>vad-model</code>）とブロックリストで既に押さえています。
+          同じ比較でも「既存の Whisper 運用を今すぐ置き換える必要はない」と結論されています。
+        </p>
+
+        <div class="verdict">
+          <strong>結論。継続します。</strong>
+          Qwen3-ASR は日本語 WER で 3 ポイントほど上ですが、それを得るには
+          whisper.cpp を捨てて未成熟なランタイムへ移り、
+          <code>whisper-cli</code> のビルドと同梱（<a href="#adr-011">ADR-011</a>）を
+          作り直すことになります。<strong>数ポイントの精度差に対して、
+          文字起こしという中核機能の足場を丸ごと入れ替えるのは割に合いません。</strong>
+          なお上の数値は第三者ベンチマークであり、会議音声という実際の用途で測ったものでは
+          ありません。乗り換えを本気で検討するときは、自分の録音で測り直すことが前提になります。
+        </div>
+
+        <h4>量子化の引き上げも見送る</h4>
+        <p>
+          同じ turbo の q5_0 を q8_0 や fp16 へ上げる案もありますが、q5_0 からの
+          WER 改善はごく小さい一方でダウンロードは 574MB から 900MB 前後に増えます。
+          <a href="#adr-011">ADR-011</a> の「アプリが入手を引き受ける」体験を重くするだけなので採りません。
+        </p>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -1284,6 +1389,10 @@
             <tr>
               <td><a href="#adr-021">ADR-021</a> MLX を採らず GGUF を継続</td>
               <td>MLX の長文脈 prefill が改善したとき。または Node バインディングが 1.x に到達し、プリビルドが旧 macOS もカバーしたとき</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-022">ADR-022</a> whisper large-v3-turbo を継続</td>
+              <td>whisper.cpp 本体が Qwen3-ASR 級のモデルを取り込んだとき。または transcribe.cpp / CrispASR が安定し、whisper-cli と同じ手軽さで同梱できるようになったとき</td>
             </tr>
             <tr>
               <td>arm64 のみのビルド</td>
