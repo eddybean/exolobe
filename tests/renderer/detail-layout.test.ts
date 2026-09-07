@@ -59,3 +59,18 @@ describe('要約ペインの Markdown 表示', () => {
     expect(ruleFor('.summary pre')).toMatch(/overflow-x:\s*auto/)
   })
 })
+
+/**
+ * ステップバッヂは「どのステップがどうなったか」の一覧。エラー文言を中に描くと
+ * バッヂ列が横に伸びて一覧性が壊れ、しかも省略されて全文は読めなかった。
+ * 文言はツールチップとコピーへ移したので、バッヂが伸びないことを宣言で固定する。
+ */
+describe('ステップバッヂ', () => {
+  it('バッヂの中で折り返して肥大化しない', () => {
+    expect(ruleFor('.steps__item')).toMatch(/white-space:\s*nowrap/)
+  })
+
+  it('エラー文言をバッヂ内に描くルールを持たない', () => {
+    expect(() => ruleFor('.steps__error')).toThrow()
+  })
+})

@@ -6,6 +6,7 @@ import { CopyButton } from '../components/CopyButton'
 import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
 import { isAudioReady } from '../library/audio'
+import { failureTooltip, stepFailure } from '../stepFailure'
 
 const PIPELINE_STEPS: PipelineStep[] = ['mix', 'transcribe', 'diarize', 'summarize', 'encode']
 
@@ -262,15 +263,27 @@ const PipelineStatus = ({
   <ul className="steps">
     {PIPELINE_STEPS.map((step) => {
       const state = recording.steps[step]
+      const failure = stepFailure(step, state)
       return (
-        <li key={step} className={`steps__item steps__item--${state?.status ?? 'pending'}`}>
+        <li
+          key={step}
+          className={`steps__item steps__item--${state?.status ?? 'pending'}`}
+          // 文言はバッヂの外へ。中に描くと省略されて読めず、列も横に伸びていた。
+          {...(failure ? { title: failureTooltip(failure) } : {})}
+        >
           <span>{STEP_LABELS[step]}</span>
-          {state?.status === 'failed' && (
-            <button type="button" className="steps__retry" onClick={() => onRetry(step)}>
-              再実行
-            </button>
+          {failure && (
+            <>
+              <button type="button" className="steps__retry" onClick={() => onRetry(step)}>
+                再実行
+              </button>
+              {/* ネイティブ由来の英語エラーは検索・報告に持ち出したくなる。 */}
+              <CopyButton
+                text={failureTooltip(failure)}
+                label={`${failure.label}のエラーをコピー`}
+              />
+            </>
           )}
-          {state?.error && <span className="steps__error">{state.error}</span>}
         </li>
       )
     })}
