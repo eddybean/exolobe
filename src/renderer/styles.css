@@ -537,19 +537,26 @@ code {
   color: var(--danger);
 }
 
+/*
+ * 1 行目にプレーヤーとタブ、2 行目に左右のパネルを置く。左右を別々の縦並びに
+ * すると 1 行目の高さがそれぞれの中身で決まり、パネルの上端がずれてしまうため、
+ * 列に subgrid を使って親の行をそのまま共有させる。高さを直接指定しないので、
+ * プレーヤーやタブの中身が変わっても揃ったままになる。
+ */
 .detail__body {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px 16px;
   overflow: hidden;
   flex: 1;
 }
 
 .detail__left,
 .detail__right {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-row: 1 / -1;
+  grid-template-rows: subgrid;
   overflow: hidden;
 }
 
@@ -610,10 +617,6 @@ code {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
-}
-
-.panel--fill {
-  flex: 1;
 }
 
 .panel__header {
@@ -683,6 +686,9 @@ code {
 
 .tabs {
   display: flex;
+  /* 行の高さは背の高いプレーヤー側で決まる。既定の stretch だとタブの背景が
+     行いっぱいに伸びるので、中央に置く。 */
+  align-items: center;
   gap: 4px;
 }
 
