@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import type { FolderDto, RecordingDetailDto, RecordingDto, SetupStateDto } from '@shared/ipc'
-import { FolderSidebar, type FolderSelection } from './components/FolderSidebar'
+import { LibrarySidebar } from './components/LibrarySidebar'
 import { TransportBar } from './components/TransportBar'
 import { useTransport } from './hooks/useTransport'
 import { OnboardingView } from './views/OnboardingView'
 import { RecordingDetailView } from './views/RecordingDetailView'
-import { RecordingListView } from './views/RecordingListView'
 import { SettingsView } from './views/SettingsView'
 
 type Screen = 'library' | 'settings' | 'onboarding'
@@ -23,7 +22,6 @@ export const App = (): ReactElement => {
   const [selectedId, setSelectedId] = useState<string>()
   const [detail, setDetail] = useState<RecordingDetailDto>()
   const [folders, setFolders] = useState<FolderDto[]>([])
-  const [selectedFolder, setSelectedFolder] = useState<FolderSelection>('all')
 
   const transport = useTransport(setup?.settings.audio.sampleRate ?? 16_000)
 
@@ -135,31 +133,22 @@ export const App = (): ReactElement => {
 
         {screen === 'library' && (
           <div className="library">
-            <FolderSidebar
+            <LibrarySidebar
               folders={folders}
-              selected={selectedFolder}
-              onSelect={setSelectedFolder}
+              recordings={recordings}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
               onCreateFolder={(params) => void window.recorder.createFolder(params)}
               onRenameFolder={(folderId, name) =>
                 void window.recorder.renameFolder(folderId, name)
               }
-              onDeleteFolder={(folderId) => {
-                void window.recorder.deleteFolder(folderId)
-                setSelectedFolder((current) => (current === folderId ? 'all' : current))
-              }}
+              onDeleteFolder={(folderId) => void window.recorder.deleteFolder(folderId)}
               onMoveFolder={(folderId, parentId) =>
                 void window.recorder.moveFolder(folderId, parentId)
               }
               onMoveRecording={(recordingId, folderId) =>
                 void window.recorder.moveRecordingToFolder(recordingId, folderId)
               }
-            />
-            <RecordingListView
-              recordings={recordings}
-              selectedId={selectedId}
-              selectedFolderId={selectedFolder}
-              onSelect={setSelectedId}
-              onDelete={(id) => void deleteRecording(id)}
             />
             {detail ? (
               <RecordingDetailView
@@ -169,7 +158,7 @@ export const App = (): ReactElement => {
               />
             ) : (
               <section className="detail detail--empty">
-                <p>左の一覧から録音を選ぶと、文字起こし・要約・メモを表示します。</p>
+                <p>左のライブラリから録音を選ぶと、文字起こし・要約・メモを表示します。</p>
               </section>
             )}
           </div>
