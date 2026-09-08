@@ -23,6 +23,13 @@ let tray: Tray | undefined
 
 const createWindow = (): BrowserWindow => {
   const window = new BrowserWindow({
+    // Electron 44 のウィンドウ状態永続化。name をキーに位置とサイズが保存され、
+    // ディスプレイ構成が変わったときの画面外補正も Electron 側が面倒を見る。
+    // displayMode は復元しない — 前回フルスクリーンだからと次回もフルスクリーンで
+    // 起動されると、録音を始めたいだけのときに邪魔になるため。
+    name: 'main',
+    windowStatePersistence: { bounds: true, displayMode: false },
+    // 保存された状態がないとき（初回起動）にだけ使われる既定値。
     width: 1_180,
     height: 820,
     minWidth: 900,
