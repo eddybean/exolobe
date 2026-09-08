@@ -5,6 +5,9 @@
 # そのままでは NSAudioCaptureUsageDescription / NSMicrophoneUsageDescription が無く、
 # Core Audio Process Tap の権限プロンプトが表示されない（Tap の作成自体が失敗する）。
 # npm postinstall から実行され、Electron を入れ直すたびに再適用される。
+#
+# Electron 44 以降は npm の postinstall でバイナリを自動取得しなくなったため、
+# package.json の postinstall で先に `install-electron` を実行してから本スクリプトを呼ぶ。
 set -euo pipefail
 
 APP="node_modules/electron/dist/Electron.app"

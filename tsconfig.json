@@ -17,13 +17,12 @@
     "isolatedModules": true,
     "noEmit": true,
     "types": ["node", "vitest/globals"],
-    "baseUrl": ".",
     "paths": {
-      "@domain/*": ["src/domain/*"],
-      "@application/*": ["src/application/*"],
-      "@infrastructure/*": ["src/infrastructure/*"],
-      "@shared/*": ["src/shared/*"],
-      "@renderer/*": ["src/renderer/*"]
+      "@domain/*": ["./src/domain/*"],
+      "@application/*": ["./src/application/*"],
+      "@infrastructure/*": ["./src/infrastructure/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@renderer/*": ["./src/renderer/*"]
     }
   },
   "include": ["src/**/*", "tests/**/*", "*.config.ts"]
