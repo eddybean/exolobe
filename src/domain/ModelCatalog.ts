@@ -9,6 +9,7 @@ import type { SettingsPatch } from './Settings'
 
 export type ManagedAssetId =
   | 'transcription-model'
+  | 'transcription-coreml-encoder'
   | 'vad-model'
   | 'summarization-model'
   | 'diarization-segmentation'
@@ -24,7 +25,7 @@ export interface ManagedAsset {
   readonly bytes: number
   readonly sha256?: string
   /** 圧縮されて配布されているものは展開が要る。 */
-  readonly archive?: 'tar.bz2'
+  readonly archive?: 'tar.bz2' | 'zip'
   /** 展開後に実際に使うファイル（アーカイブ内の相対パス）。 */
   readonly entryPath?: string
   /** 無くても録音・文字起こし・要約は動くか。 */
@@ -51,6 +52,32 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     sha256: '394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2',
     optional: false,
     applyTo: (path) => ({ transcription: { modelPath: path } })
+  },
+  /**
+   * Core ML エンコーダを任意にしている理由:
+   * whisper.cpp は WHISPER_COREML_ALLOW_FALLBACK 付きでビルドしてあるため、
+   * これが無ければ従来どおり Metal だけで動く（文字起こしは成立する）。
+   * 一方で 1.2GB とモデル本体より大きく、必須にすると初回ダウンロードが
+   * 5.7GB から 6.9GB へ増える。速度を取るかディスクを取るかは利用者に選ばせる。
+   *
+   * 保存名は変えてはいけない。whisper.cpp はモデルのパスから拡張子と
+   * '-q5_0' を落として '-encoder.mlmodelc' を足したパスを探すため、
+   * ggml-large-v3-turbo-q5_0.bin の隣のこの名前でしか見つけられない。
+   */
+  {
+    id: 'transcription-coreml-encoder',
+    label: '文字起こし高速化（任意）',
+    description:
+      'whisper のエンコーダを Neural Engine で動かします。文字起こしが約 1.4 倍速くなります（メモリ使用量は変わりません）。',
+    url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-encoder.mlmodelc.zip',
+    fileName: 'ggml-large-v3-turbo-encoder.mlmodelc.zip',
+    bytes: 1_173_393_014,
+    sha256: '84bedfe895bd7b5de6e8e89a0803dfc5addf8c0c5bc4c937451716bf7cf7988a',
+    archive: 'zip',
+    entryPath: 'ggml-large-v3-turbo-encoder.mlmodelc/weights/weight.bin',
+    optional: true,
+    // whisper.cpp がモデルのパスから位置を導くので、設定に書く項目が無い。
+    applyTo: () => ({})
   },
   {
     id: 'vad-model',

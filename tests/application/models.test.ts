@@ -6,7 +6,7 @@ import {
   GetModelStatus,
   type ModelStorePort
 } from '@application/usecases/models'
-import { MANAGED_ASSETS, formatBytes, requiredAssets } from '@domain/ModelCatalog'
+import { MANAGED_ASSETS, findAsset, formatBytes, requiredAssets } from '@domain/ModelCatalog'
 import type { ManagedAsset, ManagedAssetId } from '@domain/ModelCatalog'
 import {
   initialStepStates,
@@ -78,11 +78,30 @@ describe('ModelCatalog', () => {
 
     expect(patches).toEqual([
       { transcription: { modelPath: '/p' } },
+      // Core ML エンコーダは whisper.cpp がモデルのパスから名前を導いて探すため、
+      // 設定に書く項目が無い。
+      {},
       { transcription: { vadModelPath: '/p' } },
       { summarization: { modelPath: '/p' } },
       { diarization: { segmentationModelPath: '/p' } },
       { diarization: { embeddingModelPath: '/p' } }
     ])
+  })
+
+  it('Core ML エンコーダは文字起こしモデルの隣に置く名前で配布されている', () => {
+    const encoder = findAsset('transcription-coreml-encoder')
+    const model = findAsset('transcription-model')
+
+    // whisper.cpp は '<モデル名から -q5_0 を除いたもの>-encoder.mlmodelc' を探す。
+    // この対応が崩れると Core ML が黙って無効になるため、名前で縛っておく。
+    expect(model?.fileName).toBe('ggml-large-v3-turbo-q5_0.bin')
+    expect(encoder?.entryPath).toBe(
+      'ggml-large-v3-turbo-encoder.mlmodelc/weights/weight.bin'
+    )
+  })
+
+  it('Core ML エンコーダは任意にする。無くても文字起こしは動く', () => {
+    expect(findAsset('transcription-coreml-encoder')?.optional).toBe(true)
   })
 })
 
@@ -102,7 +121,7 @@ describe('GetModelStatus', () => {
       store
     ).execute()
 
-    expect(status).toHaveLength(5)
+    expect(status).toHaveLength(MANAGED_ASSETS.length)
     expect(status.every((s) => !s.installed)).toBe(true)
     expect(status[0]?.path).toBeUndefined()
   })
@@ -132,6 +151,20 @@ describe('GetModelStatus', () => {
     const status = await new GetModelStatus(settings, new FakeModelStore()).execute()
 
     expect(status.find((s) => s.id === 'transcription-model')?.installed).toBe(false)
+  })
+
+  it('Core ML エンコーダは設定を持たないので、常に既定の保存場所を見る', async () => {
+    const store = new FakeModelStore()
+    store.present.add('/models/ggml-large-v3-turbo-encoder.mlmodelc/weights/weight.bin')
+
+    const status = await new GetModelStatus(
+      new FakeSettingsRepository(defaultSettings()),
+      store
+    ).execute()
+    const encoder = status.find((s) => s.id === 'transcription-coreml-encoder')
+
+    expect(encoder?.installed).toBe(true)
+    expect(encoder?.path).toBeUndefined()
   })
 
   it('設定が空でも既定の保存場所にあればインストール済みとする', async () => {

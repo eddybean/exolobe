@@ -58,6 +58,7 @@
             <tr><td><a href="#adr-023">ADR-023</a></td><td>モデルの削除とアンインストール時のクリーンアップ</td><td>設定画面から個別削除。自動クリーンアップは見送り</td></tr>
             <tr><td><a href="#adr-024">ADR-024</a></td><td>メモリ不足時の重い推論</td><td>実行前に確認し、足りなければそのステップだけ失敗させる</td></tr>
             <tr><td><a href="#adr-025">ADR-025</a></td><td>録りっぱなしの防止</td><td>main で無音を見張り、知らせるだけで自動停止はしない</td></tr>
+            <tr><td><a href="#adr-026">ADR-026</a></td><td>文字起こしの高速化（Core ML）</td><td>採用。任意 1.2GB のエンコーダで約 1.4 倍速。faster-whisper は不採用</td></tr>
           </tbody>
         </table>
       </div>
@@ -1619,6 +1620,121 @@
           計測は続き、会話が始まれば割合が崩れて数え直しになります。
           既定は 5 分・しきい値 0.02（peak）・無音の割合 90%（5 分なら 30 秒ぶんの物音まで許容）で、
           時間と有効／無効は設定画面から変えられます。
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-026">ADR-026 文字起こしの高速化（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-026</span>
+          <p class="adr__title">whisper.cpp の Core ML エンコーダを任意ダウンロードとして採用する。faster-whisper は不採用</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          「whisper-cli を <code>faster-whisper</code> に置き換えれば速くなり、メモリも減るのではないか」
+          という問いから始まりました。調べた結果 faster-whisper は不採用ですが、
+          同じ whisper.cpp のまま使える高速化の手が見つかったので、そちらを採ります。
+        </p>
+
+        <h4>faster-whisper は Mac では遅くなる</h4>
+        <p>
+          faster-whisper は Python ライブラリで、中身は <strong>CTranslate2</strong> です。
+          よく引かれる「4 倍速い」は OpenAI 純正の PyTorch 実装との比較であって、
+          whisper.cpp との比較ではありません。
+        </p>
+        <p>
+          決定的なのは、<strong>CTranslate2 に Metal バックエンドが無い</strong>ことです。
+          対応 GPU は NVIDIA（CUDA）のみで、Apple Silicon では ARM64 の CPU パスに落ちます。
+          一方このアプリは <code>scripts/build-whisper.sh</code> で <code>GGML_METAL=ON</code> を立てて
+          GPU 実行しているため、比較は「Metal GPU 対 CPU のみ」になります。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>観点</th><th>現行（whisper.cpp + Metal）</th><th>faster-whisper</th></tr></thead>
+            <tbody>
+              <tr><td>実行資源</td><td>GPU（Metal）</td><td>CPU のみ（Metal 非対応）</td></tr>
+              <tr><td>メモリ</td><td>約 960MB（実測）</td><td>int8 で約 1.5GB ＋ Python ランタイム</td></tr>
+              <tr><td>ランタイム</td><td>単体バイナリ 1.8MB</td><td>Python ＋ ctranslate2 を数百 MB 同梱</td></tr>
+              <tr><td>署名・公証</td><td>バイナリ 1 個</td><td>Python の .so をすべて署名（<a href="#adr-014">ADR-014</a>）</td></tr>
+              <tr><td>モデル</td><td>ggml 574MB（<a href="#adr-011">ADR-011</a>）</td><td>CT2 形式へ差し替え＝再ダウンロード</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <strong>速くもならず、メモリも減らず、配布だけが重くなります。</strong>
+          「Python の外部ランタイムを同梱する」という形は
+          <a href="#adr-021">ADR-021</a> が MLX について却下したものと同一で、
+          <a href="#adr-004">ADR-004</a> で捨てた依存への逆戻りです。
+        </p>
+
+        <h4>代わりに Core ML を採る。実測で 1.4 倍速</h4>
+        <p>
+          whisper.cpp は <code>WHISPER_COREML=ON</code> でエンコーダを Neural Engine に載せられます。
+          <strong>ランタイムもモデル形式も変わりません</strong>。
+          M4 / 16GB、638.4 秒の日本語音声、v1.9.3、各 2〜3 回実行の実測です。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th></th><th>Metal のみ（従来）</th><th>Core ML ＋ Metal</th></tr></thead>
+            <tbody>
+              <tr><td>処理時間（定常）</td><td>41.2 秒（15.5 倍速）</td><td><strong>29.7 秒（21.5 倍速）</strong></td></tr>
+              <tr><td>エンコード 1 回あたり</td><td>914ms</td><td><strong>459ms</strong></td></tr>
+              <tr><td>ピークメモリ</td><td>約 960MB</td><td>約 953MB</td></tr>
+              <tr><td>初回実行のみ</td><td>—</td><td>+21 秒（ANE コンパイル。以降 27MB でキャッシュ）</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          エンコードは 2.0 倍速ですが、デコードは Metal のままなので全体では 1.39 倍です。
+          <strong>メモリは増えません</strong>（<a href="#adr-024">ADR-024</a> のメモリガードに影響しない）。
+          精度も変わらず、句読点を除いた文字列で 99.45% 一致しました
+          — 差は「ごろ↔頃」の表記ゆれと、Core ML 側が Metal の取りこぼした一言を拾った箇所だけです。
+          セグメント分割はやや細かくなります（105 → 155）。
+        </p>
+
+        <h4>1.2GB は全員に強いない</h4>
+        <p>
+          エンコーダ（<code>ggml-large-v3-turbo-encoder.mlmodelc</code>）は 1.2GB あり、
+          モデル本体の 574MB より大きく、初回ダウンロードを 5.7GB から 6.9GB へ押し上げます。
+          1.4 倍速はそれだけの容量を全員に払わせる差ではないので、
+          <code>MANAGED_ASSETS</code> に <strong><code>optional: true</code> で足します</strong>。
+          <code>WHISPER_COREML_ALLOW_FALLBACK=ON</code> でビルドしてあるため、
+          未取得なら従来どおり Metal だけで動きます（実測で確認済み。
+          stderr にログが 1 行出るだけで終了コードは 0、文字起こし結果も正常）。
+        </p>
+        <p>
+          初回の +21 秒には手を打ちません。パイプラインは停止後のバックグラウンド処理
+          （<a href="#adr-009">ADR-009</a>）なので、利用者が待たされる場面がないためです。
+        </p>
+
+        <h4>名前で縛る必要がある</h4>
+        <p>
+          whisper.cpp はエンコーダのパスを<strong>モデルのパスから導きます</strong>
+          — 拡張子と <code>-q5_0</code> を落として <code>-encoder.mlmodelc</code> を足す
+          （<code>whisper_get_coreml_path_encoder</code>）。つまり
+          <code>ggml-large-v3-turbo-q5_0.bin</code> の隣に
+          <code>ggml-large-v3-turbo-encoder.mlmodelc</code> という名前でしか置けません。
+          設定に書く項目は無く、<code>applyTo</code> は空のパッチを返します。
+          この対応が崩れると<strong>Core ML が黙って無効になる</strong>（速度が戻るだけでエラーは出ない）ので、
+          テストで両者のファイル名を突き合わせています。
+        </p>
+        <p>
+          配布物が zip なので <code>FileModelStore.extract</code> に分岐を足しました。
+          <code>unzip</code> ではなく <code>ditto -x -k</code> を使うのは、Apple 製 zip に入っている
+          <code>__MACOSX</code> を models ディレクトリに撒かないためです
+          — <code>unzip</code> だと <code>remove()</code> が消し切れない残骸になります
+          （<a href="#adr-023">ADR-023</a>）。
+        </p>
+
+        <h4>開発時の注意</h4>
+        <p>
+          <code>npm run setup</code> が入れる Homebrew の <code>whisper-cpp</code> は
+          Core ML 無しでビルドされています。手元で高速化を確認するときは
+          <code>npm run build:whisper</code> でビルドしたものを設定でパス指定してください。
+          <code>build-whisper.sh</code> は既存バイナリの <code>otool -L</code> を見て、
+          Core ML を含まない古いビルドなら自動で作り直します。
         </p>
       </div>
 
