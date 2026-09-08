@@ -49,6 +49,18 @@ export interface SummarizationSettings {
   readonly promptTemplate: string
 }
 
+/**
+ * 録音そのものの振る舞い。
+ *
+ * 会議が終わってもアプリを止め忘れると、無音だけの長い録音が残る。
+ * 一定時間どちらのトラックも無音なら利用者へ知らせる（勝手には止めない）。
+ */
+export interface RecordingSettings {
+  readonly silenceAlertEnabled: boolean
+  /** この時間ずっと無音なら知らせる。 */
+  readonly silenceDurationMs: number
+}
+
 export interface DiarizationSettings {
   readonly enabled: boolean
   readonly maxSpeakers: number
@@ -79,6 +91,7 @@ export interface Settings {
    * 文字起こしと要約の両方に効くため、どのグループにも属さない。
    */
   readonly memoryProtection: MemoryProtection
+  readonly recording: RecordingSettings
   readonly transcription: TranscriptionSettings
   readonly summarization: SummarizationSettings
   readonly diarization: DiarizationSettings
@@ -93,6 +106,7 @@ export interface Settings {
 export type SettingsPatch = {
   readonly storageDir?: string | null | undefined
   readonly memoryProtection?: MemoryProtection | undefined
+  readonly recording?: Partial<RecordingSettings>
   readonly transcription?: Partial<TranscriptionSettings>
   readonly summarization?: Partial<SummarizationSettings>
   readonly diarization?: Partial<DiarizationSettings>
@@ -102,6 +116,11 @@ export type SettingsPatch = {
 export const defaultSettings = (): Settings => ({
   storageDir: null,
   memoryProtection: 'standard',
+  recording: {
+    silenceAlertEnabled: true,
+    // 5 分。会議中の沈黙としては長く、止め忘れに気づくには十分早い。
+    silenceDurationMs: 300_000
+  },
   transcription: {
     provider: 'whisper-cpp',
     binaryPath: 'whisper-cli',
@@ -146,6 +165,7 @@ export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings =>
   storageDir: patch.storageDir === undefined ? base.storageDir : patch.storageDir,
   memoryProtection:
     patch.memoryProtection === undefined ? base.memoryProtection : patch.memoryProtection,
+  recording: mergeGroup(base.recording, patch.recording),
   transcription: mergeGroup(base.transcription, patch.transcription),
   summarization: mergeGroup(base.summarization, patch.summarization),
   diarization: mergeGroup(base.diarization, patch.diarization),
@@ -163,6 +183,9 @@ export const validateSettings = (settings: Settings): string[] => {
   }
   if (settings.audio.bitrateKbps <= 0) {
     errors.push('ビットレートは 1kbps 以上を指定してください。')
+  }
+  if (settings.recording.silenceDurationMs < 60_000) {
+    errors.push('無音を知らせるまでの時間は 1 分以上を指定してください。')
   }
   if (settings.diarization.maxSpeakers < 2) {
     errors.push('話者数の上限は 2 以上を指定してください。')

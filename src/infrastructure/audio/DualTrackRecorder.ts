@@ -53,6 +53,13 @@ interface CaptureState {
 export class DualTrackRecorder implements AudioCapturePort {
   private state: CaptureState | undefined
 
+  /**
+   * 届いた PCM の peak を知らせる先。UI のメーター（systemLevel）は読み出しで値を
+   * 消費するため、無音の見張りのような別の消費者と同じ口を使うと互いの値を
+   * 奪い合う。購読なら誰が何人いても影響しない。
+   */
+  private readonly peakListeners: ((peak: number) => void)[] = []
+
   constructor(
     private readonly source: SystemAudioSource,
     private readonly now: MonotonicClock = () => performance.now()
@@ -63,6 +70,10 @@ export class DualTrackRecorder implements AudioCapturePort {
     this.source.onError((error) => {
       if (this.state) this.state.error = error
     })
+  }
+
+  onPeak(listener: (peak: number) => void): void {
+    this.peakListeners.push(listener)
   }
 
   isActive(): boolean {
@@ -120,6 +131,7 @@ export class DualTrackRecorder implements AudioCapturePort {
     if (!state || pcm.length === 0) return
 
     state.micFirstChunkAt ??= this.now()
+    this.notifyPeak(peakOf(pcm))
     this.enqueue(state, () => state.mic.write(pcm))
     await state.writes
   }
@@ -129,8 +141,14 @@ export class DualTrackRecorder implements AudioCapturePort {
     if (!state || pcm.length === 0) return
 
     state.systemFirstChunkAt ??= this.now()
-    state.systemPeak = Math.max(state.systemPeak, peakOf(pcm))
+    const peak = peakOf(pcm)
+    state.systemPeak = Math.max(state.systemPeak, peak)
+    this.notifyPeak(peak)
     this.enqueue(state, () => state.system.write(pcm))
+  }
+
+  private notifyPeak(peak: number): void {
+    for (const listener of this.peakListeners) listener(peak)
   }
 
   /**

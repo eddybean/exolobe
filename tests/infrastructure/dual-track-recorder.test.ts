@@ -199,6 +199,42 @@ describe('DualTrackRecorder', () => {
     expect(recorder.systemLevel()).toBe(0)
   })
 
+  /**
+   * 無音の見張りは UI のメーターとは別の消費者なので、読み出しで peak を奪い合う
+   * systemLevel() ではなく、届いた PCM をそのまま知らせる購読で渡す。
+   */
+  it('両トラックの peak を購読者へ知らせる', async () => {
+    const peaks: number[] = []
+    recorder.onPeak((peak) => peaks.push(peak))
+
+    await start()
+    source.emit([0, 16_384])
+    await recorder.pushMicPcm(int16Buffer([8_192]))
+
+    expect(peaks).toHaveLength(2)
+    expect(peaks[0]).toBeCloseTo(0.5, 5)
+    expect(peaks[1]).toBeCloseTo(0.25, 5)
+  })
+
+  it('peak の購読は UI 向けの systemLevel を消費しない', async () => {
+    recorder.onPeak(() => {})
+
+    await start()
+    source.emit([32_767])
+
+    expect(recorder.systemLevel()).toBeCloseTo(1, 3)
+  })
+
+  it('録音していないときは peak を知らせない', async () => {
+    const peaks: number[] = []
+    recorder.onPeak((peak) => peaks.push(peak))
+
+    await recorder.pushMicPcm(int16Buffer([32_767]))
+    source.emit([32_767])
+
+    expect(peaks).toEqual([])
+  })
+
   it('停止すると音声ソースも止める', async () => {
     await start()
     await recorder.stop()

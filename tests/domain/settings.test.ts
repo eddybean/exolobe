@@ -106,3 +106,31 @@ describe('memoryProtection', () => {
     expect(validateSettings(settings).length).toBeGreaterThan(0)
   })
 })
+
+/**
+ * 録りっぱなしの見張り。既定で有効にしないと「止め忘れを防ぐ」目的を果たさないため、
+ * 既定値そのものを仕様として固定する。
+ */
+describe('silenceAlert', () => {
+  it('無音の見張りを既定で有効にし、5 分で知らせる', () => {
+    const settings = defaultSettings()
+
+    expect(settings.recording.silenceAlertEnabled).toBe(true)
+    expect(settings.recording.silenceDurationMs).toBe(300_000)
+  })
+
+  it('グループ単位で部分更新できる', () => {
+    const merged = mergeSettings(defaultSettings(), {
+      recording: { silenceDurationMs: 600_000 }
+    })
+
+    expect(merged.recording.silenceDurationMs).toBe(600_000)
+    expect(merged.recording.silenceAlertEnabled).toBe(true)
+  })
+
+  it('短すぎる無音時間を弾く', () => {
+    const settings = mergeSettings(defaultSettings(), { recording: { silenceDurationMs: 30_000 } })
+
+    expect(validateSettings(settings)).toContain('無音を知らせるまでの時間は 1 分以上を指定してください。')
+  })
+})
