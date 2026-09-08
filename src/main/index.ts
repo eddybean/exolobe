@@ -18,6 +18,7 @@ let mainWindow: BrowserWindow | undefined
  * Tray は参照を保持し続けないと GC で回収され、メニューバーからアイコンが消える。
  * Electron でよくある落とし穴で、実際にこれで表示されなくなっていた。
  */
+// oxlint-disable-next-line no-unused-vars -- 参照を保持することが目的の変数
 let tray: Tray | undefined
 
 const createWindow = (): BrowserWindow => {

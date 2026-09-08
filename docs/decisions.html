@@ -746,8 +746,10 @@
         </div>
 
         <p>ad-hoc 署名で配布した場合、利用者側で一度だけ次の操作が必要です。</p>
-        <pre><code>xattr -dr com.apple.quarantine "/Applications/会議レコーダー.app"</code></pre>
-        <p>この手順は Release の説明文に自動で記載されます。</p>
+        <pre><code>xattr -dr com.apple.quarantine "/Applications/Meeting Recorder.app"</code></pre>
+        <p>Finder の表示名は <code>CFBundleDisplayName</code> による「会議レコーダー」ですが、
+        バンドルのファイル名は <code>Meeting Recorder.app</code> です。ターミナルではファイル名の方を使います。</p>
+        <p>この手順は Release の説明文に自動で記載されるほか、.dmg 内の「はじめにお読みください.txt」にも同梱しています（Release ページを経由せず.dmg だけを受け取った人にも届くようにするため）。</p>
 
         <h4>開発時の注意</h4>
         <p>

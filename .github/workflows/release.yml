@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: 依存関係をインストール
@@ -120,7 +120,7 @@ jobs:
 
           NOTE=""
           if [ "$SIGNED" != "true" ]; then
-            NOTE=$'\n\n> **注意**: このビルドは Apple Developer 証明書で署名されていません。\n> 初回起動時に Gatekeeper に阻まれるため、次のコマンドで隔離属性を外してください。\n>\n> ```sh\n> xattr -dr com.apple.quarantine /Applications/会議レコーダー.app\n> ```'
+            NOTE=$'\n\n> **注意**: このビルドは Apple Developer 証明書で署名されていません。\n> 初回起動時に Gatekeeper に阻まれるため、次のコマンドで隔離属性を外してください。\n>\n> ```sh\n> xattr -dr com.apple.quarantine "/Applications/Meeting Recorder.app"\n> ```'
           fi
 
           BODY="macOS 14.2 以上 / Apple Silicon 向けのビルドです。${NOTE}"

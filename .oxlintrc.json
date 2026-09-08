@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // TypeScript 7 は従来の JS コンパイラ API を公開しなくなり、typescript-eslint の
+  // peerDependencies（typescript <6.1.0）から外れた。型情報を必要としない oxlint に
+  // 置き換えている。型に関する検査は tsc の strict 設定が担う。
+  "plugins": [
+    "eslint",
+    "typescript",
+    "oxc",
+    "unicorn",
+    "import",
+    "promise",
+    "react",
+    "jsx-a11y",
+    "vitest"
+  ],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    // --- 誤検知 ---
+    // 直後に .fill() するので「長さか要素か」の曖昧さは生じない。
+    "unicorn/no-new-array": "off",
+    // exactOptionalPropertyTypes のため `...(x === undefined ? {} : { x })` が定型。
+    "unicorn/no-useless-spread": "off",
+    // .then() の中で setState するのは React では正常な書き方。
+    "promise/no-callback-in-promise": "off",
+    // ローカル録音の再生に字幕トラックは存在しない。
+    "jsx-a11y/media-has-caption": "off",
+
+    // --- 既存のテストスタイルに合わせる ---
+    "vitest/require-to-throw-message": "off",
+    "vitest/require-mock-type-parameters": "off",
+
+    // --- 未対応の既知の指摘。潰したいが影響範囲が広いので警告に留める ---
+    "react/set-state-in-effect": "warn",
+    "jsx-a11y/click-events-have-key-events": "warn",
+    "jsx-a11y/no-static-element-interactions": "warn",
+    "jsx-a11y/no-noninteractive-element-interactions": "warn",
+    "jsx-a11y/prefer-tag-over-role": "warn"
+  },
+  "ignorePatterns": ["out", "release", "resources", "docs"]
+}

@@ -55,3 +55,21 @@ mac:
 
 dmg:
   title: ${productName}
+  # ad-hoc 署名の配布物は Gatekeeper に隔離されるため、解除手順を dmg に同梱する。
+  # Release の説明文にも同じ案内があるが、dmg を直接受け取った人には届かない。
+  # contents を指定すると既定のレイアウトを上書きするので、アプリと
+  # /Applications へのリンクも既定と同じ座標で並べ直す必要がある。
+  # 既定の背景画像は 540x380 固定でウィンドウを広げると破綻するため、
+  # サイズは変えず、矢印の下の空き領域にテキストを置いている。
+  contents:
+    - x: 130
+      y: 220
+      type: file
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+    - x: 270
+      y: 335
+      type: file
+      path: build/dmg/はじめにお読みください.txt

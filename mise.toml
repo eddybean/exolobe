@@ -1,0 +1,4 @@
+# 開発時の Node は Active LTS（24 系）に揃える。
+# 25 系は非 LTS で、vitest など一部ツールの engines 制約から外れる。
+[tools]
+node = "24"

@@ -7,7 +7,7 @@
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
     "dev": "electron-vite dev",
@@ -16,9 +16,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint .",
+    "lint": "oxlint",
     "setup": "bash scripts/setup.sh",
-    "postinstall": "bash scripts/patch-dev-electron.sh || true",
+    "postinstall": "install-electron && (bash scripts/patch-dev-electron.sh || true)",
     "build:whisper": "bash scripts/build-whisper.sh",
     "package": "npm run build && npm run build:whisper && electron-builder --config electron-builder.yml"
   },
@@ -28,17 +28,18 @@
     "sherpa-onnx": "^1.13.7"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "@types/react": "^19.0.2",
-    "@types/react-dom": "^19.0.2",
-    "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^33.2.1",
-    "electron-vite": "^2.3.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "typescript": "^5.7.2",
-    "vite": "^5.4.11",
-    "vitest": "^2.1.8",
-    "electron-builder": "^25.1.8"
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "oxlint": "^1.82.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.11"
   }
 }

@@ -15,6 +15,7 @@ macOS 向けの Web 会議レコーダー（Electron + React + TypeScript）。�
 ```bash
 npm run dev          # electron-vite dev（開発起動）
 npm run typecheck    # tsc --noEmit（strict + noUncheckedIndexedAccess + exactOptionalPropertyTypes）
+npm run lint         # oxlint
 npm test             # vitest run
 npm run test:watch
 npm run build        # typecheck + electron-vite build
@@ -33,8 +34,10 @@ npx vitest run -t "テスト名の一部"
 
 - **macOS 必須**。テストは実際の `/usr/bin/afconvert` を通し、`postinstall` は
   PlistBuddy と codesign を使う。CI も `macos-15` ランナー。
-- `npm run lint` は `package.json` にあるが **eslint も設定ファイルも入っていない**。
-  CI（`.github/workflows/ci.yml`）が回すのは typecheck / test / build のみ。
+- `npm run lint` は **oxlint**（`.oxlintrc.json`）。TypeScript 7 が従来の JS コンパイラ
+  API を公開しなくなり typescript-eslint が動かないため、ESLint ではなく oxlint を使う。
+  `react/set-state-in-effect` と一部の `jsx-a11y` は既知の未対応として警告に留めてある
+  （エラーではないので lint は通る）。CI は typecheck / lint / test / build を回す。
 - vitest は `TZ=Asia/Tokyo` を固定している。保存ディレクトリ名がローカル時刻由来のため。
 - シェルに `ELECTRON_RUN_AS_NODE=1` があると `npm run dev` が起動に失敗する。
 
