@@ -7,7 +7,7 @@ import { formatDuration } from '../format'
  * どの画面にいても録音を開始・停止できることが要件なので、ビューの外側に置く。
  */
 export const TransportBar = ({ transport }: { transport: Transport }): ReactElement => {
-  const { state, elapsedMs, level, busy, warning } = transport
+  const { state, elapsedMs, level, busy, warning, silenceAlert } = transport
   const active = state.active
 
   return (
@@ -41,6 +41,23 @@ export const TransportBar = ({ transport }: { transport: Transport }): ReactElem
         <div className="transport__warning" role="status">
           <span aria-hidden="true">⚠</span>
           <span>{warning}</span>
+        </div>
+      )}
+
+      {/* 止め忘れの確認。通知を見逃してウィンドウへ戻ってきた場合でも
+          ここで気づけるよう、応答するまで出し続ける。 */}
+      {active && silenceAlert && (
+        <div className="transport__silence" role="alert">
+          <span>
+            {Math.round(silenceAlert.silentDurationMs / 60_000)} 分以上、音が入っていません。
+            録音を停止しますか？
+          </span>
+          <button type="button" onClick={() => void transport.stop()} disabled={busy}>
+            停止する
+          </button>
+          <button type="button" onClick={transport.keepRecording}>
+            続ける
+          </button>
         </div>
       )}
 

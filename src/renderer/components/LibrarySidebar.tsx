@@ -8,6 +8,7 @@ import {
   type ReactElement
 } from 'react'
 import type { FolderDto, RecordingDto } from '@shared/ipc'
+import { isCommitEnter } from '../keyboard'
 import { autoExpandedKeys, buildLibraryTree, type LibraryNode } from '../library/tree'
 import { STATUS_LABELS } from '../format'
 
@@ -323,7 +324,7 @@ const TreeNode = ({
             onChange={(event) => setDraft(event.target.value)}
             onBlur={commit}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') {
+              if (isCommitEnter(event)) {
                 event.preventDefault()
                 commit()
               }

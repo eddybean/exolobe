@@ -1045,6 +1045,27 @@ textarea:focus {
   font-size: 12px;
 }
 
+.transport__silence {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 520px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.transport__silence button {
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  padding: 2px 10px;
+  color: inherit;
+  white-space: nowrap;
+}
+
 .transport__error button {
   border: none;
   background: transparent;

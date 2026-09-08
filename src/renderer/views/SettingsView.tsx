@@ -78,6 +78,31 @@ export const SettingsView = ({
       </p>
       <ModelManager onChanged={onChanged} />
 
+      <h3 className="settings__section">録音</h3>
+
+      <Field
+        label="無音が続いたら知らせる"
+        hint="会議が終わっているのに録音が続いている状態を防ぎます。自動では停止しません。"
+      >
+        <input
+          type="checkbox"
+          checked={settings.recording.silenceAlertEnabled}
+          onChange={(event) => update({ recording: { silenceAlertEnabled: event.target.checked } })}
+        />
+      </Field>
+
+      <Field label="知らせるまでの無音時間（分）" hint="1 分以上を指定してください。">
+        <input
+          type="number"
+          min={1}
+          step={1}
+          defaultValue={Math.round(settings.recording.silenceDurationMs / 60_000)}
+          onBlur={(event) =>
+            update({ recording: { silenceDurationMs: Number(event.target.value) * 60_000 } })
+          }
+        />
+      </Field>
+
       <h3 className="settings__section">文字起こし</h3>
 
       <Field label="whisper モデル" hint="ggml 形式（.bin）のモデルを指定します。">

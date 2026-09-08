@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { TransportStateDto } from '@shared/ipc'
+import type { SilenceAlertDto, TransportStateDto } from '@shared/ipc'
 import { startMicCapture, type MicCapture } from '../audio/micCapture'
 import { messageOf } from '../errorMessage'
 import { readInputLevel } from '../session/readInputLevel'
@@ -14,6 +14,10 @@ export interface Transport {
   readonly error: string | undefined
   /** 録音は続いているが、利用者に知らせるべきこと（マイクが取れなかった等）。 */
   readonly warning: string | undefined
+  /** 無音が続いていることの知らせ。応答するまで出し続ける。 */
+  readonly silenceAlert: SilenceAlertDto | undefined
+  /** 無音の知らせに対して「続ける」を選ぶ。 */
+  keepRecording(): void
   start(title?: string): Promise<void>
   stop(): Promise<void>
   dismissError(): void
@@ -33,6 +37,7 @@ export const useTransport = (sampleRate: number): Transport => {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [warning, setWarning] = useState<string>()
+  const [silenceAlert, setSilenceAlert] = useState<SilenceAlertDto>()
 
   const mic = useRef<MicCapture | undefined>(undefined)
 
@@ -40,6 +45,13 @@ export const useTransport = (sampleRate: number): Transport => {
     void window.recorder.getTransportState().then(setState)
     return window.recorder.onTransportChanged(setState)
   }, [])
+
+  useEffect(() => window.recorder.onSilenceAlert(setSilenceAlert), [])
+
+  // 録音が終われば知らせる相手がいない。次の録音へ持ち越さない。
+  useEffect(() => {
+    if (!state.active) setSilenceAlert(undefined)
+  }, [state.active])
 
   // 経過時間と入力レベルは録音中だけ更新する。
   useEffect(() => {
@@ -108,6 +120,15 @@ export const useTransport = (sampleRate: number): Transport => {
     [busy, sampleRate]
   )
 
+  /**
+   * 「このまま続ける」。main 側の見張りをここから数え直させないと、
+   * 無音のままなら次の判定が即座に来てしまう。
+   */
+  const keepRecording = useCallback((): void => {
+    setSilenceAlert(undefined)
+    void window.recorder.dismissSilenceAlert()
+  }, [])
+
   const stop = useCallback(async (): Promise<void> => {
     if (busy) return
     setBusy(true)
@@ -133,8 +154,10 @@ export const useTransport = (sampleRate: number): Transport => {
     busy,
     error,
     warning,
+    silenceAlert,
     start,
     stop,
+    keepRecording,
     dismissError: () => setError(undefined)
   }
 }

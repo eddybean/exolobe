@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { isCommitEnter } from '../keyboard'
 
 /**
  * クリックすると編集できるタイトル。
  *
  * 別途「編集」ボタンを置くより、見出しそのものを押せる方が迷いにくい。
  * Enter で確定、Escape で取り消し、フォーカスが外れたら確定する。
+ * ただし日本語入力の変換確定の Enter は確定として扱わない（isCommitEnter）。
  * 空のまま確定しようとした場合は元の値へ戻す（タイトルの無い録音を作らない）。
  */
 export const EditableTitle = ({
@@ -87,7 +89,7 @@ export const EditableTitle = ({
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => void commit()}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') {
+          if (isCommitEnter(event)) {
             event.preventDefault()
             void commit()
           }

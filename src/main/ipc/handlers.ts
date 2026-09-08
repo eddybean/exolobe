@@ -3,6 +3,7 @@ import type { PipelineStep } from '@domain/Recording'
 import { ConfigurationError, toMessage } from '@domain/errors'
 import { findAsset, formatBytes } from '@domain/ModelCatalog'
 import type { SettingsPatch } from '@domain/Settings'
+import { DEFAULT_QUIET_RATIO, DEFAULT_SILENCE_LEVEL } from '@domain/SilenceWatch'
 import {
   IPC,
   toFolderDto,
@@ -12,10 +13,16 @@ import {
   type ProgressEventDto,
   type RecordingDetailDto,
   type RecordingDto,
+  type SilenceAlertDto,
   type TransportStateDto
 } from '@shared/ipc'
 import type { Container } from '../container'
+import { createSilenceMonitor } from '../silenceMonitor'
+import { notifySilence } from '../silenceNotification'
 import { PipelineClient } from '../worker/PipelineClient'
+
+/** 無音を判定する間隔。会議の沈黙は分単位なので、1 秒ごとで十分細かい。 */
+const SILENCE_SAMPLE_INTERVAL_MS = 1_000
 
 /** トレイからも呼べるよう、録音の開始・停止を切り出したもの。 */
 export interface TransportController {
@@ -36,7 +43,9 @@ export const registerIpcHandlers = (
   container: Container,
   getWindow: () => BrowserWindow | undefined
 ): TransportController => {
-  let active: { recordingId: string; title: string; startedAtMs: number } | undefined
+  let active:
+    | { recordingId: string; title: string; startedAtMs: number; silenceDurationMs: number }
+    | undefined
 
   const send = (channel: string, payload?: unknown): void => {
     const window = getWindow()
@@ -68,6 +77,61 @@ export const registerIpcHandlers = (
   })
 
   /**
+   * 録りっぱなしの見張り。録音中だけ動かし、無音が続いたら知らせる。
+   * 勝手に止めはしない（会議が静かなだけかもしれない）。
+   */
+  let silenceTimer: NodeJS.Timeout | undefined
+
+  const silence = createSilenceMonitor({
+    onPeak: (listener) => container.recorder.onPeak(listener),
+    onSilence: () => {
+      const current = active
+      if (!current) return
+
+      const alert: SilenceAlertDto = {
+        recordingId: current.recordingId,
+        silentDurationMs: current.silenceDurationMs
+      }
+      send(IPC.silenceAlert, alert)
+
+      notifySilence({
+        minutes: Math.round(current.silenceDurationMs / 60_000),
+        onStop: () => {
+          controller.stop().catch((error: unknown) => console.error(toMessage(error)))
+        },
+        onShowWindow: () => {
+          const window = getWindow()
+          if (!window || window.isDestroyed()) return
+          if (window.isMinimized()) window.restore()
+          window.show()
+          window.focus()
+        }
+      })
+    }
+  })
+
+  const startSilenceWatch = async (): Promise<number> => {
+    const { recording } = await container.settings.load()
+    silence.start(
+      recording.silenceAlertEnabled
+        ? {
+            level: DEFAULT_SILENCE_LEVEL,
+            durationMs: recording.silenceDurationMs,
+            quietRatio: DEFAULT_QUIET_RATIO
+          }
+        : undefined
+    )
+    silenceTimer = setInterval(() => silence.tick(Date.now()), SILENCE_SAMPLE_INTERVAL_MS)
+    return recording.silenceDurationMs
+  }
+
+  const stopSilenceWatch = (): void => {
+    if (silenceTimer) clearInterval(silenceTimer)
+    silenceTimer = undefined
+    silence.stop()
+  }
+
+  /**
    * 停止後の処理。UI を待たせないため待たずに走らせ、進捗は IPC で伝える。
    * 個々のステップの失敗は ProcessRecording が録音の状態として記録するので、
    * ここで拾うのはワーカーごと落ちたような想定外の場合だけ。
@@ -94,7 +158,8 @@ export const registerIpcHandlers = (
       active = {
         recordingId: recording.id,
         title: recording.title,
-        startedAtMs: Date.now()
+        startedAtMs: Date.now(),
+        silenceDurationMs: await startSilenceWatch()
       }
       notifyTransport()
       send(IPC.recordingsChanged)
@@ -106,6 +171,7 @@ export const registerIpcHandlers = (
       const activeId = active?.recordingId
       if (!activeId) throw new Error('録音中ではありません。')
 
+      stopSilenceWatch()
       const { recording } = await container.stopRecording.execute(activeId)
       active = undefined
       notifyTransport()
@@ -146,6 +212,7 @@ export const registerIpcHandlers = (
   handle(IPC.stopRecording, async () => controller.stop())
   handle(IPC.getTransportState, async () => transportState())
   handle(IPC.getSystemAudioLevel, async () => container.recorder.systemLevel())
+  handle(IPC.dismissSilenceAlert, async () => silence.dismiss(Date.now()))
 
   handle(IPC.retryStep, async (id: unknown, step: unknown): Promise<RecordingDto> => {
     const recording = await pipeline.run({

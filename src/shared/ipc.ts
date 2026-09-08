@@ -57,6 +57,15 @@ export interface TransportStateDto {
   readonly active: boolean
 }
 
+/**
+ * 無音が続いていることの知らせ。録音は止めず、UI に確認を出させる。
+ */
+export interface SilenceAlertDto {
+  readonly recordingId: string
+  /** 無音とみなした継続時間（設定値）。 */
+  readonly silentDurationMs: number
+}
+
 /** モデル取得の進捗。UI はこれで各行のバーを描く。 */
 export interface ModelProgressDto {
   readonly id: string
@@ -116,6 +125,8 @@ export interface RendererApi {
    * マイクと違い main 側でしか観測できないため、ここだけ pull で渡す。
    */
   getSystemAudioLevel(): Promise<number>
+  /** 無音の知らせに対して「録音を続ける」を選んだ。見張りを数え直させる。 */
+  dismissSilenceAlert(): Promise<void>
   retryStep(recordingId: string, step: PipelineStep): Promise<RecordingDto>
   updateNote(recordingId: string, note: string): Promise<void>
   renameRecording(recordingId: string, title: string): Promise<RecordingDto>
@@ -150,6 +161,7 @@ export interface RendererApi {
   onRecordingsChanged(listener: () => void): () => void
   onFoldersChanged(listener: () => void): () => void
   onTransportChanged(listener: (state: TransportStateDto) => void): () => void
+  onSilenceAlert(listener: (event: SilenceAlertDto) => void): () => void
   onModelProgress(listener: (event: ModelProgressDto) => void): () => void
 }
 
@@ -161,6 +173,8 @@ export const IPC = {
   stopRecording: 'transport:stop',
   getTransportState: 'transport:state',
   getSystemAudioLevel: 'transport:systemLevel',
+  silenceAlert: 'transport:silenceAlert',
+  dismissSilenceAlert: 'transport:dismissSilenceAlert',
   retryStep: 'pipeline:retry',
   updateNote: 'recordings:updateNote',
   renameRecording: 'recordings:rename',
