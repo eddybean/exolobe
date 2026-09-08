@@ -168,6 +168,10 @@ const configuredPath = (settings: Settings, id: ManagedAssetId): string => {
   switch (id) {
     case 'transcription-model':
       return settings.transcription.modelPath
+    // Core ML エンコーダは whisper.cpp が文字起こしモデルのパスから位置を導くため、
+    // 設定に対応する項目が無い。常に既定の保存場所を見ればよい。
+    case 'transcription-coreml-encoder':
+      return ''
     case 'vad-model':
       return settings.transcription.vadModelPath
     case 'summarization-model':

@@ -40,3 +40,9 @@ install_whisper
 echo
 echo "[setup] 完了しました。'npm run dev' でアプリを起動できます。"
 echo "[setup] モデル（文字起こし・要約）はアプリの初期設定画面からダウンロードできます。"
+echo
+# Homebrew の whisper-cpp は Core ML 無しでビルドされている。配布版は
+# build-whisper.sh が Core ML 有効で作るため、開発中だけ挙動が食い違う。
+echo "[setup] 注意: Homebrew の whisper-cli は Core ML 無しのため、任意の高速化"
+echo "[setup]       （Neural Engine）は効きません。手元で試すには 'npm run build:whisper'"
+echo "[setup]       でビルドし、設定画面でそのパスを指定してください。"

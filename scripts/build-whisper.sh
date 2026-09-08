@@ -10,9 +10,14 @@ WHISPER_VERSION="${WHISPER_VERSION:-v1.9.3}"
 BUILD_DIR="${TMPDIR:-/tmp}/omr-whisper-build"
 OUT_DIR="$(cd "$(dirname "$0")/.." && pwd)/resources/bin"
 
+# Core ML を含まない古いビルドが残っていると、エンコーダを取得しても黙って
+# Metal のまま動いてしまう。リンク先を見て作り直しが要るかを判断する。
 if [ -x "$OUT_DIR/whisper-cli" ] && [ "${FORCE:-0}" != "1" ]; then
-  echo "[build-whisper] resources/bin/whisper-cli は既にあります（FORCE=1 で再ビルド）。"
-  exit 0
+  if otool -L "$OUT_DIR/whisper-cli" | grep -q CoreML; then
+    echo "[build-whisper] resources/bin/whisper-cli は既にあります（FORCE=1 で再ビルド）。"
+    exit 0
+  fi
+  echo "[build-whisper] 既存のバイナリが Core ML 無しのため作り直します。"
 fi
 
 for tool in git cmake; do
@@ -26,10 +31,16 @@ echo "[build-whisper] whisper.cpp ${WHISPER_VERSION} を取得しています...
 rm -rf "$BUILD_DIR"
 git clone --depth 1 --branch "$WHISPER_VERSION" https://github.com/ggml-org/whisper.cpp "$BUILD_DIR"
 
-echo "[build-whisper] Metal 有効でビルドしています..."
+# Core ML はエンコーダを Neural Engine で動かす。実測で encode が 914ms/回から
+# 459ms/回へ落ち、文字起こし全体で約 1.4 倍速くなる（メモリ使用量は変わらない）。
+# ALLOW_FALLBACK は必須。エンコーダ（1.2GB・任意ダウンロード）を持たない利用者は
+# 従来どおり Metal だけで動く必要がある。
+echo "[build-whisper] Metal / Core ML 有効でビルドしています..."
 cmake -S "$BUILD_DIR" -B "$BUILD_DIR/build" \
   -DCMAKE_BUILD_TYPE=Release \
   -DGGML_METAL=ON \
+  -DWHISPER_COREML=ON \
+  -DWHISPER_COREML_ALLOW_FALLBACK=ON \
   -DWHISPER_BUILD_TESTS=OFF \
   -DWHISPER_BUILD_EXAMPLES=ON \
   -DBUILD_SHARED_LIBS=OFF   # 依存ライブラリを埋め込み、単体で動くバイナリにする

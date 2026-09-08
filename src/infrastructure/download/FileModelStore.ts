@@ -95,7 +95,7 @@ export class FileModelStore implements ModelStorePort {
       })
 
       if (asset.archive) {
-        await this.extract(downloadPath)
+        await this.extract(downloadPath, asset.archive)
         // 展開後のアーカイブは容量を食うだけなので消す。
         await rm(downloadPath, { force: true })
       }
@@ -112,10 +112,26 @@ export class FileModelStore implements ModelStorePort {
     return finalPath
   }
 
-  /** macOS の tar は bz2 を直接扱えるため、展開ライブラリを持ち込まずに済む。 */
-  private async extract(archivePath: string): Promise<void> {
+  /**
+   * macOS の tar は bz2 を、ditto は zip を直接扱えるため、展開ライブラリを
+   * 持ち込まずに済む。
+   *
+   * zip に unzip ではなく ditto を使うのは、Apple 製の zip に入っている
+   * __MACOSX（AppleDouble のリソースフォーク）を models ディレクトリに
+   * 撒かないため。ditto は展開時にこれを本来の拡張属性へ戻して消す。
+   * unzip だと remove() が消し切れないゴミが残る。
+   */
+  private async extract(
+    archivePath: string,
+    archive: NonNullable<ManagedAsset['archive']>
+  ): Promise<void> {
+    const [command, args] =
+      archive === 'zip'
+        ? (['/usr/bin/ditto', ['-x', '-k', archivePath, this.modelsDir]] as const)
+        : (['/usr/bin/tar', ['-xjf', archivePath, '-C', this.modelsDir]] as const)
+
     try {
-      await execFileAsync('/usr/bin/tar', ['-xjf', archivePath, '-C', this.modelsDir])
+      await execFileAsync(command, [...args])
     } catch (error: unknown) {
       throw new ModelStoreError(`モデルの展開に失敗しました: ${toMessage(error)}`, {
         cause: error
