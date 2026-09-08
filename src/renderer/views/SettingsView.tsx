@@ -103,6 +103,29 @@ export const SettingsView = ({
         />
       </Field>
 
+      <Field
+        label="マイクが使われていたら録音を促す"
+        hint="他のアプリがマイクを使い続けているとき、録音の開始忘れを知らせます。自動では開始しません。"
+      >
+        <input
+          type="checkbox"
+          checked={settings.recording.startAlertEnabled}
+          onChange={(event) => update({ recording: { startAlertEnabled: event.target.checked } })}
+        />
+      </Field>
+
+      <Field label="録音を促すまでの時間（分）" hint="0.5 分（30 秒）以上を指定してください。">
+        <input
+          type="number"
+          min={0.5}
+          step={0.5}
+          defaultValue={settings.recording.startAlertDelayMs / 60_000}
+          onBlur={(event) =>
+            update({ recording: { startAlertDelayMs: Number(event.target.value) * 60_000 } })
+          }
+        />
+      </Field>
+
       <h3 className="settings__section">文字起こし</h3>
 
       <Field label="whisper モデル" hint="ggml 形式（.bin）のモデルを指定します。">

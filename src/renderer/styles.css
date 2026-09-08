@@ -1086,7 +1086,9 @@ textarea:focus {
   font-size: 12px;
 }
 
-.transport__silence {
+/* 止め忘れ・開始忘れのどちらの確認も、同じ見た目の帯として出す。 */
+.transport__silence,
+.transport__start-alert {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1098,7 +1100,8 @@ textarea:focus {
   font-size: 12px;
 }
 
-.transport__silence button {
+.transport__silence button,
+.transport__start-alert button {
   border: 1px solid currentColor;
   border-radius: 6px;
   background: transparent;

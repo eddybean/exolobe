@@ -221,6 +221,15 @@ describe('UpdateSettings', () => {
     expect((await settings.load()).audio.sampleRate).toBe(16_000)
   })
 
+  it('録音の設定も検証の対象にする', async () => {
+    const settings = new FakeSettingsRepository()
+
+    await expect(
+      new UpdateSettings(settings).execute({ recording: { silenceDurationMs: 0 } })
+    ).rejects.toThrow('無音を知らせるまでの時間は')
+    expect((await settings.load()).recording.silenceDurationMs).toBe(300_000)
+  })
+
   it('要約プロンプトから差し込み位置を消す変更を拒否する', async () => {
     const settings = new FakeSettingsRepository()
 

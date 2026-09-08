@@ -20,7 +20,8 @@
     "setup": "bash scripts/setup.sh",
     "postinstall": "install-electron && (bash scripts/patch-dev-electron.sh || true)",
     "build:whisper": "bash scripts/build-whisper.sh",
-    "package": "npm run build && npm run build:whisper && electron-builder --config electron-builder.yml"
+    "build:micwatch": "bash scripts/build-micwatch.sh",
+    "package": "npm run build && npm run build:whisper && npm run build:micwatch && electron-builder --config electron-builder.yml"
   },
   "dependencies": {
     "audiotee": "^0.0.7",

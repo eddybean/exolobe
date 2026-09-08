@@ -5,7 +5,13 @@ import type {
 } from '@application/ports'
 import type { Recording } from '@domain/Recording'
 import { ConfigurationError, RecordingNotFoundError } from '@domain/errors'
-import { isConfigured, validateSettings, type Settings, type SettingsPatch } from '@domain/Settings'
+import {
+  isConfigured,
+  mergeSettings,
+  validateSettings,
+  type Settings,
+  type SettingsPatch
+} from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
@@ -162,7 +168,7 @@ export class UpdateSettings {
 
   async execute(patch: SettingsPatch): Promise<Settings> {
     const current = await this.settings.load()
-    const errors = validateSettings(applyForValidation(current, patch))
+    const errors = validateSettings(mergeSettings(current, patch))
     if (errors.length > 0) {
       throw new ConfigurationError(errors.join('\n'))
     }
@@ -170,16 +176,6 @@ export class UpdateSettings {
     return this.settings.save(patch)
   }
 }
-
-/** 保存する前に検証したいので、同じマージ規則をここでも通す。 */
-const applyForValidation = (current: Settings, patch: SettingsPatch): Settings => ({
-  ...current,
-  storageDir: patch.storageDir === undefined ? current.storageDir : patch.storageDir,
-  transcription: { ...current.transcription, ...patch.transcription },
-  summarization: { ...current.summarization, ...patch.summarization },
-  diarization: { ...current.diarization, ...patch.diarization },
-  audio: { ...current.audio, ...patch.audio }
-})
 
 /** 起動時に「まず何をすべきか」を判断するための状態。 */
 export class GetSetupState {

@@ -13,6 +13,7 @@ import {
   type RendererApi,
   type SetupStateDto,
   type SilenceAlertDto,
+  type StartAlertDto,
   type TransportStateDto
 } from '@shared/ipc'
 
@@ -38,6 +39,7 @@ const api: RendererApi = {
     ipcRenderer.invoke(IPC.getTransportState) as Promise<TransportStateDto>,
   getSystemAudioLevel: () => ipcRenderer.invoke(IPC.getSystemAudioLevel) as Promise<number>,
   dismissSilenceAlert: () => ipcRenderer.invoke(IPC.dismissSilenceAlert) as Promise<void>,
+  dismissStartAlert: () => ipcRenderer.invoke(IPC.dismissStartAlert) as Promise<void>,
   retryStep: (recordingId, step: PipelineStep) =>
     ipcRenderer.invoke(IPC.retryStep, recordingId, step) as Promise<RecordingDto>,
   updateNote: (recordingId, note) =>
@@ -85,6 +87,7 @@ const api: RendererApi = {
   onFoldersChanged: (listener) => subscribe(IPC.foldersChanged, () => listener()),
   onTransportChanged: (listener) => subscribe<TransportStateDto>(IPC.transportChanged, listener),
   onSilenceAlert: (listener) => subscribe<SilenceAlertDto>(IPC.silenceAlert, listener),
+  onStartAlert: (listener) => subscribe<StartAlertDto>(IPC.startAlert, listener),
   onModelProgress: (listener) => subscribe<ModelProgressDto>(IPC.modelProgress, listener)
 }
 

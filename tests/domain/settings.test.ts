@@ -111,6 +111,24 @@ describe('memoryProtection', () => {
  * 録りっぱなしの見張り。既定で有効にしないと「止め忘れを防ぐ」目的を果たさないため、
  * 既定値そのものを仕様として固定する。
  */
+describe('startAlert', () => {
+  it('マイク使用の見張りを既定で有効にし、1 分半で知らせる', () => {
+    const settings = defaultSettings()
+
+    expect(settings.recording.startAlertEnabled).toBe(true)
+    expect(settings.recording.startAlertDelayMs).toBe(90_000)
+  })
+
+  it('知らせるまでの時間が 30 秒未満なら弾く', () => {
+    const base = defaultSettings()
+    const settings = { ...base, recording: { ...base.recording, startAlertDelayMs: 10_000 } }
+
+    expect(validateSettings(settings)).toContain(
+      '録音を促すまでの時間は 30 秒以上を指定してください。'
+    )
+  })
+})
+
 describe('silenceAlert', () => {
   it('無音の見張りを既定で有効にし、5 分で知らせる', () => {
     const settings = defaultSettings()

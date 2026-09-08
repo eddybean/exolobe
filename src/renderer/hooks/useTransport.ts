@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { SilenceAlertDto, TransportStateDto } from '@shared/ipc'
+import type { SilenceAlertDto, StartAlertDto, TransportStateDto } from '@shared/ipc'
 import { startMicCapture, type MicCapture } from '../audio/micCapture'
 import { messageOf } from '../errorMessage'
 import { readInputLevel } from '../session/readInputLevel'
@@ -18,6 +18,10 @@ export interface Transport {
   readonly silenceAlert: SilenceAlertDto | undefined
   /** 無音の知らせに対して「続ける」を選ぶ。 */
   keepRecording(): void
+  /** 会議が始まっていそうなのに録音していないことの知らせ。応答するまで出し続ける。 */
+  readonly startAlert: StartAlertDto | undefined
+  /** 録音を促す知らせに対して「今はしない」を選ぶ。 */
+  skipRecording(): void
   start(title?: string): Promise<void>
   stop(): Promise<void>
   dismissError(): void
@@ -38,6 +42,7 @@ export const useTransport = (sampleRate: number): Transport => {
   const [error, setError] = useState<string>()
   const [warning, setWarning] = useState<string>()
   const [silenceAlert, setSilenceAlert] = useState<SilenceAlertDto>()
+  const [startAlert, setStartAlert] = useState<StartAlertDto>()
 
   const mic = useRef<MicCapture | undefined>(undefined)
 
@@ -47,10 +52,16 @@ export const useTransport = (sampleRate: number): Transport => {
   }, [])
 
   useEffect(() => window.recorder.onSilenceAlert(setSilenceAlert), [])
+  useEffect(() => window.recorder.onStartAlert(setStartAlert), [])
 
   // 録音が終われば知らせる相手がいない。次の録音へ持ち越さない。
   useEffect(() => {
     if (!state.active) setSilenceAlert(undefined)
+  }, [state.active])
+
+  // 録音が始まれば促す理由が無くなる。バーを残さない。
+  useEffect(() => {
+    if (state.active) setStartAlert(undefined)
   }, [state.active])
 
   // 経過時間と入力レベルは録音中だけ更新する。
@@ -129,6 +140,15 @@ export const useTransport = (sampleRate: number): Transport => {
     void window.recorder.dismissSilenceAlert()
   }, [])
 
+  /**
+   * 「今はしない」。main 側の見張りを黙らせないと、会議の間ずっと
+   * 同じ確認が出続けることになる。
+   */
+  const skipRecording = useCallback((): void => {
+    setStartAlert(undefined)
+    void window.recorder.dismissStartAlert()
+  }, [])
+
   const stop = useCallback(async (): Promise<void> => {
     if (busy) return
     setBusy(true)
@@ -155,9 +175,11 @@ export const useTransport = (sampleRate: number): Transport => {
     error,
     warning,
     silenceAlert,
+    startAlert,
     start,
     stop,
     keepRecording,
+    skipRecording,
     dismissError: () => setError(undefined)
   }
 }
