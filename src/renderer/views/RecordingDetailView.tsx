@@ -275,43 +275,61 @@ export const RecordingDetailView = ({
   )
 }
 
-/** ステップごとの状態。失敗したステップだけ個別に再実行できる。 */
+/**
+ * ステップごとの状態。失敗したステップだけ個別に再実行できる。
+ *
+ * 失敗の全文はバッヂの中に描かない（省略されて読めず、列も横に伸びる）。
+ * 重ねて出す方法も採れない —— 親の .detail が overflow: hidden で切るため、
+ * ネイティブの title 属性も含めて画面外に消えてしまう。そこでバッヂ列の下、
+ * 通常のフローに場所を取って出す。文字はそのまま選択してコピーできる。
+ */
 const PipelineStatus = ({
   recording,
   onRetry
 }: {
   recording: RecordingDetailDto['recording']
   onRetry: (step: PipelineStep) => void
-}): ReactElement => (
-  <ul className="steps">
-    {PIPELINE_STEPS.map((step) => {
-      const state = recording.steps[step]
-      const failure = stepFailure(step, state)
-      return (
-        <li
-          key={step}
-          className={`steps__item steps__item--${state?.status ?? 'pending'}`}
-          // 文言はバッヂの外へ。中に描くと省略されて読めず、列も横に伸びていた。
-          {...(failure ? { title: failureTooltip(failure) } : {})}
-        >
-          <span>{STEP_LABELS[step]}</span>
-          {failure && (
-            <>
-              <button type="button" className="steps__retry" onClick={() => onRetry(step)}>
-                再実行
-              </button>
-              {/* ネイティブ由来の英語エラーは検索・報告に持ち出したくなる。 */}
-              <CopyButton
-                text={failureTooltip(failure)}
-                label={`${failure.label}のエラーをコピー`}
-              />
-            </>
-          )}
-        </li>
-      )
-    })}
-  </ul>
-)
+}): ReactElement => {
+  const [openStep, setOpenStep] = useState<PipelineStep>()
+  const openFailure = openStep ? stepFailure(openStep, recording.steps[openStep]) : undefined
+
+  return (
+    // 閉じるのは列と文言をまとめて出たときだけ。バッヂから文言へマウスを
+    // 移す途中で消えると、選んでコピーする間がない。
+    <div className="steps-block" onMouseLeave={() => setOpenStep(undefined)}>
+      <ul className="steps">
+        {PIPELINE_STEPS.map((step) => {
+          const state = recording.steps[step]
+          const failure = stepFailure(step, state)
+          const reveal = (): void => setOpenStep(failure ? step : undefined)
+
+          return (
+            <li
+              key={step}
+              className={`steps__item steps__item--${state?.status ?? 'pending'}`}
+              onMouseEnter={reveal}
+              // 再実行ボタンにキーボードで到達したときも読めるようにする。
+              onFocus={reveal}
+            >
+              <span>{STEP_LABELS[step]}</span>
+              {failure && (
+                <button type="button" className="steps__retry" onClick={() => onRetry(step)}>
+                  再実行
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+
+      {openFailure && (
+        <p className="steps__detail" role="note">
+          {failureTooltip(openFailure)}
+        </p>
+      )}
+    </div>
+  )
+}
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)

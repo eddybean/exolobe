@@ -564,6 +564,31 @@ code {
   font-size: 11px;
 }
 
+.steps-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/*
+ * 失敗の全文。重ねて出すことはできない —— 親の .detail が overflow: hidden で
+ * 切るため、画面外に消える。バッヂ列の下に場所を取って出す。
+ */
+.steps__detail {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  /* 全文を読ませるのが目的なので、バッヂの nowrap を持ち込まず折り返す。 */
+  white-space: pre-wrap;
+  /* ネイティブ由来の英語エラーは検索・報告に持ち出したくなる。選択させる。 */
+  user-select: text;
+  cursor: text;
+}
+
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
