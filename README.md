@@ -298,3 +298,24 @@ ESM の main も扱えますが、ESM 専用の `audiotee` と `node-llama-cpp` 
 テストは `~/.claude/rules/tdd.md` に従い先に書いています。ユースケースは Fake
 だけで完全に検証でき、サーバーも DB も起動しません。統合テストは実際の
 ファイル I/O と `afconvert` を通します。
+
+## ライセンス
+
+[PolyForm Noncommercial License 1.0.0](LICENSE) に
+[追加条項](LICENSE-ADDENDUM.md)を加えた条件で公開しています。OSI 承認のオープン
+ソースライセンスではなく、ソースを公開しているだけの **source-available** な
+プロジェクトです。
+
+- **個人利用・学習・研究・非営利団体での利用は自由**です
+- **商用利用はできません**。本アプリまたはその改変版を販売・有償提供する場合は
+  個別の許諾が必要です
+- 改変版を配布する場合は、対応するソースコードを同一条件で提供してください
+- 本リポジトリのコードを機械学習モデルの訓練・評価に使うことを禁じます
+  （アプリを**動かして得た**録音・文字起こし・要約は利用者のものです）
+
+Pull Request は歓迎します。ライセンス上の前提は [CONTRIBUTING.md](CONTRIBUTING.md)
+を参照してください。
+
+同梱・利用しているサードパーティのライブラリはいずれも許諾的ライセンスです
+（whisper.cpp / audiotee / node-llama-cpp / Electron / React = MIT、
+sherpa-onnx = Apache-2.0）。それぞれのライセンスは各配布元に従います。

@@ -4,7 +4,7 @@
   "description": "Mac 向け Web 会議レコーダー（録音・文字起こし・話者識別・要約をすべてローカルで実行）",
   "main": "./out/main/index.js",
   "author": "eddybean",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "engines": {
     "node": ">=22.12"
