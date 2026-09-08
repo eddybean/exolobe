@@ -587,6 +587,13 @@ code {
   font-size: 12px;
 }
 
+/* 見出しの反対側に並ぶ操作（再要約・コピー）。 */
+.panel__tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .panel__empty {
   padding: 20px 12px;
   color: var(--text-muted);
@@ -640,6 +647,15 @@ code {
   opacity: 0.4;
   cursor: default;
   text-decoration: none;
+}
+
+/* 編集中も行の見た目が飛び跳ねないよう、ボタンと同じ字送りと行内幅に収める。 */
+.segment__speaker-input {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  width: 8em;
+  padding: 0 2px;
 }
 
 .segment__text {

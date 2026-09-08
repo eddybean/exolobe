@@ -10,7 +10,8 @@ import {
   overallStatus,
   slugForRecording,
   startStep,
-  succeedStep
+  succeedStep,
+  tooShortRecording
 } from '@domain/Recording'
 
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
@@ -81,6 +82,29 @@ describe('ステップの状態遷移', () => {
   it('実行中のステップがあれば processing を返す', () => {
     expect(isProcessing(startStep(initialStepStates(), 'mix'))).toBe(true)
     expect(overallStatus(startStep(initialStepStates(), 'mix'))).toBe('processing')
+  })
+})
+
+describe('tooShortRecording', () => {
+  it('1 分に満たない録音は理由を返す', () => {
+    expect(tooShortRecording(59_999)).toBe(
+      '録音時間が 59 秒しかありません。1 分未満の録音は処理しません。'
+    )
+  })
+
+  it('ちょうど 1 分は処理する', () => {
+    expect(tooShortRecording(60_000)).toBeUndefined()
+  })
+
+  it('押し間違えて即停止した録音も理由を返す', () => {
+    expect(tooShortRecording(0)).toBe(
+      '録音時間が 0 秒しかありません。1 分未満の録音は処理しません。'
+    )
+  })
+
+  it('録音時間を測れなかった場合は止めない', () => {
+    // 見積もれないことを理由に本物の録音を捨てる方が損害が大きい。
+    expect(tooShortRecording(Number.NaN)).toBeUndefined()
   })
 })
 

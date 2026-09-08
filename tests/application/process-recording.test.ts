@@ -26,7 +26,10 @@ const tracks = {
   durationMs: 65_000
 }
 
-const build = async (settingsPatch: SettingsPatch = {}) => {
+const build = async (
+  settingsPatch: SettingsPatch = {},
+  options: { durationMs?: number } = {}
+) => {
   const repository = new FakeRecordingRepository()
   const artifacts = new FakeArtifactStore()
   const settingsRepo = new FakeSettingsRepository(
@@ -40,7 +43,10 @@ const build = async (settingsPatch: SettingsPatch = {}) => {
   const progress = new FakeProgressReporter()
   const system = new FakeSystemResource()
 
-  const recording = finishRecording(createRecording({ id: 'rec-1', startedAt }), 65_000)
+  const recording = finishRecording(
+    createRecording({ id: 'rec-1', startedAt }),
+    options.durationMs ?? 65_000
+  )
   await repository.save(recording)
   await artifacts.writeTracks(recording, tracks)
 
@@ -279,6 +285,122 @@ describe('ProcessRecording — 個別リトライ', () => {
 
     await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
     expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])
+  })
+})
+
+describe('ProcessRecording — 短すぎる録音', () => {
+  const tooShort = '録音時間が 12 秒しかありません。1 分未満の録音は処理しません。'
+
+  it('ミックスも文字起こしもせず、全ステップを同じ理由で失敗にする', async () => {
+    const ctx = await build({}, { durationMs: 12_000 })
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.mixer.calls).toHaveLength(0)
+    expect(ctx.transcriber.calls).toHaveLength(0)
+    expect(result.status).toBe('failed')
+    expect(PIPELINE_STEPS.map((step) => result.steps[step].error)).toEqual(
+      PIPELINE_STEPS.map(() => tooShort)
+    )
+  })
+
+  it('中間ファイルを片付ける（やり直しても結果は変わらない）', async () => {
+    const ctx = await build({}, { durationMs: 12_000 })
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])
+  })
+
+  it('個別リトライも同じ理由で断る（トラックが無いとは言わない）', async () => {
+    const ctx = await build({}, { durationMs: 12_000 })
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    const retried = await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
+
+    expect(retried.steps.summarize.error).toBe(tooShort)
+    expect(ctx.summarizer.receivedTranscript).toBeUndefined()
+  })
+
+  it('全ステップの失敗を進捗として通知する', async () => {
+    const ctx = await build({}, { durationMs: 12_000 })
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.progress.events).toEqual(
+      PIPELINE_STEPS.map((step) => ({
+        recordingId: 'rec-1',
+        step,
+        status: 'failed',
+        error: tooShort
+      }))
+    )
+  })
+
+  it('1 分以上あれば通常どおり処理する', async () => {
+    const ctx = await build({}, { durationMs: 60_000 })
+
+    expect((await ctx.process.execute({ recordingId: 'rec-1' })).status).toBe('ready')
+  })
+})
+
+describe('ProcessRecording — 利用者が付けた話者名', () => {
+  /** 詳細画面で話者名を変えた状況を作る。 */
+  const rename = async (
+    ctx: Awaited<ReturnType<typeof build>>,
+    speakerId: string,
+    label: string
+  ): Promise<void> => {
+    const saved = await ctx.artifacts.readTranscript(ctx.recording)
+    await ctx.artifacts.writeTranscript(ctx.recording, {
+      segments: saved?.segments ?? [],
+      speakers: (saved?.speakers ?? []).map((speaker) =>
+        speaker.id === speakerId ? { ...speaker, label } : speaker
+      )
+    })
+  }
+
+  it('話者識別を再実行しても付けた名前を引き継ぐ', async () => {
+    const ctx = await build()
+    ctx.diarizer.turns = [
+      { startMs: 1000, endMs: 3000, speaker: 'spk0' },
+      { startMs: 4500, endMs: 6500, speaker: 'spk1' }
+    ]
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    await rename(ctx, 'remote:spk0', '田中さん')
+
+    await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
+
+    expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers).toEqual([
+      { id: SELF_SPEAKER_ID, kind: 'self', label: '自分' },
+      { id: 'remote:spk0', kind: 'remote', label: '田中さん' },
+      { id: 'remote:spk1', kind: 'remote', label: '参加者B' }
+    ])
+  })
+
+  it('文字起こしを再実行しても付けた名前を引き継ぐ', async () => {
+    const ctx = await build()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    await rename(ctx, SELF_SPEAKER_ID, '私')
+
+    await ctx.process.execute({ recordingId: 'rec-1', only: ['transcribe'] })
+
+    expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers).toContainEqual({
+      id: SELF_SPEAKER_ID,
+      kind: 'self',
+      label: '私'
+    })
+  })
+
+  it('要約だけ再実行すると、変更後の話者名で要約し直す', async () => {
+    const ctx = await build()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    await rename(ctx, SELF_SPEAKER_ID, '田中')
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
+
+    expect(ctx.summarizer.receivedTranscript).toContain('**[00:00] 田中**')
+    expect(result.steps.summarize.status).toBe('done')
   })
 })
 

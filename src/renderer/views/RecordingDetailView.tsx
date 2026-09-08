@@ -5,7 +5,9 @@ import { STEP_LABELS, formatDateTime, formatDuration } from '../format'
 import { CopyButton } from '../components/CopyButton'
 import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
+import { EditableSpeaker } from '../components/EditableSpeaker'
 import { isAudioReady } from '../library/audio'
+import { resummarizeState, type ResummarizeState } from '../resummarize'
 import { failureTooltip, stepFailure } from '../stepFailure'
 
 const PIPELINE_STEPS: PipelineStep[] = ['mix', 'transcribe', 'diarize', 'summarize', 'encode']
@@ -14,6 +16,14 @@ const PIPELINE_STEPS: PipelineStep[] = ['mix', 'transcribe', 'diarize', 'summari
 const NOTE_SAVE_DELAY_MS = 600
 
 type Tab = 'summary' | 'note'
+
+/** 再要約ボタンのツールチップ。押せないときは、その理由をその場で読めるようにする。 */
+const RESUMMARIZE_HINT: Readonly<Record<ResummarizeState, string>> = {
+  ready: '話者名を直したあとなど、要約を作り直す',
+  summarizing: '要約を作り直しています',
+  busy: '他の処理が終わると要約し直せます',
+  unavailable: '文字起こしができると要約し直せます'
+}
 
 /**
  * 詳細画面。左に音声プレーヤーと話者付き文字起こし、右に要約とメモを置く。
@@ -64,6 +74,11 @@ export const RecordingDetailView = ({
     [detail.speakers]
   )
 
+  const resummarize = useMemo(
+    () => resummarizeState(detail.recording.steps, detail.segments.length > 0),
+    [detail.recording.steps, detail.segments.length]
+  )
+
   const seek = useCallback((ms: number): void => {
     const audio = audioRef.current
     if (!audio) return
@@ -71,15 +86,20 @@ export const RecordingDetailView = ({
     void audio.play()
   }, [])
 
+  /**
+   * 話者名の変更。要約は作り直さない（数分かかるので、名前を直すたびに走らせない）。
+   * 直し終えてから「再要約」を押してもらう。
+   */
   const renameSpeaker = useCallback(
-    (speakerId: string, current: string): void => {
-      const label = window.prompt('話者名を入力してください', current)
-      if (label === null) return
-
-      window.recorder
-        .renameSpeaker(recordingId, speakerId, label)
-        .then(onChanged)
-        .catch((renameError: unknown) => setError(messageOf(renameError)))
+    async (speakerId: string, label: string): Promise<void> => {
+      setError(undefined)
+      try {
+        await window.recorder.renameSpeaker(recordingId, speakerId, label)
+        onChanged()
+      } catch (renameError: unknown) {
+        setError(messageOf(renameError))
+        throw renameError
+      }
     },
     [recordingId, onChanged]
   )
@@ -179,19 +199,10 @@ export const RecordingDetailView = ({
                     >
                       {formatDuration(segment.startMs)}
                     </button>
-                    <button
-                      type="button"
-                      className="segment__speaker"
-                      onClick={() =>
-                        renameSpeaker(
-                          segment.speakerId,
-                          labels.get(segment.speakerId) ?? segment.speakerId
-                        )
-                      }
-                      title="話者名を変更"
-                    >
-                      {labels.get(segment.speakerId) ?? segment.speakerId}
-                    </button>
+                    <EditableSpeaker
+                      label={labels.get(segment.speakerId) ?? segment.speakerId}
+                      onCommit={(label) => renameSpeaker(segment.speakerId, label)}
+                    />
                     <p className="segment__text">{segment.text}</p>
                   </li>
                 ))}
@@ -222,7 +233,19 @@ export const RecordingDetailView = ({
             <div className="panel">
               <div className="panel__header">
                 <h3>要約</h3>
-                {detail.summary && <CopyButton text={detail.summary} label="要約をコピー" />}
+                <div className="panel__tools">
+                  {/* 話者名を直しても要約は古いままなので、作り直す手段をここに置く。 */}
+                  <button
+                    type="button"
+                    className="copy"
+                    onClick={() => retry('summarize')}
+                    disabled={resummarize !== 'ready'}
+                    title={RESUMMARIZE_HINT[resummarize]}
+                  >
+                    {resummarize === 'summarizing' ? '要約中…' : '再要約'}
+                  </button>
+                  {detail.summary && <CopyButton text={detail.summary} label="要約をコピー" />}
+                </div>
               </div>
               {detail.summary ? (
                 <div className="summary">

@@ -105,6 +105,12 @@ const build = async (options: { summarizerError?: Error } = {}) => {
   }
 }
 
+/**
+ * 流す音声の長さ。1 分未満の録音はパイプラインが 1 ステップも実行せず中断する
+ * （tooShortRecording）ため、一連の流れを通すにはその境目を越える必要がある。
+ */
+const RECORDING_SECONDS = 61
+
 /** 話し声に近い複雑さを持つ信号。無音だとエンコード結果の比較が意味を持たない。 */
 const speechLike = (seconds: number): number[] => {
   let seed = 7
@@ -123,8 +129,8 @@ describe('録音から保存までの一連の流れ', () => {
 
     // ── 録音 ──
     const started = await ctx.start.execute({ title: 'サンプル会議' })
-    ctx.source.emit(speechLike(2))
-    await ctx.recorder.pushMicPcm(int16Buffer(speechLike(2)))
+    ctx.source.emit(speechLike(RECORDING_SECONDS))
+    await ctx.recorder.pushMicPcm(int16Buffer(speechLike(RECORDING_SECONDS)))
     const { recording } = await ctx.stop.execute(started.id)
 
     expect(recording.status).toBe('processing')
@@ -156,7 +162,7 @@ describe('録音から保存までの一連の流れ', () => {
 
     // ── 音声は元の WAV より大幅に小さい ──
     const m4aSize = (await stat(join(dir, 'audio.m4a'))).size
-    expect(m4aSize).toBeLessThan(SAMPLE_RATE * 2 * 2 / 4)
+    expect(m4aSize).toBeLessThan((SAMPLE_RATE * RECORDING_SECONDS * 2) / 4)
 
     // ── 話者は自分と相手に分かれている ──
     const detail = await ctx.detail.execute(recording.id)
@@ -179,13 +185,14 @@ describe('録音から保存までの一連の流れ', () => {
     const ctx = await build()
     const started = await ctx.start.execute({})
 
-    ctx.source.emit(speechLike(1))
-    await ctx.recorder.pushMicPcm(int16Buffer(speechLike(1)))
+    ctx.source.emit(speechLike(RECORDING_SECONDS))
+    await ctx.recorder.pushMicPcm(int16Buffer(speechLike(RECORDING_SECONDS)))
     const { recording, tracks } = await ctx.stop.execute(started.id)
 
     // トラックは別々の WAV として残る
-    expect((await readWav(tracks.systemWavPath)).samples.length).toBe(SAMPLE_RATE)
-    expect((await readWav(tracks.micWavPath)).samples.length).toBe(SAMPLE_RATE)
+    const recorded = SAMPLE_RATE * RECORDING_SECONDS
+    expect((await readWav(tracks.systemWavPath)).samples.length).toBe(recorded)
+    expect((await readWav(tracks.micWavPath)).samples.length).toBe(recorded)
 
     ctx.transcriber.byPath.set(tracks.micWavPath, [])
     ctx.transcriber.byPath.set(tracks.systemWavPath, [])
@@ -199,7 +206,7 @@ describe('録音から保存までの一連の流れ', () => {
   it('要約が失敗しても音声とファイル配置は残る', async () => {
     const ctx = await build({ summarizerError: new Error('要約モデルが読み込めません') })
     const started = await ctx.start.execute({})
-    ctx.source.emit(speechLike(1))
+    ctx.source.emit(speechLike(RECORDING_SECONDS))
     const { recording, tracks } = await ctx.stop.execute(started.id)
 
     ctx.transcriber.byPath.set(tracks.micWavPath, [])
