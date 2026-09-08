@@ -215,7 +215,7 @@ src/
 ## 開発
 
 ```bash
-npm test         # 338 件（domain / application / infrastructure / 統合）
+npm test         # 465 件（domain / application / infrastructure / 統合）
 npm run typecheck
 npm run dev
 npm run build
@@ -286,7 +286,7 @@ ad-hoc 再署名します。これが無いと開発中に音声キャプチャ�
 
 ### モジュール形式について
 
-main / preload は electron-vite の既定である **CJS** で出力します。Electron 33 は
+main / preload は electron-vite の既定である **CJS** で出力します。Electron は 28 以降
 ESM の main も扱えますが、ESM 専用の `audiotee` と `node-llama-cpp` は動的 `import()`
 で読み込めばよく（CJS 出力でも `import()` は `require` に変換されません）、既定の
 構成から外れる利点がありません。
