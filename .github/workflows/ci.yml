@@ -1,9 +1,26 @@
 name: CI
 
 on:
+  # ビルドにも実行にも影響しないファイルだけの変更では CI を回さない。
+  # paths-ignore に .github/workflows/** を足してはいけない
+  # （ワークフロー自体の変更は必ず検証する）。
+  # GitHub Actions は YAML のアンカー／エイリアスを解釈しないため、
+  # push と pull_request で同じ一覧を二重に書く必要がある。
   push:
     branches: [main, master]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
   workflow_dispatch:
 
 concurrency:
