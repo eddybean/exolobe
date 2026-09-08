@@ -35,6 +35,8 @@ import {
   FileRecordingArtifactStore,
   FileRecordingRepository
 } from '@infrastructure/persistence/FileRecordingStore'
+import { MicUsageProbe } from '@infrastructure/mic/MicUsageProbe'
+import { resolveMicWatchBinary } from '@infrastructure/mic/resolveMicWatchBinary'
 import { FileModelStore } from '@infrastructure/download/FileModelStore'
 import {
   JsonSettingsRepository,
@@ -50,6 +52,7 @@ import {
 export interface Container {
   readonly settings: JsonSettingsRepository
   readonly recorder: DualTrackRecorder
+  readonly micUsage: MicUsageProbe
   readonly startRecording: StartRecording
   readonly stopRecording: StopRecording
   readonly listRecordings: ListRecordings
@@ -92,6 +95,11 @@ export const createContainer = (): Container => {
       resolveAudioTeeBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath })
     )
   )
+  // 録音していない間だけ動かす見張り。同梱物が無ければ available が false になり、
+  // 開始忘れの通知だけが無効になる。
+  const micUsage = new MicUsageProbe(
+    resolveMicWatchBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath })
+  )
   // モデルは再取得できるキャッシュなので、録音の保存先とは分けて置く。
   const models = new FileModelStore(join(userData, 'models'))
 
@@ -101,6 +109,7 @@ export const createContainer = (): Container => {
   return {
     settings,
     recorder,
+    micUsage,
     startRecording: new StartRecording({
       settings,
       repository,

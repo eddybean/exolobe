@@ -4,6 +4,7 @@ import { ConfigurationError, toMessage } from '@domain/errors'
 import { findAsset, formatBytes } from '@domain/ModelCatalog'
 import type { SettingsPatch } from '@domain/Settings'
 import { DEFAULT_QUIET_RATIO, DEFAULT_SILENCE_LEVEL } from '@domain/SilenceWatch'
+import { DEFAULT_BUSY_RATIO } from '@domain/StartWatch'
 import {
   IPC,
   toFolderDto,
@@ -14,15 +15,26 @@ import {
   type RecordingDetailDto,
   type RecordingDto,
   type SilenceAlertDto,
+  type StartAlertDto,
   type TransportStateDto
 } from '@shared/ipc'
 import type { Container } from '../container'
 import { createSilenceMonitor } from '../silenceMonitor'
 import { notifySilence } from '../silenceNotification'
+import { createStartMonitor } from '../startMonitor'
+import { notifyMeetingStart } from '../startNotification'
 import { PipelineClient } from '../worker/PipelineClient'
 
 /** 無音を判定する間隔。会議の沈黙は分単位なので、1 秒ごとで十分細かい。 */
 const SILENCE_SAMPLE_INTERVAL_MS = 1_000
+
+/**
+ * マイクの使用を判定する間隔。
+ *
+ * 無音の見張りと違って標本は子プロセスから届く真偽値なので、細かく刻む意味がない。
+ * 既定の 1 分半に対して十分な標本数（18）が取れる 5 秒にする。
+ */
+const START_SAMPLE_INTERVAL_MS = 5_000
 
 /** トレイからも呼べるよう、録音の開始・停止を切り出したもの。 */
 export interface TransportController {
@@ -99,16 +111,18 @@ export const registerIpcHandlers = (
         onStop: () => {
           controller.stop().catch((error: unknown) => console.error(toMessage(error)))
         },
-        onShowWindow: () => {
-          const window = getWindow()
-          if (!window || window.isDestroyed()) return
-          if (window.isMinimized()) window.restore()
-          window.show()
-          window.focus()
-        }
+        onShowWindow: focusWindow
       })
     }
   })
+
+  const focusWindow = (): void => {
+    const window = getWindow()
+    if (!window || window.isDestroyed()) return
+    if (window.isMinimized()) window.restore()
+    window.show()
+    window.focus()
+  }
 
   const startSilenceWatch = async (): Promise<number> => {
     const { recording } = await container.settings.load()
@@ -132,6 +146,53 @@ export const registerIpcHandlers = (
   }
 
   /**
+   * 開始忘れの見張り。録音していない間だけ動かす。
+   * 録音中は自分自身がマイクを使うため、見張っても意味がない。
+   */
+  let startTimer: NodeJS.Timeout | undefined
+  let startAlertDelayMs = 0
+
+  const startWatch = createStartMonitor({
+    onChange: (listener) => container.micUsage.onChange(listener),
+    onMeetingStarted: () => {
+      // 促している間に録音が始まっていたら、もう用は無い。
+      if (active) return
+
+      send(IPC.startAlert, { micBusyDurationMs: startAlertDelayMs } satisfies StartAlertDto)
+
+      notifyMeetingStart({
+        minutes: Math.round(startAlertDelayMs / 60_000),
+        onStart: () => {
+          controller.start().catch((error: unknown) => console.error(toMessage(error)))
+        },
+        onShowWindow: focusWindow
+      })
+    }
+  })
+
+  const startStartWatch = async (): Promise<void> => {
+    const { recording } = await container.settings.load()
+    const enabled = recording.startAlertEnabled && container.micUsage.available
+    startAlertDelayMs = recording.startAlertDelayMs
+
+    if (!enabled) {
+      stopStartWatch()
+      return
+    }
+
+    container.micUsage.start()
+    startWatch.start({ durationMs: recording.startAlertDelayMs, busyRatio: DEFAULT_BUSY_RATIO })
+    startTimer ??= setInterval(() => startWatch.tick(Date.now()), START_SAMPLE_INTERVAL_MS)
+  }
+
+  const stopStartWatch = (): void => {
+    if (startTimer) clearInterval(startTimer)
+    startTimer = undefined
+    startWatch.stop()
+    container.micUsage.stop()
+  }
+
+  /**
    * 停止後の処理。UI を待たせないため待たずに走らせ、進捗は IPC で伝える。
    * 個々のステップの失敗は ProcessRecording が録音の状態として記録するので、
    * ここで拾うのはワーカーごと落ちたような想定外の場合だけ。
@@ -152,8 +213,18 @@ export const registerIpcHandlers = (
 
   const controller: TransportController = {
     async start(title?: string): Promise<RecordingDto> {
+      // 録音を始めたら促す必要はない。子プロセスも止めて無駄に動かさない。
+      stopStartWatch()
+
       const params = title === undefined ? {} : { title }
-      const recording = await container.startRecording.execute(params)
+      let recording
+      try {
+        recording = await container.startRecording.execute(params)
+      } catch (error: unknown) {
+        // 開始に失敗したなら録音していない状態のままなので、見張りを戻す。
+        void startStartWatch()
+        throw error
+      }
 
       active = {
         recordingId: recording.id,
@@ -178,6 +249,8 @@ export const registerIpcHandlers = (
       send(IPC.recordingsChanged)
 
       runPipeline(recording.id)
+      void startStartWatch()
+
       return toRecordingDto(recording)
     },
 
@@ -213,6 +286,8 @@ export const registerIpcHandlers = (
   handle(IPC.getTransportState, async () => transportState())
   handle(IPC.getSystemAudioLevel, async () => container.recorder.systemLevel())
   handle(IPC.dismissSilenceAlert, async () => silence.dismiss(Date.now()))
+
+  handle(IPC.dismissStartAlert, async () => startWatch.dismiss())
 
   handle(IPC.retryStep, async (id: unknown, step: unknown): Promise<RecordingDto> => {
     const recording = await pipeline.run({
@@ -402,6 +477,9 @@ export const registerIpcHandlers = (
 
   handle(IPC.updateSettings, async (patch: unknown) => {
     const settings = await container.updateSettings.execute(patch as SettingsPatch)
+    // 開始忘れの見張りは録音していない間ずっと動いているので、設定の変更を
+    // 次の録音まで待たずにここで反映する。
+    if (!active) await startStartWatch()
     send(IPC.recordingsChanged)
     return settings
   })
@@ -430,6 +508,9 @@ export const registerIpcHandlers = (
       void container.recorder.pushMicPcm(Buffer.from(pcm))
     }
   })
+
+  // 録音していない状態から始まるので、見張りもここから動かし始める。
+  void startStartWatch()
 
   return controller
 }

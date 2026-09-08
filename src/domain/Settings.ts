@@ -52,13 +52,18 @@ export interface SummarizationSettings {
 /**
  * 録音そのものの振る舞い。
  *
- * 会議が終わってもアプリを止め忘れると、無音だけの長い録音が残る。
- * 一定時間どちらのトラックも無音なら利用者へ知らせる（勝手には止めない）。
+ * 押し忘れは両方向に起きる。止め忘れれば無音だけの長い録音が残り、
+ * 始め忘れれば会議の内容そのものが失われる。どちらも知らせるだけにとどめ、
+ * 勝手に止めたり始めたりはしない。
  */
 export interface RecordingSettings {
   readonly silenceAlertEnabled: boolean
   /** この時間ずっと無音なら知らせる。 */
   readonly silenceDurationMs: number
+  /** 他のアプリがマイクを使い続けているとき、録音を促すかどうか。 */
+  readonly startAlertEnabled: boolean
+  /** この時間ずっとマイクが使われていたら録音を促す。 */
+  readonly startAlertDelayMs: number
 }
 
 export interface DiarizationSettings {
@@ -119,7 +124,10 @@ export const defaultSettings = (): Settings => ({
   recording: {
     silenceAlertEnabled: true,
     // 5 分。会議中の沈黙としては長く、止め忘れに気づくには十分早い。
-    silenceDurationMs: 300_000
+    silenceDurationMs: 300_000,
+    startAlertEnabled: true,
+    // 1 分半。短い音声入力や着信の確認では届かず、会議の冒頭を取り逃さない長さ。
+    startAlertDelayMs: 90_000
   },
   transcription: {
     provider: 'whisper-cpp',
@@ -186,6 +194,9 @@ export const validateSettings = (settings: Settings): string[] => {
   }
   if (settings.recording.silenceDurationMs < 60_000) {
     errors.push('無音を知らせるまでの時間は 1 分以上を指定してください。')
+  }
+  if (settings.recording.startAlertDelayMs < 30_000) {
+    errors.push('録音を促すまでの時間は 30 秒以上を指定してください。')
   }
   if (settings.diarization.maxSpeakers < 2) {
     errors.push('話者数の上限は 2 以上を指定してください。')

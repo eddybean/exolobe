@@ -7,7 +7,7 @@ import { formatDuration } from '../format'
  * どの画面にいても録音を開始・停止できることが要件なので、ビューの外側に置く。
  */
 export const TransportBar = ({ transport }: { transport: Transport }): ReactElement => {
-  const { state, elapsedMs, level, busy, warning, silenceAlert } = transport
+  const { state, elapsedMs, level, busy, warning, silenceAlert, startAlert } = transport
   const active = state.active
 
   return (
@@ -57,6 +57,23 @@ export const TransportBar = ({ transport }: { transport: Transport }): ReactElem
           </button>
           <button type="button" onClick={transport.keepRecording}>
             続ける
+          </button>
+        </div>
+      )}
+
+      {/* 開始忘れの確認。通知を見逃してウィンドウへ戻ってきた場合でも
+          ここで気づけるよう、応答するまで出し続ける。 */}
+      {!active && startAlert && (
+        <div className="transport__start-alert" role="alert">
+          <span>
+            {Math.round(startAlert.micBusyDurationMs / 60_000)} 分以上、他のアプリがマイクを
+            使っています。録音を開始しますか？
+          </span>
+          <button type="button" onClick={() => void transport.start()} disabled={busy}>
+            録音する
+          </button>
+          <button type="button" onClick={transport.skipRecording}>
+            今はしない
           </button>
         </div>
       )}

@@ -37,6 +37,10 @@ install_whisper() {
 require_macos_version
 install_whisper
 
+# 開始忘れの見張りに使う micwatch。同梱物なので Homebrew では入らない。
+# 無くてもアプリは動くが、開発中に機能を確認できなくなる。
+bash "$(dirname "$0")/build-micwatch.sh"
+
 echo
 echo "[setup] 完了しました。'npm run dev' でアプリを起動できます。"
 echo "[setup] モデル（文字起こし・要約）はアプリの初期設定画面からダウンロードできます。"
