@@ -1784,6 +1784,10 @@
               <td>「知らせても止め忘れる」ことが実際に起きたとき。猶予後の自動停止を足すのが次の一手</td>
             </tr>
             <tr>
+              <td><a href="#adr-021">ADR-021</a> 要約は Metal（GPU）で動かす</td>
+              <td>ANE の prefill オフロードが upstream の llama.cpp に入り、node-llama-cpp が拾ったとき。<a href="#adr-026">ADR-026</a> の Core ML は whisper 固有の作り（エンコーダだけを別モデルに差し替える）で要約には流用できないが、2026-03 に出た ggml の ANE バックエンドは <strong>ANE を prefill に、decode を Metal に</strong>振り分ける形で、ADR-021 が「このアプリの支配的コスト」とした長文脈 prefill に噛み合う。現状は private API 依存かつ未マージで、<a href="#adr-014">ADR-014</a> の署名・公証を前提にすると採れない</td>
+            </tr>
+            <tr>
               <td>arm64 のみのビルド</td>
               <td>Intel Mac の利用者が出たとき。whisper-cli をホスト依存でビルドしているため CI にジョブ追加が要る</td>
             </tr>
