@@ -564,6 +564,31 @@ code {
   font-size: 11px;
 }
 
+.steps-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/*
+ * 失敗の全文。重ねて出すことはできない —— 親の .detail が overflow: hidden で
+ * 切るため、画面外に消える。バッヂ列の下に場所を取って出す。
+ */
+.steps__detail {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  /* 全文を読ませるのが目的なので、バッヂの nowrap を持ち込まず折り返す。 */
+  white-space: pre-wrap;
+  /* ネイティブ由来の英語エラーは検索・報告に持ち出したくなる。選択させる。 */
+  user-select: text;
+  cursor: text;
+}
+
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -585,6 +610,13 @@ code {
 .panel__header h3 {
   margin: 0;
   font-size: 12px;
+}
+
+/* 見出しの反対側に並ぶ操作（再要約・コピー）。 */
+.panel__tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .panel__empty {
@@ -640,6 +672,15 @@ code {
   opacity: 0.4;
   cursor: default;
   text-decoration: none;
+}
+
+/* 編集中も行の見た目が飛び跳ねないよう、ボタンと同じ字送りと行内幅に収める。 */
+.segment__speaker-input {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  width: 8em;
+  padding: 0 2px;
 }
 
 .segment__text {

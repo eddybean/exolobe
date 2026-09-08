@@ -17,6 +17,7 @@ import {
   overallStatus,
   startStep,
   succeedStep,
+  tooShortRecording,
   type PipelineStep,
   type Recording,
   type RecordingStatus,
@@ -98,6 +99,13 @@ export class ProcessRecording {
       throw new RecordingNotFoundError(params.recordingId)
     }
 
+    // トラックを読むより前に断つ。中間ファイルは下で捨てるため、後から個別リトライ
+    // されたときに「録音データが見つかりません」ではなく本当の理由を返せる。
+    const tooShort = tooShortRecording(recording.durationMs)
+    if (tooShort) {
+      return this.abort(recording, tooShort)
+    }
+
     const tracks = await this.deps.artifacts.readTracks(recording)
     if (!tracks) {
       throw new PipelineStepError('録音データが見つかりません。')
@@ -121,6 +129,31 @@ export class ProcessRecording {
     }
 
     return processed
+  }
+
+  /**
+   * 1 ステップも実行せずにパイプラインを畳む。
+   *
+   * 全ステップを同じ理由で失敗にするのは、先頭だけ落として残りを pending に
+   * 残すと「まだこれから動く」と読めてしまうため。中間 WAV は再実行しても
+   * 同じ理由で断られる＝二度と使わないので、ここで捨てる。
+   */
+  private async abort(recording: Recording, reason: string): Promise<Recording> {
+    let steps = recording.steps
+    for (const step of PIPELINE_STEPS) {
+      this.deps.progress.report({
+        recordingId: recording.id,
+        step,
+        status: 'failed',
+        error: reason
+      })
+      steps = failStep(steps, step, reason)
+    }
+
+    const aborted = await this.saveSteps(recording, steps, overallStatus(steps))
+    await this.deps.artifacts.cleanupIntermediates(aborted)
+
+    return aborted
   }
 
   private async runStep(
@@ -296,10 +329,11 @@ export class ProcessRecording {
       speakerId: REMOTE_SPEAKER_ID
     })
 
+    const previous = await this.deps.artifacts.readTranscript(recording)
     const segments = mergeTracks([mine, theirs])
     await this.deps.artifacts.writeTranscript(recording, {
       segments,
-      speakers: buildSpeakers(segments)
+      speakers: buildSpeakers(segments, previous?.speakers)
     })
   }
 
@@ -316,7 +350,7 @@ export class ProcessRecording {
     const segments = applyDiarization(existing.segments, turns)
     await this.deps.artifacts.writeTranscript(recording, {
       segments,
-      speakers: buildSpeakers(segments)
+      speakers: buildSpeakers(segments, existing.speakers)
     })
   }
 
@@ -357,14 +391,26 @@ export class ProcessRecording {
 /**
  * セグメントに登場する話者 ID から表示用の話者一覧を組み立てる。
  * 相手側のクラスタは登場順に「参加者A」「参加者B」… と採番する。
+ *
+ * 話者 ID が同じなら利用者が付けた名前を引き継ぐ。文字起こしや話者識別を
+ * 後から再実行しただけで「田中さん」が「参加者A」に戻るのは、名前を付けた
+ * 手間を黙って捨てることになる。
  */
-const buildSpeakers = (segments: readonly TranscriptSegment[]): Speaker[] => {
+const buildSpeakers = (
+  segments: readonly TranscriptSegment[],
+  existing: readonly Speaker[] = []
+): Speaker[] => {
+  const named = new Map(existing.map((speaker) => [speaker.id, speaker.label]))
   const speakers: Speaker[] = []
   const seen = new Set<string>()
   let remoteIndex = 0
 
   if (segments.some((segment) => segment.speakerId === SELF_SPEAKER_ID)) {
-    speakers.push({ id: SELF_SPEAKER_ID, kind: 'self', label: '自分' })
+    speakers.push({
+      id: SELF_SPEAKER_ID,
+      kind: 'self',
+      label: named.get(SELF_SPEAKER_ID) ?? '自分'
+    })
     seen.add(SELF_SPEAKER_ID)
   }
 
@@ -373,12 +419,20 @@ const buildSpeakers = (segments: readonly TranscriptSegment[]): Speaker[] => {
     seen.add(segment.speakerId)
 
     if (isRemoteSpeakerId(segment.speakerId)) {
-      const label =
+      const fallback =
         segment.speakerId === REMOTE_SPEAKER_ID ? '参加者' : defaultRemoteLabel(remoteIndex)
       if (segment.speakerId !== REMOTE_SPEAKER_ID) remoteIndex += 1
-      speakers.push({ id: segment.speakerId, kind: 'remote', label })
+      speakers.push({
+        id: segment.speakerId,
+        kind: 'remote',
+        label: named.get(segment.speakerId) ?? fallback
+      })
     } else {
-      speakers.push({ id: segment.speakerId, kind: 'self', label: segment.speakerId })
+      speakers.push({
+        id: segment.speakerId,
+        kind: 'self',
+        label: named.get(segment.speakerId) ?? segment.speakerId
+      })
     }
   }
 

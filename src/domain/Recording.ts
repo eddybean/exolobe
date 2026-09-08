@@ -75,6 +75,29 @@ export const createRecording = (params: {
   }
 }
 
+/**
+ * 中身のある会議として扱う最短の録音時間。
+ *
+ * 録音ボタンを押し間違えてすぐ止めた録音がそれなりの頻度で混ざる。数分かかる
+ * 文字起こしと要約を回しても得られるものは無いので、境目をここに置く。
+ */
+export const MINIMUM_RECORDING_MS = 60_000
+
+/**
+ * 短すぎて処理する意味がない録音なら、利用者向けの理由を返す。
+ *
+ * 測れなかった場合（NaN など）は止めない。見積もれないことを理由に本物の録音を
+ * 捨てる方が損害が大きいので、MemoryGuard と同じく安全側＝通す側に倒す。
+ */
+export const tooShortRecording = (durationMs: number): string | undefined => {
+  if (!Number.isFinite(durationMs)) return undefined
+  if (durationMs >= MINIMUM_RECORDING_MS) return undefined
+
+  const seconds = Math.max(0, Math.floor(durationMs / 1000))
+
+  return `録音時間が ${seconds} 秒しかありません。1 分未満の録音は処理しません。`
+}
+
 export const finishRecording = (recording: Recording, durationMs: number): Recording => ({
   ...recording,
   durationMs,

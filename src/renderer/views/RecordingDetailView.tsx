@@ -5,7 +5,9 @@ import { STEP_LABELS, formatDateTime, formatDuration } from '../format'
 import { CopyButton } from '../components/CopyButton'
 import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
+import { EditableSpeaker } from '../components/EditableSpeaker'
 import { isAudioReady } from '../library/audio'
+import { resummarizeState, type ResummarizeState } from '../resummarize'
 import { failureTooltip, stepFailure } from '../stepFailure'
 
 const PIPELINE_STEPS: PipelineStep[] = ['mix', 'transcribe', 'diarize', 'summarize', 'encode']
@@ -14,6 +16,14 @@ const PIPELINE_STEPS: PipelineStep[] = ['mix', 'transcribe', 'diarize', 'summari
 const NOTE_SAVE_DELAY_MS = 600
 
 type Tab = 'summary' | 'note'
+
+/** 再要約ボタンのツールチップ。押せないときは、その理由をその場で読めるようにする。 */
+const RESUMMARIZE_HINT: Readonly<Record<ResummarizeState, string>> = {
+  ready: '話者名を直したあとなど、要約を作り直す',
+  summarizing: '要約を作り直しています',
+  busy: '他の処理が終わると要約し直せます',
+  unavailable: '文字起こしができると要約し直せます'
+}
 
 /**
  * 詳細画面。左に音声プレーヤーと話者付き文字起こし、右に要約とメモを置く。
@@ -64,6 +74,11 @@ export const RecordingDetailView = ({
     [detail.speakers]
   )
 
+  const resummarize = useMemo(
+    () => resummarizeState(detail.recording.steps, detail.segments.length > 0),
+    [detail.recording.steps, detail.segments.length]
+  )
+
   const seek = useCallback((ms: number): void => {
     const audio = audioRef.current
     if (!audio) return
@@ -71,15 +86,20 @@ export const RecordingDetailView = ({
     void audio.play()
   }, [])
 
+  /**
+   * 話者名の変更。要約は作り直さない（数分かかるので、名前を直すたびに走らせない）。
+   * 直し終えてから「再要約」を押してもらう。
+   */
   const renameSpeaker = useCallback(
-    (speakerId: string, current: string): void => {
-      const label = window.prompt('話者名を入力してください', current)
-      if (label === null) return
-
-      window.recorder
-        .renameSpeaker(recordingId, speakerId, label)
-        .then(onChanged)
-        .catch((renameError: unknown) => setError(messageOf(renameError)))
+    async (speakerId: string, label: string): Promise<void> => {
+      setError(undefined)
+      try {
+        await window.recorder.renameSpeaker(recordingId, speakerId, label)
+        onChanged()
+      } catch (renameError: unknown) {
+        setError(messageOf(renameError))
+        throw renameError
+      }
     },
     [recordingId, onChanged]
   )
@@ -179,19 +199,10 @@ export const RecordingDetailView = ({
                     >
                       {formatDuration(segment.startMs)}
                     </button>
-                    <button
-                      type="button"
-                      className="segment__speaker"
-                      onClick={() =>
-                        renameSpeaker(
-                          segment.speakerId,
-                          labels.get(segment.speakerId) ?? segment.speakerId
-                        )
-                      }
-                      title="話者名を変更"
-                    >
-                      {labels.get(segment.speakerId) ?? segment.speakerId}
-                    </button>
+                    <EditableSpeaker
+                      label={labels.get(segment.speakerId) ?? segment.speakerId}
+                      onCommit={(label) => renameSpeaker(segment.speakerId, label)}
+                    />
                     <p className="segment__text">{segment.text}</p>
                   </li>
                 ))}
@@ -222,7 +233,19 @@ export const RecordingDetailView = ({
             <div className="panel">
               <div className="panel__header">
                 <h3>要約</h3>
-                {detail.summary && <CopyButton text={detail.summary} label="要約をコピー" />}
+                <div className="panel__tools">
+                  {/* 話者名を直しても要約は古いままなので、作り直す手段をここに置く。 */}
+                  <button
+                    type="button"
+                    className="copy"
+                    onClick={() => retry('summarize')}
+                    disabled={resummarize !== 'ready'}
+                    title={RESUMMARIZE_HINT[resummarize]}
+                  >
+                    {resummarize === 'summarizing' ? '要約中…' : '再要約'}
+                  </button>
+                  {detail.summary && <CopyButton text={detail.summary} label="要約をコピー" />}
+                </div>
               </div>
               {detail.summary ? (
                 <div className="summary">
@@ -252,43 +275,61 @@ export const RecordingDetailView = ({
   )
 }
 
-/** ステップごとの状態。失敗したステップだけ個別に再実行できる。 */
+/**
+ * ステップごとの状態。失敗したステップだけ個別に再実行できる。
+ *
+ * 失敗の全文はバッヂの中に描かない（省略されて読めず、列も横に伸びる）。
+ * 重ねて出す方法も採れない —— 親の .detail が overflow: hidden で切るため、
+ * ネイティブの title 属性も含めて画面外に消えてしまう。そこでバッヂ列の下、
+ * 通常のフローに場所を取って出す。文字はそのまま選択してコピーできる。
+ */
 const PipelineStatus = ({
   recording,
   onRetry
 }: {
   recording: RecordingDetailDto['recording']
   onRetry: (step: PipelineStep) => void
-}): ReactElement => (
-  <ul className="steps">
-    {PIPELINE_STEPS.map((step) => {
-      const state = recording.steps[step]
-      const failure = stepFailure(step, state)
-      return (
-        <li
-          key={step}
-          className={`steps__item steps__item--${state?.status ?? 'pending'}`}
-          // 文言はバッヂの外へ。中に描くと省略されて読めず、列も横に伸びていた。
-          {...(failure ? { title: failureTooltip(failure) } : {})}
-        >
-          <span>{STEP_LABELS[step]}</span>
-          {failure && (
-            <>
-              <button type="button" className="steps__retry" onClick={() => onRetry(step)}>
-                再実行
-              </button>
-              {/* ネイティブ由来の英語エラーは検索・報告に持ち出したくなる。 */}
-              <CopyButton
-                text={failureTooltip(failure)}
-                label={`${failure.label}のエラーをコピー`}
-              />
-            </>
-          )}
-        </li>
-      )
-    })}
-  </ul>
-)
+}): ReactElement => {
+  const [openStep, setOpenStep] = useState<PipelineStep>()
+  const openFailure = openStep ? stepFailure(openStep, recording.steps[openStep]) : undefined
+
+  return (
+    // 閉じるのは列と文言をまとめて出たときだけ。バッヂから文言へマウスを
+    // 移す途中で消えると、選んでコピーする間がない。
+    <div className="steps-block" onMouseLeave={() => setOpenStep(undefined)}>
+      <ul className="steps">
+        {PIPELINE_STEPS.map((step) => {
+          const state = recording.steps[step]
+          const failure = stepFailure(step, state)
+          const reveal = (): void => setOpenStep(failure ? step : undefined)
+
+          return (
+            <li
+              key={step}
+              className={`steps__item steps__item--${state?.status ?? 'pending'}`}
+              onMouseEnter={reveal}
+              // 再実行ボタンにキーボードで到達したときも読めるようにする。
+              onFocus={reveal}
+            >
+              <span>{STEP_LABELS[step]}</span>
+              {failure && (
+                <button type="button" className="steps__retry" onClick={() => onRetry(step)}>
+                  再実行
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+
+      {openFailure && (
+        <p className="steps__detail" role="note">
+          {failureTooltip(openFailure)}
+        </p>
+      )}
+    </div>
+  )
+}
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)

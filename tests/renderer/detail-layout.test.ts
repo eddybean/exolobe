@@ -74,3 +74,30 @@ describe('ステップバッヂ', () => {
     expect(() => ruleFor('.steps__error')).toThrow()
   })
 })
+
+/**
+ * 失敗の全文はバッヂ列の下、通常のフローに出す。
+ *
+ * 重ねて出すことはできない —— 親の .detail が overflow: hidden で切るため、
+ * ネイティブの title 属性も含めて画面外に消える（実際それで見えていなかった）。
+ * ブラウザのレイアウト結果は単体テストで測れないので、宣言そのものを固定する。
+ */
+describe('ステップの失敗の全文', () => {
+  it('重ねて出さない（親の overflow: hidden に切られるため）', () => {
+    expect(ruleFor('.detail')).toMatch(/overflow:\s*hidden/)
+    expect(ruleFor('.steps__detail')).not.toMatch(/position:\s*(absolute|fixed)/)
+  })
+
+  it('バッヂ列の下に積む', () => {
+    expect(ruleFor('.steps-block')).toMatch(/flex-direction:\s*column/)
+  })
+
+  it('全文を折り返して読ませる（バッヂの nowrap を持ち込まない）', () => {
+    expect(ruleFor('.steps__detail')).toMatch(/white-space:\s*pre-wrap/)
+  })
+
+  it('文言を選択してコピーできる', () => {
+    // ネイティブ由来の英語エラーは検索・報告に持ち出したくなる。
+    expect(ruleFor('.steps__detail')).toMatch(/user-select:\s*text/)
+  })
+})

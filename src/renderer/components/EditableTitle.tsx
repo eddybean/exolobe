@@ -1,13 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
-import { isCommitEnter } from '../keyboard'
+import type { ReactElement } from 'react'
+import { useInlineEdit } from '../hooks/useInlineEdit'
 
 /**
  * クリックすると編集できるタイトル。
- *
- * 別途「編集」ボタンを置くより、見出しそのものを押せる方が迷いにくい。
- * Enter で確定、Escape で取り消し、フォーカスが外れたら確定する。
- * ただし日本語入力の変換確定の Enter は確定として扱わない（isCommitEnter）。
- * 空のまま確定しようとした場合は元の値へ戻す（タイトルの無い録音を作らない）。
+ * 確定・取り消し・失敗時の振る舞いは useInlineEdit が持つ。
  */
 export const EditableTitle = ({
   value,
@@ -16,49 +12,10 @@ export const EditableTitle = ({
   value: string
   onCommit: (title: string) => Promise<void>
 }): ReactElement => {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
-  const [saving, setSaving] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  // 別の録音に切り替わったら編集中の内容を持ち越さない。
-  useEffect(() => {
-    setDraft(value)
-    setEditing(false)
-  }, [value])
-
-  useEffect(() => {
-    if (!editing) return
-    inputRef.current?.focus()
-    inputRef.current?.select()
-  }, [editing])
-
-  const commit = useCallback(async (): Promise<void> => {
-    const title = draft.trim()
-
-    if (!title || title === value) {
-      setDraft(value)
-      setEditing(false)
-      return
-    }
-
-    setSaving(true)
-    try {
-      await onCommit(title)
-      setEditing(false)
-    } catch {
-      // 失敗の理由は呼び出し側が表示するので、ここでは編集状態を保って
-      // 入力し直せるようにする。
-      setSaving(false)
-      return
-    }
-    setSaving(false)
-  }, [draft, value, onCommit])
-
-  const cancel = useCallback((): void => {
-    setDraft(value)
-    setEditing(false)
-  }, [value])
+  const { editing, draft, saving, inputRef, setDraft, start, commit, onKeyDown } = useInlineEdit(
+    value,
+    onCommit
+  )
 
   if (!editing) {
     return (
@@ -66,7 +23,7 @@ export const EditableTitle = ({
         <button
           type="button"
           className="detail__title-button"
-          onClick={() => setEditing(true)}
+          onClick={start}
           title="クリックしてタイトルを変更"
         >
           {value}
@@ -84,20 +41,11 @@ export const EditableTitle = ({
         ref={inputRef}
         className="detail__title-input"
         value={draft}
-        disabled={saving}
+        readOnly={saving}
         aria-label="タイトル"
         onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => void commit()}
-        onKeyDown={(event) => {
-          if (isCommitEnter(event)) {
-            event.preventDefault()
-            void commit()
-          }
-          if (event.key === 'Escape') {
-            event.preventDefault()
-            cancel()
-          }
-        }}
+        onBlur={commit}
+        onKeyDown={onKeyDown}
       />
     </h2>
   )
