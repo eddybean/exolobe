@@ -68,8 +68,9 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 | main | 録音制御・システム音声キャプチャ（audiotee）・ライブラリ操作・IPC |
 | utilityProcess（`pipeline-worker`） | 文字起こし・話者識別・要約。ネイティブのクラッシュを隔離し、ジョブは 1 件ずつ直列 |
 
-ワーカーは `PipelineClient` が必要時に fork し、落ちたら次の依頼で作り直す
-（ADR-008）。`pipeline-worker` は `electron.vite.config.ts` で main の独立エントリ
+ワーカーは `PipelineClient` が必要時に fork し、ジョブが片付いたら終了させて次の依頼で
+作り直す。sherpa-onnx（WASM）のヒープは縮まず上限 2GB のため、使い回すと話者識別だけが
+メモリ不足で落ちるようになる（ADR-008）。`pipeline-worker` は `electron.vite.config.ts` で main の独立エントリ
 として定義されている。
 
 ### 録音とパイプライン

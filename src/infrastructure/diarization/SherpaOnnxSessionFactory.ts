@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { toMessage } from '@domain/errors'
 import {
   DiarizationError,
+  type DiarizationSegment,
   type DiarizationSession,
   type DiarizationSessionFactory
 } from './SherpaOnnxDiarizer'
@@ -42,11 +43,66 @@ export class SherpaOnnxSessionFactory implements DiarizationSessionFactory {
 
     return {
       sampleRate: diarization.sampleRate,
-      process: (samples) => diarization.process(samples),
+      process: (samples) => processWithHeapGuard(diarization, samples),
       dispose: () => diarization.free()
     }
   }
 }
+
+/** wasm ヒープのうち、空きの確認に使う部分だけ。 */
+export interface WasmHeap {
+  _malloc(bytes: number): number
+  _free(pointer: number): void
+}
+
+/** sherpa-onnx の JS ラッパのうち、ここで直接触る部分だけ。 */
+interface RawDiarization {
+  readonly Module?: WasmHeap
+  process(samples: Float32Array): DiarizationSegment[]
+}
+
+/**
+ * 推論の前に、音声ぶんの wasm ヒープが確保できるかを確かめてから sherpa へ渡す。
+ *
+ * sherpa の `process()` は `_malloc` の戻り値を検査せず、確保に失敗しても 0 番地へ
+ * 音声を書き込んで推論を続けてしまう。結果は「memory access out of bounds」という
+ * wasm のトラップか、C++ 例外がポインタ値のまま飛んでくる数値だけのエラー
+ * （例: 260476136）になり、利用者にも開発者にも原因が分からない。
+ * wasm ヒープの上限は 2GB で増やせないため、足りないなら踏み込む前に止める。
+ */
+export const processWithHeapGuard = (
+  diarization: RawDiarization,
+  samples: Float32Array
+): DiarizationSegment[] => {
+  const bytes = samples.length * Float32Array.BYTES_PER_ELEMENT
+  const heap = diarization.Module
+
+  if (heap !== undefined) {
+    const probe = heap._malloc(bytes)
+    if (probe === 0) throw outOfMemory(bytes)
+    // sherpa が同じサイズを確保し直す。直前に解放したこの領域がそのまま使われる。
+    heap._free(probe)
+  }
+
+  try {
+    return diarization.process(samples)
+  } catch (error: unknown) {
+    // 数値は Emscripten が C++ 例外をポインタ値のまま投げたもの。
+    if (typeof error === 'number' || isHeapFailure(error)) throw outOfMemory(bytes, error)
+    throw error
+  }
+}
+
+const isHeapFailure = (error: unknown): boolean =>
+  error instanceof Error && /out of bounds|out of memory|enlarge memory/i.test(error.message)
+
+const outOfMemory = (bytes: number, cause?: unknown): DiarizationError =>
+  new DiarizationError(
+    `話者識別に必要なメモリ（約 ${Math.ceil(bytes / 1_048_576)}MB）を確保できませんでした。` +
+      '録音が長いほど多く必要です。他のアプリを終了してから再実行するか、' +
+      '設定で話者識別を無効にしてください。',
+    cause === undefined ? undefined : { cause }
+  )
 
 const requireModel = (label: string, path: string): void => {
   if (!existsSync(path)) {
