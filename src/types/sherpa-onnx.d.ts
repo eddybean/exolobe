@@ -31,9 +31,19 @@ declare module 'sherpa-onnx' {
     speaker: number
   }
 
+  /** Emscripten の Module。wasm ヒープの空きを事前に確かめるために使う。 */
+  export interface WasmModule {
+    _malloc(bytes: number): number
+    _free(pointer: number): void
+  }
+
   export interface OfflineSpeakerDiarization {
     /** 0 なら生成に失敗している（WASM 側はエラーを投げず 0 を返すことがある）。 */
     readonly handle: number
+    /**
+     * ラッパが内部で保持している Module。将来の版で無くなっても動くよう任意扱いにする。
+     */
+    readonly Module?: WasmModule
     readonly sampleRate: number
     process(samples: Float32Array): OfflineSpeakerDiarizationSegment[]
     free(): void
