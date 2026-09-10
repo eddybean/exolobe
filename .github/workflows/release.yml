@@ -88,7 +88,14 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           # electron-builder の自動 publish は使わず、後段の gh で明示的に添付する。
           GH_TOKEN: ''
-        run: npx electron-builder --config electron-builder.yml --mac --publish never
+        # 未設定の secret は空文字として展開されるが、electron-builder は空の
+        # CSC_LINK を「未指定」ではなく「カレントディレクトリへの相対パス」と
+        # 解釈して "not a file" で落ちる。証明書が無いときは変数ごと消す。
+        run: |
+          if [ -z "$CSC_LINK" ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD
+          fi
+          npx electron-builder --config electron-builder.yml --mac --publish never
 
       - name: 署名を確認
         run: |
