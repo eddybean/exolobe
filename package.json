@@ -26,7 +26,7 @@
   "dependencies": {
     "audiotee": "^0.0.7",
     "node-llama-cpp": "^3.20.0",
-    "sherpa-onnx": "^1.13.7"
+    "sherpa-onnx-node": "^1.13.7"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

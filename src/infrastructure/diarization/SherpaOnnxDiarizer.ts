@@ -102,7 +102,8 @@ export class SherpaOnnxDiarizer implements DiarizationPort {
       if (error instanceof DiarizationError) throw error
       throw new DiarizationError(`話者識別に失敗しました: ${toMessage(error)}`, { cause: error })
     } finally {
-      // WASM ヒープ上のモデルは GC の対象外なので、必ず明示的に解放する。
+      // 失敗しても必ずセッションを閉じる。ネイティブが確保したメモリを抱えたまま
+      // 次のステップ（要約は数 GB を使う）へ進ませない。
       session.dispose()
     }
   }

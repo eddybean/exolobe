@@ -60,6 +60,7 @@
             <tr><td><a href="#adr-025">ADR-025</a></td><td>録りっぱなしの防止</td><td>main で無音を見張り、知らせるだけで自動停止はしない</td></tr>
             <tr><td><a href="#adr-026">ADR-026</a></td><td>文字起こしの高速化（Core ML）</td><td>採用。任意 1.2GB のエンコーダで約 1.4 倍速。faster-whisper は不採用</td></tr>
             <tr><td><a href="#adr-027">ADR-027</a></td><td>録音の開始忘れの防止</td><td>他アプリのマイク使用を見張り、知らせるだけで自動開始はしない</td></tr>
+            <tr><td><a href="#adr-028">ADR-028</a></td><td>話者識別の実行方式</td><td>WASM をやめ、公式プリビルドのネイティブアドオンへ</td></tr>
           </tbody>
         </table>
       </div>
@@ -499,10 +500,10 @@
           <li>
             ワーカーは必要になったときに起動し、落ちたら次の依頼で作り直す。加えて
             <strong>ジョブが片付いたら終了させ、次の依頼では新しいプロセスを起こす</strong>。
-            sherpa-onnx（WASM）のヒープは一度伸びると縮まず上限も 2GB しかなく、同じプロセスに
-            LLM が数 GB を確保するため、使い回すと確保できるメモリが目減りして話者識別だけが
-            「memory access out of bounds」や数値だけのエラーで落ちるようになる。依存の
-            組み立てはジョブごとに行っているので、作り直しても失うものは無い。
+            要約の LLM も話者識別も数 GB を確保するネイティブコードで、解放しても
+            プロセスの占有が完全には戻らない。プロセスごと終わらせるのが確実な返し方であり、
+            依存の組み立てはジョブごとに行っているので作り直しても失うものは無い
+            （<a href="#adr-028">ADR-028</a>）。
           </li>
         </ul>
       </div>
@@ -1827,6 +1828,115 @@
           動かします。録音中は自分自身がマイクを使うので見張っても意味がありません。
           同梱物が無い場合（開発中にまだビルドしていない等）は、この機能だけが黙って無効になります。
         </p>
+      </div>
+
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-028">ADR-028 話者識別の実行方式（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-028</span>
+          <p class="adr__title">WASM 版 sherpa-onnx をやめ、公式プリビルドのネイティブアドオンを使う</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          40 分を超える録音の話者識別が、<strong>何度再試行しても必ず</strong>
+          「memory access out of bounds」や <code>260476136</code> のような数値だけのエラーで
+          失敗していました（35 分なら成功）。マシンの空きメモリとは無関係です。
+        </p>
+        <p>
+          原因は npm の <code>sherpa-onnx</code> が <strong>WASM ビルド</strong>であること。
+          wasm の線形メモリは初期 512MB・<strong>上限 2GB で、一度伸びると縮みません</strong>。
+          録音が長くなるほど音声そのものと推論の中間データが積み上がり、上限に達します。
+          さらにラッパの <code>process()</code> は <code>_malloc</code> の戻り値を検査せず、
+          確保に失敗しても 0 番地へ音声を書き込んで推論に入るため、
+          <strong>症状がメモリ不足に見えない形で現れます</strong>。
+        </p>
+
+        <h4>計測（同じ音声・同じ v1.13.7・同じ結果）</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>入力</th><th>WASM</th><th>ネイティブ</th></tr></thead>
+            <tbody>
+              <tr><td>53 秒</td><td>10.6 秒</td><td>2.7 秒（1 スレッド）／1.8 秒（2）</td></tr>
+              <tr><td>46 分相当（合成）</td><td>683 秒</td><td>102 秒（4 スレッド）・ピーク RSS 419MB</td></tr>
+              <tr><td>実際の 46 分の録音</td><td>何度再試行しても失敗</td><td>上限そのものが無い</td></tr>
+              <tr><td>メモリ上限</td><td>2GB（拡張不可）</td><td>64bit（実メモリまで）</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          合成入力（53 秒を繰り返して 46 分にしたもの）では発話の多様性が乏しく、
+          セグメントが 489 個しか出ずヒープは 512MB のままで、<strong>失敗は再現しません</strong>。
+          実録音では話者チャンクがはるかに多く、中間データが上限に届きます。
+          再現しない条件でも <strong>6.7 倍の速度差</strong>は出ており、
+          どちらの観点でもネイティブが有利です。
+        </p>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>WASM のまま音声を分割して推論する</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>
+                  クラスタリングはチャンク内で閉じるため、<strong>話者番号がチャンクをまたいで
+                  繋がりません</strong>。黙って質が落ちるより失敗させるほうがましで、
+                  そもそも上限を先送りするだけ
+                </td>
+              </tr>
+              <tr>
+                <td>CLI バイナリをソースからビルドして同梱（whisper-cli 方式）</td>
+                <td><span class="tag tag--defer">見送り</span></td>
+                <td>
+                  クラッシュを完全に隔離できるが、CMake ビルドの追加で package と CI が重くなり、
+                  出力テキストのパースも要る。パイプラインは既に utilityProcess に隔離済み
+                  （<a href="#adr-008">ADR-008</a>）で、追加の隔離の利得は小さい
+                </td>
+              </tr>
+              <tr>
+                <td><strong>公式プリビルドのネイティブアドオン（<code>sherpa-onnx-node</code>）</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>
+                  同じバージョン・同じ結果で上限が消え、4〜6 倍速い。差し替えは
+                  <code>DiarizationSessionFactory</code> の seam の中だけで済み、ビルド手順は増えない
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>WASM を選んでいた理由は無くなった。</strong>当初は「ビルド不要で入る」ことを
+          買っていましたが、<code>sherpa-onnx-node</code> も arm64 の <code>.dylib</code> を
+          プリビルドで配っており、<code>npm install</code> だけで入ります。
+          node-llama-cpp で既にネイティブアドオンを積んでいるため、扱いも増えません。
+        </div>
+
+        <h4>設計上の制約</h4>
+        <ul>
+          <li>
+            <code>asarUnpack</code> は既に <code>node_modules/sherpa-onnx*</code> を対象にしており、
+            <code>disable-library-validation</code> の entitlement もあるため、
+            同梱と ad-hoc 署名の設定は変えずに済む。
+          </li>
+          <li>
+            プリビルドは <code>optionalDependencies</code> で OS / CPU ごとに入る。
+            配布対象は arm64 の macOS だけ（<code>electron-builder.yml</code>）で、CI も
+            arm64 の macos-15 ランナーなので一致する。
+          </li>
+          <li>
+            ネイティブのハンドルに解放 API は無く、GC 時にファイナライザが片付ける。
+            ワーカーはジョブごとに終了するので（<a href="#adr-008">ADR-008</a>）、
+            そこで確実に OS へ返る。
+          </li>
+          <li>
+            スレッド数は論理コアの半分（上限 4）。全コアを占有すると処理中の操作が重くなり、
+            4 を超えても速度はほとんど伸びない。
+          </li>
+        </ul>
       </div>
 
       <h2>今後見直す可能性がある判断</h2>

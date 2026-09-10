@@ -51,7 +51,7 @@ npx vitest run -t "テスト名の一部"
 - `src/domain/` — 純粋な業務ルール。Electron も Node の I/O も知らない。
 - `src/application/usecases/` — ユースケース。`src/application/ports/index.ts` の
   インターフェースしか知らない。
-- `src/infrastructure/` — ports の実装（audiotee / whisper.cpp / sherpa-onnx /
+- `src/infrastructure/` — ports の実装（audiotee / whisper.cpp / sherpa-onnx-node /
   node-llama-cpp / afconvert / ファイル I/O）。
 - `src/main/` `src/preload/` `src/renderer/` — Electron。
 
@@ -69,8 +69,8 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 | utilityProcess（`pipeline-worker`） | 文字起こし・話者識別・要約。ネイティブのクラッシュを隔離し、ジョブは 1 件ずつ直列 |
 
 ワーカーは `PipelineClient` が必要時に fork し、ジョブが片付いたら終了させて次の依頼で
-作り直す。sherpa-onnx（WASM）のヒープは縮まず上限 2GB のため、使い回すと話者識別だけが
-メモリ不足で落ちるようになる（ADR-008）。`pipeline-worker` は `electron.vite.config.ts` で main の独立エントリ
+作り直す。要約も話者識別も数 GB を使うネイティブコードで、プロセスごと終わらせるのが
+確実にメモリを返す方法だから（ADR-008）。`pipeline-worker` は `electron.vite.config.ts` で main の独立エントリ
 として定義されている。
 
 ### 録音とパイプライン
@@ -113,5 +113,8 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 - コード中のコメントは日本語で、「何を」ではなく「なぜ」を書く既存のスタイルに合わせる。
 - `electron-builder.yml` の `productName` は **ASCII のまま**にする。日本語にすると
   生成アプリが起動直後に SIGTRAP で落ちる（表示名は `CFBundleDisplayName` 側、ADR-013）。
+- 話者識別は **`sherpa-onnx-node`（ネイティブアドオン）** を使う。npm の `sherpa-onnx` は
+  WASM ビルドで、線形メモリの上限 2GB を拡張できず 40 分を超える録音が必ず失敗する
+  （ADR-028）。戻してはいけない。
 - 音声コーデックの既定を AAC-LC から HE-AAC に変えない（`afconvert` がビットレート
   指定を無視して品質が落ちる、ADR-005）。
