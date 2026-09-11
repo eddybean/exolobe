@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { buildSearchDocuments, chunkText, chunkTranscript } from '@domain/SemanticSearch'
+import {
+  buildSearchDocuments,
+  chunkText,
+  chunkTranscript,
+  dot,
+  fingerprint,
+  normalize,
+  rankRecordings,
+  type SearchDocument
+} from '@domain/SemanticSearch'
 import type { Speaker } from '@domain/Speaker'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
@@ -109,5 +118,102 @@ describe('buildSearchDocuments', () => {
       ['note', 'メモ'],
       ['transcript', '自分: 雨ですね']
     ])
+  })
+})
+
+describe('fingerprint', () => {
+  const documents: SearchDocument[] = [
+    { source: 'title', text: '定例', locator: { kind: 'whole' } },
+    { source: 'transcript', text: '自分: 雨ですね', locator: { kind: 'segments', from: 0, to: 1 } }
+  ]
+
+  it('同じ入力からは同じ値を返す', () => {
+    expect(fingerprint('bge-m3', documents)).toBe(fingerprint('bge-m3', [...documents]))
+  })
+
+  it('本文が変われば値が変わる（話者名の変更も含む）', () => {
+    const renamed = documents.map((document) =>
+      document.source === 'transcript' ? { ...document, text: '佐藤: 雨ですね' } : document
+    )
+
+    expect(fingerprint('bge-m3', renamed)).not.toBe(fingerprint('bge-m3', documents))
+  })
+
+  it('モデルが変われば値が変わる（別モデルのベクトルとは比較できない）', () => {
+    expect(fingerprint('other-model', documents)).not.toBe(fingerprint('bge-m3', documents))
+  })
+})
+
+describe('normalize / dot', () => {
+  it('長さ 1 に揃え、内積がコサイン類似度になる', () => {
+    const a = normalize([3, 4])
+    const b = normalize([6, 8])
+
+    expect(Array.from(a)).toEqual([expect.closeTo(0.6), expect.closeTo(0.8)])
+    expect(dot(a, b)).toBeCloseTo(1)
+  })
+
+  it('ゼロベクトルはゼロのまま返す（NaN を索引に入れない）', () => {
+    expect(Array.from(normalize([0, 0]))).toEqual([0, 0])
+  })
+})
+
+describe('rankRecordings', () => {
+  const chunk = (x: number, y: number): { vector: Float32Array; id: string } => ({
+    vector: normalize([x, y]),
+    id: `${x},${y}`
+  })
+  const query = normalize([1, 0])
+
+  it('録音ごとに最もよく合うチャンクを代表にし、スコア順に並べる', () => {
+    const hits = rankRecordings(
+      query,
+      [
+        { recordingId: 'a', chunks: [chunk(1, 1), chunk(1, 0.1)] },
+        { recordingId: 'b', chunks: [chunk(1, 0.3)] }
+      ],
+      { minScore: 0, margin: 1 }
+    )
+
+    expect(hits.map((hit) => [hit.recordingId, hit.chunk.id])).toEqual([
+      ['a', '1,0.1'],
+      ['b', '1,0.3']
+    ])
+    expect(hits[0]?.score).toBeCloseTo(dot(query, normalize([1, 0.1])))
+  })
+
+  it('最低スコアに届かない録音は返さない', () => {
+    const hits = rankRecordings(query, [{ recordingId: 'a', chunks: [chunk(0, 1)] }], {
+      minScore: 0.5,
+      margin: 1
+    })
+
+    expect(hits).toEqual([])
+  })
+
+  it('首位から大きく離れた録音は返さない（語句の癖で底上げされた無関係な録音を落とす）', () => {
+    const hits = rankRecordings(
+      query,
+      [
+        { recordingId: 'near', chunks: [chunk(1, 0.1)] },
+        { recordingId: 'far', chunks: [chunk(1, 1)] }
+      ],
+      { minScore: 0, margin: 0.1 }
+    )
+
+    expect(hits.map((hit) => hit.recordingId)).toEqual(['near'])
+  })
+
+  it('件数の上限で切る', () => {
+    const entries = ['a', 'b', 'c'].map((recordingId) => ({
+      recordingId,
+      chunks: [chunk(1, 0)]
+    }))
+
+    expect(rankRecordings(query, entries, { limit: 2, minScore: 0, margin: 1 })).toHaveLength(2)
+  })
+
+  it('チャンクの無い録音は無視する', () => {
+    expect(rankRecordings(query, [{ recordingId: 'a', chunks: [] }], { minScore: 0 })).toEqual([])
   })
 })

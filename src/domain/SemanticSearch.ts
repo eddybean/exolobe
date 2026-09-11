@@ -185,3 +185,106 @@ export const buildSearchDocuments = (material: SearchMaterial): SearchDocument[]
     ...chunkTranscript(material.segments, material.speakers)
   ]
 }
+
+/**
+ * 索引の形式。チャンクの切り方や埋め込みへの渡し方を変えたら上げる。
+ * fingerprint に含まれるので、上げるだけで既存の索引が作り直しの対象になる。
+ */
+export const INDEX_FORMAT_VERSION = 1
+
+/** cyrb53。暗号強度は要らず、node:crypto に頼らずドメインに置ける速いハッシュで足りる。 */
+const cyrb53 = (text: string, seed: number): number => {
+  let h1 = 0xdeadbeef ^ seed
+  let h2 = 0x41c6ce57 ^ seed
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index)
+    h1 = Math.imul(h1 ^ code, 2_654_435_761)
+    h2 = Math.imul(h2 ^ code, 1_597_334_677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2_246_822_507) ^ Math.imul(h2 ^ (h2 >>> 13), 3_266_489_909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2_246_822_507) ^ Math.imul(h1 ^ (h1 >>> 13), 3_266_489_909)
+  return 4_294_967_296 * (2_097_151 & h2) + (h1 >>> 0)
+}
+
+/**
+ * 索引が今の録音の内容とモデルに対応しているかを判定するための値。
+ *
+ * 変更を知らせる経路（メモ編集・再要約・話者名変更…）を漏れなく追うより、
+ * 同期のたびに中身から計算して比べる方が取りこぼしが無い。
+ */
+export const fingerprint = (modelKey: string, documents: readonly SearchDocument[]): string => {
+  const payload = JSON.stringify([INDEX_FORMAT_VERSION, modelKey, documents])
+  // 衝突すると更新を見逃すため、種を変えた 2 本をつないで 106 ビットにする。
+  return cyrb53(payload, 1).toString(16) + cyrb53(payload, 2).toString(16)
+}
+
+/**
+ * 長さ 1 に揃える。揃えておけば類似度は内積だけで求まる。
+ * ゼロベクトルは NaN を生まないようそのまま返す。
+ */
+export const normalize = (vector: ArrayLike<number>): Float32Array => {
+  const result = Float32Array.from(vector)
+  let sum = 0
+  for (const value of result) sum += value * value
+  const length = Math.sqrt(sum)
+  if (length === 0) return result
+
+  for (let index = 0; index < result.length; index += 1) {
+    result[index] = (result[index] ?? 0) / length
+  }
+  return result
+}
+
+export const dot = (a: Float32Array, b: Float32Array): number => {
+  let sum = 0
+  const length = Math.min(a.length, b.length)
+  for (let index = 0; index < length; index += 1) sum += (a[index] ?? 0) * (b[index] ?? 0)
+  return sum
+}
+
+/**
+ * 実測（bge-m3 Q8_0、日本語の会議の発言と自然文クエリ）に基づく足切り。
+ *
+ * 関連する発言は 0.58〜0.66、無関係なものでも 0.4〜0.53 が出る。クエリの
+ * 「〜をしたミーティング」のような言い回しが全体を底上げするため、絶対値だけでは
+ * 切れない。首位からの差でも切り、無関係な録音がずらりと並ぶのを防ぐ。
+ */
+export const DEFAULT_MIN_SCORE = 0.5
+export const DEFAULT_SCORE_MARGIN = 0.08
+export const DEFAULT_SEARCH_LIMIT = 20
+
+export interface RankedHit<C> {
+  readonly recordingId: string
+  readonly score: number
+  /** その録音で最もよく合ったチャンク。抜粋の元になる。 */
+  readonly chunk: C
+}
+
+export const rankRecordings = <C extends { readonly vector: Float32Array }>(
+  query: Float32Array,
+  entries: readonly { readonly recordingId: string; readonly chunks: readonly C[] }[],
+  options: { limit?: number; minScore?: number; margin?: number } = {}
+): RankedHit<C>[] => {
+  const {
+    limit = DEFAULT_SEARCH_LIMIT,
+    minScore = DEFAULT_MIN_SCORE,
+    margin = DEFAULT_SCORE_MARGIN
+  } = options
+
+  const best: RankedHit<C>[] = []
+  for (const { recordingId, chunks } of entries) {
+    let top: RankedHit<C> | undefined
+    for (const chunk of chunks) {
+      const score = dot(query, chunk.vector)
+      if (!top || score > top.score) top = { recordingId, score, chunk }
+    }
+    if (top) best.push(top)
+  }
+
+  best.sort((a, b) => b.score - a.score)
+  const leader = best[0]?.score ?? 0
+
+  return best
+    .filter((hit) => hit.score >= minScore && hit.score >= leader - margin)
+    .slice(0, limit)
+}
