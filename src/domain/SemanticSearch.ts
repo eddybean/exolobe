@@ -351,3 +351,26 @@ export const searchIndexTransition = (
   if (after.enabled && before.modelPath !== after.modelPath) return 'rebuild'
   return 'none'
 }
+
+const REQUEST_TAIL =
+  /(?:を|が|は)?(?:教えて|探して|見せて|出して|見つけて|表示して)(?:ください|下さい|ほしい|欲しい|くれ)?[。．.！!？?\s]*$/
+const MEETING_TAIL = new RegExp(
+  '(?:(?:を|が|で)?(?:した|していた|話した|話し合った|議論した|やった)|について(?:の)?|に関する|の)' +
+    '(?:ミーティング|会議|打ち合わせ|打合せ|MTG)$',
+  'i'
+)
+
+/**
+ * クエリから話題だけを取り出す。
+ *
+ * 利用者は「天気の話をしたミーティングを教えて」のように頼む形で打つ。依頼の言い回しや
+ * 「〜をしたミーティング」まで埋め込むと、どの会議の文字起こしとも「会議らしさ」で
+ * 近くなり、無関係な会議との差が縮む（実測で首位との差 0.07 → 0.16）。
+ * 会議名の一部（「経営会議」）まで削らないよう、つなぎの語が前にある場合だけ落とす。
+ */
+export const focusQuery = (query: string): string => {
+  const trimmed = query.trim()
+  const withoutRequest = trimmed.replace(REQUEST_TAIL, '').trim()
+  const topic = withoutRequest.replace(MEETING_TAIL, '').trim()
+  return topic || withoutRequest || trimmed
+}

@@ -221,6 +221,14 @@ describe('SearchRecordings', () => {
     expect(hits[0]?.startedAt).toEqual(weather.startedAt)
   })
 
+  it('依頼の言い回しを除いた話題だけを埋め込む', async () => {
+    embedder.calls = []
+
+    await search().execute({ query: '雨の話をしたミーティングを教えて' })
+
+    expect(embedder.calls).toEqual(['雨の話'])
+  })
+
   it('空のクエリでは埋め込みを計算しない', async () => {
     embedder.calls = []
 

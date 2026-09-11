@@ -16,6 +16,7 @@ import {
   buildSearchDocuments,
   excerptFor,
   fingerprint,
+  focusQuery,
   rankRecordings,
   type SearchDocument,
   type SearchMaterial,
@@ -200,11 +201,10 @@ export class SearchRecordings {
   constructor(private readonly deps: SearchRecordingsDeps) {}
 
   async execute(params: { query: string; limit?: number }): Promise<SearchHit[]> {
-    const query = params.query.trim()
-    if (!query) return []
+    if (!params.query.trim()) return []
 
     const { repository, artifacts, index, embedder } = this.deps
-    const vector = await embedder.embed(query)
+    const vector = await embedder.embed(focusQuery(params.query))
 
     const recordings = new Map(
       (await repository.list()).map((recording) => [recording.id, recording])

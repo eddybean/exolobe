@@ -6,6 +6,7 @@ import {
   dot,
   excerptFor,
   fingerprint,
+  focusQuery,
   normalize,
   rankRecordings,
   searchIndexTransition,
@@ -303,5 +304,28 @@ describe('searchIndexTransition', () => {
   it('それ以外は何もしない', () => {
     expect(searchIndexTransition(on, on)).toBe('none')
     expect(searchIndexTransition(off, { ...off, modelPath: '' })).toBe('none')
+  })
+})
+
+describe('focusQuery', () => {
+  it('依頼の言い回しと「〜をしたミーティング」を除き、話題だけを残す', () => {
+    // 定型句が残ると、どの会議の文字起こしとも「会議らしさ」で近くなり、差が縮む。
+    expect(focusQuery('天気の話をしたミーティングを教えて')).toBe('天気の話')
+    expect(focusQuery('採用についての会議を探してください。')).toBe('採用')
+    expect(focusQuery('予算の打ち合わせを見せて')).toBe('予算')
+  })
+
+  it('会議の名前の一部になっている語は残す', () => {
+    expect(focusQuery('経営会議')).toBe('経営会議')
+    expect(focusQuery('予算を削った会議')).toBe('予算を削った会議')
+  })
+
+  it('取り除くと何も残らないなら元のまま使う', () => {
+    expect(focusQuery('会議を教えて')).toBe('会議')
+    expect(focusQuery('教えて')).toBe('教えて')
+  })
+
+  it('前後の空白を落とす', () => {
+    expect(focusQuery('  雨の話  ')).toBe('雨の話')
   })
 })
