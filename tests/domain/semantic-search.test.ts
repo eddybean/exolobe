@@ -4,10 +4,13 @@ import {
   chunkText,
   chunkTranscript,
   dot,
+  excerptFor,
   fingerprint,
   normalize,
   rankRecordings,
-  type SearchDocument
+  searchIndexTransition,
+  type SearchDocument,
+  type SearchMaterial
 } from '@domain/SemanticSearch'
 import type { Speaker } from '@domain/Speaker'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
@@ -215,5 +218,72 @@ describe('rankRecordings', () => {
 
   it('チャンクの無い録音は無視する', () => {
     expect(rankRecordings(query, [{ recordingId: 'a', chunks: [] }], { minScore: 0 })).toEqual([])
+  })
+})
+
+describe('excerptFor', () => {
+  const material: SearchMaterial = {
+    title: '週次定例',
+    segments: [
+      segment(0, 'self', 'おはようございます'),
+      segment(65_000, 'remote', '今日は雨がひどいですね'),
+      segment(70_000, 'self', '傘が壊れました')
+    ],
+    speakers,
+    summary: '## 概要\n- 天気の話をした\n\n## 決定事項\n- なし',
+    note: ''
+  }
+
+  it('文字起こしは話者名付きで、該当区間の開始時刻を添える', () => {
+    expect(excerptFor('transcript', { kind: 'segments', from: 1, to: 3 }, material)).toEqual({
+      excerpt: '田中: 今日は雨がひどいですね 自分: 傘が壊れました',
+      startMs: 65_000
+    })
+  })
+
+  it('要約・メモは Markdown の記号を落として 1 行に詰める', () => {
+    expect(excerptFor('summary', { kind: 'range', start: 0, end: 16 }, material)).toEqual({
+      excerpt: '概要 天気の話をした'
+    })
+  })
+
+  it('タイトルはそのまま返す', () => {
+    expect(excerptFor('title', { kind: 'whole' }, material)).toEqual({ excerpt: '週次定例' })
+  })
+
+  it('長い抜粋は末尾を省略する', () => {
+    const long = { ...material, note: 'あ'.repeat(200) }
+
+    const { excerpt } = excerptFor('note', { kind: 'range', start: 0, end: 200 }, long, 10)
+
+    expect(excerpt).toBe(`${'あ'.repeat(10)}…`)
+  })
+
+  it('索引を作った後に内容が縮んでいても落ちない', () => {
+    expect(excerptFor('transcript', { kind: 'segments', from: 5, to: 9 }, material)).toEqual({
+      excerpt: ''
+    })
+  })
+})
+
+describe('searchIndexTransition', () => {
+  const on = { enabled: true, modelPath: '/models/bge-m3.gguf' }
+  const off = { enabled: false, modelPath: '/models/bge-m3.gguf' }
+
+  it('無効にしたら索引を消す', () => {
+    expect(searchIndexTransition(on, off)).toBe('clear')
+  })
+
+  it('有効にしたら同期する', () => {
+    expect(searchIndexTransition(off, on)).toBe('sync')
+  })
+
+  it('有効なままモデルが変わったら、読み込み済みのモデルを捨てて作り直す', () => {
+    expect(searchIndexTransition(on, { ...on, modelPath: '/models/other.gguf' })).toBe('rebuild')
+  })
+
+  it('それ以外は何もしない', () => {
+    expect(searchIndexTransition(on, on)).toBe('none')
+    expect(searchIndexTransition(off, { ...off, modelPath: '' })).toBe('none')
   })
 })

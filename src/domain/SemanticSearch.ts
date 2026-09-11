@@ -1,4 +1,5 @@
 import type { Speaker } from '@domain/Speaker'
+import type { SearchSettings } from '@domain/Settings'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
 /**
@@ -287,4 +288,68 @@ export const rankRecordings = <C extends { readonly vector: Float32Array }>(
   return best
     .filter((hit) => hit.score >= minScore && hit.score >= leader - margin)
     .slice(0, limit)
+}
+
+/** 結果一覧に添える抜粋の既定の長さ。一覧で 2 行程度に収まる量。 */
+export const EXCERPT_CHARS = 120
+
+const plainText = (markdown: string): string =>
+  markdown
+    .replace(/^\s*#+\s*/gm, '')
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const truncate = (text: string, maxChars: number): string =>
+  text.length > maxChars ? `${text.slice(0, maxChars)}…` : text
+
+/**
+ * ヒットしたチャンクの位置から、いまの成果物を切り出して抜粋にする。
+ *
+ * 索引を作ってから内容が変わっている（次の同期がまだ）こともあるので、
+ * 範囲外は空として扱い、検索そのものは失敗させない。
+ */
+export const excerptFor = (
+  source: SearchSource,
+  locator: ChunkLocator,
+  material: SearchMaterial,
+  maxChars: number = EXCERPT_CHARS
+): { excerpt: string; startMs?: number } => {
+  switch (locator.kind) {
+    case 'whole':
+      return { excerpt: truncate(material.title.trim(), maxChars) }
+    case 'range': {
+      const text = source === 'summary' ? (material.summary ?? '') : material.note
+      return { excerpt: truncate(plainText(text.slice(locator.start, locator.end)), maxChars) }
+    }
+    case 'segments': {
+      const labels = new Map(material.speakers.map((speaker) => [speaker.id, speaker.label]))
+      const segments = material.segments.slice(locator.from, locator.to)
+      const excerpt = truncate(
+        plainText(segments.map((segment) => speakerLine(segment, labels)).join(' ')),
+        maxChars
+      )
+      const first = segments[0]
+      return first ? { excerpt, startMs: first.startMs } : { excerpt }
+    }
+  }
+}
+
+export type SearchIndexTransition = 'clear' | 'rebuild' | 'sync' | 'none'
+
+/**
+ * 設定の変更が索引に何を求めるか。
+ *
+ * 無効にしたら消すのは、使わない機能のために容量を取り続けないため。
+ * モデルの差し替えはワーカーが読み込み済みのモデルを捨てる必要があるので、
+ * 単なる同期と区別する（索引自体は fingerprint の不一致で作り直される）。
+ */
+export const searchIndexTransition = (
+  before: SearchSettings,
+  after: SearchSettings
+): SearchIndexTransition => {
+  if (before.enabled && !after.enabled) return 'clear'
+  if (!before.enabled && after.enabled) return 'sync'
+  if (after.enabled && before.modelPath !== after.modelPath) return 'rebuild'
+  return 'none'
 }
