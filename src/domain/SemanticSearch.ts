@@ -41,12 +41,15 @@ export interface SearchDocument {
 /**
  * 1 チャンクの上限文字数。
  *
- * 日本語 250 字は bge-m3 で約 140 トークン、会議なら 30 秒〜1 分ほどの発言。
+ * 日本語 160 字は bge-m3 で約 90 トークン、会議なら 20〜40 秒ほどの発言。
  * 長くするほど 1 本のベクトルに複数の話題が混ざり、雑談のような短い話題が薄まって
  * 当たらなくなる。実測では、業務の話に 3 発言の雑談が挟まった会議で「天気の話」の
- * スコアが 1 チャンク丸ごとなら 0.57、3 発言ずつに切れば 0.66 まで上がった。
+ * スコアが、1 チャンク丸ごとなら 0.57、160 字で重ねて切れば 0.65 まで上がった。
+ * 結果一覧の抜粋（EXCERPT_CHARS）に近い長さにしてあるので、当たった箇所が
+ * そのまま抜粋として見える。250 字では窓の先頭しか見えず、当たった理由が隠れた。
+ * 容量は量子化込みで 1 時間あたり約 350KB（120 字にすると約 700KB）。
  */
-export const MAX_CHUNK_CHARS = 250
+export const MAX_CHUNK_CHARS = 160
 
 const speakerLine = (segment: TranscriptSegment, labels: ReadonlyMap<string, string>): string =>
   `${labels.get(segment.speakerId) ?? segment.speakerId}: ${segment.text.trim()}`
