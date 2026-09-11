@@ -17,6 +17,14 @@ describe('defaultSettings', () => {
     // モデルは初期設定画面で取得するため、既定では未設定。
     expect(settings.transcription.vadModelPath).toBe('')
   })
+
+  it('意味検索は既定で無効にする', () => {
+    const settings = defaultSettings()
+
+    // 600MB 超のモデルの取得と、全録音のベクトル化を利用者の同意なしに始めない。
+    expect(settings.search.enabled).toBe(false)
+    expect(settings.search.modelPath).toBe('')
+  })
 })
 
 describe('isConfigured', () => {
@@ -38,6 +46,13 @@ describe('mergeSettings', () => {
     // ネストしたグループの他のキーは失われない
     expect(merged.summarization.contextSize).toBe(defaultSettings().summarization.contextSize)
     expect(merged.transcription).toEqual(defaultSettings().transcription)
+  })
+
+  it('意味検索の設定をグループ単位でマージする', () => {
+    const merged = mergeSettings(defaultSettings(), { search: { enabled: true } })
+
+    expect(merged.search.enabled).toBe(true)
+    expect(merged.search.modelPath).toBe('')
   })
 
   it('undefined の値は既存値を上書きしない', () => {

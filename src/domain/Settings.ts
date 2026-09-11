@@ -87,6 +87,19 @@ export interface AudioSettings {
   readonly bitrateKbps: number
 }
 
+/**
+ * 自然文で録音を探す意味検索。
+ *
+ * 有効なのにモデルが無い状態は validate では弾かない。モデルの削除は検証を通らない
+ * 経路で modelPath を空にするため、弾くと利用者が設定を保存できなくなる。
+ * 実行時にモデル未取得として扱う（VAD と同じ）。
+ */
+export interface SearchSettings {
+  readonly enabled: boolean
+  /** 埋め込みモデル（GGUF）のパス。未取得なら空文字。 */
+  readonly modelPath: string
+}
+
 export interface Settings {
   /** ユーザーが初期設定で選ぶ保存先。未選択なら null。 */
   readonly storageDir: string | null
@@ -101,6 +114,7 @@ export interface Settings {
   readonly summarization: SummarizationSettings
   readonly diarization: DiarizationSettings
   readonly audio: AudioSettings
+  readonly search: SearchSettings
 }
 
 /**
@@ -116,6 +130,7 @@ export type SettingsPatch = {
   readonly summarization?: Partial<SummarizationSettings>
   readonly diarization?: Partial<DiarizationSettings>
   readonly audio?: Partial<AudioSettings>
+  readonly search?: Partial<SearchSettings>
 }
 
 export const defaultSettings = (): Settings => ({
@@ -156,6 +171,11 @@ export const defaultSettings = (): Settings => ({
     sampleRate: 16_000,
     codec: 'aac',
     bitrateKbps: 32
+  },
+  search: {
+    // 600MB 超のモデル取得と全録音のベクトル化を、利用者の同意なしに始めない。
+    enabled: false,
+    modelPath: ''
   }
 })
 
@@ -177,7 +197,8 @@ export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings =>
   transcription: mergeGroup(base.transcription, patch.transcription),
   summarization: mergeGroup(base.summarization, patch.summarization),
   diarization: mergeGroup(base.diarization, patch.diarization),
-  audio: mergeGroup(base.audio, patch.audio)
+  audio: mergeGroup(base.audio, patch.audio),
+  search: mergeGroup(base.search, patch.search)
 })
 
 /** 保存前に呼ぶ。問題があればユーザー向けメッセージの配列を返す。 */
