@@ -32,6 +32,7 @@ export class PipelineClient {
     string,
     { resolve: (recording: RecordingDto) => void; reject: (error: Error) => void }
   >()
+  private readonly busyListeners: ((busy: boolean) => void)[] = []
 
   constructor(
     private readonly onProgress: (event: ProgressEventDto) => void,
@@ -44,6 +45,7 @@ export class PipelineClient {
 
     return new Promise<RecordingDto>((resolve, reject) => {
       this.pending.set(jobId, { resolve, reject })
+      if (this.pending.size === 1) this.notifyBusy(true)
       worker.postMessage({
         type: 'run',
         jobId,
@@ -51,6 +53,18 @@ export class PipelineClient {
         ...(params.only === undefined ? {} : { only: params.only })
       })
     })
+  }
+
+  /**
+   * ジョブを抱えている間か。意味検索の索引作成はこの間は待たせる。
+   * 要約のような数 GB のモデルと同時に埋め込みモデルを載せないため。
+   */
+  isBusy(): boolean {
+    return this.pending.size > 0
+  }
+
+  onBusyChange(listener: (busy: boolean) => void): void {
+    this.busyListeners.push(listener)
   }
 
   dispose(): void {
@@ -76,6 +90,7 @@ export class PipelineClient {
 
       if (message.type === 'done') waiting?.resolve(message.recording)
       else waiting?.reject(new Error(message.message))
+      if (waiting && this.pending.size === 0) this.notifyBusy(false)
 
       this.recycle(worker)
     })
@@ -88,11 +103,17 @@ export class PipelineClient {
           new Error('処理プロセスが終了しました。詳細画面から失敗したステップを再実行してください。')
         )
       }
+      const hadPending = this.pending.size > 0
       this.pending.clear()
+      if (hadPending) this.notifyBusy(false)
     })
 
     this.worker = worker
     return worker
+  }
+
+  private notifyBusy(busy: boolean): void {
+    for (const listener of this.busyListeners) listener(busy)
   }
 
   /** 依頼が全て片付いていればワーカーを終了させ、確保したメモリを OS に返す。 */
