@@ -101,6 +101,37 @@ export interface ProgressEventDto {
   readonly error?: string
 }
 
+/** 意味検索の 1 件の結果。関連度の高い順に並ぶ。 */
+export interface SearchHitDto {
+  readonly recordingId: string
+  readonly title: string
+  /** ISO 8601 文字列。 */
+  readonly startedAt: string
+  readonly score: number
+  readonly source: 'title' | 'summary' | 'note' | 'transcript'
+  /** 当たった箇所の抜粋。なぜ当たったのかを利用者が確かめられるようにする。 */
+  readonly excerpt: string
+  /** 文字起こしで当たった場合の、該当区間の開始時刻。 */
+  readonly startMs?: number
+}
+
+/** 索引をバックグラウンドで録音一覧に合わせる処理の状態。 */
+export type SearchSyncStateDto =
+  | { readonly state: 'idle' }
+  /** 録音やその後処理が終わるのを待っている。 */
+  | { readonly state: 'waiting' }
+  | { readonly state: 'running'; readonly done: number; readonly total: number }
+  | { readonly state: 'error'; readonly message: string }
+
+export interface SearchIndexStatusDto {
+  readonly enabled: boolean
+  readonly modelInstalled: boolean
+  readonly indexedCount: number
+  readonly recordingCount: number
+  readonly bytes: number
+  readonly sync: SearchSyncStateDto
+}
+
 export const toRecordingDto = (
   recording: Recording,
   summaryPreview?: string
