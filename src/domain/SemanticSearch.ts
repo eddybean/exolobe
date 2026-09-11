@@ -9,7 +9,15 @@ import type { TranscriptSegment } from '@domain/TranscriptSegment'
  * 埋め込みの計算そのものと索引の保存は port の向こう側の仕事。
  */
 
-export type SearchSource = 'title' | 'summary' | 'note' | 'transcript'
+/**
+ * 検索の対象。
+ *
+ * タイトルは含めない。「採用面接の打ち合わせ」のような短いタイトルは、クエリの
+ * 「〜をしたミーティング」の部分とだけで強く一致し、録音ごとに最もよく合うチャンクを
+ * 代表にする順位付けでは本文の該当箇所より上に来てしまう（実測で「天気の話」が
+ * 天気の話をしていない会議にタイトルで当たった）。タイトルはキーワード検索で探せる。
+ */
+export type SearchSource = 'summary' | 'note' | 'transcript'
 
 /**
  * チャンクが元の成果物のどこに当たるか。
@@ -22,7 +30,6 @@ export type ChunkLocator =
   | { readonly kind: 'segments'; readonly from: number; readonly to: number }
   /** 要約・メモの文字範囲 [start, end)。 */
   | { readonly kind: 'range'; readonly start: number; readonly end: number }
-  | { readonly kind: 'whole' }
 
 export interface SearchDocument {
   readonly source: SearchSource
@@ -34,10 +41,12 @@ export interface SearchDocument {
 /**
  * 1 チャンクの上限文字数。
  *
- * 日本語 500 字は bge-m3 で約 270 トークン。長くするほど 1 本のベクトルに複数の
- * 話題が混ざり、雑談のような短い話題が薄まって当たらなくなる。
+ * 日本語 250 字は bge-m3 で約 140 トークン、会議なら 30 秒〜1 分ほどの発言。
+ * 長くするほど 1 本のベクトルに複数の話題が混ざり、雑談のような短い話題が薄まって
+ * 当たらなくなる。実測では、業務の話に 3 発言の雑談が挟まった会議で「天気の話」の
+ * スコアが 1 チャンク丸ごとなら 0.57、3 発言ずつに切れば 0.66 まで上がった。
  */
-export const MAX_CHUNK_CHARS = 500
+export const MAX_CHUNK_CHARS = 250
 
 const speakerLine = (segment: TranscriptSegment, labels: ReadonlyMap<string, string>): string =>
   `${labels.get(segment.speakerId) ?? segment.speakerId}: ${segment.text.trim()}`
@@ -54,6 +63,9 @@ const sliceByLength = (text: string, maxChars: number): string[] => {
  * 文字起こしを「話者名: 発言」の行で束ねる。
  *
  * 話者名を含めるのは「田中さんが予算の話をした会議」のような問いに答えるため。
+ * 窓は半分ずつ重ねてずらす。区切りをまたいだ短い話題が 2 つの窓に割れて
+ * どちらでも薄まる、ということを避けるため。チャンク数はおよそ倍になるが、
+ * 保存時に量子化するので容量は抑えられる。
  */
 export const chunkTranscript = (
   segments: readonly TranscriptSegment[],
@@ -61,48 +73,39 @@ export const chunkTranscript = (
   maxChars: number = MAX_CHUNK_CHARS
 ): SearchDocument[] => {
   const labels = new Map(speakers.map((speaker) => [speaker.id, speaker.label]))
+  const lines = segments.flatMap((segment, index) =>
+    segment.text.trim() ? [{ index, text: speakerLine(segment, labels) }] : []
+  )
   const chunks: SearchDocument[] = []
-  let lines: string[] = []
-  let from = 0
-  let to = 0
-  let length = 0
 
-  const flush = (): void => {
-    if (lines.length === 0) return
-    chunks.push({
-      source: 'transcript',
-      text: lines.join('\n'),
-      locator: { kind: 'segments', from, to }
-    })
-    lines = []
-    length = 0
-  }
-
-  segments.forEach((segment, index) => {
-    if (!segment.text.trim()) return
-    const line = speakerLine(segment, labels)
-
-    if (line.length > maxChars) {
-      flush()
-      for (const text of sliceByLength(line, maxChars)) {
-        chunks.push({
-          source: 'transcript',
-          text,
-          locator: { kind: 'segments', from: index, to: index + 1 }
-        })
-      }
-      return
+  let start = 0
+  while (start < lines.length) {
+    // 行の間の改行 1 字も数えて、上限に収まるだけ行を足す。
+    let end = start
+    let length = 0
+    while (end < lines.length) {
+      const added = (end === start ? 0 : 1) + (lines[end]?.text.length ?? 0)
+      if (end > start && length + added > maxChars) break
+      length += added
+      end += 1
     }
 
-    // 行の間の改行 1 字も数える。
-    if (lines.length > 0 && length + 1 + line.length > maxChars) flush()
+    const window = lines.slice(start, end)
+    const first = window[0]
+    const last = window.at(-1)
+    if (!first || !last) break
+    const locator = { kind: 'segments' as const, from: first.index, to: last.index + 1 }
 
-    if (lines.length === 0) from = index
-    length += (lines.length === 0 ? 0 : 1) + line.length
-    lines.push(line)
-    to = index + 1
-  })
-  flush()
+    // 1 発言だけで上限を超えるなら、同じ位置のまま文字数で分ける。
+    const texts =
+      window.length === 1 && first.text.length > maxChars
+        ? sliceByLength(first.text, maxChars)
+        : [window.map((line) => line.text).join('\n')]
+    for (const text of texts) chunks.push({ source: 'transcript', text, locator })
+
+    if (end >= lines.length) break
+    start += Math.ceil(window.length / 2)
+  }
 
   return chunks
 }
@@ -135,7 +138,7 @@ const paragraphsOf = (text: string): Span[] => {
 
 /** 要約・メモを段落単位で束ねる。見出しと本文が別チャンクに泣き別れしにくくする。 */
 export const chunkText = (
-  source: Exclude<SearchSource, 'transcript' | 'title'>,
+  source: Exclude<SearchSource, 'transcript'>,
   text: string,
   maxChars: number = MAX_CHUNK_CHARS
 ): SearchDocument[] => {
@@ -169,23 +172,17 @@ export const chunkText = (
 
 /** 1 件の録音を検索対象の文書群に展開する。 */
 export interface SearchMaterial {
-  readonly title: string
   readonly segments: readonly TranscriptSegment[]
   readonly speakers: readonly Speaker[]
   readonly summary: string | undefined
   readonly note: string
 }
 
-export const buildSearchDocuments = (material: SearchMaterial): SearchDocument[] => {
-  const title = material.title.trim()
-
-  return [
-    ...(title ? [{ source: 'title' as const, text: title, locator: { kind: 'whole' as const } }] : []),
-    ...chunkText('summary', material.summary ?? ''),
-    ...chunkText('note', material.note),
-    ...chunkTranscript(material.segments, material.speakers)
-  ]
-}
+export const buildSearchDocuments = (material: SearchMaterial): SearchDocument[] => [
+  ...chunkText('summary', material.summary ?? ''),
+  ...chunkText('note', material.note),
+  ...chunkTranscript(material.segments, material.speakers)
+]
 
 /**
  * 索引の形式。チャンクの切り方や埋め込みへの渡し方を変えたら上げる。
@@ -316,8 +313,6 @@ export const excerptFor = (
   maxChars: number = EXCERPT_CHARS
 ): { excerpt: string; startMs?: number } => {
   switch (locator.kind) {
-    case 'whole':
-      return { excerpt: truncate(material.title.trim(), maxChars) }
     case 'range': {
       const text = source === 'summary' ? (material.summary ?? '') : material.note
       return { excerpt: truncate(plainText(text.slice(locator.start, locator.end)), maxChars) }

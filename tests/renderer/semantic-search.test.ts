@@ -31,10 +31,9 @@ describe('hitLocation', () => {
     expect(hitLocation(hit({ startMs: 754_000 }))).toBe('文字起こし 12:34')
   })
 
-  it('要約・メモ・タイトルは出どころだけを示す', () => {
+  it('要約・メモは出どころだけを示す', () => {
     expect(hitLocation(hit({ source: 'summary' }))).toBe('要約')
     expect(hitLocation(hit({ source: 'note' }))).toBe('メモ')
-    expect(hitLocation(hit({ source: 'title' }))).toBe('タイトル')
   })
 })
 

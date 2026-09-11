@@ -75,8 +75,7 @@ describe('SyncSearchIndex', () => {
     expect(result).toMatchObject({ indexed: 2, removed: 0, failed: 0, aborted: false })
     const entry = index.entries.get('rec-weather')
     expect(entry?.modelKey).toBe('fake-model')
-    // タイトル 1 + 文字起こし 1 チャンク
-    expect(entry?.chunks.map((chunk) => chunk.source)).toEqual(['title', 'transcript'])
+    expect(entry?.chunks.map((chunk) => chunk.source)).toEqual(['transcript'])
   })
 
   it('内容が変わっていない録音は埋め込み直さない', async () => {
@@ -133,9 +132,10 @@ describe('SyncSearchIndex', () => {
   })
 
   it('1 件の読み込みに失敗しても他の録音は処理する', async () => {
+    const original = artifacts.readTranscript.bind(artifacts)
     artifacts.readTranscript = async (recording) => {
       if (recording.id === 'rec-budget') throw new Error('読めません')
-      return { segments: [], speakers: [] }
+      return original(recording)
     }
 
     const result = await sync().execute()
@@ -153,8 +153,8 @@ describe('SyncSearchIndex', () => {
       [1, 2],
       [2, 2]
     ])
-    // 経営会議（9/2）が先。タイトルが最初に埋め込まれる。
-    expect(embedder.calls[0]).toBe('経営会議')
+    // 経営会議（9/2）が先。
+    expect(embedder.calls[0]).toBe('自分: 来期の予算を削ります')
   })
 
   it('中断されたら次の録音に進まない', async () => {

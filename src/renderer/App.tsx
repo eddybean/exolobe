@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import type { FolderDto, RecordingDetailDto, RecordingDto, SetupStateDto } from '@shared/ipc'
 import { LibrarySidebar } from './components/LibrarySidebar'
+import { isSemanticSearchAvailable } from './library/semanticSearch'
 import { TransportBar } from './components/TransportBar'
 import { useTransport } from './hooks/useTransport'
 import { OnboardingView } from './views/OnboardingView'
@@ -22,12 +23,15 @@ export const App = (): ReactElement => {
   const [selectedId, setSelectedId] = useState<string>()
   const [detail, setDetail] = useState<RecordingDetailDto>()
   const [folders, setFolders] = useState<FolderDto[]>([])
+  const [semanticAvailable, setSemanticAvailable] = useState(false)
 
   const transport = useTransport(setup?.settings.audio.sampleRate ?? 16_000)
 
   const refreshSetup = useCallback(async (): Promise<void> => {
     const state = await window.recorder.getSetupState()
     setSetup(state)
+    // 設定やモデルが変わるたびにここを通るので、意味検索を出せるかも合わせて確かめる。
+    setSemanticAvailable(isSemanticSearchAvailable(await window.recorder.getSearchIndexStatus()))
     // 保存先が未設定なら、まず初期設定に誘導する。
     setScreen((current) =>
       state.needsStorageDir ? 'onboarding' : current === 'onboarding' ? 'library' : current
@@ -136,6 +140,7 @@ export const App = (): ReactElement => {
             <LibrarySidebar
               folders={folders}
               recordings={recordings}
+              semanticAvailable={semanticAvailable}
               selectedId={selectedId}
               onSelect={setSelectedId}
               onCreateFolder={(params) => void window.recorder.createFolder(params)}

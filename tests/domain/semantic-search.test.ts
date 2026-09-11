@@ -36,19 +36,43 @@ describe('chunkTranscript', () => {
     ]
 
     // 「自分: 」+10 字 = 14 字。2 行（改行込み 29 字）までは 30 字に収まる。
+    const [first] = chunkTranscript(segments, speakers, 30)
+
+    expect(first).toEqual({
+      source: 'transcript',
+      text: `自分: ${'あ'.repeat(10)}\n田中: ${'い'.repeat(10)}`,
+      locator: { kind: 'segments', from: 0, to: 2 }
+    })
+  })
+
+  it('窓を半分ずつ重ねてずらす（境目をまたぐ短い話題も、どれかの窓にまとまって入る）', () => {
+    const segments = ['あ', 'い', 'う', 'え', 'お', 'か'].map((text, index) =>
+      segment(index * 1_000, 'self', text.repeat(10))
+    )
+
+    // 1 行 14 字。30 字の窓には 2 行ずつ入り、1 行ずつずれる。
     const chunks = chunkTranscript(segments, speakers, 30)
 
-    expect(chunks).toEqual([
-      {
-        source: 'transcript',
-        text: `自分: ${'あ'.repeat(10)}\n田中: ${'い'.repeat(10)}`,
-        locator: { kind: 'segments', from: 0, to: 2 }
-      },
-      {
-        source: 'transcript',
-        text: `自分: ${'う'.repeat(10)}`,
-        locator: { kind: 'segments', from: 2, to: 3 }
-      }
+    expect(chunks.map((chunk) => chunk.locator)).toEqual([
+      { kind: 'segments', from: 0, to: 2 },
+      { kind: 'segments', from: 1, to: 3 },
+      { kind: 'segments', from: 2, to: 4 },
+      { kind: 'segments', from: 3, to: 5 },
+      { kind: 'segments', from: 4, to: 6 }
+    ])
+  })
+
+  it('4 行入る窓は 2 行ずつずらす', () => {
+    const segments = ['あ', 'い', 'う', 'え', 'お', 'か'].map((text, index) =>
+      segment(index * 1_000, 'self', text.repeat(10))
+    )
+
+    // 4 行 = 14×4+3 = 59 字。
+    const chunks = chunkTranscript(segments, speakers, 60)
+
+    expect(chunks.map((chunk) => chunk.locator)).toEqual([
+      { kind: 'segments', from: 0, to: 4 },
+      { kind: 'segments', from: 2, to: 6 }
     ])
   })
 
@@ -107,9 +131,8 @@ describe('chunkText', () => {
 })
 
 describe('buildSearchDocuments', () => {
-  it('タイトル・要約・メモ・文字起こしの順に並べ、無いものは省く', () => {
+  it('要約・メモ・文字起こしの順に並べ、無いものは省く', () => {
     const documents = buildSearchDocuments({
-      title: '定例',
       segments: [segment(0, 'self', '雨ですね')],
       speakers,
       summary: undefined,
@@ -117,16 +140,16 @@ describe('buildSearchDocuments', () => {
     })
 
     expect(documents.map((document) => [document.source, document.text])).toEqual([
-      ['title', '定例'],
       ['note', 'メモ'],
       ['transcript', '自分: 雨ですね']
     ])
   })
+
 })
 
 describe('fingerprint', () => {
   const documents: SearchDocument[] = [
-    { source: 'title', text: '定例', locator: { kind: 'whole' } },
+    { source: 'summary', text: '## 概要', locator: { kind: 'range', start: 0, end: 5 } },
     { source: 'transcript', text: '自分: 雨ですね', locator: { kind: 'segments', from: 0, to: 1 } }
   ]
 
@@ -223,7 +246,6 @@ describe('rankRecordings', () => {
 
 describe('excerptFor', () => {
   const material: SearchMaterial = {
-    title: '週次定例',
     segments: [
       segment(0, 'self', 'おはようございます'),
       segment(65_000, 'remote', '今日は雨がひどいですね'),
@@ -245,10 +267,6 @@ describe('excerptFor', () => {
     expect(excerptFor('summary', { kind: 'range', start: 0, end: 16 }, material)).toEqual({
       excerpt: '概要 天気の話をした'
     })
-  })
-
-  it('タイトルはそのまま返す', () => {
-    expect(excerptFor('title', { kind: 'whole' }, material)).toEqual({ excerpt: '週次定例' })
   })
 
   it('長い抜粋は末尾を省略する', () => {

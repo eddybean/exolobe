@@ -108,7 +108,7 @@ export interface SearchHitDto {
   /** ISO 8601 文字列。 */
   readonly startedAt: string
   readonly score: number
-  readonly source: 'title' | 'summary' | 'note' | 'transcript'
+  readonly source: 'summary' | 'note' | 'transcript'
   /** 当たった箇所の抜粋。なぜ当たったのかを利用者が確かめられるようにする。 */
   readonly excerpt: string
   /** 文字起こしで当たった場合の、該当区間の開始時刻。 */

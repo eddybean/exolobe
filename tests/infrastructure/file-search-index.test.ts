@@ -13,7 +13,11 @@ const entry = (recordingId: string, values: number[] = [0.5, -0.25, 1]): SearchI
   fingerprint: 'fp-1',
   modelKey: 'bge-m3-q8_0.gguf',
   chunks: [
-    { source: 'title', locator: { kind: 'whole' }, vector: Float32Array.from(values) },
+    {
+      source: 'summary',
+      locator: { kind: 'range', start: 0, end: 12 },
+      vector: Float32Array.from(values)
+    },
     {
       source: 'transcript',
       locator: { kind: 'segments', from: 0, to: 3 },

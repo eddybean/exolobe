@@ -2,7 +2,6 @@ import type { SearchHitDto, SearchIndexStatusDto } from '@shared/ipc'
 import { formatBytes, formatDuration } from '../format'
 
 const SOURCE_LABELS: Record<SearchHitDto['source'], string> = {
-  title: 'タイトル',
   summary: '要約',
   note: 'メモ',
   transcript: '文字起こし'

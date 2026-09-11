@@ -28,7 +28,7 @@ interface StoredEntry {
   readonly chunks: readonly StoredChunk[]
 }
 
-const SOURCES: readonly string[] = ['title', 'summary', 'note', 'transcript']
+const SOURCES: readonly string[] = ['summary', 'note', 'transcript']
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
@@ -36,8 +36,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isLocator = (value: unknown): value is ChunkLocator => {
   if (!isRecord(value)) return false
   switch (value['kind']) {
-    case 'whole':
-      return true
     case 'segments':
       return typeof value['from'] === 'number' && typeof value['to'] === 'number'
     case 'range':

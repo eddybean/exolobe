@@ -351,7 +351,6 @@ export const registerIpcHandlers = (
       title: asString(title, 'タイトル')
     })
     send(IPC.recordingsChanged)
-    searchSync.request()
     return toRecordingDto(recording)
   })
 

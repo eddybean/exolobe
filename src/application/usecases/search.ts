@@ -30,7 +30,6 @@ const loadMaterial = async (
   const transcript = await artifacts.readTranscript(recording)
 
   return {
-    title: recording.title,
     segments: transcript?.segments ?? [],
     speakers: transcript?.speakers ?? [],
     summary: await artifacts.readSummary(recording),
