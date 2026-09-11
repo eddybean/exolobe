@@ -1,6 +1,7 @@
 import type { Folder } from '@domain/Folder'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { PipelineStep, Recording } from '@domain/Recording'
+import type { ChunkLocator, SearchSource } from '@domain/SemanticSearch'
 import type { AudioCodec, Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import type { SpeakerTurn, TranscriptSegment } from '@domain/TranscriptSegment'
@@ -153,4 +154,39 @@ export interface ProgressReporterPort {
     status: 'running' | 'done' | 'failed'
     error?: string
   }): void
+}
+
+/** 文字列を意味のベクトルにする（意味検索用）。 */
+export interface TextEmbedderPort {
+  /**
+   * 埋め込みの互換性を表すキー。モデルが変われば値が変わり、
+   * それ以前に作ったベクトルとは比較できない。
+   */
+  readonly modelKey: string
+  /** 長さ 1 に正規化したベクトルを返す。 */
+  embed(text: string): Promise<Float32Array>
+}
+
+export interface IndexedChunk {
+  readonly source: SearchSource
+  readonly locator: ChunkLocator
+  readonly vector: Float32Array
+}
+
+/** 1 件の録音の索引。本文は持たず、位置とベクトルだけを持つ。 */
+export interface SearchIndexEntry {
+  readonly recordingId: string
+  readonly fingerprint: string
+  readonly modelKey: string
+  readonly chunks: readonly IndexedChunk[]
+}
+
+/** 意味検索の索引。再生成できるキャッシュであり、消えても録音は失われない。 */
+export interface SearchIndexPort {
+  list(): Promise<SearchIndexEntry[]>
+  put(entry: SearchIndexEntry): Promise<void>
+  remove(recordingId: string): Promise<void>
+  clear(): Promise<void>
+  /** 索引が占めている件数と容量。設定画面で消すかどうかの判断材料にする。 */
+  stats(): Promise<{ count: number; bytes: number }>
 }
