@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   estimateSummarizationBytes,
+  estimateEmbeddingBytes,
   estimateTranscriptionBytes,
   headroomBytes,
   insufficientMemory
@@ -10,6 +11,7 @@ const GB = 1_024 ** 3
 /** 実測に使った Gemma 4 E4B QAT q4_0 のファイルサイズ。 */
 const GEMMA_BYTES = 5_154_941_280
 const WHISPER_BYTES = 574_041_195
+const BGE_M3_BYTES = 634_553_760
 
 describe('headroomBytes', () => {
   it('保守的なほど OS に大きく空けておく', () => {
@@ -81,6 +83,20 @@ describe('estimateTranscriptionBytes', () => {
     expect(estimate).toBeGreaterThan(WHISPER_BYTES)
     expect(estimate).toBeLessThan(
       estimateSummarizationBytes({ modelFileBytes: GEMMA_BYTES, contextSize: 32_768 })
+    )
+  })
+})
+
+describe('estimateEmbeddingBytes', () => {
+  it('実測したピーク（bge-m3 Q8_0 で約 1.88GB）を下回らない', () => {
+    expect(estimateEmbeddingBytes({ modelFileBytes: BGE_M3_BYTES })).toBeGreaterThanOrEqual(
+      1_880_000_000
+    )
+  })
+
+  it('要約よりはるかに小さい', () => {
+    expect(estimateEmbeddingBytes({ modelFileBytes: BGE_M3_BYTES })).toBeLessThan(
+      estimateSummarizationBytes({ modelFileBytes: GEMMA_BYTES, contextSize: 32_768 }) / 2
     )
   })
 })

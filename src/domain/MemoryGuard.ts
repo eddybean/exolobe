@@ -82,6 +82,19 @@ const WHISPER_COMPUTE_BYTES = 0.5 * GB
 export const estimateTranscriptionBytes = (params: { modelFileBytes: number }): number =>
   params.modelFileBytes * WHISPER_OVERHEAD_RATIO + WHISPER_COMPUTE_BYTES
 
+/**
+ * 意味検索の埋め込みモデルの所要メモリ。
+ *
+ * 実測（node-llama-cpp 3.20 / bge-m3 Q8_0 634,553,760 バイト / Apple Silicon）では
+ * 読み込み直後のプロセス RSS が約 1.42GB、1022 トークンの入力で約 1.88GB まで伸びた。
+ * Metal 側の確保もあってファイルの約 2 倍が載る。安全側に丸める。
+ */
+const EMBEDDING_OVERHEAD_RATIO = 2.2
+const EMBEDDING_COMPUTE_BYTES = 0.5 * GB
+
+export const estimateEmbeddingBytes = (params: { modelFileBytes: number }): number =>
+  params.modelFileBytes * EMBEDDING_OVERHEAD_RATIO + EMBEDDING_COMPUTE_BYTES
+
 /** 足りなければ利用者向けの理由を返す。足りていれば undefined。 */
 export const insufficientMemory = (params: {
   snapshot: MemorySnapshot
