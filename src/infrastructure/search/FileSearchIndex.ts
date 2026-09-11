@@ -4,6 +4,9 @@ import type { IndexedChunk, SearchIndexEntry, SearchIndexPort } from '@applicati
 import type { ChunkLocator, SearchSource } from '@domain/SemanticSearch'
 import { readJson, writeJsonAtomic } from '@infrastructure/persistence/jsonFile'
 
+/** userData 配下のディレクトリ名。main と検索ワーカーで同じ場所を指すために共有する。 */
+export const SEARCH_INDEX_DIR = 'search'
+
 /** ファイル形式の版。読めない版のファイルは壊れたものと同じく無視し、作り直させる。 */
 const FILE_VERSION = 1
 const EXTENSION = '.json'

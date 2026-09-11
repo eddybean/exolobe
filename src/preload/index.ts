@@ -11,6 +11,9 @@ import {
   type RecordingDetailDto,
   type RecordingDto,
   type RendererApi,
+  type SearchHitDto,
+  type SearchIndexStatusDto,
+  type SearchSyncStateDto,
   type SetupStateDto,
   type SilenceAlertDto,
   type StartAlertDto,
@@ -88,7 +91,18 @@ const api: RendererApi = {
   onTransportChanged: (listener) => subscribe<TransportStateDto>(IPC.transportChanged, listener),
   onSilenceAlert: (listener) => subscribe<SilenceAlertDto>(IPC.silenceAlert, listener),
   onStartAlert: (listener) => subscribe<StartAlertDto>(IPC.startAlert, listener),
-  onModelProgress: (listener) => subscribe<ModelProgressDto>(IPC.modelProgress, listener)
+  onModelProgress: (listener) => subscribe<ModelProgressDto>(IPC.modelProgress, listener),
+
+  searchRecordings: (query) =>
+    ipcRenderer.invoke(IPC.searchRecordings, query) as Promise<SearchHitDto[]>,
+  getSearchIndexStatus: () =>
+    ipcRenderer.invoke(IPC.getSearchIndexStatus) as Promise<SearchIndexStatusDto>,
+  confirmClearSearchIndex: () =>
+    ipcRenderer.invoke(IPC.confirmClearSearchIndex) as Promise<boolean>,
+  clearSearchIndex: () =>
+    ipcRenderer.invoke(IPC.clearSearchIndex) as Promise<SearchIndexStatusDto>,
+  onSearchIndexChanged: (listener) =>
+    subscribe<SearchSyncStateDto>(IPC.searchIndexChanged, listener)
 }
 
 contextBridge.exposeInMainWorld('recorder', api)

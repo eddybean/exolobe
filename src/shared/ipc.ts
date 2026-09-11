@@ -206,6 +206,14 @@ export interface RendererApi {
   onSilenceAlert(listener: (event: SilenceAlertDto) => void): () => void
   onStartAlert(listener: (event: StartAlertDto) => void): () => void
   onModelProgress(listener: (event: ModelProgressDto) => void): () => void
+
+  /** 自然文のクエリで録音を探す。意味検索が有効でモデルがある場合だけ使える。 */
+  searchRecordings(query: string): Promise<SearchHitDto[]>
+  getSearchIndexStatus(): Promise<SearchIndexStatusDto>
+  /** 索引の削除前の確認。ネイティブダイアログを出し、実行してよければ true を返す。 */
+  confirmClearSearchIndex(): Promise<boolean>
+  clearSearchIndex(): Promise<SearchIndexStatusDto>
+  onSearchIndexChanged(listener: (state: SearchSyncStateDto) => void): () => void
 }
 
 /** IPC チャンネル名。main と preload で共有し、綴りのずれを防ぐ。 */
@@ -247,5 +255,10 @@ export const IPC = {
   pushMicPcm: 'transport:micPcm',
   progress: 'pipeline:progress',
   recordingsChanged: 'recordings:changed',
-  transportChanged: 'transport:changed'
+  transportChanged: 'transport:changed',
+  searchRecordings: 'search:query',
+  getSearchIndexStatus: 'search:status',
+  confirmClearSearchIndex: 'search:confirmClear',
+  clearSearchIndex: 'search:clear',
+  searchIndexChanged: 'search:changed'
 } as const

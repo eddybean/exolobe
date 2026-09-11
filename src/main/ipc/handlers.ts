@@ -2,7 +2,8 @@ import { BrowserWindow, dialog, ipcMain, shell, type FileFilter } from 'electron
 import type { PipelineStep } from '@domain/Recording'
 import { ConfigurationError, toMessage } from '@domain/errors'
 import { findAsset, formatBytes } from '@domain/ModelCatalog'
-import type { SettingsPatch } from '@domain/Settings'
+import { DEFAULT_SEARCH_LIMIT, searchIndexTransition } from '@domain/SemanticSearch'
+import type { Settings, SettingsPatch } from '@domain/Settings'
 import { DEFAULT_QUIET_RATIO, DEFAULT_SILENCE_LEVEL } from '@domain/SilenceWatch'
 import { DEFAULT_BUSY_RATIO } from '@domain/StartWatch'
 import {
@@ -14,16 +15,20 @@ import {
   type ProgressEventDto,
   type RecordingDetailDto,
   type RecordingDto,
+  type SearchHitDto,
+  type SearchIndexStatusDto,
   type SilenceAlertDto,
   type StartAlertDto,
   type TransportStateDto
 } from '@shared/ipc'
 import type { Container } from '../container'
+import { createSearchSyncScheduler } from '../searchSyncScheduler'
 import { createSilenceMonitor } from '../silenceMonitor'
 import { notifySilence } from '../silenceNotification'
 import { createStartMonitor } from '../startMonitor'
 import { notifyMeetingStart } from '../startNotification'
 import { PipelineClient } from '../worker/PipelineClient'
+import { SearchClient } from '../worker/SearchClient'
 
 /** 無音を判定する間隔。会議の沈黙は分単位なので、1 秒ごとで十分細かい。 */
 const SILENCE_SAMPLE_INTERVAL_MS = 1_000
@@ -86,6 +91,39 @@ export const registerIpcHandlers = (
   const pipeline = new PipelineClient((event: ProgressEventDto) => {
     send(IPC.progress, event)
     send(IPC.recordingsChanged)
+  })
+
+  /**
+   * 意味検索。埋め込みモデルは検索専用のワーカーに載せる。
+   *
+   * 索引の同期は録音中とその後処理の間は走らせない。要約の LLM と同時に載ると
+   * メモリが足りなくなり、会議アプリの音声まで途切れかねないため。
+   */
+  const search = new SearchClient()
+  const searchSync = createSearchSyncScheduler({
+    isEnabled: async () => (await container.settings.load()).search.enabled,
+    isBusy: () => pipeline.isBusy() || active !== undefined,
+    run: async (onProgress) => {
+      await search.sync(onProgress)
+    },
+    onStateChange: (state) => send(IPC.searchIndexChanged, state)
+  })
+
+  /** 重い処理に入る前に、同期を止めて埋め込みモデルの分のメモリを空ける。 */
+  const yieldSearch = (): void => {
+    search.cancelSync()
+    search.releaseWhenIdle()
+  }
+
+  pipeline.onBusyChange((busy) => {
+    if (busy) yieldSearch()
+    // 処理が片付けば文字起こしと要約が揃っているので、索引に入れる好機でもある。
+    else searchSync.request()
+  })
+
+  const searchStatus = async (): Promise<SearchIndexStatusDto> => ({
+    ...(await container.getSearchIndexStatus.execute()),
+    sync: searchSync.state()
   })
 
   /**
@@ -232,6 +270,7 @@ export const registerIpcHandlers = (
         startedAtMs: Date.now(),
         silenceDurationMs: await startSilenceWatch()
       }
+      yieldSearch()
       notifyTransport()
       send(IPC.recordingsChanged)
 
@@ -303,6 +342,7 @@ export const registerIpcHandlers = (
       recordingId: asString(id, '録音 ID'),
       note: typeof note === 'string' ? note : ''
     })
+    searchSync.request()
   })
 
   handle(IPC.renameRecording, async (id: unknown, title: unknown): Promise<RecordingDto> => {
@@ -311,16 +351,20 @@ export const registerIpcHandlers = (
       title: asString(title, 'タイトル')
     })
     send(IPC.recordingsChanged)
+    searchSync.request()
     return toRecordingDto(recording)
   })
 
-  handle(IPC.renameSpeaker, async (id: unknown, speakerId: unknown, label: unknown) =>
-    container.renameSpeaker.execute({
+  handle(IPC.renameSpeaker, async (id: unknown, speakerId: unknown, label: unknown) => {
+    const speakers = await container.renameSpeaker.execute({
       recordingId: asString(id, '録音 ID'),
       speakerId: asString(speakerId, '話者 ID'),
       label: asString(label, '話者名')
     })
-  )
+    // 索引の文字起こしチャンクは「話者名: 発言」なので、名前が変われば作り直す。
+    searchSync.request()
+    return speakers
+  })
 
   /**
    * 削除は取り消せず、音声・文字起こし・要約・メモがまとめて消える。
@@ -349,6 +393,8 @@ export const registerIpcHandlers = (
   handle(IPC.deleteRecording, async (id: unknown): Promise<void> => {
     await container.deleteRecording.execute(asString(id, '録音 ID'))
     send(IPC.recordingsChanged)
+    // 本文を消したのに、そのベクトルが残り続けないようにする。
+    searchSync.request()
   })
 
   handle(IPC.revealRecording, async (id: unknown): Promise<void> => {
@@ -428,6 +474,11 @@ export const registerIpcHandlers = (
         receivedBytes: 0,
         status: 'done'
       } satisfies ModelProgressDto)
+      if (modelId === 'search-model') {
+        // モデル無しで起きていたワーカーを捨て、新しいモデルで索引を作る。
+        await search.shutdown()
+        searchSync.request()
+      }
       return settings
     } catch (error: unknown) {
       const message = toMessage(error)
@@ -471,17 +522,98 @@ export const registerIpcHandlers = (
     return result.response === 0
   })
 
-  handle(IPC.deleteModel, async (id: unknown) =>
-    container.deleteModel.execute(asString(id, 'モデル ID'))
-  )
+  handle(IPC.deleteModel, async (id: unknown) => {
+    const modelId = asString(id, 'モデル ID')
+    // 読み込み中のモデルファイルを消さないよう、先にワーカーを終わらせる。
+    if (modelId === 'search-model') await search.shutdown()
+    return container.deleteModel.execute(modelId)
+  })
 
   handle(IPC.updateSettings, async (patch: unknown) => {
+    const before = await container.settings.load()
     const settings = await container.updateSettings.execute(patch as SettingsPatch)
     // 開始忘れの見張りは録音していない間ずっと動いているので、設定の変更を
     // 次の録音まで待たずにここで反映する。
     if (!active) await startStartWatch()
+    await applySearchSettings(before, settings)
     send(IPC.recordingsChanged)
     return settings
+  })
+
+  /** 意味検索の設定の変化を索引に反映する。無効にしたら使わない索引の容量を返す。 */
+  const applySearchSettings = async (before: Settings, after: Settings): Promise<void> => {
+    switch (searchIndexTransition(before.search, after.search)) {
+      case 'clear':
+        await clearSearchIndex()
+        return
+      case 'rebuild':
+        await search.shutdown()
+        searchSync.request()
+        return
+      case 'sync':
+        searchSync.request()
+        return
+      case 'none':
+        // 保存先が変われば録音一覧そのものが入れ替わる。
+        if (after.search.enabled && before.storageDir !== after.storageDir) searchSync.request()
+        return
+    }
+  }
+
+  const clearSearchIndex = async (): Promise<void> => {
+    // 書き手（ワーカー）を止めてから消す。同期の途中の書き込みで索引が蘇らないように。
+    await search.shutdown()
+    await container.clearSearchIndex.execute()
+    searchSync.reset()
+  }
+
+  handle(IPC.searchRecordings, async (query: unknown): Promise<SearchHitDto[]> => {
+    // 異常に長い入力でモデルの 1 回分の入力を超えないよう、ここで抑える。
+    const text = asString(query, '検索する文章').slice(0, 500)
+    const { search: config } = await container.settings.load()
+    if (!config.enabled) {
+      throw new ConfigurationError('意味検索が無効です。設定画面で有効にしてください。')
+    }
+
+    const hits = await search.search(text, DEFAULT_SEARCH_LIMIT)
+    // 要約などが走っている間は、答えたらすぐにモデルの分のメモリを返す。
+    if (pipeline.isBusy()) search.releaseWhenIdle()
+    return hits
+  })
+
+  handle(IPC.getSearchIndexStatus, async () => searchStatus())
+
+  /** 有効なまま消すと次の同期で作り直されるので、そのことも添えて確認する。 */
+  handle(IPC.confirmClearSearchIndex, async (): Promise<boolean> => {
+    const status = await searchStatus()
+    const window = getWindow()
+    const options = {
+      type: 'warning' as const,
+      buttons: ['削除', 'キャンセル'],
+      defaultId: 1,
+      cancelId: 1,
+      message: '意味検索のインデックスを削除しますか？',
+      detail: [
+        `${status.indexedCount} 件分、約 ${formatBytes(status.bytes)} が削除されます。`,
+        '録音・文字起こし・要約・メモは削除されません。',
+        status.enabled
+          ? '意味検索が有効な間は、次に録音を処理したときなどに作り直されます。'
+          : ''
+      ]
+        .filter(Boolean)
+        .join('\n')
+    }
+
+    const result = window
+      ? await dialog.showMessageBox(window, options)
+      : await dialog.showMessageBox(options)
+
+    return result.response === 0
+  })
+
+  handle(IPC.clearSearchIndex, async (): Promise<SearchIndexStatusDto> => {
+    await clearSearchIndex()
+    return searchStatus()
   })
 
   handle(IPC.chooseStorageDir, async (): Promise<string | undefined> => {
@@ -511,6 +643,8 @@ export const registerIpcHandlers = (
 
   // 録音していない状態から始まるので、見張りもここから動かし始める。
   void startStartWatch()
+  // 前回の起動以降に増えた・消えた録音を索引に反映する。
+  searchSync.request()
 
   return controller
 }
