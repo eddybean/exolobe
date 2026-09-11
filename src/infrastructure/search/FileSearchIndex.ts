@@ -16,8 +16,10 @@ const SAFE_ID = /^[\w-]+$/
 interface StoredChunk {
   readonly source: SearchSource
   readonly locator: ChunkLocator
-  /** Float32 のバイト列を base64 にしたもの。数値の配列より 1/3 程度小さい。 */
+  /** 8 ビットに量子化したベクトルを base64 にしたもの。 */
   readonly vector: string
+  /** 量子化の刻み幅。元の値 ≒ 保存値 × scale。 */
+  readonly scale: number
 }
 
 interface StoredEntry {
@@ -50,7 +52,8 @@ const isStoredChunk = (value: unknown): value is StoredChunk =>
   typeof value['source'] === 'string' &&
   SOURCES.includes(value['source']) &&
   isLocator(value['locator']) &&
-  typeof value['vector'] === 'string'
+  typeof value['vector'] === 'string' &&
+  typeof value['scale'] === 'number'
 
 const isStoredEntry = (value: unknown): value is StoredEntry =>
   isRecord(value) &&
@@ -61,16 +64,29 @@ const isStoredEntry = (value: unknown): value is StoredEntry =>
   Array.isArray(value['chunks']) &&
   value['chunks'].every(isStoredChunk)
 
-const encodeVector = (vector: Float32Array): string =>
-  Buffer.from(vector.buffer, vector.byteOffset, vector.byteLength).toString('base64')
+/**
+ * ベクトルを 1 次元 1 バイトに量子化する。
+ *
+ * 文字起こしを細かく重ねて切るため、1 時間の会議で 150 前後のチャンクになる。
+ * Float32 のままでは 1 時間あたり約 800KB だが、8 ビットなら約 200KB で済む。
+ * 刻み幅はベクトルごとに最大の絶対値から決めるので、類似度の誤差は 0.001 程度に
+ * 収まり、順位付けには影響しない。
+ */
+const quantize = (vector: Float32Array): { vector: string; scale: number } => {
+  let max = 0
+  for (const value of vector) max = Math.max(max, Math.abs(value))
+  const scale = max / 127
+  const bytes = Int8Array.from(vector, (value) => (scale === 0 ? 0 : Math.round(value / scale)))
+  return {
+    vector: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('base64'),
+    scale
+  }
+}
 
-const decodeVector = (encoded: string): Float32Array => {
+const dequantize = (encoded: string, scale: number): Float32Array => {
   const bytes = Buffer.from(encoded, 'base64')
-  // Buffer は共有プールの途中から切り出されることがあり、Float32Array に必要な
-  // 4 バイト境界に揃っている保証が無い。コピーしてから読む。
-  const aligned = new Uint8Array(bytes.byteLength)
-  aligned.set(bytes)
-  return new Float32Array(aligned.buffer, 0, Math.floor(bytes.byteLength / 4))
+  const values = new Int8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  return Float32Array.from(values, (value) => value * scale)
 }
 
 const toStored = (entry: SearchIndexEntry): StoredEntry => ({
@@ -81,7 +97,7 @@ const toStored = (entry: SearchIndexEntry): StoredEntry => ({
   chunks: entry.chunks.map((chunk) => ({
     source: chunk.source,
     locator: chunk.locator,
-    vector: encodeVector(chunk.vector)
+    ...quantize(chunk.vector)
   }))
 })
 
@@ -93,7 +109,7 @@ const fromStored = (stored: StoredEntry): SearchIndexEntry => ({
     (chunk): IndexedChunk => ({
       source: chunk.source,
       locator: chunk.locator,
-      vector: decodeVector(chunk.vector)
+      vector: dequantize(chunk.vector, chunk.scale)
     })
   )
 })
