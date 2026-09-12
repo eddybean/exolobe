@@ -116,6 +116,7 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 - 統合テスト（`tests/integration/pipeline.test.ts`）は実際のファイル I/O と
   `afconvert` を通す。
 - **コードベースの調査はサブエージェント（`model: sonnet`）に投げる**（下記）。
+- **renderer を変えたら、可能な範囲で実際にアプリを起動して確かめる**（下記）。
 - コード中のコメントは日本語で、「何を」ではなく「なぜ」を書く既存のスタイルに合わせる。
 - `electron-builder.yml` の `productName` は **ASCII のまま**にする。日本語にすると
   生成アプリが起動直後に SIGTRAP で落ちる（表示名は `CFBundleDisplayName` 側、ADR-013）。
@@ -149,3 +150,34 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 左右する事実はコマンドやファイルで裏を取る。実例として、調査エージェントが「`afconvert` は
 FLAC / Ogg / Opus 非対応」と報告したが、`afconvert -hf` を実行すると対応していた。
 鵜呑みにしていれば、不要な ffmpeg の同梱を設計に入れていた。
+
+### UI の変更を実機で確かめる
+
+renderer のテストは純粋関数までで、描画の結果は見ていない。`hidden` 属性が
+`.tree__list` の `display` 指定に負けて要素が消えない、といった不具合は
+テストを全て通したまま残る。UI を変えたときは `agent-browser` スキルで
+アプリを起動して確かめる（Electron を CDP 経由で操作できる）。
+
+```bash
+npm run build
+# 実データに触れないよう、userData を一時ディレクトリに向ける。
+UD=$(mktemp -d)/userData
+HOME=$(dirname "$UD") ./node_modules/.bin/electron out/main/index.js \
+  --remote-debugging-port=9222 --user-data-dir="$UD" &
+agent-browser connect 9222
+agent-browser snapshot -i -c        # 要素を見る（@eN は操作のたびに取り直す）
+agent-browser click @e10
+agent-browser fill @e8 "天気の話をした会議"
+agent-browser press Enter
+agent-browser screenshot /tmp/ui.png   # 画像を実際に見て確かめる
+```
+
+注意点:
+
+- **隔離は `--user-data-dir` で行う**。`HOME` だけでは効かず、既定の userData を見に行く。
+  録音の保存先は、一時ディレクトリに `meta.json` / `transcript.json` を書いた
+  合成データを使い、利用者の実データは開かない。
+- `ELECTRON_RUN_AS_NODE` が環境にあると起動に失敗する（`env -u` で外す）。
+- **ネイティブダイアログ（`dialog.showMessageBox`）は操作できない。** 削除の確認などは
+  ここまでで、押した先は手動で確かめる。
+- **マイク・システム音声の許可は自動化できない。** 録音を伴う確認は手動。
