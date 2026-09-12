@@ -48,6 +48,18 @@ export interface AudioMixerPort {
   }): Promise<{ durationMs: number }>
 }
 
+/**
+ * 取り込んだ音声を、文字起こしが読める 16bit PCM の WAV へ変換する。
+ * エンコード（配布用の圧縮）とは向きが逆なので別のポートにする。
+ */
+export interface AudioDecoderPort {
+  decode(params: {
+    inputPath: string
+    outputPath: string
+    sampleRate: number
+  }): Promise<{ durationMs: number }>
+}
+
 /** WAV を配布用の圧縮音声へ変換する。 */
 export interface AudioEncoderPort {
   encode(params: {
@@ -95,6 +107,17 @@ export interface SystemResourcePort {
   memory(): Promise<MemorySnapshot>
   /** 存在しない・読めない場合は undefined。 */
   fileSize(path: string): Promise<number | undefined>
+}
+
+/**
+ * 取り込み元ファイルの素性。
+ *
+ * SystemResourcePort にもファイルサイズはあるが、あちらは所要メモリの見積もり用で
+ * 「いつの音声か」を扱う場所ではないため分ける。
+ */
+export interface FileInfoPort {
+  /** 存在しない・読めない場合は undefined。 */
+  stat(path: string): Promise<{ readonly sizeBytes: number; readonly modifiedAt: Date } | undefined>
 }
 
 /** 録音のメタデータ一覧。保存先ルート配下の index.json が実体。 */

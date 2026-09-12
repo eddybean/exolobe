@@ -148,16 +148,69 @@ export const readWav = async (path: string): Promise<WavData> => {
   }
 }
 
-/** data チャンクは LIST 等の後ろに来ることがあるため位置を走査する。 */
-const findDataChunk = (raw: Buffer, path: string): { offset: number; size: number } => {
+/** 目的のチャンクは LIST 等の後ろに来ることがあるため位置を走査する。 */
+const findChunk = (
+  raw: Buffer,
+  id: string,
+  path: string
+): { offset: number; size: number } => {
   let cursor = 12
   while (cursor + 8 <= raw.length) {
-    const id = raw.toString('ascii', cursor, cursor + 4)
+    const found = raw.toString('ascii', cursor, cursor + 4)
     const size = raw.readUInt32LE(cursor + 4)
-    if (id === 'data') return { offset: cursor + 8, size }
+    if (found === id) return { offset: cursor + 8, size }
     // チャンクは 2 バイト境界に揃う。
     cursor += 8 + size + (size % 2)
   }
 
-  throw new WavFormatError(`data チャンクが見つかりません: ${path}`)
+  throw new WavFormatError(`${id} チャンクが見つかりません: ${path}`)
+}
+
+const findDataChunk = (raw: Buffer, path: string): { offset: number; size: number } =>
+  findChunk(raw, 'data', path)
+
+/** fmt チャンクからサンプルレート・チャンネル数・量子化ビット数を読む。 */
+const readFormatChunk = (raw: Buffer, path: string): WavFormat => {
+  const { offset } = findChunk(raw, 'fmt ', path)
+
+  return {
+    channels: raw.readUInt16LE(offset + 2),
+    sampleRate: raw.readUInt32LE(offset + 4),
+    bitsPerSample: raw.readUInt16LE(offset + 14)
+  }
+}
+
+/**
+ * WAV の長さだけをヘッダから読む。
+ *
+ * readWav は全サンプルを Int16Array に展開するため、2 時間のファイルでは Buffer と
+ * 配列で 400MB 超を一度に確保してしまう。取り込んだ音声の長さを知るだけならチャンクの
+ * 大きさで足りるので、先頭だけを読む。
+ */
+export const wavDurationMs = async (path: string): Promise<number> => {
+  const handle = await open(path, 'r')
+  try {
+    // チャンクの走査に要るのはヘッダ群だけ。LIST などが挟まっても収まる量を読む。
+    const head = Buffer.alloc(64 * 1024)
+    const { bytesRead } = await handle.read(head, 0, head.length, 0)
+    const raw = head.subarray(0, bytesRead)
+
+    if (raw.length < HEADER_BYTES || raw.toString('ascii', 0, 4) !== 'RIFF') {
+      throw new WavFormatError(`WAV ファイルとして読み取れません: ${path}`)
+    }
+    if (raw.toString('ascii', 8, 12) !== 'WAVE') {
+      throw new WavFormatError(`WAV ファイルとして読み取れません: ${path}`)
+    }
+
+    const { channels, sampleRate, bitsPerSample } = readFormatChunk(raw, path)
+    const { offset, size } = findDataChunk(raw, path)
+    // ヘッダのサイズ欄が実ファイルより大きいことがあるため、実体側に合わせる。
+    const fileBytes = (await handle.stat()).size
+    const dataBytes = Math.max(0, Math.min(size, fileBytes - offset))
+    const bytesPerFrame = (bitsPerSample / 8) * channels
+
+    return bytesPerFrame > 0 ? durationMsForPcm(dataBytes / bytesPerFrame, sampleRate) : 0
+  } finally {
+    await handle.close()
+  }
 }
