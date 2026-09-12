@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 macOS 向けの Web 会議レコーダー（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜023）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜029）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -55,9 +55,10 @@ npx vitest run -t "テスト名の一部"
   node-llama-cpp / afconvert / ファイル I/O）。
 - `src/main/` `src/preload/` `src/renderer/` — Electron。
 
-**結線は 2 か所だけ**: `src/main/container.ts`（main プロセス用）と
-`src/main/worker/pipeline-container.ts`（ワーカー用）。実装を差し替えるならここを変える。
-`pipeline-container.ts` は **`electron` を import してはいけない** — utilityProcess は
+**結線は 3 か所だけ**: `src/main/container.ts`（main プロセス用）、
+`src/main/worker/pipeline-container.ts`（パイプラインのワーカー用）、
+`src/main/worker/search-container.ts`（意味検索のワーカー用）。実装を差し替えるならここを変える。
+ワーカー用の 2 つは **`electron` を import してはいけない** — utilityProcess は
 electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES` 環境変数で渡す。
 
 ### プロセス構成
@@ -67,11 +68,13 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 | renderer | UI と **マイク取得**（AudioWorklet → `IPC.pushMicPcm` で main へ PCM を送る） |
 | main | 録音制御・システム音声キャプチャ（audiotee）・ライブラリ操作・IPC |
 | utilityProcess（`pipeline-worker`） | 文字起こし・話者識別・要約。ネイティブのクラッシュを隔離し、ジョブは 1 件ずつ直列 |
+| utilityProcess（`search-worker`） | 意味検索（bge-m3 の埋め込み・索引の同期）。依頼は並行に受け、3 分使われなければ終了 |
 
-ワーカーは `PipelineClient` が必要時に fork し、ジョブが片付いたら終了させて次の依頼で
+パイプラインのワーカーは `PipelineClient` が必要時に fork し、ジョブが片付いたら終了させて次の依頼で
 作り直す。要約も話者識別も数 GB を使うネイティブコードで、プロセスごと終わらせるのが
-確実にメモリを返す方法だから（ADR-008）。`pipeline-worker` は `electron.vite.config.ts` で main の独立エントリ
-として定義されている。
+確実にメモリを返す方法だから（ADR-008）。意味検索のワーカーは `SearchClient` が管理し、
+連続する検索のためにモデルを温めておく代わりに、パイプラインが動き出したら同期を止めて終了させる
+（ADR-029）。どちらも `electron.vite.config.ts` で main の独立エントリとして定義されている。
 
 ### 録音とパイプライン
 
@@ -98,6 +101,8 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   一覧キャッシュは `index.json`、フォルダ定義は `folders.json`。`index.json` は
   各 `meta.json` から再構築できるキャッシュに過ぎない（ADR-015）。
 - モデル → `~/Library/Application Support/<app>/models/`（保存先ではない。再取得可能なため）
+- 意味検索の索引 → `userData/search/<録音ID>.json`（再生成できるキャッシュ。本文は持たず、
+  チャンクの位置と 8 ビット量子化したベクトルだけ。削除済み録音の分は同期時に消える）
 - 設定 → `userData/settings.json`、録音中の中間 WAV → `userData/work/`
 
 ディレクトリ名は `slugForRecording()` が `YYYY-MM-DD_HHmm-<id先頭8桁>` で作る。
@@ -117,6 +122,8 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 - 話者識別は **`sherpa-onnx-node`（ネイティブアドオン）** を使う。npm の `sherpa-onnx` は
   WASM ビルドで、線形メモリの上限 2GB を拡張できず 40 分を超える録音が必ず失敗する
   （ADR-028）。戻してはいけない。
+- 意味検索の索引に**本文を複製しない**（録音の完全削除が崩れる）。タイトルも対象にしない
+  （短いタイトルがクエリの「〜したミーティング」と一致して本文より上に来る、ADR-029）。
 - 音声コーデックの既定を AAC-LC から HE-AAC に変えない（`afconvert` がビットレート
   指定を無視して品質が落ちる、ADR-005）。
 
