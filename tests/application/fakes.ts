@@ -1,10 +1,12 @@
 import type {
   AudioCapturePort,
+  AudioDecoderPort,
   AudioEncoderPort,
   AudioMixerPort,
   DualTrackSource,
   ClockPort,
   DiarizationPort,
+  FileInfoPort,
   FolderRepositoryPort,
   IdGeneratorPort,
   ProgressReporterPort,
@@ -206,10 +208,13 @@ export class FakeTranscriber implements TranscriptionPort {
 export class FakeDiarizer implements DiarizationPort {
   turns: SpeakerTurn[] = []
   calls = 0
+  /** 最後に話者識別へ渡された WAV。どの素材にかけたかを確かめる。 */
+  lastWavPath?: string
   error?: Error
 
-  async diarize(): Promise<SpeakerTurn[]> {
+  async diarize(params: { wavPath: string }): Promise<SpeakerTurn[]> {
     this.calls += 1
+    this.lastWavPath = params.wavPath
     if (this.error) throw this.error
     return this.turns
   }
@@ -258,6 +263,31 @@ export class FakeEncoder implements AudioEncoderPort {
   }): Promise<void> {
     if (this.error) throw this.error
     this.calls.push(params)
+  }
+}
+
+export class FakeAudioDecoder implements AudioDecoderPort {
+  calls: { inputPath: string; outputPath: string; sampleRate: number }[] = []
+  durationMs = 65_000
+  error?: Error
+
+  async decode(params: {
+    inputPath: string
+    outputPath: string
+    sampleRate: number
+  }): Promise<{ durationMs: number }> {
+    if (this.error) throw this.error
+    this.calls.push(params)
+    return { durationMs: this.durationMs }
+  }
+}
+
+export class FakeFileInfo implements FileInfoPort {
+  /** パスごとの素性。未登録なら「読めない」として undefined を返す。 */
+  entries = new Map<string, { sizeBytes: number; modifiedAt: Date }>()
+
+  async stat(path: string): Promise<{ sizeBytes: number; modifiedAt: Date } | undefined> {
+    return this.entries.get(path)
   }
 }
 

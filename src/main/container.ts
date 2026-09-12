@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { app } from 'electron'
+import { ImportAudioFile } from '@application/usecases/ImportAudioFile'
 import { StartRecording } from '@application/usecases/StartRecording'
 import { StopRecording } from '@application/usecases/StopRecording'
 import {
@@ -28,6 +29,7 @@ import {
   DownloadModel,
   GetModelStatus
 } from '@application/usecases/models'
+import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
 import { AudioTeeSource } from '@infrastructure/audio/AudioTeeSource'
 import { resolveAudioTeeBinary } from '@infrastructure/audio/resolveAudioTeeBinary'
 import { DualTrackRecorder } from '@infrastructure/audio/DualTrackRecorder'
@@ -40,6 +42,7 @@ import { MicUsageProbe } from '@infrastructure/mic/MicUsageProbe'
 import { resolveMicWatchBinary } from '@infrastructure/mic/resolveMicWatchBinary'
 import { FileModelStore } from '@infrastructure/download/FileModelStore'
 import { FileSearchIndex, SEARCH_INDEX_DIR } from '@infrastructure/search/FileSearchIndex'
+import { NodeFileInfoProbe } from '@infrastructure/system/NodeFileInfoProbe'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import {
   JsonSettingsRepository,
@@ -58,6 +61,7 @@ export interface Container {
   readonly micUsage: MicUsageProbe
   readonly startRecording: StartRecording
   readonly stopRecording: StopRecording
+  readonly importAudioFile: ImportAudioFile
   readonly listRecordings: ListRecordings
   readonly getRecordingDetail: GetRecordingDetail
   readonly updateNote: UpdateNote
@@ -127,6 +131,16 @@ export const createContainer = (): Container => {
       ids: { next: () => randomUUID() }
     }),
     stopRecording: new StopRecording(capture),
+    // 変換は取り込み時に済ませるので、パイプライン側の結線は増えない（ADR-030）。
+    importAudioFile: new ImportAudioFile({
+      settings,
+      repository,
+      artifacts,
+      decoder: new AfconvertDecoder(),
+      files: new NodeFileInfoProbe(),
+      clock: { now: () => new Date() },
+      ids: { next: () => randomUUID() }
+    }),
     listRecordings: new ListRecordings(library),
     getRecordingDetail: new GetRecordingDetail(library),
     updateNote: new UpdateNote(library),

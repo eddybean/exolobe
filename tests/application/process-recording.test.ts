@@ -550,3 +550,79 @@ describe('ProcessRecording — メモリガード', () => {
     expect(result.steps.summarize.status).toBe('failed')
   })
 })
+
+/**
+ * 取り込んだ音声は 1 本しかなく、誰の声かが確定していない。全体を相手側として扱い、
+ * 人数の分離は話者識別に任せる（ADR-030）。
+ */
+describe('ProcessRecording — 取り込んだ音声の処理', () => {
+  const imported = {
+    kind: 'single' as const,
+    wavPath: '/work/rec-1/imported.wav',
+    durationMs: 65_000
+  }
+
+  const buildImported = async () => {
+    const ctx = await build()
+    await ctx.artifacts.writeTracks(ctx.recording, imported)
+    ctx.transcriber.byPath.clear()
+    ctx.transcriber.byPath.set(imported.wavPath, [
+      { startMs: 0, endMs: 1_000, text: 'おはようございます' },
+      { startMs: 2_000, endMs: 3_000, text: 'では始めます' }
+    ])
+    ctx.transcriber.calls.length = 0
+    return ctx
+  }
+
+  it('ミックスには 1 本だけを渡す', async () => {
+    const ctx = await buildImported()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.mixer.calls[0]?.tracks).toEqual([{ path: imported.wavPath, offsetMs: 0 }])
+  })
+
+  it('相手側として 1 回だけ文字起こしする', async () => {
+    const ctx = await buildImported()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.transcriber.calls).toEqual([{ wavPath: imported.wavPath, speakerId: 'remote' }])
+  })
+
+  it('自分として文字起こししない', async () => {
+    const ctx = await buildImported()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.transcriber.calls.some((call) => call.speakerId === SELF_SPEAKER_ID)).toBe(false)
+  })
+
+  it('話者識別は音声全体にかける', async () => {
+    const ctx = await buildImported()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.diarizer.lastWavPath).toBe(imported.wavPath)
+  })
+
+  it('話者識別の結果を参加者として採番し、「自分」を作らない', async () => {
+    const ctx = await buildImported()
+    ctx.diarizer.turns = [
+      { startMs: 0, endMs: 1_500, speaker: 'spk0' },
+      { startMs: 1_800, endMs: 3_500, speaker: 'spk1' }
+    ]
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    const saved = await ctx.artifacts.readTranscript(ctx.recording)
+
+    expect(saved?.speakers).toEqual([
+      { id: 'remote:spk0', kind: 'remote', label: '参加者A' },
+      { id: 'remote:spk1', kind: 'remote', label: '参加者B' }
+    ])
+  })
+
+  it('全ステップを完了し、中間ファイルを片付ける', async () => {
+    const ctx = await buildImported()
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.status).toBe('ready')
+    expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])
+  })
+})
