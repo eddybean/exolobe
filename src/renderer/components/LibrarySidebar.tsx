@@ -278,26 +278,32 @@ export const LibrarySidebar = ({
         </p>
       )}
 
-      <ul className="tree__list" hidden={showSemanticResults}>
-        {tree.map((node) => (
-          <TreeNode
-            key={node.key}
-            node={node}
-            depth={0}
-            selectedId={selectedId}
-            dropTarget={dropTarget}
-            isOpen={isOpen}
-            onToggle={toggle}
-            onSelect={onSelect}
-            onRequestCreateChild={(parentId) => setCreateModal({ parentId })}
-            onRenameFolder={onRenameFolder}
-            onDeleteFolder={onDeleteFolder}
-            onDragOver={acceptDrop}
-            onDragLeave={() => setDropTarget(undefined)}
-            onDrop={handleDrop}
-          />
-        ))}
-      </ul>
+      {/*
+        意味検索の結果を出している間はツリーを出さない。hidden 属性では
+        `.tree__list` の display 指定に負けて消えないので、描画ごと分ける。
+      */}
+      {!showSemanticResults && (
+        <ul className="tree__list">
+          {tree.map((node) => (
+            <TreeNode
+              key={node.key}
+              node={node}
+              depth={0}
+              selectedId={selectedId}
+              dropTarget={dropTarget}
+              isOpen={isOpen}
+              onToggle={toggle}
+              onSelect={onSelect}
+              onRequestCreateChild={(parentId) => setCreateModal({ parentId })}
+              onRenameFolder={onRenameFolder}
+              onDeleteFolder={onDeleteFolder}
+              onDragOver={acceptDrop}
+              onDragLeave={() => setDropTarget(undefined)}
+              onDrop={handleDrop}
+            />
+          ))}
+        </ul>
+      )}
 
       {createModal && (
         <FolderNameModal
