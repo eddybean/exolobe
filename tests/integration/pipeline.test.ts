@@ -1,13 +1,16 @@
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { ImportAudioFile } from '@application/usecases/ImportAudioFile'
 import { ProcessRecording } from '@application/usecases/ProcessRecording'
+import { NodeFileInfoProbe } from '@infrastructure/system/NodeFileInfoProbe'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import { StartRecording } from '@application/usecases/StartRecording'
 import { StopRecording } from '@application/usecases/StopRecording'
 import { GetRecordingDetail, ListRecordings } from '@application/usecases/library'
 import { REMOTE_SPEAKER_ID, SELF_SPEAKER_ID } from '@domain/Speaker'
+import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
 import { AfconvertEncoder } from '@infrastructure/audio/AfconvertEncoder'
 import {
   DualTrackRecorder,
@@ -15,7 +18,7 @@ import {
 } from '@infrastructure/audio/DualTrackRecorder'
 import { TrackMixer } from '@infrastructure/audio/TrackMixer'
 import { NullDiarizer } from '@infrastructure/diarization/SherpaOnnxDiarizer'
-import { int16Buffer, readWav } from '@infrastructure/audio/wav'
+import { WavFileWriter, int16Buffer, readWav } from '@infrastructure/audio/wav'
 import {
   FileRecordingArtifactStore,
   FileRecordingRepository
@@ -47,15 +50,19 @@ class ScriptedSystemAudio implements SystemAudioSource {
 
 let storage: string
 let userData: string
+/** 取り込み元のファイルを置く場所。利用者の手元にあるファイルに相当する。 */
+let inbox: string
 
 beforeEach(async () => {
   storage = await mkdtemp(join(tmpdir(), 'omr-e2e-store-'))
   userData = await mkdtemp(join(tmpdir(), 'omr-e2e-data-'))
+  inbox = await mkdtemp(join(tmpdir(), 'omr-e2e-inbox-'))
 })
 
 afterEach(async () => {
   await rm(storage, { recursive: true, force: true })
   await rm(userData, { recursive: true, force: true })
+  await rm(inbox, { recursive: true, force: true })
 })
 
 const build = async (options: { summarizerError?: Error } = {}) => {
@@ -88,6 +95,15 @@ const build = async (options: { summarizerError?: Error } = {}) => {
       ids: { next: () => 'rec-1' }
     }),
     stop: new StopRecording({ repository, capture: recorder, artifacts }),
+    importAudioFile: new ImportAudioFile({
+      settings,
+      repository,
+      artifacts,
+      decoder: new AfconvertDecoder(),
+      files: new NodeFileInfoProbe(),
+      clock: { now: () => new Date('2026-09-06T14:30:00+09:00') },
+      ids: { next: () => 'rec-1' }
+    }),
     process: new ProcessRecording({
       settings,
       repository,
@@ -222,5 +238,90 @@ describe('録音から保存までの一連の流れ', () => {
     expect((await stat(join(storage, recording.slug, 'audio.m4a'))).size).toBeGreaterThan(0)
     // リトライできるよう中間ファイルは残る
     await expect(stat(join(ctx.artifacts.workDir(processed), 'mix.wav'))).resolves.toBeTruthy()
+  }, 60_000)
+})
+
+/**
+ * 取り込みは実際の afconvert を通す。拡張子の判定・変換・ミックス・エンコードの
+ * 結線が噛み合っていることを、Fake で差し替えずに確かめる。
+ */
+describe('音声ファイルの取り込み', () => {
+  /** 取り込み元になる 2ch の WAV を書く。録音とは違うサンプルレートにして変換を効かせる。 */
+  const writeSource = async (name: string, seconds: number): Promise<string> => {
+    const path = join(inbox, name)
+    const writer = await WavFileWriter.create(path, { sampleRate: 44_100, channels: 2 })
+    const mono = speechLike44k(seconds)
+    const interleaved: number[] = []
+    for (const sample of mono) interleaved.push(sample, Math.round(sample * 0.6))
+    await writer.write(int16Buffer(interleaved))
+    await writer.close()
+    return path
+  }
+
+  const speechLike44k = (seconds: number): number[] => {
+    let seed = 13
+    let previous = 0
+    return Array.from({ length: 44_100 * seconds }, () => {
+      seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648
+      const white = (seed / 2_147_483_648) * 12_000 - 6_000
+      previous = Math.round(0.75 * previous + 0.25 * white)
+      return previous
+    })
+  }
+
+  it('取り込みから保存までが実ファイルで通る', async () => {
+    const ctx = await build()
+    const source = await writeSource('取り込み用の会議.wav', RECORDING_SECONDS)
+
+    const recording = await ctx.importAudioFile.execute({ filePath: source })
+
+    // ファイル名がタイトルになり、更新日時が開始日時になる
+    expect(recording.title).toBe('取り込み用の会議')
+    expect(recording.status).toBe('processing')
+
+    const imported = join(ctx.artifacts.workDir(recording), 'imported.wav')
+    const wav = await readWav(imported)
+    expect(wav.sampleRate).toBe(SAMPLE_RATE)
+    expect(wav.channels).toBe(1)
+
+    ctx.transcriber.byPath.set(imported, [{ startMs: 0, endMs: 1_000, text: '来週リリースします' }])
+
+    const processed = await ctx.process.execute({ recordingId: recording.id })
+    expect(processed.status).toBe('ready')
+
+    // 相手側として 1 回だけ文字起こしされ、「自分」は現れない
+    expect(ctx.transcriber.calls).toEqual([{ wavPath: imported, speakerId: REMOTE_SPEAKER_ID }])
+    const detail = await ctx.detail.execute(recording.id)
+    expect(detail.transcriptMarkdown).toBe('参加者: 来週リリースします')
+
+    // 保存先に成果物が揃い、中間 WAV は片付いている
+    const dir = join(storage, recording.slug)
+    for (const name of ['audio.m4a', 'transcript.json', 'transcript.md', 'summary.md']) {
+      expect((await stat(join(dir, name))).size).toBeGreaterThan(0)
+    }
+    for (const name of ['imported.wav', 'mix.wav']) {
+      await expect(stat(join(ctx.artifacts.workDir(processed), name))).rejects.toThrow()
+    }
+  }, 60_000)
+
+  it('1 分未満は取り込まず、保存先にディレクトリも作らない', async () => {
+    const ctx = await build()
+    const source = await writeSource('短い.wav', 2)
+
+    await expect(ctx.importAudioFile.execute({ filePath: source })).rejects.toThrow(
+      '1 分未満の録音は処理しません'
+    )
+    expect(await ctx.list.execute()).toEqual([])
+    expect(await readdir(storage)).toEqual([])
+  }, 60_000)
+
+  it('対応していない形式は afconvert を呼ばずに断る', async () => {
+    const ctx = await build()
+    const source = await writeSource('会議.wav', 2)
+    const renamed = source.replace(/\.wav$/, '.webm')
+    await rename(source, renamed)
+
+    await expect(ctx.importAudioFile.execute({ filePath: renamed })).rejects.toThrow('.webm')
+    expect(await ctx.list.execute()).toEqual([])
   }, 60_000)
 })
