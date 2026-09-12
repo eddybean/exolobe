@@ -52,6 +52,11 @@ export class NodeLlamaEmbedder<T> implements TextEmbedderPort {
     this.modelKey = basename(config.modelPath)
   }
 
+  /** 読み込み中も含めて「メモリを確保しに行った後」か。 */
+  get loaded(): boolean {
+    return this.session !== undefined
+  }
+
   async embed(text: string): Promise<Float32Array> {
     const session = await this.ensureSession()
     const tokens = session.tokenize(text).slice(0, MAX_INPUT_TOKENS)

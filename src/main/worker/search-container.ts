@@ -41,6 +41,7 @@ export const createSearch = async (userDataPath: string): Promise<SearchServices
   const current = await settings.load()
   const locator = new SettingsStorageLocator(settings)
 
+  const system = new NodeSystemResourceProbe()
   const repository = new FileRecordingRepository(locator)
   const artifacts = new FileRecordingArtifactStore(locator, join(userDataPath, 'work'))
   const index = new FileSearchIndex(join(userDataPath, SEARCH_INDEX_DIR))
@@ -56,8 +57,8 @@ export const createSearch = async (userDataPath: string): Promise<SearchServices
       index,
       embedder,
       settings,
-      system: new NodeSystemResourceProbe()
+      system
     }),
-    search: new SearchRecordings({ repository, artifacts, index, embedder })
+    search: new SearchRecordings({ repository, artifacts, index, embedder, settings, system })
   }
 }

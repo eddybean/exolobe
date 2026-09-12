@@ -298,10 +298,12 @@ export class FakeTextEmbedder implements TextEmbedderPort {
   modelKey = 'fake-model'
   calls: string[] = []
   error?: Error
+  loaded = false
 
   async embed(text: string): Promise<Float32Array> {
     if (this.error) throw this.error
     this.calls.push(text)
+    this.loaded = true
     // 末尾の小さな定数は、どの語も含まない文をゼロベクトルにしないため。
     return normalize([
       ...FakeTextEmbedder.KEYWORDS.map((keyword) => (text.includes(keyword) ? 1 : 0)),

@@ -177,6 +177,13 @@ describe('SyncSearchIndex', () => {
     expect(embedder.calls).toEqual([])
   })
 
+  it('モデルを読み込み済みなら確認しない（確保済みの分を二重に数えない）', async () => {
+    embedder.loaded = true
+    system.snapshot = { totalBytes: 8 * 1_024 ** 3, availableBytes: 1 * 1_024 ** 3 }
+
+    await expect(sync().execute()).resolves.toMatchObject({ indexed: 2 })
+  })
+
   it('作り直すものが無ければメモリを確認しない（空きが少なくても掃除はできる）', async () => {
     await sync().execute()
     system.snapshot = { totalBytes: 8 * 1_024 ** 3, availableBytes: 1 * 1_024 ** 3 }
@@ -201,7 +208,7 @@ describe('SyncSearchIndex', () => {
 
 describe('SearchRecordings', () => {
   const search = (): SearchRecordings =>
-    new SearchRecordings({ repository, artifacts, index, embedder })
+    new SearchRecordings({ repository, artifacts, index, embedder, settings, system })
 
   beforeEach(async () => {
     await sync().execute()
@@ -240,6 +247,26 @@ describe('SearchRecordings', () => {
     embedder.modelKey = 'another-model'
 
     expect(await search().execute({ query: '雨の話' })).toEqual([])
+  })
+
+  it('モデルの読み込みに必要なメモリが無ければ、読み込まずに理由を伝える', async () => {
+    // 会議中に検索されることがある。数 GB のモデルを黙って載せて OS ごと重くしない。
+    // 索引作成でモデルを読んだ後にワーカーが終了し、検索で読み直す状況。
+    embedder.loaded = false
+    embedder.calls = []
+    system.snapshot = { totalBytes: 8 * 1_024 ** 3, availableBytes: 1 * 1_024 ** 3 }
+
+    await expect(search().execute({ query: '雨の話' })).rejects.toThrow(
+      'メモリが不足しているため意味検索を'
+    )
+    expect(embedder.calls).toEqual([])
+  })
+
+  it('モデルを読み込み済みなら、空きが少なくても検索できる', async () => {
+    embedder.loaded = true
+    system.snapshot = { totalBytes: 8 * 1_024 ** 3, availableBytes: 1 * 1_024 ** 3 }
+
+    await expect(search().execute({ query: '雨の話' })).resolves.toHaveLength(1)
   })
 
   it('索引が残っていても、削除済みの録音は返さない', async () => {

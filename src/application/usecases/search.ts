@@ -22,7 +22,6 @@ import {
   type SearchMaterial,
   type SearchSource
 } from '@domain/SemanticSearch'
-import type { Settings } from '@domain/Settings'
 
 const loadMaterial = async (
   artifacts: RecordingArtifactPort,
@@ -61,7 +60,38 @@ export interface SyncSearchIndexDeps {
   readonly system: SystemResourcePort
 }
 
-const MEMORY_LABEL = '意味検索の索引作成'
+/**
+ * 数 GB のモデルを読み込む前に空きを確認し、足りなければ断る。
+ *
+ * 索引作成だけでなく検索でも通す。会議中に検索されることがあり、そこで黙って
+ * モデルを載せると OS ごと重くなる（ADR-024 が要約・文字起こしで守っているのと同じ）。
+ * 読み込み済みなら確保済みなので確認しない。空きから引かれた分を要求側にも数えると、
+ * 動いているモデルを理由に断ってしまう。
+ */
+const ensureEmbeddingMemory = async (
+  deps: {
+    readonly settings: SettingsRepositoryPort
+    readonly system: SystemResourcePort
+    readonly embedder: TextEmbedderPort
+  },
+  label: string
+): Promise<void> => {
+  if (deps.embedder.loaded) return
+
+  const settings = await deps.settings.load()
+  if (settings.memoryProtection === 'off') return
+
+  const modelFileBytes =
+    (await deps.system.fileSize(settings.search.modelPath)) ?? findAsset('search-model')?.bytes
+  if (modelFileBytes === undefined) return
+
+  const shortage = insufficientMemory({
+    snapshot: await deps.system.memory(),
+    demand: { bytes: estimateEmbeddingBytes({ modelFileBytes }), label },
+    protection: settings.memoryProtection
+  })
+  if (shortage) throw new AppError(shortage)
+}
 
 /**
  * 索引を録音一覧に合わせる。
@@ -129,7 +159,7 @@ export class SyncSearchIndex {
       pending.push({ recording, documents, fingerprint: current })
     }
 
-    if (pending.length > 0) await this.ensureMemory(settings)
+    if (pending.length > 0) await ensureEmbeddingMemory(this.deps, '意味検索の索引作成')
 
     let indexed = 0
     let aborted = false
@@ -161,22 +191,6 @@ export class SyncSearchIndex {
     return { indexed, removed, failed, aborted }
   }
 
-  /** モデルを読み込む前に断り、会議アプリを巻き込んで OS が固まるのを避ける。 */
-  private async ensureMemory(settings: Settings): Promise<void> {
-    if (settings.memoryProtection === 'off') return
-
-    const modelFileBytes =
-      (await this.deps.system.fileSize(settings.search.modelPath)) ??
-      findAsset('search-model')?.bytes
-    if (modelFileBytes === undefined) return
-
-    const shortage = insufficientMemory({
-      snapshot: await this.deps.system.memory(),
-      demand: { bytes: estimateEmbeddingBytes({ modelFileBytes }), label: MEMORY_LABEL },
-      protection: settings.memoryProtection
-    })
-    if (shortage) throw new AppError(shortage)
-  }
 }
 
 export interface SearchHit {
@@ -195,6 +209,8 @@ export interface SearchRecordingsDeps {
   readonly artifacts: RecordingArtifactPort
   readonly index: SearchIndexPort
   readonly embedder: TextEmbedderPort
+  readonly settings: SettingsRepositoryPort
+  readonly system: SystemResourcePort
 }
 
 export class SearchRecordings {
@@ -204,6 +220,7 @@ export class SearchRecordings {
     if (!params.query.trim()) return []
 
     const { repository, artifacts, index, embedder } = this.deps
+    await ensureEmbeddingMemory(this.deps, '意味検索')
     const vector = await embedder.embed(focusQuery(params.query))
 
     const recordings = new Map(

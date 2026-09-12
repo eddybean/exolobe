@@ -163,6 +163,11 @@ export interface TextEmbedderPort {
    * それ以前に作ったベクトルとは比較できない。
    */
   readonly modelKey: string
+  /**
+   * モデルを読み込み済みか。
+   * 読み込み済みならメモリは既に確保されているので、所要量を二重に数えない。
+   */
+  readonly loaded: boolean
   /** 長さ 1 に正規化したベクトルを返す。 */
   embed(text: string): Promise<Float32Array>
 }
