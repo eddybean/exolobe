@@ -25,6 +25,17 @@ export class ModelInUseError extends AppError {}
 /** パイプラインの 1 ステップが失敗した。 */
 export class PipelineStepError extends AppError {}
 
+/** 取り込もうとした音声ファイルの形式を扱えない。 */
+export class UnsupportedAudioFormatError extends AppError {}
+
+/**
+ * 中身のある会議として扱えないほど短い。
+ *
+ * 録音では停止時点で録音が既に存在するため全ステップを失敗として記録するしかないが、
+ * 取り込みは利用者が選んだ直後なので、録音を作る前にこれを投げて理由だけを返す。
+ */
+export class TooShortRecordingError extends AppError {}
+
 /** 例外値から利用者向けメッセージを取り出す。catch した unknown を安全に扱う。 */
 export const toMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message
