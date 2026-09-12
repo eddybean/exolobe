@@ -2,7 +2,7 @@ import type {
   AudioCapturePort,
   AudioEncoderPort,
   AudioMixerPort,
-  CapturedTracks,
+  DualTrackSource,
   ClockPort,
   DiarizationPort,
   FolderRepositoryPort,
@@ -10,6 +10,7 @@ import type {
   ProgressReporterPort,
   RecordingArtifactPort,
   RecordingRepositoryPort,
+  RecordingSource,
   SearchIndexEntry,
   SearchIndexPort,
   SettingsRepositoryPort,
@@ -55,7 +56,8 @@ export class FakeIdGenerator implements IdGeneratorPort {
 export class FakeAudioCapture implements AudioCapturePort {
   active = false
   startCalls: { workDir: string; sampleRate: number }[] = []
-  tracks: CapturedTracks = {
+  tracks: DualTrackSource = {
+    kind: 'dual',
     systemWavPath: '/work/system.wav',
     micWavPath: '/work/mic.wav',
     micOffsetMs: 120,
@@ -70,7 +72,7 @@ export class FakeAudioCapture implements AudioCapturePort {
     this.startCalls.push(params)
     this.active = true
   }
-  async stop(): Promise<CapturedTracks> {
+  async stop(): Promise<DualTrackSource> {
     this.active = false
     return this.tracks
   }
@@ -119,15 +121,15 @@ export class FakeArtifactStore implements RecordingArtifactPort {
   cleanedUp: string[] = []
   removed: string[] = []
 
-  tracks = new Map<string, CapturedTracks>()
+  tracks = new Map<string, RecordingSource>()
 
   workDir(recording: Recording): string {
     return `/work/${recording.id}`
   }
-  async readTracks(recording: Recording): Promise<CapturedTracks | undefined> {
+  async readTracks(recording: Recording): Promise<RecordingSource | undefined> {
     return this.tracks.get(recording.id)
   }
-  async writeTracks(recording: Recording, tracks: CapturedTracks): Promise<void> {
+  async writeTracks(recording: Recording, tracks: RecordingSource): Promise<void> {
     this.tracks.set(recording.id, tracks)
   }
   async audioPath(recording: Recording): Promise<string> {

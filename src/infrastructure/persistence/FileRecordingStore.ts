@@ -1,9 +1,9 @@
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type {
-  CapturedTracks,
   RecordingArtifactPort,
-  RecordingRepositoryPort
+  RecordingRepositoryPort,
+  RecordingSource
 } from '@application/ports'
 import {
   PIPELINE_STEPS,
@@ -164,10 +164,40 @@ const isTranscriptFile = (value: unknown): value is TranscriptFile => {
   return Array.isArray(candidate.segments) && Array.isArray(candidate.speakers)
 }
 
-const isTracks = (value: unknown): value is CapturedTracks => {
-  if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Partial<CapturedTracks>
-  return typeof candidate.systemWavPath === 'string' && typeof candidate.micWavPath === 'string'
+const asNumber = (value: unknown): number => (typeof value === 'number' ? value : 0)
+
+/**
+ * tracks.json を音の素材として読む。
+ *
+ * kind を持たないファイルは 2 トラック録音しか無かった頃に書かれたもので、当時の形は
+ * 必ず dual だったので補って返す（meta.json の欠けたステップを pending で補うのと同じ）。
+ * アプリを更新しただけで処理中だった録音のリトライが壊れないようにするため。
+ */
+const toSource = (value: unknown): RecordingSource | undefined => {
+  if (typeof value !== 'object' || value === null) return undefined
+  const candidate = value as Record<string, unknown>
+
+  if (candidate['kind'] === 'single') {
+    return typeof candidate['wavPath'] === 'string'
+      ? {
+          kind: 'single',
+          wavPath: candidate['wavPath'],
+          durationMs: asNumber(candidate['durationMs'])
+        }
+      : undefined
+  }
+
+  if (typeof candidate['systemWavPath'] !== 'string' || typeof candidate['micWavPath'] !== 'string') {
+    return undefined
+  }
+
+  return {
+    kind: 'dual',
+    systemWavPath: candidate['systemWavPath'],
+    micWavPath: candidate['micWavPath'],
+    micOffsetMs: asNumber(candidate['micOffsetMs']),
+    durationMs: asNumber(candidate['durationMs'])
+  }
 }
 
 /**
@@ -191,12 +221,11 @@ export class FileRecordingArtifactStore implements RecordingArtifactPort {
     return join(await this.dir(recording), 'audio.m4a')
   }
 
-  async readTracks(recording: Recording): Promise<CapturedTracks | undefined> {
-    const value = await readJson(join(this.workDir(recording), TRACKS_FILE))
-    return isTracks(value) ? value : undefined
+  async readTracks(recording: Recording): Promise<RecordingSource | undefined> {
+    return toSource(await readJson(join(this.workDir(recording), TRACKS_FILE)))
   }
 
-  async writeTracks(recording: Recording, tracks: CapturedTracks): Promise<void> {
+  async writeTracks(recording: Recording, tracks: RecordingSource): Promise<void> {
     await writeJsonAtomic(join(this.workDir(recording), TRACKS_FILE), tracks)
   }
 
@@ -236,7 +265,9 @@ export class FileRecordingArtifactStore implements RecordingArtifactPort {
 
   async cleanupIntermediates(recording: Recording): Promise<void> {
     const dir = this.workDir(recording)
-    for (const name of ['system.wav', 'mic.wav', 'mix.wav', TRACKS_FILE]) {
+    // 取り込み由来の imported.wav も常に対象にする。録音由来のものには存在しないだけで、
+    // どちらだったかを知るために消す直前の tracks.json を読む理由が無い（rm は force）。
+    for (const name of ['system.wav', 'mic.wav', 'imported.wav', 'mix.wav', TRACKS_FILE]) {
       await rm(join(dir, name), { force: true })
     }
   }

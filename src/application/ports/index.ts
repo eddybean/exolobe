@@ -1,6 +1,7 @@
 import type { Folder } from '@domain/Folder'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { PipelineStep, Recording } from '@domain/Recording'
+import type { DualTrackSource, RecordingSource } from '@domain/RecordingSource'
 import type { ChunkLocator, SearchSource } from '@domain/SemanticSearch'
 import type { AudioCodec, Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
@@ -21,18 +22,16 @@ export interface IdGeneratorPort {
   next(): string
 }
 
-/** 録音中に書き出された 2 トラックとその時間関係。 */
-export interface CapturedTracks {
-  readonly systemWavPath: string
-  readonly micWavPath: string
-  /** マイクトラックがシステム音声より遅れて開始した量。負なら先行。 */
-  readonly micOffsetMs: number
-  readonly durationMs: number
-}
+/**
+ * パイプラインが読む音の素材。定義は domain にあり、ここからは再公開するだけ。
+ * 内側の層（ユースケース）が「録音か取り込みか」を業務の語彙で扱えるようにするため。
+ */
+export type { DualTrackSource, ImportedTrackSource, RecordingSource } from '@domain/RecordingSource'
 
 export interface AudioCapturePort {
   start(params: { workDir: string; sampleRate: number }): Promise<void>
-  stop(): Promise<CapturedTracks>
+  /** 録音は常に 2 トラックなので、取り込みを含む union より狭い型を返す。 */
+  stop(): Promise<DualTrackSource>
   isActive(): boolean
   /**
    * 前回の読み出し以降に届いたシステム音声の peak（0〜1）。
@@ -112,9 +111,12 @@ export interface RecordingArtifactPort {
   /** 保存先に置く最終音声のパス。保存先は設定で変わるため非同期に解決する。 */
   audioPath(recording: Recording): Promise<string>
 
-  /** 停止時に確定したトラック情報。アプリ再起動後のリトライで必要になる。 */
-  readTracks(recording: Recording): Promise<CapturedTracks | undefined>
-  writeTracks(recording: Recording, tracks: CapturedTracks): Promise<void>
+  /**
+   * パイプラインの入力となる音の素材。アプリ再起動後のリトライで必要になる。
+   * メソッド名と保存先のファイル名（tracks.json）は 2 トラック録音しか無かった頃のまま。
+   */
+  readTracks(recording: Recording): Promise<RecordingSource | undefined>
+  writeTracks(recording: Recording, tracks: RecordingSource): Promise<void>
 
   readTranscript(
     recording: Recording

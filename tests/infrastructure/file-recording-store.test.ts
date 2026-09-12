@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -152,8 +152,9 @@ describe('FileRecordingArtifactStore', () => {
     expect(artifacts.workDir(recording)).toBe(join(work, 'rec-1'))
   })
 
-  it('トラック情報を保存して読み戻せる', async () => {
+  it('2 トラック録音のトラック情報を保存して読み戻せる', async () => {
     const tracks = {
+      kind: 'dual' as const,
       systemWavPath: '/work/system.wav',
       micWavPath: '/work/mic.wav',
       micOffsetMs: 120,
@@ -164,8 +165,46 @@ describe('FileRecordingArtifactStore', () => {
     expect(await artifacts.readTracks(recording)).toEqual(tracks)
   })
 
+  it('取り込んだ音声のトラック情報を保存して読み戻せる', async () => {
+    const tracks = {
+      kind: 'single' as const,
+      wavPath: '/work/rec-1/imported.wav',
+      durationMs: 65_000
+    }
+    await artifacts.writeTracks(recording, tracks)
+
+    expect(await artifacts.readTracks(recording)).toEqual(tracks)
+  })
+
+  /**
+   * kind を持たない tracks.json は 2 トラック録音しか無かった頃に書かれたもの。
+   * アプリを更新しただけで処理中の録音がリトライできなくなるのを防ぐ。
+   */
+  it('kind の無い古いトラック情報は 2 トラック録音として読む', async () => {
+    await mkdir(artifacts.workDir(recording), { recursive: true })
+    await writeFile(
+      join(artifacts.workDir(recording), 'tracks.json'),
+      JSON.stringify({
+        systemWavPath: '/work/system.wav',
+        micWavPath: '/work/mic.wav',
+        micOffsetMs: 120,
+        durationMs: 65_000
+      }),
+      'utf8'
+    )
+
+    expect(await artifacts.readTracks(recording)).toEqual({
+      kind: 'dual',
+      systemWavPath: '/work/system.wav',
+      micWavPath: '/work/mic.wav',
+      micOffsetMs: 120,
+      durationMs: 65_000
+    })
+  })
+
   it('中間ファイルの片付けで作業ディレクトリの WAV だけを消す', async () => {
     await artifacts.writeTracks(recording, {
+      kind: 'dual',
       systemWavPath: 'x',
       micWavPath: 'y',
       micOffsetMs: 0,
@@ -180,6 +219,19 @@ describe('FileRecordingArtifactStore', () => {
     expect(await artifacts.readSummary(recording)).toBe('要約')
   })
 
+  it('取り込んだ音声の変換後 WAV も中間ファイルとして片付ける', async () => {
+    await artifacts.writeTracks(recording, {
+      kind: 'single',
+      wavPath: join(artifacts.workDir(recording), 'imported.wav'),
+      durationMs: 65_000
+    })
+    await writeFile(join(artifacts.workDir(recording), 'imported.wav'), 'pcm', 'utf8')
+
+    await artifacts.cleanupIntermediates(recording)
+
+    await expect(stat(join(artifacts.workDir(recording), 'imported.wav'))).rejects.toThrow()
+  })
+
   it('存在しない中間ファイルを消しても失敗しない', async () => {
     await expect(artifacts.cleanupIntermediates(recording)).resolves.toBeUndefined()
   })
@@ -187,6 +239,7 @@ describe('FileRecordingArtifactStore', () => {
   it('削除すると保存先と作業ディレクトリの両方が消える', async () => {
     await artifacts.writeSummary(recording, '要約')
     await artifacts.writeTracks(recording, {
+      kind: 'dual',
       systemWavPath: 'x',
       micWavPath: 'y',
       micOffsetMs: 0,

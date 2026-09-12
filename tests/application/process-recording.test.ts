@@ -20,6 +20,7 @@ import {
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
 
 const tracks = {
+  kind: 'dual' as const,
   systemWavPath: '/work/rec-1/system.wav',
   micWavPath: '/work/rec-1/mic.wav',
   micOffsetMs: 120,

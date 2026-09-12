@@ -131,16 +131,15 @@ describe('録音から保存までの一連の流れ', () => {
     const started = await ctx.start.execute({ title: 'サンプル会議' })
     ctx.source.emit(speechLike(RECORDING_SECONDS))
     await ctx.recorder.pushMicPcm(int16Buffer(speechLike(RECORDING_SECONDS)))
-    const { recording } = await ctx.stop.execute(started.id)
+    const { recording, tracks } = await ctx.stop.execute(started.id)
 
     expect(recording.status).toBe('processing')
 
     // ── 文字起こしの結果を差し込む ──
-    const tracks = await ctx.artifacts.readTracks(recording)
-    ctx.transcriber.byPath.set(tracks?.micWavPath ?? '', [
+    ctx.transcriber.byPath.set(tracks.micWavPath, [
       { startMs: 0, endMs: 1_000, text: '来週リリースで進めます' }
     ])
-    ctx.transcriber.byPath.set(tracks?.systemWavPath ?? '', [
+    ctx.transcriber.byPath.set(tracks.systemWavPath, [
       { startMs: 1_200, endMs: 2_000, text: '了解しました' }
     ])
 

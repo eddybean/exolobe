@@ -1,11 +1,11 @@
 import type {
   AudioEncoderPort,
   AudioMixerPort,
-  CapturedTracks,
   DiarizationPort,
   ProgressReporterPort,
   RecordingArtifactPort,
   RecordingRepositoryPort,
+  RecordingSource,
   SettingsRepositoryPort,
   SummarizationPort,
   SystemResourcePort,
@@ -23,6 +23,7 @@ import {
   type RecordingStatus,
   type StepStates
 } from '@domain/Recording'
+import { diarizationTarget, mixInputs, transcriptionTargets } from '@domain/RecordingSource'
 import { PipelineStepError, RecordingNotFoundError, toMessage } from '@domain/errors'
 import {
   estimateSummarizationBytes,
@@ -75,7 +76,7 @@ const STEP_LABELS: Readonly<Record<PipelineStep, string>> = {
 interface StepContext {
   readonly recording: Recording
   readonly settings: Settings
-  readonly tracks: CapturedTracks
+  readonly tracks: RecordingSource
 }
 
 /**
@@ -300,50 +301,48 @@ export class ProcessRecording {
     }
   }
 
-  /** システム音声を基準に、マイクをオフセット分ずらして 1 本の WAV にまとめる。 */
+  /** 素材のトラックを時刻整列して 1 本の WAV にまとめる。単一ソースなら 1 本のまま通る。 */
   private async mix({ recording, tracks }: StepContext): Promise<void> {
     await this.deps.mixer.mix({
-      tracks: [
-        { path: tracks.systemWavPath, offsetMs: 0 },
-        { path: tracks.micWavPath, offsetMs: tracks.micOffsetMs }
-      ],
+      tracks: mixInputs(tracks),
       outputPath: this.mixPath(recording)
     })
   }
 
   /**
-   * トラックごとに文字起こしする。マイク＝自分、システム音声＝相手が確定しているため、
-   * 推論なしで 2 話者を正確に分離できる。
+   * 素材ごとに文字起こしし、話者 ID を付けて 1 本にまとめる。
+   * どの WAV を誰として起こすかは transcriptionTargets が決める。
    */
   private async transcribe({ recording, settings, tracks }: StepContext): Promise<void> {
     const { language } = settings.transcription
 
-    const mine = await this.deps.transcriber.transcribe({
-      wavPath: tracks.micWavPath,
-      language,
-      speakerId: SELF_SPEAKER_ID
-    })
-    const theirs = await this.deps.transcriber.transcribe({
-      wavPath: tracks.systemWavPath,
-      language,
-      speakerId: REMOTE_SPEAKER_ID
-    })
+    // 直列に回す。whisper を 2 本同時に走らせてもメモリを食うだけで速くならない。
+    const tracked: TranscriptSegment[][] = []
+    for (const target of transcriptionTargets(tracks)) {
+      tracked.push(
+        await this.deps.transcriber.transcribe({
+          wavPath: target.wavPath,
+          language,
+          speakerId: target.speakerId
+        })
+      )
+    }
 
     const previous = await this.deps.artifacts.readTranscript(recording)
-    const segments = mergeTracks([mine, theirs])
+    const segments = mergeTracks(tracked)
     await this.deps.artifacts.writeTranscript(recording, {
       segments,
       speakers: buildSpeakers(segments, previous?.speakers)
     })
   }
 
-  /** 相手トラックを話者クラスタに分割し、文字起こしを上書きする。 */
+  /** 相手側を話者クラスタに分割し、文字起こしを上書きする。 */
   private async diarize({ recording, settings, tracks }: StepContext): Promise<void> {
     if (!settings.diarization.enabled) return
 
     const existing = await this.requireTranscript(recording)
     const turns = await this.deps.diarizer.diarize({
-      wavPath: tracks.systemWavPath,
+      wavPath: diarizationTarget(tracks),
       maxSpeakers: settings.diarization.maxSpeakers
     })
 
