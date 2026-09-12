@@ -37,3 +37,33 @@ describe('ライブラリ画面の構成', () => {
     expect(rule).toMatch(/text-overflow:\s*ellipsis/)
   })
 })
+
+/**
+ * 取り込みのオーバーレイは、見た目を確かめる手段が単体テストに無い。
+ * 「ドロップを奪わない」「モーダルより下」という壊れると分かりにくい 2 点を宣言で固定する。
+ */
+describe('ドロップ中のオーバーレイ', () => {
+  it('画面全体を覆う', () => {
+    const rule = ruleFor('.drop-overlay')
+
+    expect(rule).toMatch(/position:\s*fixed/)
+    expect(rule).toMatch(/inset:\s*0/)
+  })
+
+  it('ドロップ自体は奪わない', () => {
+    // pointer-events を切らないと、被せた要素が drop を受けてファイルが取り込めない。
+    expect(ruleFor('.drop-overlay')).toMatch(/pointer-events:\s*none/)
+  })
+
+  it('モーダルより下に重なる', () => {
+    const overlay = Number(/z-index:\s*(\d+)/.exec(ruleFor('.drop-overlay'))?.[1])
+    const modal = Number(/z-index:\s*(\d+)/.exec(ruleFor('.modal-backdrop'))?.[1])
+
+    expect(overlay).toBeLessThan(modal)
+  })
+
+  it('知らせを出している間だけ行を 2 段にする', () => {
+    // 常に 2 段にすると、知らせが無いときに空の行が残って本体の高さが足りなくなる。
+    expect(ruleFor('.library--notified')).toMatch(/grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)/)
+  })
+})

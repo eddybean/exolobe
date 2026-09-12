@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
-import type { FolderDto, RecordingDetailDto, RecordingDto, SetupStateDto } from '@shared/ipc'
+import type {
+  FolderDto,
+  ImportProgressDto,
+  RecordingDetailDto,
+  RecordingDto,
+  SetupStateDto
+} from '@shared/ipc'
 import { LibrarySidebar } from './components/LibrarySidebar'
+import { messageOf } from './errorMessage'
+import { importSummary } from './library/fileDrop'
+import { useFileDrop } from './hooks/useFileDrop'
 import { isSemanticSearchAvailable } from './library/semanticSearch'
 import { TransportBar } from './components/TransportBar'
 import { useTransport } from './hooks/useTransport'
@@ -24,6 +33,8 @@ export const App = (): ReactElement => {
   const [detail, setDetail] = useState<RecordingDetailDto>()
   const [folders, setFolders] = useState<FolderDto[]>([])
   const [semanticAvailable, setSemanticAvailable] = useState(false)
+  const [importing, setImporting] = useState<ImportProgressDto>()
+  const [importError, setImportError] = useState<string>()
 
   const transport = useTransport(setup?.settings.audio.sampleRate ?? 16_000)
 
@@ -73,6 +84,53 @@ export const App = (): ReactElement => {
       await refreshList()
     },
     [refreshList]
+  )
+
+  /**
+   * 取り込みは選択とドロップの両方から来るので、結果の扱いを 1 箇所にまとめる。
+   * 成功は一覧に録音が増えることで分かるので、失敗だけを知らせる。
+   */
+  const runImport = useCallback(
+    async (filePaths: readonly string[]): Promise<void> => {
+      setImportError(undefined)
+      setImporting({ done: 0, total: filePaths.length, fileName: '' })
+      try {
+        setImportError(importSummary(await window.recorder.importAudioFiles(filePaths)))
+      } catch (error: unknown) {
+        setImportError(messageOf(error))
+      } finally {
+        setImporting(undefined)
+        await refreshList()
+      }
+    },
+    [refreshList]
+  )
+
+  const chooseAndImport = useCallback(async (): Promise<void> => {
+    setImportError(undefined)
+    setImporting({ done: 0, total: 0, fileName: '' })
+    try {
+      setImportError(importSummary(await window.recorder.chooseAudioFilesToImport()))
+    } catch (error: unknown) {
+      setImportError(messageOf(error))
+    } finally {
+      setImporting(undefined)
+      await refreshList()
+    }
+  }, [refreshList])
+
+  const drop = useFileDrop({
+    enabled: screen === 'library',
+    onDrop: (filePaths) => void runImport(filePaths)
+  })
+
+  // 取り込みが終わった後に遅れて届いた進捗で、消したはずの表示を蘇らせない。
+  useEffect(
+    () =>
+      window.recorder.onImportProgress((event) =>
+        setImporting((current) => (current === undefined ? undefined : event))
+      ),
+    []
   )
 
   useEffect(() => {
@@ -136,7 +194,33 @@ export const App = (): ReactElement => {
         )}
 
         {screen === 'library' && (
-          <div className="library">
+          <div className={importing || importError ? 'library library--notified' : 'library'}>
+            {drop.active && (
+              <div className="drop-overlay" aria-hidden="true">
+                <p className="drop-overlay__label">音声ファイルをドロップすると取り込みます</p>
+              </div>
+            )}
+            {importing && (
+              <p className="library__import-status" role="status">
+                音声を取り込んでいます…
+                {importing.total > 0 && ` ${importing.done}/${importing.total}`}
+                {importing.fileName && `（${importing.fileName}）`}
+              </p>
+            )}
+
+            {importError && (
+              <div className="library__import-error" role="alert">
+                <span>{importError}</span>
+                <button
+                  type="button"
+                  onClick={() => setImportError(undefined)}
+                  aria-label="取り込みのエラーを閉じる"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <LibrarySidebar
               folders={folders}
               recordings={recordings}
@@ -154,6 +238,8 @@ export const App = (): ReactElement => {
               onMoveRecording={(recordingId, folderId) =>
                 void window.recorder.moveRecordingToFolder(recordingId, folderId)
               }
+              onImport={() => void chooseAndImport()}
+              importing={importing !== undefined}
             />
             {detail ? (
               <RecordingDetailView

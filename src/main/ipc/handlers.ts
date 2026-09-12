@@ -385,12 +385,8 @@ export const registerIpcHandlers = (
       }
     }
 
-    send(IPC.importProgress, {
-      done: paths.length,
-      total: paths.length,
-      fileName: ''
-    } satisfies ImportProgressDto)
-
+    // 終わりの合図は invoke の解決に任せる。ここで最後の進捗を送ると、それが
+    // 解決より後に届いて「取り込み中」の表示が消えなくなる。
     return { imported, failed }
   }
 

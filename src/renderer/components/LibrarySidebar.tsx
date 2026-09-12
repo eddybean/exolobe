@@ -10,12 +10,11 @@ import {
 import type { FolderDto, RecordingDto } from '@shared/ipc'
 import { messageOf } from '../errorMessage'
 import { isCommitEnter } from '../keyboard'
+import { FOLDER_MIME, RECORDING_MIME } from '../library/fileDrop'
 import { autoExpandedKeys, buildLibraryTree, type LibraryNode } from '../library/tree'
 import { STATUS_LABELS } from '../format'
 import { SemanticSearchResults, type SemanticSearchState } from './SemanticSearchResults'
 
-const RECORDING_MIME = 'application/x-recording-id'
-const FOLDER_MIME = 'application/x-folder-id'
 
 /**
  * フォルダ名を入力させるモーダル。
@@ -103,6 +102,8 @@ export const LibrarySidebar = ({
   onDeleteFolder,
   onMoveFolder,
   onMoveRecording,
+  onImport,
+  importing,
   semanticAvailable
 }: {
   folders: readonly FolderDto[]
@@ -116,6 +117,10 @@ export const LibrarySidebar = ({
   onDeleteFolder: (folderId: string) => void
   onMoveFolder: (folderId: string, parentId: string | undefined) => void
   onMoveRecording: (recordingId: string, folderId: string | undefined) => void
+  /** 音声ファイルの取り込みを始める（ファイル選択を出す）。 */
+  onImport: () => void
+  /** 取り込みの変換中。押しても待たされるだけなので操作を止める。 */
+  importing: boolean
 }): ReactElement => {
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<'keyword' | 'semantic'>('keyword')
@@ -219,14 +224,28 @@ export const LibrarySidebar = ({
       <div className="tree__header">
         <div className="tree__header-row">
           <h2>ライブラリ</h2>
-          <button
-            type="button"
-            className="tree__add"
-            title="新規フォルダ"
-            onClick={() => setCreateModal({})}
-          >
-            ＋
-          </button>
+          <span className="tree__header-actions">
+            {/* ドロップだけでは気付かれないので、明示的な入口をここに置く。 */}
+            <button
+              type="button"
+              className="tree__add"
+              title="音声ファイルを取り込む"
+              aria-label="音声ファイルを取り込む"
+              disabled={importing}
+              onClick={onImport}
+            >
+              ⤓
+            </button>
+            <button
+              type="button"
+              className="tree__add"
+              title="新規フォルダ"
+              aria-label="新規フォルダ"
+              onClick={() => setCreateModal({})}
+            >
+              ＋
+            </button>
+          </span>
         </div>
         <input
           type="search"
@@ -272,9 +291,17 @@ export const LibrarySidebar = ({
 
       {!showSemanticResults && !hasMatches && (
         <p className="tree__empty">
-          {recordings.length === 0
-            ? '録音はまだありません。下の「録音」ボタンで開始できます。'
-            : '一致する録音がありません。'}
+          {recordings.length === 0 ? (
+            <>
+              録音はまだありません。下の「録音」ボタンで開始するか、
+              <button type="button" className="tree__empty-link" onClick={onImport}>
+                音声ファイルを取り込め
+              </button>
+              ます。
+            </>
+          ) : (
+            '一致する録音がありません。'
+          )}
         </p>
       )}
 
