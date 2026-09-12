@@ -108,6 +108,8 @@
 ├── domain/                 エンティティと業務ルール。依存ゼロ
 │   ├── Recording.ts        パイプラインのステップ状態と全体ステータスの導出
 │   ├── Transcript.ts       トラックのマージ、話者の割り当て、Markdown 整形
+│   ├── RecordingSource.ts  音の素材（2 トラック録音 / 取り込み）と対象の決め方
+│   ├── AudioImport.ts      取り込める音声形式の判定
 │   ├── Speaker.ts          話者 ID の名前空間（self / remote / remote:spk0）
 │   ├── Settings.ts         既定値・部分マージ・バリデーション
 │   ├── ModelCatalog.ts     ダウンロード対象の URL・サイズ・チェックサム
@@ -118,11 +120,12 @@
 │   └── usecases/
 │       ├── StartRecording / StopRecording
 │       ├── ProcessRecording        停止後パイプラインのオーケストレーション
+│       ├── ImportAudioFile         音声ファイルから録音を作る（変換はここで済ませる）
 │       ├── library.ts              一覧・詳細・メモ・話者名・設定
 │       └── models.ts               モデルの状態確認と取得
 │
 ├── infrastructure/
-│   ├── audio/              audiotee, WAV I/O, ミキサー, afconvert
+│   ├── audio/              audiotee, WAV I/O, ミキサー, afconvert（エンコードと取り込みの変換）
 │   ├── transcription/      whisper-cli の起動と JSON 解析
 │   ├── summarization/      node-llama-cpp、分割と統合
 │   ├── diarization/        sherpa-onnx、話者数の上限処理
