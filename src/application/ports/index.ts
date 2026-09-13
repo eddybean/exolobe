@@ -6,6 +6,7 @@ import type { ChunkLocator, SearchSource } from '@domain/SemanticSearch'
 import type { AudioCodec, Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import type { SpeakerTurn, TranscriptSegment } from '@domain/TranscriptSegment'
+import type { RecordingVoices, SpeakerVector, Voiceprint } from '@domain/Voiceprint'
 
 /**
  * 内側の層が外界に触れるための境界。実装はすべて infrastructure 層に置き、
@@ -27,6 +28,7 @@ export interface IdGeneratorPort {
  * 内側の層（ユースケース）が「録音か取り込みか」を業務の語彙で扱えるようにするため。
  */
 export type { DualTrackSource, ImportedTrackSource, RecordingSource } from '@domain/RecordingSource'
+export type { RecordingVoices, SpeakerVector, Voiceprint } from '@domain/Voiceprint'
 
 export interface AudioCapturePort {
   start(params: { workDir: string; sampleRate: number }): Promise<void>
@@ -86,6 +88,37 @@ export interface DiarizationPort {
     maxSpeakers: number
     signal?: AbortSignal
   }): Promise<SpeakerTurn[]>
+}
+
+/**
+ * 話者クラスタごとの声紋を取り出す。
+ *
+ * 話者分割（誰と誰が別人か）とは別の仕事なので port を分ける。分割は
+ * 1 つの録音の中で閉じるが、こちらは録音をまたいで同じ人を指すための値を作る。
+ */
+export interface SpeakerEmbeddingPort {
+  /** 埋め込みモデルの識別子。変われば過去に作った声紋とは比較できない。 */
+  readonly modelKey: string
+  /** `speaker` はダイアライザが付けたクラスタ名（例: `spk0`）。 */
+  embedSpeakers(params: {
+    wavPath: string
+    turns: readonly SpeakerTurn[]
+    signal?: AbortSignal
+  }): Promise<{ readonly speaker: string; readonly vector: Float32Array }[]>
+}
+
+/**
+ * 声紋帳。保存先ルートの voiceprints.json が実体。
+ *
+ * 索引（SearchIndexPort）と違い再生成できない。利用者が名前を付けた事実そのもので、
+ * 元の録音を消しても残す（ADR-031）。
+ */
+export interface VoiceprintRepositoryPort {
+  list(): Promise<Voiceprint[]>
+  /** 名前を鍵に 1 件を置く。同じ名前があれば差し替える。 */
+  put(voiceprint: Voiceprint): Promise<void>
+  remove(name: string): Promise<void>
+  clear(): Promise<void>
 }
 
 export interface SummarizationPort {
@@ -148,6 +181,13 @@ export interface RecordingArtifactPort {
     recording: Recording,
     data: { segments: readonly TranscriptSegment[]; speakers: readonly Speaker[] }
   ): Promise<void>
+
+  /**
+   * 話者ごとの声紋。名前を付けるのはパイプラインが終わった後なので、
+   * そのときには work/ の WAV が消えている。録音と一緒に残しておく。
+   */
+  readVoices(recording: Recording): Promise<RecordingVoices | undefined>
+  writeVoices(recording: Recording, voices: RecordingVoices): Promise<void>
 
   readSummary(recording: Recording): Promise<string | undefined>
   writeSummary(recording: Recording, markdown: string): Promise<void>

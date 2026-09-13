@@ -252,3 +252,45 @@ describe('FileRecordingArtifactStore', () => {
     await expect(stat(artifacts.workDir(recording))).rejects.toThrow()
   })
 })
+
+describe('FileRecordingArtifactStore — 話者の声紋', () => {
+  it('書いた声紋を Float32Array として読み戻せる', async () => {
+    await artifacts.writeVoices(recording, {
+      modelKey: 'campplus:192',
+      speakers: [{ speakerId: 'remote:spk0', vector: Float32Array.from([0.6, 0.8]) }]
+    })
+
+    const voices = await artifacts.readVoices(recording)
+
+    expect(voices?.modelKey).toBe('campplus:192')
+    expect(voices?.speakers[0]?.speakerId).toBe('remote:spk0')
+    expect(voices?.speakers[0]?.vector).toBeInstanceOf(Float32Array)
+    expect(Array.from(voices?.speakers[0]?.vector ?? [])).toEqual([
+      expect.closeTo(0.6),
+      expect.closeTo(0.8)
+    ])
+  })
+
+  it('声紋が無ければ undefined を返す', async () => {
+    expect(await artifacts.readVoices(recording)).toBeUndefined()
+  })
+
+  it('壊れた声紋ファイルは無いものとして扱う', async () => {
+    const dir = join(storage, recording.slug)
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'voices.json'), '{"modelKey": 1}', 'utf8')
+
+    expect(await artifacts.readVoices(recording)).toBeUndefined()
+  })
+
+  it('録音を消すと声紋も消える', async () => {
+    await artifacts.writeVoices(recording, {
+      modelKey: 'campplus:192',
+      speakers: [{ speakerId: 'remote:spk0', vector: Float32Array.from([1, 0]) }]
+    })
+
+    await artifacts.removeAll(recording)
+
+    expect(await artifacts.readVoices(recording)).toBeUndefined()
+  })
+})

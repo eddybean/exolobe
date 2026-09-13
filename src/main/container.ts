@@ -34,6 +34,7 @@ import { AudioTeeSource } from '@infrastructure/audio/AudioTeeSource'
 import { resolveAudioTeeBinary } from '@infrastructure/audio/resolveAudioTeeBinary'
 import { DualTrackRecorder } from '@infrastructure/audio/DualTrackRecorder'
 import { FileFolderRepository } from '@infrastructure/persistence/FileFolderStore'
+import { FileVoiceprintRepository } from '@infrastructure/persistence/FileVoiceprintStore'
 import {
   FileRecordingArtifactStore,
   FileRecordingRepository
@@ -92,6 +93,7 @@ export const createContainer = (): Container => {
   const repository = new FileRecordingRepository(locator)
   const artifacts = new FileRecordingArtifactStore(locator, join(userData, 'work'))
   const folderRepository = new FileFolderRepository(locator)
+  const voiceprints = new FileVoiceprintRepository(locator)
   const folderDeps = {
     folders: folderRepository,
     recordings: repository,
@@ -145,7 +147,7 @@ export const createContainer = (): Container => {
     getRecordingDetail: new GetRecordingDetail(library),
     updateNote: new UpdateNote(library),
     renameRecording: new RenameRecording(library),
-    renameSpeaker: new RenameSpeaker(library),
+    renameSpeaker: new RenameSpeaker({ ...library, voiceprints, clock: { now: () => new Date() } }),
     deleteRecording: new DeleteRecording(library),
     listFolders: new ListFolders(folderDeps),
     createFolder: new CreateFolder(folderDeps),

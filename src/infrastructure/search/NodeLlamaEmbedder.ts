@@ -4,7 +4,7 @@ import type { Token } from 'node-llama-cpp'
 import type { TextEmbedderPort } from '@application/ports'
 import { ConfigurationError, toMessage } from '@domain/errors'
 import type { MemoryProtection } from '@domain/MemoryGuard'
-import { normalize } from '@domain/SemanticSearch'
+import { normalize } from '@domain/vector'
 import {
   ModelLoadError,
   llamaOptionsFor

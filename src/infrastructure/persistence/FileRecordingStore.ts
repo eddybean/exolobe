@@ -17,6 +17,7 @@ import { AppError, ConfigurationError } from '@domain/errors'
 import type { Speaker } from '@domain/Speaker'
 import { toMarkdown } from '@domain/Transcript'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
+import type { RecordingVoices, SpeakerVector } from '@domain/Voiceprint'
 import { readJson, writeJsonAtomic } from './jsonFile'
 
 export class StorageError extends AppError {}
@@ -33,6 +34,7 @@ const TRANSCRIPT_MD = 'transcript.md'
 const SUMMARY_MD = 'summary.md'
 const NOTE_MD = 'note.md'
 const TRACKS_FILE = 'tracks.json'
+const VOICES_FILE = 'voices.json'
 
 interface RecordingRecord {
   id: string
@@ -167,6 +169,34 @@ const isTranscriptFile = (value: unknown): value is TranscriptFile => {
 const asNumber = (value: unknown): number => (typeof value === 'number' ? value : 0)
 
 /**
+ * voices.json を話者の声紋として読む。
+ *
+ * JSON に Float32Array は無いので数値配列で持ち、読むときに戻す。声紋は名前を
+ * 引き当てるためだけの補助データなので、壊れていれば無いものとして扱う。
+ * 話者名を変えられなくなるより、その録音ぶんの学習を諦めるほうが軽い。
+ */
+const toVoices = (value: unknown): RecordingVoices | undefined => {
+  if (typeof value !== 'object' || value === null) return undefined
+  const candidate = value as { modelKey?: unknown; speakers?: unknown }
+  if (typeof candidate.modelKey !== 'string' || !Array.isArray(candidate.speakers)) {
+    return undefined
+  }
+
+  const speakers: SpeakerVector[] = []
+  for (const entry of candidate.speakers) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const speaker = entry as { speakerId?: unknown; vector?: unknown }
+    if (typeof speaker.speakerId !== 'string' || !Array.isArray(speaker.vector)) continue
+    speakers.push({
+      speakerId: speaker.speakerId,
+      vector: Float32Array.from(speaker.vector.map(asNumber))
+    })
+  }
+
+  return { modelKey: candidate.modelKey, speakers }
+}
+
+/**
  * tracks.json を音の素材として読む。
  *
  * kind を持たないファイルは 2 トラック録音しか無かった頃に書かれたもので、当時の形は
@@ -245,6 +275,20 @@ export class FileRecordingArtifactStore implements RecordingArtifactPort {
     })
     // 機械可読な JSON と、そのままコピペできる Markdown の両方を残す。
     await this.writeText(join(dir, TRANSCRIPT_MD), toMarkdown(data.segments, data.speakers))
+  }
+
+  async readVoices(recording: Recording): Promise<RecordingVoices | undefined> {
+    return toVoices(await readJson(join(await this.dir(recording), VOICES_FILE)))
+  }
+
+  async writeVoices(recording: Recording, voices: RecordingVoices): Promise<void> {
+    await writeJsonAtomic(join(await this.dir(recording), VOICES_FILE), {
+      modelKey: voices.modelKey,
+      speakers: voices.speakers.map((speaker) => ({
+        speakerId: speaker.speakerId,
+        vector: Array.from(speaker.vector)
+      }))
+    })
   }
 
   async readSummary(recording: Recording): Promise<string | undefined> {

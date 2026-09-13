@@ -1,4 +1,5 @@
 import { isMemoryProtection, type MemoryProtection } from '@domain/MemoryGuard'
+import { VOICEPRINT_MATCH_THRESHOLD } from '@domain/Voiceprint'
 
 /** audiotee が受け付けるサンプルレート。whisper は 16kHz を前提とするためこれが既定。 */
 export const SUPPORTED_SAMPLE_RATES: readonly number[] = [
@@ -71,6 +72,11 @@ export interface DiarizationSettings {
   readonly maxSpeakers: number
   readonly segmentationModelPath: string
   readonly embeddingModelPath: string
+  /**
+   * 声紋帳の名前を自動で当てにいく下限（コサイン類似度）。
+   * 上げるほど取りこぼすが、別人の名前を書き込む危険は減る（ADR-031）。
+   */
+  readonly voiceprintThreshold: number
 }
 
 /**
@@ -165,7 +171,8 @@ export const defaultSettings = (): Settings => ({
     enabled: true,
     maxSpeakers: 6,
     segmentationModelPath: '',
-    embeddingModelPath: ''
+    embeddingModelPath: '',
+    voiceprintThreshold: VOICEPRINT_MATCH_THRESHOLD
   },
   audio: {
     sampleRate: 16_000,
@@ -221,6 +228,12 @@ export const validateSettings = (settings: Settings): string[] => {
   }
   if (settings.diarization.maxSpeakers < 2) {
     errors.push('話者数の上限は 2 以上を指定してください。')
+  }
+  if (
+    settings.diarization.voiceprintThreshold <= 0 ||
+    settings.diarization.voiceprintThreshold > 1
+  ) {
+    errors.push('声紋の一致閾値は 0 より大きく 1 以下の値を指定してください。')
   }
   if (!isMemoryProtection(settings.memoryProtection)) {
     errors.push('メモリ保護は「保守的」「標準」「オフ」のいずれかを指定してください。')

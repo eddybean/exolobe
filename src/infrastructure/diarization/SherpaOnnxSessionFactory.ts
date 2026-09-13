@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs'
 import { availableParallelism } from 'node:os'
 import { toMessage } from '@domain/errors'
 import {
@@ -6,12 +5,12 @@ import {
   type DiarizationSession,
   type DiarizationSessionFactory
 } from './SherpaOnnxDiarizer'
+import { loadSherpa, missingModelMessage, pickSherpaExports } from './sherpaModule'
+
+export { pickSherpaExports } from './sherpaModule'
 
 /**
  * sherpa-onnx（ネイティブアドオン）で話者ダイアライゼーションのセッションを作る。
- *
- * import はメソッド内で行う。ネイティブライブラリを読むのは実際に話者識別を走らせる
- * ときだけで十分で、アプリの起動時間とメモリを不必要に使わないため。
  *
  * モデルの存在確認を JS 側で先に行うのが要点。パスが不正なままネイティブへ渡すと
  * 原因の分からないエラーになり、利用者が何を直せばよいか分からなくなる。
@@ -57,36 +56,13 @@ export const diarizationThreads = (cpuCount: number): number =>
   Math.max(1, Math.min(4, Math.floor(cpuCount / 2)))
 
 const requireModel = (label: string, path: string): void => {
-  if (!existsSync(path)) {
-    throw new DiarizationError(
-      `${label}が見つかりません（${path}）。設定画面で取得し直すか、話者識別を無効にしてください。`
-    )
-  }
+  const message = missingModelMessage(label, path)
+  if (message) throw new DiarizationError(message)
 }
 
-/** import() が返した名前空間。名前付き export はある場合と無い場合がある。 */
-type SherpaNamespace = {
-  OfflineSpeakerDiarization?: SherpaExports['OfflineSpeakerDiarization']
-  default: SherpaExports
-}
-
-interface SherpaExports {
-  OfflineSpeakerDiarization: typeof import('sherpa-onnx-node').OfflineSpeakerDiarization
-}
-
-/**
- * sherpa-onnx-node は CJS で `module.exports` を変数から組み立てているため、
- * Node の `import()` は名前付き export を推測できず default にしか入らない。
- * 変換系（vitest 等）では名前付きも生えるので、両方を見る。
- */
-export const pickSherpaExports = (namespace: SherpaNamespace): SherpaExports =>
-  namespace.OfflineSpeakerDiarization === undefined
-    ? namespace.default
-    : { OfflineSpeakerDiarization: namespace.OfflineSpeakerDiarization }
-
-const load = async (): Promise<SherpaNamespace> => {
+const load = async (): ReturnType<typeof loadSherpa> => {
   try {
-    return await import('sherpa-onnx-node')
+    return await loadSherpa()
   } catch (error: unknown) {
     throw new DiarizationError(
       `sherpa-onnx を読み込めませんでした（${toMessage(error)}）。` +

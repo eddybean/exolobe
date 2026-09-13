@@ -18,6 +18,8 @@ import {
 } from '@infrastructure/audio/DualTrackRecorder'
 import { TrackMixer } from '@infrastructure/audio/TrackMixer'
 import { NullDiarizer } from '@infrastructure/diarization/SherpaOnnxDiarizer'
+import { NullSpeakerEmbedder } from '@infrastructure/diarization/SherpaOnnxSpeakerEmbedder'
+import { FileVoiceprintRepository } from '@infrastructure/persistence/FileVoiceprintStore'
 import { WavFileWriter, int16Buffer, readWav } from '@infrastructure/audio/wav'
 import {
   FileRecordingArtifactStore,
@@ -114,7 +116,9 @@ const build = async (options: { summarizerError?: Error } = {}) => {
       progress: new FakeProgressReporter(),
       mixer: new TrackMixer(),
       encoder: new AfconvertEncoder(),
-      diarizer: new NullDiarizer()
+      diarizer: new NullDiarizer(),
+      embedder: new NullSpeakerEmbedder(),
+      voiceprints: new FileVoiceprintRepository(locator)
     }),
     list: new ListRecordings({ repository, artifacts }),
     detail: new GetRecordingDetail({ repository, artifacts })

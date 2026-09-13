@@ -3,10 +3,12 @@ import { ProcessRecording } from '@application/usecases/ProcessRecording'
 import { PIPELINE_STEPS, createRecording, finishRecording, type Recording } from '@domain/Recording'
 import type { SummarizationPort } from '@application/ports'
 import { SELF_SPEAKER_ID } from '@domain/Speaker'
+import { normalize } from '@domain/vector'
 import { mergeSettings, type SettingsPatch } from '@domain/Settings'
 import {
   FakeArtifactStore,
   FakeDiarizer,
+  FakeSpeakerEmbedder,
   FakeEncoder,
   FakeMixer,
   FakeProgressReporter,
@@ -14,7 +16,8 @@ import {
   FakeSettingsRepository,
   FakeSummarizer,
   FakeSystemResource,
-  FakeTranscriber
+  FakeTranscriber,
+  FakeVoiceprintRepository
 } from './fakes'
 
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
@@ -38,6 +41,8 @@ const build = async (
   )
   const transcriber = new FakeTranscriber()
   const diarizer = new FakeDiarizer()
+  const embedder = new FakeSpeakerEmbedder()
+  const voiceprints = new FakeVoiceprintRepository()
   const summarizer = new FakeSummarizer()
   const mixer = new FakeMixer()
   const encoder = new FakeEncoder()
@@ -64,6 +69,8 @@ const build = async (
     mixer,
     transcriber,
     diarizer,
+    embedder,
+    voiceprints,
     summarizer,
     encoder,
     progress,
@@ -433,6 +440,8 @@ describe('ProcessRecording — 処理中の利用者の編集', () => {
         system: ctx.system,
         transcriber: ctx.transcriber,
         diarizer: ctx.diarizer,
+        embedder: ctx.embedder,
+        voiceprints: ctx.voiceprints,
         summarizer,
         encoder: ctx.encoder,
         progress: ctx.progress
@@ -624,5 +633,107 @@ describe('ProcessRecording — 取り込んだ音声の処理', () => {
 
     expect(result.status).toBe('ready')
     expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])
+  })
+})
+
+describe('ProcessRecording — 声紋による話者名の自動適用', () => {
+  /** 2 次元で「声」を作る。角度が近いほど似た声。 */
+  const voice = (degrees: number): Float32Array => {
+    const radians = (degrees * Math.PI) / 180
+    return normalize([Math.cos(radians), Math.sin(radians)])
+  }
+
+  const withVoices = async (patch: SettingsPatch = {}) => {
+    const ctx = await build(patch)
+    ctx.diarizer.turns = [
+      { startMs: 1000, endMs: 3000, speaker: 'spk0' },
+      { startMs: 4500, endMs: 6500, speaker: 'spk1' }
+    ]
+    ctx.embedder.byCluster.set('spk0', voice(0))
+    ctx.embedder.byCluster.set('spk1', voice(90))
+    return ctx
+  }
+
+  const register = (ctx: Awaited<ReturnType<typeof build>>, name: string, degrees: number): void => {
+    ctx.voiceprints.entries.push({
+      name,
+      vector: voice(degrees),
+      samples: 1,
+      modelKey: ctx.embedder.modelKey,
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+  }
+
+  it('声紋帳と一致した話者には登録済みの名前を付ける', async () => {
+    const ctx = await withVoices()
+    register(ctx, '田中さん', 2)
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers).toEqual([
+      { id: SELF_SPEAKER_ID, kind: 'self', label: '自分' },
+      { id: 'remote:spk0', kind: 'remote', label: '田中さん' },
+      { id: 'remote:spk1', kind: 'remote', label: '参加者B' }
+    ])
+  })
+
+  it('一致しなかった話者は従来どおり参加者ラベルにする', async () => {
+    const ctx = await withVoices()
+    // 2 人のどちらからも遠い声。0 度と 90 度の両方に対して閾値に届かない。
+    register(ctx, '田中さん', 200)
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(
+      (await ctx.artifacts.readTranscript(ctx.recording))?.speakers.map((s) => s.label)
+    ).toEqual(['自分', '参加者A', '参加者B'])
+  })
+
+  it('利用者が付けた名前は声紋の一致より優先する', async () => {
+    const ctx = await withVoices()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    const saved = await ctx.artifacts.readTranscript(ctx.recording)
+    await ctx.artifacts.writeTranscript(ctx.recording, {
+      segments: saved?.segments ?? [],
+      speakers: (saved?.speakers ?? []).map((speaker) =>
+        speaker.id === 'remote:spk0' ? { ...speaker, label: '佐藤さん' } : speaker
+      )
+    })
+    register(ctx, '田中さん', 2)
+
+    await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
+
+    expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers[1]?.label).toBe('佐藤さん')
+  })
+
+  it('話者ごとの声紋を録音に残す（後のリネームで声紋帳に登録するため）', async () => {
+    const ctx = await withVoices()
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    const voices = await ctx.artifacts.readVoices(ctx.recording)
+    expect(voices?.modelKey).toBe(ctx.embedder.modelKey)
+    expect(voices?.speakers.map((s) => s.speakerId)).toEqual(['remote:spk0', 'remote:spk1'])
+  })
+
+  it('話者識別が無効なら声紋を取りに行かない', async () => {
+    const ctx = await withVoices({ diarization: { enabled: false } })
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.embedder.calls).toEqual([])
+  })
+
+  it('声紋の抽出に失敗しても話者識別そのものは通す', async () => {
+    const ctx = await withVoices()
+    ctx.embedder.error = new Error('モデルを読めません')
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.diarize.status).toBe('done')
+    expect(
+      (await ctx.artifacts.readTranscript(ctx.recording))?.speakers.map((s) => s.label)
+    ).toEqual(['自分', '参加者A', '参加者B'])
   })
 })

@@ -12,7 +12,14 @@ import {
 import { createRecording } from '@domain/Recording'
 import { defaultSettings } from '@domain/Settings'
 import { SELF_SPEAKER_ID, type Speaker } from '@domain/Speaker'
-import { FakeArtifactStore, FakeRecordingRepository, FakeSettingsRepository } from './fakes'
+import {
+  FakeArtifactStore,
+  FakeClock,
+  FakeRecordingRepository,
+  FakeSettingsRepository,
+  FakeVoiceprintRepository
+} from './fakes'
+import { normalize } from '@domain/vector'
 
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
 const recording = createRecording({ id: 'rec-1', startedAt, title: 'サンプル会議' })
@@ -143,12 +150,34 @@ describe('RenameRecording', () => {
 })
 
 describe('RenameSpeaker', () => {
+  const MODEL = 'fake-embedding:2'
+  const voice = (degrees: number): Float32Array => {
+    const radians = (degrees * Math.PI) / 180
+    return normalize([Math.cos(radians), Math.sin(radians)])
+  }
+
+  let voiceprints: FakeVoiceprintRepository
+  let renameDeps: typeof deps & {
+    voiceprints: FakeVoiceprintRepository
+    clock: FakeClock
+  }
+
   beforeEach(async () => {
     await artifacts.writeTranscript(recording, { segments, speakers })
+    voiceprints = new FakeVoiceprintRepository()
+    renameDeps = {
+      ...deps,
+      voiceprints,
+      clock: new FakeClock(new Date('2026-09-13T12:00:00.000Z'))
+    }
+    await artifacts.writeVoices(recording, {
+      modelKey: MODEL,
+      speakers: [{ speakerId: 'remote:spk0', vector: voice(0) }]
+    })
   })
 
   it('指定した話者のラベルだけを変える', async () => {
-    const updated = await new RenameSpeaker(deps).execute({
+    const updated = await new RenameSpeaker(renameDeps).execute({
       recordingId: 'rec-1',
       speakerId: 'remote:spk0',
       label: '田中さん'
@@ -161,7 +190,7 @@ describe('RenameSpeaker', () => {
   })
 
   it('セグメントは書き換えない', async () => {
-    await new RenameSpeaker(deps).execute({
+    await new RenameSpeaker(renameDeps).execute({
       recordingId: 'rec-1',
       speakerId: 'remote:spk0',
       label: '田中さん'
@@ -170,9 +199,69 @@ describe('RenameSpeaker', () => {
     expect((await artifacts.readTranscript(recording))?.segments).toEqual(segments)
   })
 
+  it('付けた名前で声紋帳に登録する', async () => {
+    await new RenameSpeaker(renameDeps).execute({
+      recordingId: 'rec-1',
+      speakerId: 'remote:spk0',
+      label: '田中さん'
+    })
+
+    expect(voiceprints.entries).toEqual([
+      {
+        name: '田中さん',
+        vector: voice(0),
+        samples: 1,
+        modelKey: MODEL,
+        updatedAt: '2026-09-13T12:00:00.000Z'
+      }
+    ])
+  })
+
+  it('同じ名前を付け直すと声紋を平均し、回数を増やす', async () => {
+    await voiceprints.put({
+      name: '田中さん',
+      vector: voice(90),
+      samples: 1,
+      modelKey: MODEL,
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+
+    await new RenameSpeaker(renameDeps).execute({
+      recordingId: 'rec-1',
+      speakerId: 'remote:spk0',
+      label: '田中さん'
+    })
+
+    expect(voiceprints.entries[0]?.samples).toBe(2)
+    expect(voiceprints.entries[0]?.vector[0]).toBeCloseTo(Math.SQRT1_2, 5)
+  })
+
+  it('声紋が残っていない録音では、名前だけを変える', async () => {
+    artifacts.voices.delete(recording.id)
+
+    const updated = await new RenameSpeaker(renameDeps).execute({
+      recordingId: 'rec-1',
+      speakerId: 'remote:spk0',
+      label: '田中さん'
+    })
+
+    expect(updated[1]?.label).toBe('田中さん')
+    expect(voiceprints.entries).toEqual([])
+  })
+
+  it('自分の呼び名を変えても声紋帳には登録しない', async () => {
+    await new RenameSpeaker(renameDeps).execute({
+      recordingId: 'rec-1',
+      speakerId: SELF_SPEAKER_ID,
+      label: '私'
+    })
+
+    expect(voiceprints.entries).toEqual([])
+  })
+
   it('空の話者名は拒否する', async () => {
     await expect(
-      new RenameSpeaker(deps).execute({ recordingId: 'rec-1', speakerId: 'remote:spk0', label: ' ' })
+      new RenameSpeaker(renameDeps).execute({ recordingId: 'rec-1', speakerId: 'remote:spk0', label: ' ' })
     ).rejects.toThrow('話者名を入力してください。')
   })
 
@@ -181,7 +270,7 @@ describe('RenameSpeaker', () => {
     await repository.save(other)
 
     await expect(
-      new RenameSpeaker(deps).execute({ recordingId: 'rec-2', speakerId: 'self', label: 'A' })
+      new RenameSpeaker(renameDeps).execute({ recordingId: 'rec-2', speakerId: 'self', label: 'A' })
     ).rejects.toThrow('文字起こしがまだありません。')
   })
 })
