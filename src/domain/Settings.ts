@@ -106,6 +106,17 @@ export interface SearchSettings {
   readonly modelPath: string
 }
 
+/**
+ * ライブラリ全体に問いかけるチャット。
+ *
+ * 要約と同じモデルを使い回すので追加のダウンロードが無く、既定で有効にできる。
+ */
+export interface ChatSettings {
+  readonly enabled: boolean
+  /** 1 回の問いで文脈に載せる録音の上限。 */
+  readonly maxRecordings: number
+}
+
 export interface Settings {
   /** ユーザーが初期設定で選ぶ保存先。未選択なら null。 */
   readonly storageDir: string | null
@@ -121,6 +132,7 @@ export interface Settings {
   readonly diarization: DiarizationSettings
   readonly audio: AudioSettings
   readonly search: SearchSettings
+  readonly chat: ChatSettings
 }
 
 /**
@@ -137,6 +149,7 @@ export type SettingsPatch = {
   readonly diarization?: Partial<DiarizationSettings>
   readonly audio?: Partial<AudioSettings>
   readonly search?: Partial<SearchSettings>
+  readonly chat?: Partial<ChatSettings>
 }
 
 export const defaultSettings = (): Settings => ({
@@ -183,6 +196,12 @@ export const defaultSettings = (): Settings => ({
     // 600MB 超のモデル取得と全録音のベクトル化を、利用者の同意なしに始めない。
     enabled: false,
     modelPath: ''
+  },
+  chat: {
+    enabled: true,
+    // 8 件。32K のコンテキストで 1 件あたり数千字を割け、週次の問いはこれで足りる。
+    // 増やすほど 1 件あたりが薄まり、どの会議の話か曖昧な答えになる。
+    maxRecordings: 8
   }
 })
 
@@ -205,7 +224,8 @@ export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings =>
   summarization: mergeGroup(base.summarization, patch.summarization),
   diarization: mergeGroup(base.diarization, patch.diarization),
   audio: mergeGroup(base.audio, patch.audio),
-  search: mergeGroup(base.search, patch.search)
+  search: mergeGroup(base.search, patch.search),
+  chat: mergeGroup(base.chat, patch.chat)
 })
 
 /** 保存前に呼ぶ。問題があればユーザー向けメッセージの配列を返す。 */
@@ -245,6 +265,10 @@ export const validateSettings = (settings: Settings): string[] => {
     errors.push(
       `要約プロンプトには文字起こしの差し込み位置 ${TRANSCRIPT_PLACEHOLDER} を含めてください。`
     )
+  }
+
+  if (settings.chat.maxRecordings < 1 || settings.chat.maxRecordings > 30) {
+    errors.push('チャットで参照する録音の件数は 1〜30 の範囲で指定してください。')
   }
 
   return errors

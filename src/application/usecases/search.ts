@@ -37,8 +37,8 @@ const loadMaterial = async (
   }
 }
 
-/** 録音中や処理中は成果物がこれから書き換わるので、確定してから索引に入れる。 */
-const isSettled = (recording: Recording): boolean =>
+/** 録音中や処理中は成果物がこれから書き換わるので、確定してから読む。 */
+export const isSettled = (recording: Recording): boolean =>
   recording.status !== 'recording' && !isProcessing(recording.steps)
 
 const newestFirst = (recordings: readonly Recording[]): Recording[] =>
