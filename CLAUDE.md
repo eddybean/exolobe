@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 macOS 向けの Web 会議レコーダー（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜031）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜033）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -57,10 +57,11 @@ npx vitest run -t "テスト名の一部"
   node-llama-cpp / afconvert / ファイル I/O）。
 - `src/main/` `src/preload/` `src/renderer/` — Electron。
 
-**結線は 3 か所だけ**: `src/main/container.ts`（main プロセス用）、
+**結線は 4 か所だけ**: `src/main/container.ts`（main プロセス用）、
 `src/main/worker/pipeline-container.ts`（パイプラインのワーカー用）、
-`src/main/worker/search-container.ts`（意味検索のワーカー用）。実装を差し替えるならここを変える。
-ワーカー用の 2 つは **`electron` を import してはいけない** — utilityProcess は
+`src/main/worker/search-container.ts`（意味検索のワーカー用）、
+`src/main/worker/chat-container.ts`（チャットのワーカー用）。実装を差し替えるならここを変える。
+ワーカー用の 3 つは **`electron` を import してはいけない** — utilityProcess は
 electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES` 環境変数で渡す。
 
 ### プロセス構成
@@ -71,6 +72,7 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 | main | 録音制御・システム音声キャプチャ（audiotee）・ライブラリ操作・IPC |
 | utilityProcess（`pipeline-worker`） | 文字起こし・話者識別・要約。ネイティブのクラッシュを隔離し、ジョブは 1 件ずつ直列 |
 | utilityProcess（`search-worker`） | 意味検索（bge-m3 の埋め込み・索引の同期）。依頼は並行に受け、3 分使われなければ終了 |
+| utilityProcess（`chat-worker`） | ライブラリ全体へのチャット（要約と同じ Gemma を使う）。生成は 1 件ずつ、2 分使われなければ終了（ADR-033） |
 | 子プロセス（`micwatch`） | 他アプリのマイク使用を見張り、録音の開始忘れを知らせる（録音中は動かさない、ADR-027） |
 
 パイプラインのワーカーは `PipelineClient` が必要時に fork し、ジョブが片付いたら終了させて次の依頼で
@@ -143,6 +145,14 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 - 話者名の自動適用（ADR-031）で、**声紋帳が育つのは `RenameSpeaker` からだけ**にする。
   自動で当てた名前を学習に戻すと、一度の取り違えが声紋に混ざって次の取り違えを呼ぶ。
   引き当てた名前は、その録音で既に付いている名前より優先しない（利用者の訂正を推定で押し戻さない）。
+- チャットで**どの録音を見るかを LLM の tool calling に決めさせない**（ADR-032）。日付・話者・
+  話題の解釈は `src/domain/DateExpression.ts` と `src/domain/ChatQuery.ts` の純粋関数が行う。
+  4B のモデルは日付の計算をしばしば外し、外したことが出力から見えない。
+  **意味検索が無効なときは話題語での絞り込みをしない** — 「該当なし」が検索結果なのか
+  確かめられなかっただけなのか区別できず、期間で答えられる問いまで「記録がありません」になる。
+- チャットのプロンプト（`src/domain/ChatPrompt.ts`）は**設定で編集可能にしない**。
+  「文脈だけを根拠にする」「`[1]` で引用する」という出力の契約を含み、画面の引用表示が
+  それに依存する（ADR-032）。
 - 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、
   外したときに「自分が言っていない発言」が残る（ADR-030）。変換は取り込み時に `afconvert` で
   16kHz モノラルにし、`--mix` を外さない（片チャンネルを捨てると話者が丸ごと消える）。
