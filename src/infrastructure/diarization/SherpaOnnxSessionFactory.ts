@@ -1,13 +1,9 @@
-import { availableParallelism } from 'node:os'
-import { toMessage } from '@domain/errors'
 import {
   DiarizationError,
   type DiarizationSession,
   type DiarizationSessionFactory
 } from './SherpaOnnxDiarizer'
-import { loadSherpa, missingModelMessage, pickSherpaExports } from './sherpaModule'
-
-export { pickSherpaExports } from './sherpaModule'
+import { loadSherpa, missingModelMessage, sherpaThreads } from './sherpaModule'
 
 /**
  * sherpa-onnx（ネイティブアドオン）で話者ダイアライゼーションのセッションを作る。
@@ -25,8 +21,14 @@ export class SherpaOnnxSessionFactory implements DiarizationSessionFactory {
     requireModel('話者分割モデル', config.segmentationModelPath)
     requireModel('話者埋め込みモデル', config.embeddingModelPath)
 
-    const sherpa = pickSherpaExports(await load())
-    const numThreads = diarizationThreads(availableParallelism())
+    const sherpa = await loadSherpa(
+      (message, cause) =>
+        new DiarizationError(
+          `${message}話者識別を無効にすると、自分と参加者の 2 話者で処理を続行できます。`,
+          { cause }
+        )
+    )
+    const numThreads = sherpaThreads()
 
     const diarization = new sherpa.OfflineSpeakerDiarization({
       segmentation: { pyannote: { model: config.segmentationModelPath }, numThreads },
@@ -46,28 +48,7 @@ export class SherpaOnnxSessionFactory implements DiarizationSessionFactory {
   }
 }
 
-/**
- * 推論に使うスレッド数。
- *
- * 論理コアの半分までに抑える。パイプラインは 1 ジョブずつ直列に走るとはいえ、
- * 全コアを占有すると処理中の操作が重くなる。4 を超えても速度はほとんど伸びない。
- */
-export const diarizationThreads = (cpuCount: number): number =>
-  Math.max(1, Math.min(4, Math.floor(cpuCount / 2)))
-
 const requireModel = (label: string, path: string): void => {
   const message = missingModelMessage(label, path)
   if (message) throw new DiarizationError(message)
-}
-
-const load = async (): ReturnType<typeof loadSherpa> => {
-  try {
-    return await loadSherpa()
-  } catch (error: unknown) {
-    throw new DiarizationError(
-      `sherpa-onnx を読み込めませんでした（${toMessage(error)}）。` +
-        '話者識別を無効にすると、自分と参加者の 2 話者で処理を続行できます。',
-      { cause: error }
-    )
-  }
 }

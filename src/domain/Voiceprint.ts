@@ -8,22 +8,37 @@ import { dot, normalize } from '@domain/vector'
  * ここは受け取った数値だけを見る。
  *
  * 声紋帳に登録されるのは、利用者が明示的に名前を付けたときだけ（ADR-031）。
- * 自動で当てた名前をそのまま学習し直すと、一度の誤りが声紋に混ざって次の誤りを
- * 呼ぶ。利用者が「田中さん」を「佐藤さん」に直したなら、そのベクトルは佐藤さんの
- * ものとして登録され、田中さんの声紋は汚れない。
+ * 方針の理由は登録が起きる `RenameSpeaker` に書いてある。
  */
+
+/**
+ * 声紋の出所。「どの録音のどの話者に、この名前を付けたか」の 1 件。
+ *
+ * 平均した結果だけでなく元のベクトルも持つ。名前を付け直したときに、
+ * 古い名前からその 1 件ぶんだけを正確に取り消すため（引き算では戻せない）。
+ */
+export interface VoiceSource {
+  /** `<録音 ID>:<話者 ID>`。同じ話者に何度名前を付けても 1 件に保つ鍵。 */
+  readonly key: string
+  /** 長さ 1 に正規化済み。 */
+  readonly vector: Float32Array
+}
 
 /** 声紋帳の 1 件。名前がそのまま鍵になる。 */
 export interface Voiceprint {
   readonly name: string
-  /** 長さ 1 に正規化済み。類似度は内積だけで求まる。 */
+  /** 出所の平均を長さ 1 に正規化したもの。類似度は内積だけで求まる。 */
   readonly vector: Float32Array
-  /** 平均に使った回数。多いほど 1 回ぶんの影響が小さくなる。 */
-  readonly samples: number
+  /** この名前を付けた話者たち。多いほど 1 件ぶんの影響が小さくなる。 */
+  readonly sources: readonly VoiceSource[]
   /** 埋め込みモデルの識別子。変われば過去のベクトルとは比較できない。 */
   readonly modelKey: string
   readonly updatedAt: string
 }
+
+/** `RenameSpeaker` が声紋帳に渡す出所の鍵。 */
+export const voiceSourceKey = (recordingId: string, speakerId: string): string =>
+  `${recordingId}:${speakerId}`
 
 /** 1 録音の中の話者 1 人ぶんの声紋。`speakerId` は `remote:spk0` 形式。 */
 export interface SpeakerVector {
@@ -83,9 +98,8 @@ export const VOICEPRINT_MATCH_MARGIN = 0.05
 export const matchVoiceprints = (
   vectors: readonly SpeakerVector[],
   registry: readonly Voiceprint[],
-  options: { threshold: number; modelKey: string; margin?: number }
+  options: { threshold: number; modelKey: string }
 ): Map<string, string> => {
-  const margin = options.margin ?? VOICEPRINT_MATCH_MARGIN
   const candidates = registry.filter((entry) => entry.modelKey === options.modelKey)
   if (candidates.length === 0) return new Map()
 
@@ -100,17 +114,18 @@ export const matchVoiceprints = (
     if (!best || best.score < options.threshold) continue
 
     const runnerUp = scored[1]
-    if (runnerUp && best.score - runnerUp.score < margin) continue
+    if (runnerUp && best.score - runnerUp.score < VOICEPRINT_MATCH_MARGIN) continue
 
     proposals.push({ speakerId, name: best.name, score: best.score })
   }
 
+  // スコアの高い順に確定させるので、既に取られた名前は必ずこちらより似ている。
   const matched = new Map<string, string>()
-  const taken = new Map<string, number>()
+  const taken = new Set<string>()
 
-  for (const proposal of [...proposals].sort((a, b) => b.score - a.score)) {
-    if ((taken.get(proposal.name) ?? -Infinity) >= proposal.score) continue
-    taken.set(proposal.name, proposal.score)
+  for (const proposal of proposals.sort((a, b) => b.score - a.score)) {
+    if (taken.has(proposal.name)) continue
+    taken.add(proposal.name)
     matched.set(proposal.speakerId, proposal.name)
   }
 
@@ -118,39 +133,63 @@ export const matchVoiceprints = (
 }
 
 /**
- * 声紋帳の 1 件を作る、または既存の声紋に今回ぶんを平均して混ぜる。
+ * 名前とその声を結び付ける。同じ出所を付け直した場合は差し替え、
+ * 別の出所なら足して平均を取り直す。
  *
- * 回数で重み付けするので、同じ人に名前を付けるたびに声紋が安定していく。
- * モデルが変わっていた場合は平均せず置き換える。別のモデルのベクトルを足しても
- * 意味のある値にはならない。
+ * モデルが変わっていた場合は過去の出所を捨てて作り直す。別のモデルのベクトルを
+ * 混ぜても意味のある値にはならない。
  */
-export const mergeVoiceprint = (
+export const registerVoice = (
   existing: Voiceprint | undefined,
-  params: { name: string; vector: Float32Array; modelKey: string; now: Date }
+  params: { name: string; source: string; vector: Float32Array; modelKey: string; now: Date }
 ): Voiceprint => {
-  const base =
-    existing && existing.modelKey === params.modelKey ? existing : undefined
+  const base = existing && existing.modelKey === params.modelKey ? existing : undefined
+  const kept = (base?.sources ?? []).filter((source) => source.key !== params.source)
 
-  if (!base) {
-    return {
-      name: params.name,
-      vector: normalize(params.vector),
-      samples: 1,
-      modelKey: params.modelKey,
-      updatedAt: params.now.toISOString()
+  return build(params.name, [...kept, { key: params.source, vector: params.vector }], {
+    modelKey: params.modelKey,
+    now: params.now
+  })
+}
+
+/**
+ * 出所を 1 件取り消し、残りで平均を取り直す。最後の 1 件なら声紋ごと消す。
+ *
+ * 名前を付け直したときに呼ぶ。「田中さん」を「佐藤さん」に直したのに田中さんの
+ * 声紋が同じベクトルのまま残ると、次の録音では 1 位と 2 位が同点になり、
+ * 「差が無いなら当てにいかない」規則で両方とも弾かれる（＝その人は二度と
+ * 自動判定されない）。取り消しまでが訂正の一部。
+ */
+export const forgetSource = (
+  voiceprint: Voiceprint,
+  source: string,
+  now: Date
+): Voiceprint | undefined => {
+  const kept = voiceprint.sources.filter((entry) => entry.key !== source)
+  if (kept.length === voiceprint.sources.length) return voiceprint
+  if (kept.length === 0) return undefined
+
+  return build(voiceprint.name, kept, { modelKey: voiceprint.modelKey, now })
+}
+
+const build = (
+  name: string,
+  sources: readonly VoiceSource[],
+  options: { modelKey: string; now: Date }
+): Voiceprint => {
+  const width = sources.reduce((max, source) => Math.max(max, source.vector.length), 0)
+  const mean = new Float32Array(width)
+  for (const source of sources) {
+    for (let index = 0; index < width; index += 1) {
+      mean[index] = (mean[index] ?? 0) + (source.vector[index] ?? 0)
     }
   }
 
-  const weighted = new Float32Array(base.vector.length)
-  for (let index = 0; index < weighted.length; index += 1) {
-    weighted[index] = (base.vector[index] ?? 0) * base.samples + (params.vector[index] ?? 0)
-  }
-
   return {
-    name: params.name,
-    vector: normalize(weighted),
-    samples: base.samples + 1,
-    modelKey: params.modelKey,
-    updatedAt: params.now.toISOString()
+    name,
+    vector: normalize(mean),
+    sources,
+    modelKey: options.modelKey,
+    updatedAt: options.now.toISOString()
   }
 }

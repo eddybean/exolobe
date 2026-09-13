@@ -35,10 +35,7 @@ class FakeSession implements SpeakerEmbeddingSession {
   disposed = 0
   error?: Error
 
-  constructor(
-    readonly dim = 4,
-    private readonly result?: Float32Array
-  ) {}
+  constructor(private readonly result?: Float32Array) {}
 
   compute(samples: Float32Array): Float32Array {
     this.received.push(samples)
@@ -80,7 +77,7 @@ describe('SherpaOnnxSpeakerEmbedder', () => {
   it('長さ 1 に正規化して返す（類似度を内積だけで求められるようにする）', async () => {
     // sherpa の compute() はノルム 10 前後の生のベクトルを返す。正規化を忘れると
     // 内積が「ノルム × コサイン」になり、閾値も 2 位との差も効かなくなる。
-    const factory = new FakeFactory(new FakeSession(4, Float32Array.from([30, 40, 0, 0])))
+    const factory = new FakeFactory(new FakeSession(Float32Array.from([30, 40, 0, 0])))
     const embedder = new SherpaOnnxSpeakerEmbedder(config, factory)
     const wavPath = await writeWav(20)
 

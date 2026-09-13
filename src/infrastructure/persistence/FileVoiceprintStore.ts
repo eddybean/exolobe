@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import type { VoiceprintRepositoryPort } from '@application/ports'
-import { isVoiceVector, type Voiceprint } from '@domain/Voiceprint'
+import { isVoiceVector, type VoiceSource, type Voiceprint } from '@domain/Voiceprint'
 import type { StorageLocator } from './FileRecordingStore'
 import { readJson, writeJsonAtomic } from './jsonFile'
 
@@ -12,7 +12,7 @@ const VOICEPRINTS_FILE = 'voiceprints.json'
 interface VoiceprintRecord {
   name: string
   vector: number[]
-  samples: number
+  sources: { key: string; vector: number[] }[]
   modelKey: string
   updatedAt: string
 }
@@ -20,10 +20,20 @@ interface VoiceprintRecord {
 const toRecord = (voiceprint: Voiceprint): VoiceprintRecord => ({
   name: voiceprint.name,
   vector: Array.from(voiceprint.vector),
-  samples: voiceprint.samples,
+  sources: voiceprint.sources.map((source) => ({
+    key: source.key,
+    vector: Array.from(source.vector)
+  })),
   modelKey: voiceprint.modelKey,
   updatedAt: voiceprint.updatedAt
 })
+
+const toSource = (value: unknown): VoiceSource | undefined => {
+  if (typeof value !== 'object' || value === null) return undefined
+  const candidate = value as { key?: unknown; vector?: unknown }
+  if (typeof candidate.key !== 'string' || !isVoiceVector(candidate.vector)) return undefined
+  return { key: candidate.key, vector: Float32Array.from(candidate.vector) }
+}
 
 const toVoiceprint = (value: unknown): Voiceprint | undefined => {
   if (typeof value !== 'object' || value === null) return undefined
@@ -31,17 +41,25 @@ const toVoiceprint = (value: unknown): Voiceprint | undefined => {
   if (
     typeof candidate.name !== 'string' ||
     !isVoiceVector(candidate.vector) ||
-    typeof candidate.samples !== 'number' ||
+    !Array.isArray(candidate.sources) ||
     typeof candidate.modelKey !== 'string' ||
     typeof candidate.updatedAt !== 'string'
   ) {
     return undefined
   }
 
+  const sources = candidate.sources.flatMap((entry) => {
+    const source = toSource(entry)
+    return source ? [source] : []
+  })
+  // 出所を持たない声紋は、名前を付け直しても取り消せない。持たせられない以上、
+  // 読み込みの時点で無かったことにする（覚え直せばまた作られる）。
+  if (sources.length === 0) return undefined
+
   return {
     name: candidate.name,
     vector: Float32Array.from(candidate.vector),
-    samples: candidate.samples,
+    sources,
     modelKey: candidate.modelKey,
     updatedAt: candidate.updatedAt
   }

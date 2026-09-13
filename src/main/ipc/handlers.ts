@@ -461,10 +461,7 @@ export const registerIpcHandlers = (
     return speakers
   })
 
-  /**
-   * 削除は取り消せず、音声・文字起こし・要約・メモがまとめて消える。
-   * renderer 側の confirm はブロッキングで見た目も浮くため、OS のダイアログで確認する。
-   */
+  /** 削除は取り消せず、音声・文字起こし・要約・メモがまとめて消える。 */
   handle(IPC.confirmDeleteRecording, async (id: unknown): Promise<boolean> => {
     const detail = await container.getRecordingDetail.execute(asString(id, '録音 ID'))
 
@@ -694,9 +691,10 @@ export const registerIpcHandlers = (
     })
   )
 
-  handle(IPC.removeVoiceprint, async (name: unknown): Promise<VoiceprintDto[]> =>
-    container.removeVoiceprint.execute(asString(name, '話者名'))
-  )
+  handle(IPC.removeVoiceprint, async (name: unknown): Promise<VoiceprintDto[]> => {
+    await container.removeVoiceprint.execute(asString(name, '話者名'))
+    return container.listVoiceprints.execute()
+  })
 
   handle(IPC.confirmClearVoiceprints, async (): Promise<boolean> => {
     const entries = await container.listVoiceprints.execute()

@@ -15,7 +15,7 @@ import {
   type SettingsPatch
 } from '@domain/Settings'
 import { isRemoteSpeakerId, type Speaker } from '@domain/Speaker'
-import { mergeVoiceprint, type Voiceprint } from '@domain/Voiceprint'
+import { forgetSource, registerVoice, voiceSourceKey, type Voiceprint } from '@domain/Voiceprint'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
 export interface LibraryDeps {
@@ -170,11 +170,15 @@ export class RenameSpeaker {
   }
 
   /**
-   * この話者の声紋を名前に結び付けて残す。
+   * この話者の声紋を名前に結び付けて残し、古い名前からは取り消す。
    *
    * 自分（マイクトラック）は録音のたびに確定していて引き当てる必要がないため、
    * 相手側の話者だけを対象にする。声紋が無い録音（話者識別を無効にしていた、
    * この機能より前に録った）では何もしない。名前を変えられないより良い。
+   *
+   * 取り消しまでが訂正の一部。「田中さん」を「佐藤さん」に直したのに田中さん側が
+   * 同じベクトルのまま残ると、次の録音で 1 位と 2 位が同点になり、
+   * 「差が無いなら当てにいかない」規則で両方とも弾かれる。
    */
   private async rememberVoice(
     recording: Recording,
@@ -187,14 +191,23 @@ export class RenameSpeaker {
     const vector = voices?.speakers.find((speaker) => speaker.speakerId === speakerId)?.vector
     if (!voices || !vector) return
 
-    const existing = (await this.deps.voiceprints.list()).find((entry) => entry.name === name)
+    const source = voiceSourceKey(recording.id, speakerId)
+    const now = this.deps.clock.now()
+    const registry = await this.deps.voiceprints.list()
+
+    for (const entry of registry) {
+      if (entry.name === name) continue
+      const remaining = forgetSource(entry, source, now)
+      if (remaining === entry) continue
+      if (remaining) await this.deps.voiceprints.put(remaining)
+      else await this.deps.voiceprints.remove(entry.name)
+    }
+
     await this.deps.voiceprints.put(
-      mergeVoiceprint(existing, {
-        name,
-        vector,
-        modelKey: voices.modelKey,
-        now: this.deps.clock.now()
-      })
+      registerVoice(
+        registry.find((entry) => entry.name === name),
+        { name, source, vector, modelKey: voices.modelKey, now }
+      )
     )
   }
 }
@@ -267,7 +280,7 @@ export interface VoiceprintView {
 
 const toView = (voiceprint: Voiceprint): VoiceprintView => ({
   name: voiceprint.name,
-  samples: voiceprint.samples,
+  samples: voiceprint.sources.length,
   updatedAt: voiceprint.updatedAt
 })
 
@@ -289,9 +302,8 @@ export class ListVoiceprints {
 export class RemoveVoiceprint {
   constructor(private readonly voiceprints: VoiceprintRepositoryPort) {}
 
-  async execute(name: string): Promise<VoiceprintView[]> {
+  async execute(name: string): Promise<void> {
     await this.voiceprints.remove(name)
-    return listViews(this.voiceprints)
   }
 }
 

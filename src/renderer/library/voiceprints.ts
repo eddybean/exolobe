@@ -7,7 +7,7 @@ import type { VoiceprintDto } from '@shared/ipc'
  * 決める材料はこれで足りる。類似度や次元数を見せても判断は変わらない。
  */
 export const voiceprintSummary = (voiceprint: VoiceprintDto): string =>
-  `${voiceprint.samples} 回の名付けで学習 ・ ${formatDay(voiceprint.updatedAt)}`
+  `${voiceprint.samples} 件の録音から学習 ・ ${formatDay(voiceprint.updatedAt)}`
 
 /** 覚えた日。今年なら年を省く（一覧の日時表示と揃える）。 */
 const formatDay = (iso: string): string => {

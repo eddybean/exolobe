@@ -214,18 +214,18 @@ describe('RenameSpeaker', () => {
       {
         name: '田中さん',
         vector: voice(0),
-        samples: 1,
+        sources: [{ key: 'rec-1:remote:spk0', vector: voice(0) }],
         modelKey: MODEL,
         updatedAt: '2026-09-13T12:00:00.000Z'
       }
     ])
   })
 
-  it('同じ名前を付け直すと声紋を平均し、回数を増やす', async () => {
+  it('別の録音で同じ名前を付けると声紋を平均し、出所が増える', async () => {
     await voiceprints.put({
       name: '田中さん',
       vector: voice(90),
-      samples: 1,
+      sources: [{ key: 'rec-9:remote:spk0', vector: voice(90) }],
       modelKey: MODEL,
       updatedAt: '2026-01-01T00:00:00.000Z'
     })
@@ -236,8 +236,62 @@ describe('RenameSpeaker', () => {
       label: '田中さん'
     })
 
-    expect(voiceprints.entries[0]?.samples).toBe(2)
+    expect(voiceprints.entries[0]?.sources).toHaveLength(2)
     expect(voiceprints.entries[0]?.vector[0]).toBeCloseTo(Math.SQRT1_2, 5)
+  })
+
+  it('付け直すと古い名前の声紋を取り消す（同じ声が 2 つの名前で残らない）', async () => {
+    const rename = (label: string): Promise<readonly Speaker[]> =>
+      new RenameSpeaker(renameDeps).execute({
+        recordingId: 'rec-1',
+        speakerId: 'remote:spk0',
+        label
+      })
+
+    await rename('田中さん')
+    await rename('佐藤さん')
+
+    expect(voiceprints.entries.map((entry) => entry.name)).toEqual(['佐藤さん'])
+  })
+
+  it('同じ録音の同じ話者に何度付け直しても、学習の数は増えない', async () => {
+    for (const label of ['田中さん', '佐藤さん', '田中さん']) {
+      await new RenameSpeaker(renameDeps).execute({
+        recordingId: 'rec-1',
+        speakerId: 'remote:spk0',
+        label
+      })
+    }
+
+    expect(voiceprints.entries.map((entry) => [entry.name, entry.sources.length])).toEqual([
+      ['田中さん', 1]
+    ])
+  })
+
+  it('別の録音からも覚えた名前は、1 つの出所を取り消しても残る', async () => {
+    await voiceprints.put({
+      name: '田中さん',
+      vector: voice(0),
+      sources: [
+        { key: 'rec-9:remote:spk0', vector: voice(0) },
+        { key: 'rec-1:remote:spk0', vector: voice(0) }
+      ],
+      modelKey: MODEL,
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+
+    await new RenameSpeaker(renameDeps).execute({
+      recordingId: 'rec-1',
+      speakerId: 'remote:spk0',
+      label: '佐藤さん'
+    })
+
+    expect(
+      voiceprints.entries.map((entry) => [entry.name, entry.sources.map((s) => s.key)])
+    ).toEqual([
+      ['田中さん', ['rec-9:remote:spk0']],
+      ['佐藤さん', ['rec-1:remote:spk0']]
+    ])
   })
 
   it('声紋が残っていない録音では、名前だけを変える', async () => {
@@ -358,10 +412,13 @@ describe('GetSetupState', () => {
 })
 
 describe('声紋帳の管理', () => {
-  const print = (name: string, updatedAt: string, samples = 1): Voiceprint => ({
+  const print = (name: string, updatedAt: string, sources = 1): Voiceprint => ({
     name,
     vector: Float32Array.from([1, 0]),
-    samples,
+    sources: Array.from({ length: sources }, (_, index) => ({
+      key: `rec-${index}:remote:spk0`,
+      vector: Float32Array.from([1, 0])
+    })),
     modelKey: 'campplus:192',
     updatedAt
   })
@@ -384,9 +441,9 @@ describe('声紋帳の管理', () => {
   })
 
   it('名前を指定して 1 件だけ消せる', async () => {
-    const remaining = await new RemoveVoiceprint(voiceprints).execute('田中さん')
+    await new RemoveVoiceprint(voiceprints).execute('田中さん')
 
-    expect(remaining.map((entry) => entry.name)).toEqual(['佐藤さん'])
+    expect((await voiceprints.list()).map((entry) => entry.name)).toEqual(['佐藤さん'])
   })
 
   it('全部消せる', async () => {

@@ -38,15 +38,13 @@ export const MAX_VOICE_MS = 30_000
  */
 export const selectVoiceRanges = (
   turns: readonly SpeakerTurn[],
-  options: { minTurnMs?: number; minVoiceMs?: number; maxVoiceMs?: number } = {}
+  options: { maxVoiceMs?: number } = {}
 ): Map<string, SampleRange[]> => {
-  const minTurnMs = options.minTurnMs ?? MIN_TURN_MS
-  const minVoiceMs = options.minVoiceMs ?? MIN_VOICE_MS
   const maxVoiceMs = options.maxVoiceMs ?? MAX_VOICE_MS
 
   const bySpeaker = new Map<string, SampleRange[]>()
   for (const turn of turns) {
-    if (turn.endMs - turn.startMs < minTurnMs) continue
+    if (turn.endMs - turn.startMs < MIN_TURN_MS) continue
     const ranges = bySpeaker.get(turn.speaker) ?? []
     ranges.push({ startMs: turn.startMs, endMs: turn.endMs })
     bySpeaker.set(turn.speaker, ranges)
@@ -57,9 +55,7 @@ export const selectVoiceRanges = (
     const kept: SampleRange[] = []
     let total = 0
 
-    for (const range of [...ranges].sort(
-      (a, b) => b.endMs - b.startMs - (a.endMs - a.startMs)
-    )) {
+    for (const range of ranges.sort((a, b) => b.endMs - b.startMs - (a.endMs - a.startMs))) {
       if (total >= maxVoiceMs) break
       // 上限をまたぐターンは頭から必要なぶんだけ取る。丸ごと捨てると、
       // 1 本しか長いターンが無い話者で声紋が作れなくなる。
@@ -68,7 +64,7 @@ export const selectVoiceRanges = (
       total += take
     }
 
-    if (total < minVoiceMs) continue
+    if (total < MIN_VOICE_MS) continue
     selected.set(
       speaker,
       kept.sort((a, b) => a.startMs - b.startMs)

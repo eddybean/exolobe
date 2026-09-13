@@ -658,7 +658,7 @@ describe('ProcessRecording — 声紋による話者名の自動適用', () => {
     ctx.voiceprints.entries.push({
       name,
       vector: voice(degrees),
-      samples: 1,
+      sources: [{ key: `seed:${name}`, vector: voice(degrees) }],
       modelKey: ctx.embedder.modelKey,
       updatedAt: '2026-01-01T00:00:00.000Z'
     })
@@ -705,6 +705,28 @@ describe('ProcessRecording — 声紋による話者名の自動適用', () => {
     await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
 
     expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers[1]?.label).toBe('佐藤さん')
+  })
+
+  it('再実行では、既定ラベルのままの話者にだけ声紋の名前を入れる', async () => {
+    const ctx = await withVoices()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    // 1 人目は利用者が名前を付け、2 人目は「参加者B」のまま。
+    const saved = await ctx.artifacts.readTranscript(ctx.recording)
+    await ctx.artifacts.writeTranscript(ctx.recording, {
+      segments: saved?.segments ?? [],
+      speakers: (saved?.speakers ?? []).map((speaker) =>
+        speaker.id === 'remote:spk0' ? { ...speaker, label: '佐藤さん' } : speaker
+      )
+    })
+    register(ctx, '田中さん', 2)
+    register(ctx, '鈴木さん', 88)
+
+    await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
+
+    expect(
+      (await ctx.artifacts.readTranscript(ctx.recording))?.speakers.map((s) => s.label)
+    ).toEqual(['自分', '佐藤さん', '鈴木さん'])
   })
 
   it('話者ごとの声紋を録音に残す（後のリネームで声紋帳に登録するため）', async () => {

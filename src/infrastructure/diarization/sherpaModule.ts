@@ -1,4 +1,6 @@
 import { existsSync } from 'node:fs'
+import { availableParallelism } from 'node:os'
+import { toMessage } from '@domain/errors'
 
 /**
  * sherpa-onnx-node（ネイティブアドオン）の読み込み口。
@@ -28,13 +30,30 @@ export const pickSherpaExports = (namespace: SherpaNamespace): SherpaExports => 
 })
 
 /**
- * ネイティブライブラリを読む。
+ * ネイティブライブラリを読み、名前付き／default の差を吸収して返す。
  *
- * 呼び出しは実際に推論を走らせるときだけで十分で、アプリの起動時間とメモリを
- * 不必要に使わないため import はここで行う。
+ * import をここで行うのは、実際に推論を走らせるときまで読まないため
+ * （アプリの起動時間とメモリを不必要に使わない）。読み込み失敗は呼び出し側が
+ * 自分のエラー型へ包む —— 利用者に出す文面が話者分割と声紋抽出で違うため。
  */
-export const loadSherpa = async (): Promise<SherpaNamespace> =>
-  (await import('sherpa-onnx-node')) as unknown as SherpaNamespace
+export const loadSherpa = async (
+  wrap: (message: string, cause: unknown) => Error
+): Promise<SherpaExports> => {
+  try {
+    return pickSherpaExports((await import('sherpa-onnx-node')) as unknown as SherpaNamespace)
+  } catch (error: unknown) {
+    throw wrap(`sherpa-onnx を読み込めませんでした（${toMessage(error)}）。`, error)
+  }
+}
+
+/**
+ * 推論に使うスレッド数。
+ *
+ * 論理コアの半分までに抑える。パイプラインは 1 ジョブずつ直列に走るとはいえ、
+ * 全コアを占有すると処理中の操作が重くなる。4 を超えても速度はほとんど伸びない。
+ */
+export const sherpaThreads = (cpuCount: number = availableParallelism()): number =>
+  Math.max(1, Math.min(4, Math.floor(cpuCount / 2)))
 
 /**
  * モデルの存在を JS 側で先に確かめる。

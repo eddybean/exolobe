@@ -1,12 +1,9 @@
-import { availableParallelism } from 'node:os'
-import { toMessage } from '@domain/errors'
 import {
   SpeakerEmbeddingError,
   type SpeakerEmbeddingSession,
   type SpeakerEmbeddingSessionFactory
 } from './SherpaOnnxSpeakerEmbedder'
-import { diarizationThreads } from './SherpaOnnxSessionFactory'
-import { loadSherpa, missingModelMessage, pickSherpaExports } from './sherpaModule'
+import { loadSherpa, missingModelMessage, sherpaThreads } from './sherpaModule'
 
 /**
  * sherpa-onnx（ネイティブアドオン）で声紋抽出のセッションを作る。
@@ -19,14 +16,15 @@ export class SherpaOnnxEmbeddingSessionFactory implements SpeakerEmbeddingSessio
     const missing = missingModelMessage('話者埋め込みモデル', config.embeddingModelPath)
     if (missing) throw new SpeakerEmbeddingError(missing)
 
-    const sherpa = pickSherpaExports(await load())
+    const sherpa = await loadSherpa(
+      (message, cause) => new SpeakerEmbeddingError(message, { cause })
+    )
     const extractor = new sherpa.SpeakerEmbeddingExtractor({
       model: config.embeddingModelPath,
-      numThreads: diarizationThreads(availableParallelism())
+      numThreads: sherpaThreads()
     })
 
     return {
-      dim: extractor.dim,
       compute: (samples, sampleRate) => {
         // ストリームは 1 人ぶんの声紋ごとに作り捨てる。使い回すと前の話者の音が
         // 残ったままになり、2 人目以降の声紋が混ざる。
@@ -39,16 +37,5 @@ export class SherpaOnnxEmbeddingSessionFactory implements SpeakerEmbeddingSessio
       // ワーカーはジョブごとに終了するので（ADR-008）、そこで確実に OS へ返る。
       dispose: () => undefined
     }
-  }
-}
-
-const load = async (): ReturnType<typeof loadSherpa> => {
-  try {
-    return await loadSherpa()
-  } catch (error: unknown) {
-    throw new SpeakerEmbeddingError(
-      `sherpa-onnx を読み込めませんでした（${toMessage(error)}）。`,
-      { cause: error }
-    )
   }
 }

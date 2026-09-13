@@ -24,8 +24,6 @@ export class NullSpeakerEmbedder implements SpeakerEmbeddingPort {
 
 /** 1 回の抽出ぶんのセッション。sherpa-onnx を直接触らずこの seam を挟む。 */
 export interface SpeakerEmbeddingSession {
-  /** 声紋の次元数。 */
-  readonly dim: number
   /** Float32 サンプル（[-1, 1]）から声紋を 1 本作る。 */
   compute(samples: Float32Array, sampleRate: number): Float32Array
   dispose(): void
@@ -67,6 +65,9 @@ export class SherpaOnnxSpeakerEmbedder implements SpeakerEmbeddingPort {
 
     const audio = await readWav(params.wavPath)
     if (audio.samples.length === 0) return []
+    // ステレオだと添字が 2 倍ずれ、例外にならないまま別の場所の音で声紋を作る。
+    // パイプラインは常にモノラルを渡すが、静かに間違うより作らないほうが安全。
+    if (audio.channels !== 1) return []
 
     const session = await this.factory.create(this.config)
 

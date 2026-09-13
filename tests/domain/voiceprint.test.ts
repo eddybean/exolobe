@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   VOICEPRINT_MATCH_MARGIN,
+  forgetSource,
   matchVoiceprints,
-  mergeVoiceprint,
+  registerVoice,
   type SpeakerVector,
   type Voiceprint
 } from '@domain/Voiceprint'
@@ -24,7 +25,7 @@ const speaker = (speakerId: string, degrees: number): SpeakerVector => ({
 const print = (name: string, degrees: number, overrides: Partial<Voiceprint> = {}): Voiceprint => ({
   name,
   vector: voice(degrees),
-  samples: 1,
+  sources: [{ key: `src:${name}`, vector: voice(degrees) }],
   modelKey: MODEL,
   updatedAt: '2026-01-01T00:00:00.000Z',
   ...overrides
@@ -101,62 +102,152 @@ describe('matchVoiceprints', () => {
   })
 })
 
-describe('mergeVoiceprint', () => {
+describe('registerVoice', () => {
   const now = new Date('2026-09-13T12:00:00.000Z')
+  const at = (iso: string): Date => new Date(iso)
 
   it('未登録なら 1 件目として作る', () => {
-    const merged = mergeVoiceprint(undefined, {
+    const registered = registerVoice(undefined, {
       name: '田中さん',
+      source: 'rec-1:remote:spk0',
       vector: voice(0),
       modelKey: MODEL,
       now
     })
 
-    expect(merged.name).toBe('田中さん')
-    expect(merged.samples).toBe(1)
-    expect(merged.modelKey).toBe(MODEL)
-    expect(merged.updatedAt).toBe('2026-09-13T12:00:00.000Z')
+    expect(registered.name).toBe('田中さん')
+    expect(registered.sources.map((s) => s.key)).toEqual(['rec-1:remote:spk0'])
+    expect(registered.modelKey).toBe(MODEL)
+    expect(registered.updatedAt).toBe('2026-09-13T12:00:00.000Z')
   })
 
-  it('登録済みなら平均を取り、回数を増やす', () => {
-    const existing = print('田中さん', 0, { samples: 1 })
-    const merged = mergeVoiceprint(existing, {
+  it('別の録音で同じ名前を付けると、平均を取って出所が増える', () => {
+    const first = registerVoice(undefined, {
       name: '田中さん',
+      source: 'rec-1:remote:spk0',
+      vector: voice(0),
+      modelKey: MODEL,
+      now: at('2026-09-01T00:00:00.000Z')
+    })
+
+    const second = registerVoice(first, {
+      name: '田中さん',
+      source: 'rec-2:remote:spk1',
       vector: voice(90),
       modelKey: MODEL,
       now
     })
 
-    expect(merged.samples).toBe(2)
+    expect(second.sources).toHaveLength(2)
     // 0 度と 90 度の平均は 45 度。
-    expect(merged.vector[0]).toBeCloseTo(Math.SQRT1_2, 5)
-    expect(merged.vector[1]).toBeCloseTo(Math.SQRT1_2, 5)
+    expect(second.vector[0]).toBeCloseTo(Math.SQRT1_2, 5)
+    expect(second.vector[1]).toBeCloseTo(Math.SQRT1_2, 5)
   })
 
-  it('回数を重ねた声紋ほど 1 回ぶんの影響は小さい', () => {
-    const existing = print('田中さん', 0, { samples: 9 })
-    const merged = mergeVoiceprint(existing, {
+  it('同じ出所を付け直しても数は増えず、声紋が差し替わる', () => {
+    const first = registerVoice(undefined, {
       name: '田中さん',
+      source: 'rec-1:remote:spk0',
+      vector: voice(0),
+      modelKey: MODEL,
+      now: at('2026-09-01T00:00:00.000Z')
+    })
+
+    const again = registerVoice(first, {
+      name: '田中さん',
+      source: 'rec-1:remote:spk0',
       vector: voice(90),
       modelKey: MODEL,
       now
     })
 
-    // 9:1 の重みなので、90 度側へはわずかしか動かない。
-    expect(merged.vector[1]).toBeLessThan(0.2)
+    expect(again.sources).toHaveLength(1)
+    expect(again.vector[1]).toBeCloseTo(1, 5)
   })
 
-  it('モデルが変わっていたら平均せず、新しい声紋で置き換える', () => {
-    const existing = print('田中さん', 0, { samples: 5, modelKey: 'other:256' })
-    const merged = mergeVoiceprint(existing, {
+  it('出所が増えるほど 1 件ぶんの影響は小さい', () => {
+    let entry = registerVoice(undefined, {
       name: '田中さん',
+      source: 'rec-0:remote:spk0',
+      vector: voice(0),
+      modelKey: MODEL,
+      now
+    })
+    for (let index = 1; index < 9; index += 1) {
+      entry = registerVoice(entry, {
+        name: '田中さん',
+        source: `rec-${index}:remote:spk0`,
+        vector: voice(0),
+        modelKey: MODEL,
+        now
+      })
+    }
+
+    const shifted = registerVoice(entry, {
+      name: '田中さん',
+      source: 'rec-9:remote:spk0',
       vector: voice(90),
       modelKey: MODEL,
       now
     })
 
-    expect(merged.samples).toBe(1)
-    expect(merged.modelKey).toBe(MODEL)
-    expect(merged.vector[1]).toBeCloseTo(1, 5)
+    expect(shifted.vector[1]).toBeLessThan(0.2)
+  })
+
+  it('モデルが変わっていたら過去の出所を捨てて作り直す', () => {
+    const old = registerVoice(undefined, {
+      name: '田中さん',
+      source: 'rec-1:remote:spk0',
+      vector: voice(0),
+      modelKey: 'other:256',
+      now
+    })
+
+    const fresh = registerVoice(old, {
+      name: '田中さん',
+      source: 'rec-2:remote:spk0',
+      vector: voice(90),
+      modelKey: MODEL,
+      now
+    })
+
+    expect(fresh.sources.map((s) => s.key)).toEqual(['rec-2:remote:spk0'])
+    expect(fresh.modelKey).toBe(MODEL)
+    expect(fresh.vector[1]).toBeCloseTo(1, 5)
+  })
+})
+
+describe('forgetSource', () => {
+  const now = new Date('2026-09-13T12:00:00.000Z')
+
+  const withSources = (name: string, entries: [string, number][]): Voiceprint =>
+    entries.reduce<Voiceprint | undefined>(
+      (entry, [source, degrees]) =>
+        registerVoice(entry, { name, source, vector: voice(degrees), modelKey: MODEL, now }),
+      undefined
+    ) as Voiceprint
+
+  it('唯一の出所を取り消すと声紋ごと消える', () => {
+    const entry = withSources('田中さん', [['rec-1:remote:spk0', 0]])
+
+    expect(forgetSource(entry, 'rec-1:remote:spk0', now)).toBeUndefined()
+  })
+
+  it('残る出所があれば、それだけで平均を取り直す', () => {
+    const entry = withSources('田中さん', [
+      ['rec-1:remote:spk0', 0],
+      ['rec-2:remote:spk0', 90]
+    ])
+
+    const remaining = forgetSource(entry, 'rec-1:remote:spk0', now)
+
+    expect(remaining?.sources.map((s) => s.key)).toEqual(['rec-2:remote:spk0'])
+    expect(remaining?.vector[1]).toBeCloseTo(1, 5)
+  })
+
+  it('持っていない出所を取り消しても何も変えない', () => {
+    const entry = withSources('田中さん', [['rec-1:remote:spk0', 0]])
+
+    expect(forgetSource(entry, 'rec-9:remote:spk0', now)).toBe(entry)
   })
 })

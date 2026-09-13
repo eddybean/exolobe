@@ -445,14 +445,15 @@ export class ProcessRecording {
  * セグメントに登場する話者 ID から表示用の話者一覧を組み立てる。
  * 相手側のクラスタは登場順に「参加者A」「参加者B」… と採番する。
  *
- * 名前の優先順位は、この録音で既に付いている名前 → 声紋帳から引き当てた名前 →
- * 既定の採番。話者 ID が同じなら利用者が付けた名前を引き継ぐ。文字起こしや
- * 話者識別を後から再実行しただけで「田中さん」が「参加者A」に戻るのは、
- * 名前を付けた手間を黙って捨てることになる。
+ * 名前の優先順位は、利用者が付けた名前 → 声紋帳から引き当てた名前 → 既定の採番。
+ * 話者 ID が同じなら利用者が付けた名前を引き継ぐ。文字起こしや話者識別を後から
+ * 再実行しただけで「田中さん」が「参加者A」に戻るのは、名前を付けた手間を
+ * 黙って捨てることになる。
  *
- * 引き当てた名前を既存より優先しないのは、利用者が直した名前を推定で押し戻さない
- * ため。「田中さん」を「佐藤さん」に直した録音で話者識別をやり直したとき、
- * 声紋の一致を優先すると直した意味が無くなる。
+ * 引き当てた名前を利用者の名前より優先しないのは、推定で訂正を押し戻さないため。
+ * 「田中さん」を「佐藤さん」に直した録音で話者識別をやり直したとき、声紋の一致を
+ * 優先すると直した意味が無くなる。既に付いている名前が既定の採番と同じ場合だけは
+ * 「利用者が付けたものではない」と見なし、引き当てに譲る。
  */
 const buildSpeakers = (
   segments: readonly TranscriptSegment[],
@@ -481,10 +482,18 @@ const buildSpeakers = (
       const fallback =
         segment.speakerId === REMOTE_SPEAKER_ID ? '参加者' : defaultRemoteLabel(remoteIndex)
       if (segment.speakerId !== REMOTE_SPEAKER_ID) remoteIndex += 1
+
+      // 既に付いている名前が既定の採番そのものなら、利用者が付けたものではない。
+      // そこだけ声紋の引き当てに譲る（声紋帳が育った後で話者識別をやり直せば、
+      // 過去の録音にも名前が入る）。
+      const given = named.get(segment.speakerId)
       speakers.push({
         id: segment.speakerId,
         kind: 'remote',
-        label: named.get(segment.speakerId) ?? known.get(segment.speakerId) ?? fallback
+        label:
+          given !== undefined && given !== fallback
+            ? given
+            : (known.get(segment.speakerId) ?? fallback)
       })
     } else {
       speakers.push({

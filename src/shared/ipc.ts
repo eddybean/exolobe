@@ -157,6 +157,7 @@ export interface SearchIndexStatusDto {
  */
 export interface VoiceprintDto {
   readonly name: string
+  /** 学習に使った話者の数（＝この名前を付けた録音の数）。 */
   readonly samples: number
   /** ISO 文字列。境界を越えるのは DTO だけなので Date は渡さない。 */
   readonly updatedAt: string

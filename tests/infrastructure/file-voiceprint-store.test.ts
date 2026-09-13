@@ -15,7 +15,16 @@ let repository: FileVoiceprintRepository
 const print = (name: string, vector: number[]): Voiceprint => ({
   name,
   vector: Float32Array.from(vector),
-  samples: 1,
+  sources: [{ key: `rec-1:remote:spk0`, vector: Float32Array.from(vector) }],
+  modelKey: 'campplus:192',
+  updatedAt: '2026-09-13T12:00:00.000Z'
+})
+
+/** ファイルへ直接書くときの素の形（Float32Array は JSON で配列にならない）。 */
+const record = (name: string): Record<string, unknown> => ({
+  name,
+  vector: [0, 1],
+  sources: [{ key: 'rec-1:remote:spk0', vector: [0, 1] }],
   modelKey: 'campplus:192',
   updatedAt: '2026-09-13T12:00:00.000Z'
 })
@@ -42,16 +51,35 @@ describe('FileVoiceprintRepository', () => {
     expect(entry?.name).toBe('田中さん')
     expect(entry?.vector).toBeInstanceOf(Float32Array)
     expect(Array.from(entry?.vector ?? [])).toEqual([expect.closeTo(0.6), expect.closeTo(0.8)])
+    expect(entry?.sources[0]?.key).toBe('rec-1:remote:spk0')
+    expect(entry?.sources[0]?.vector).toBeInstanceOf(Float32Array)
+  })
+
+  it('出所を持たない声紋は読み飛ばす（取り消せない声紋を残さない）', async () => {
+    await writeFile(
+      join(storage, 'voiceprints.json'),
+      JSON.stringify([{ ...record('田中さん'), sources: [] }]),
+      'utf8'
+    )
+
+    expect(await repository.list()).toEqual([])
   })
 
   it('同じ名前は差し替え、別の名前は足す', async () => {
     await repository.put(print('田中さん', [1, 0]))
     await repository.put(print('佐藤さん', [0, 1]))
-    await repository.put({ ...print('田中さん', [0, 1]), samples: 3 })
+    await repository.put({
+      ...print('田中さん', [0, 1]),
+      sources: [
+        { key: 'rec-1:remote:spk0', vector: Float32Array.from([0, 1]) },
+        { key: 'rec-2:remote:spk0', vector: Float32Array.from([0, 1]) },
+        { key: 'rec-3:remote:spk0', vector: Float32Array.from([0, 1]) }
+      ]
+    })
 
     const entries = await repository.list()
     expect(entries.map((entry) => entry.name).sort()).toEqual(['佐藤さん', '田中さん'])
-    expect(entries.find((entry) => entry.name === '田中さん')?.samples).toBe(3)
+    expect(entries.find((entry) => entry.name === '田中さん')?.sources).toHaveLength(3)
   })
 
   it('名前を指定して 1 件だけ消せる', async () => {
@@ -91,8 +119,8 @@ describe('FileVoiceprintRepository', () => {
     await writeFile(
       join(storage, 'voiceprints.json'),
       JSON.stringify([
-        { ...print('田中さん', [0, 1]), vector: ['x', 1] },
-        { ...print('佐藤さん', [0, 1]), vector: [0, 1] }
+        { ...record('田中さん'), vector: ['x', 1] },
+        record('佐藤さん')
       ]),
       'utf8'
     )
@@ -103,7 +131,7 @@ describe('FileVoiceprintRepository', () => {
   it('形の合わない要素は読み飛ばす', async () => {
     await writeFile(
       join(storage, 'voiceprints.json'),
-      JSON.stringify([{ name: '田中さん' }, { ...print('佐藤さん', [0, 1]), vector: [0, 1] }]),
+      JSON.stringify([{ name: '田中さん' }, record('佐藤さん')]),
       'utf8'
     )
 
