@@ -1,6 +1,6 @@
 import type {
   AudioCapturePort,
-  CapturedTracks,
+  DualTrackSource,
   RecordingArtifactPort,
   RecordingRepositoryPort
 } from '@application/ports'
@@ -15,7 +15,7 @@ export interface StopRecordingDeps {
 
 export interface StopRecordingResult {
   readonly recording: Recording
-  readonly tracks: CapturedTracks
+  readonly tracks: DualTrackSource
 }
 
 /**

@@ -81,6 +81,10 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 2 トラック（システム音声＝相手 / マイク＝自分）を分けたまま WAV に書き、
 推論なしで 2 話者を確定させるのが設計の核（`DualTrackRecorder`）。
 停止後のパイプラインは `PIPELINE_STEPS = ['mix','transcribe','diarize','summarize','encode']`。
+パイプラインの入力は `src/domain/RecordingSource.ts` の判別共用体（`dual` = 2 トラック録音 /
+`single` = 取り込んだ音声）で、どの WAV をどの話者として起こすかは同ファイルの純粋関数が決める。
+**`PIPELINE_STEPS` に要素を足してはいけない** — 既存の完了済み録音は新しいステップが `pending` で
+補われ、`overallStatus` が永久に `processing` を返す（ADR-030）。
 
 - ステップ同士はファイル（成果物）を介してのみつながるので、`only` 指定の
   個別リトライが成立する。
@@ -127,6 +131,9 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   （短いタイトルがクエリの「〜したミーティング」と一致して本文より上に来る、ADR-029）。
 - 音声コーデックの既定を AAC-LC から HE-AAC に変えない（`afconvert` がビットレート
   指定を無視して品質が落ちる、ADR-005）。
+- 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、
+  外したときに「自分が言っていない発言」が残る（ADR-030）。変換は取り込み時に `afconvert` で
+  16kHz モノラルにし、`--mix` を外さない（片チャンネルを捨てると話者が丸ごと消える）。
 
 ### 調査はサブエージェントに投げる
 

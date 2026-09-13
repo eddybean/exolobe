@@ -62,6 +62,7 @@
             <tr><td><a href="#adr-027">ADR-027</a></td><td>録音の開始忘れの防止</td><td>他アプリのマイク使用を見張り、知らせるだけで自動開始はしない</td></tr>
             <tr><td><a href="#adr-028">ADR-028</a></td><td>話者識別の実行方式</td><td>WASM をやめ、公式プリビルドのネイティブアドオンへ</td></tr>
             <tr><td><a href="#adr-029">ADR-029</a></td><td>自然文による意味検索</td><td>bge-m3 を検索専用ワーカーで動かし、索引は userData に本文なしで置く</td></tr>
+            <tr><td><a href="#adr-030">ADR-030</a></td><td>既存の音声ファイルの取り込み</td><td>取り込み時に 16kHz へ変換し、全体を相手側として話者識別にかける</td></tr>
           </tbody>
         </table>
       </div>
@@ -366,7 +367,11 @@
         <ul>
           <li>既定は AAC-LC。設定で HE-AAC も選べる（最小サイズを優先したい場合のため）。</li>
           <li>この挙動はテストで固定してあり、既定を戻す変更は失敗する。</li>
-          <li><code>ffmpeg</code> は同梱しない。macOS 標準の <code>afconvert</code> で足りるため。</li>
+          <li>
+            <code>ffmpeg</code> は同梱しない。macOS 標準の <code>afconvert</code> で足りるため。
+            この判断は<strong>出力（WAV → m4a）について</strong>のもので、入力側の範囲は
+            <a href="#adr-030">ADR-030</a> で扱う。
+          </li>
         </ul>
       </div>
 
@@ -2071,6 +2076,148 @@
         </ul>
       </div>
 
+      <!-- ─────────────────────────────────────── -->
+      <h2 id="adr-030">ADR-030 既存の音声ファイルの取り込み（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-030</span>
+          <p class="adr__title">取り込み時に 16kHz へ変換し、全体を相手側として話者識別にかける</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          これまで扱えるのは自分で録音したものだけでした。他の人が録った会議、別のツールで録った音声、
+          スマホのボイスメモは、文字起こしも要約も意味検索も受けられません。手元の音声ファイルを渡して
+          録音と同じ後処理を通せるようにします。
+        </p>
+
+        <h4>実測（<code>afconvert -hf</code> / macOS 26）</h4>
+        <div class="measured">
+          <span class="measured__label">入力として読める形式</span>
+          wav / aiff / aifc / caf / w64 / mp3 / m4a / aac / adts / mp4 /<br />
+          flac / ogg / opus / vorbis / ac3 / amr / au<br />
+          <span class="measured__label">読めない（音声としてよく使われるもの）</span>
+          webm / mkv / mov / avi / wma
+        </div>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>論点</th><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td rowspan="2">変換の位置</td>
+                <td><strong>取り込み時に変換する</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>下記</td>
+              </tr>
+              <tr>
+                <td><code>PIPELINE_STEPS</code> に変換のステップを足す</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>既存の完了済み録音の <code>meta.json</code> には新しいステップが無く、読み込み時に <code>pending</code> で補われる。<code>overallStatus</code> は「全ステップ done」を満たせず、過去の録音がすべて永久に「処理中」になる。移行処理を書くか、素材の種類でステップ一覧を変える（＝「配列の順序が実行順を定義する」前提を壊す）しかない</td>
+              </tr>
+              <tr>
+                <td rowspan="3">話者の扱い</td>
+                <td><strong>全体を相手側とし、話者識別で 参加者A/B… に分ける</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>下記</td>
+              </tr>
+              <tr>
+                <td>自分の声を推定して <code>self</code> に割り当てる</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>外したときに「自分が言っていない発言を自分のものとして残す」ことになる。議事録で最も高価な間違いで、後から気付きにくい</td>
+              </tr>
+              <tr>
+                <td>話者を付けず単一話者として扱う</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>実装は最小だが、複数人の会議では誰の発言か分からない議事録になる</td>
+              </tr>
+              <tr>
+                <td rowspan="2">変換の道具</td>
+                <td><strong>afconvert だけを使い、読めない形式は理由を示して断る</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>下記</td>
+              </tr>
+              <tr>
+                <td>ffmpeg を任意ダウンロードで足す</td>
+                <td><span class="tag tag--defer">保留</span></td>
+                <td>webm / mkv / mov / wma が読めるようになるが、配布物・ライセンス表示・arm64 の署名要件（未署名バイナリは Gatekeeper に止められる）という、取り込みの設計とは独立した検討が要る。まず afconvert で読める範囲を出す</td>
+              </tr>
+              <tr>
+                <td rowspan="2">単一ソースのミックス</td>
+                <td><strong>1 本のままミックスを通す</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td><code>TrackMixer</code> は 1 件で動く。ステップ一覧・依存関係・個別リトライの意味が素材の種類で 2 つに割れない。代価は 1 時間あたり約 115MB の一時コピー 1 本で、片付けで消える</td>
+              </tr>
+              <tr>
+                <td>ミックスを飛ばしてエンコードの入力を変換後 WAV にする</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>エンコードの依存が <code>['mix']</code> のまま「何もしなかったミックス」に依存する。ミックスだけを個別リトライしても何も起きず、失敗扱いになると理由なくエンコードが止まる</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>取り込んだ音声には「どの声が誰か」という情報が原理的にありません。</strong>
+          <a href="#adr-006">ADR-006</a> の核は「トラック＝話者を録音時に確定させ、推論を要らなくする」ことで、
+          1 本のファイルではこれが成立しません。全体を相手側に寄せれば <code>applyDiarization</code> が
+          そのまま効いて 参加者A / 参加者B に分かれ、誤りは「参加者どうしの境目」に留まります。
+          境目のずれは話者名の付け直しで直せますが、自分と相手の取り違えは直せません。
+        </div>
+
+        <h4>扱い</h4>
+        <ul>
+          <li>
+            パイプラインの入力は <code>RecordingSource</code> の判別共用体（<code>dual</code> = 2 トラック録音 /
+            <code>single</code> = 取り込み）。どの WAV をどの話者として起こすかは
+            <code>src/domain/RecordingSource.ts</code> の純粋関数が決め、<code>ProcessRecording</code> に
+            分岐を持たせない。マイクのパスの有無で見分ける形は採らない —— マイクが取れなかった録音でも
+            <code>mic.wav</code> は空のファイルとして残るため（<a href="#adr-017">ADR-017</a>）、
+            2 つの状況を区別できない。
+          </li>
+          <li>
+            <code>kind</code> を持たない既存の <code>tracks.json</code> は 2 トラックとして読む。
+            アプリを更新しただけで、処理中だった録音のリトライが壊れないようにするため。
+            <code>meta.json</code> は変えない。
+          </li>
+          <li>
+            変換は <code>afconvert -f WAVE -d LEI16@16000 -c 1 --mix</code>。
+            <code>--mix</code> を付けるのが要点で、<code>-c 1</code> だけではチャンネルを順序を考えずに
+            増減するため、片側のマイクに寄って録れた会議では話者が丸ごと消える。
+            16kHz に揃えるのは話者識別がそのサンプルレートを前提とするため（違うと時刻がずれる）。
+          </li>
+          <li>
+            対応形式の判定は<strong>拡張子のホワイトリストと実際の変換の 2 段構え</strong>。
+            ファイル選択のフィルタとドロップの受け入れは変換より前に答えを出す必要があり、
+            レンダラーはディスクにも子プロセスにも触れない。一方ホワイトリストは DRM 付きの m4a や
+            音声トラックの無い mp4 を見抜けないので、実際の変換を最終の権威にする。
+            断る文面で <code>ffmpeg</code> には触れない（利用者に求めるものではない）。
+          </li>
+          <li>
+            <strong>1 分未満は録音を作る前に断る。</strong>境目は <code>tooShortRecording</code> の
+            1 箇所のまま。録音では停止した時点で録音が既に存在するため全ステップを失敗として記録する
+            しかないが、取り込みは利用者がファイルを選んだ直後なのでその場で理由を返せる。
+            作ってから畳むと、手で消すしかない行が一覧に残る。
+          </li>
+          <li>
+            開始日時にはファイルの更新日時を使い、読めなければ現在時刻に落とす。一覧は開始日時順に並び
+            保存ディレクトリ名もそこから作るので、取り込んだ時刻にすると 3 年前の会議が今日の録音の隣に来る。
+            タイトルは拡張子を除いたファイル名。取り込み先は未分類で、後からツリーで移動する。
+          </li>
+          <li>
+            元のファイルは保存先に複製しない。保存先に置くのは変換・エンコードを経た
+            <code>audio.m4a</code> だけで、元のファイルは利用者の管理下にある。
+          </li>
+          <li>
+            複数ファイルは 1 件ずつ順に変換する（afconvert を並べてもディスクとコアを取り合うだけ）。
+            1 件の失敗で他を諦めず、ファイル名と理由を集めて返す。後処理は直列のキューに通す ——
+            <code>PipelineClient</code> は抱えている依頼が残っている間ワーカーを終了させないため、
+            続けて呼ぶと <a href="#adr-008">ADR-008</a> の「1 プロセス 1 ジョブ」が崩れる。
+          </li>
+        </ul>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -2135,6 +2282,14 @@
             <tr>
               <td><a href="#adr-029">ADR-029</a> 索引をファイルに置いて全件を内積で比べる</td>
               <td>録音が数千件になり検索が遅くなったとき。近似最近傍探索（HNSW 等）やベクトルの Float16 化が次の一手</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-030">ADR-030</a> 取り込みは afconvert が読める形式だけ</td>
+              <td>webm / mkv / mov / wma の会議録画を渡したい要求が実際に出たとき。ffmpeg の任意ダウンロードが次の一手だが、arm64 の署名要件（未署名バイナリは Gatekeeper に止められる）と配布時のライセンス表示を先に確かめる必要がある</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-030">ADR-030</a> 取り込んだ音声は全体を相手側として扱う</td>
+              <td>「自分の声だけは分けたい」という要求が出たとき。話者埋め込みで自分の声を登録して照合する形が次の一手だが、外したときの損害が大きいので既定にはしない</td>
             </tr>
             <tr>
               <td>arm64 のみのビルド</td>

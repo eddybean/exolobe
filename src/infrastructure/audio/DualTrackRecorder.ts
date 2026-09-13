@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { AudioCapturePort, CapturedTracks } from '@application/ports'
+import type { AudioCapturePort, DualTrackSource } from '@application/ports'
 import { AppError } from '@domain/errors'
 import { WavFileWriter } from './wav'
 
@@ -161,7 +161,7 @@ export class DualTrackRecorder implements AudioCapturePort {
     })
   }
 
-  async stop(): Promise<CapturedTracks> {
+  async stop(): Promise<DualTrackSource> {
     const state = this.state
     if (!state) throw new CaptureError('録音中ではありません。')
 
@@ -179,6 +179,7 @@ export class DualTrackRecorder implements AudioCapturePort {
     }
 
     return {
+      kind: 'dual',
       systemWavPath: join(state.workDir, 'system.wav'),
       micWavPath: join(state.workDir, 'mic.wav'),
       micOffsetMs: this.micOffsetMs(state),

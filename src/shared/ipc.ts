@@ -94,6 +94,26 @@ export interface ManagedAssetStatusDto {
   readonly path?: string
 }
 
+/** 取り込めなかった 1 件。部分失敗を黙って捨てないために理由まで持つ。 */
+export interface ImportFailureDto {
+  readonly fileName: string
+  readonly reason: string
+}
+
+export interface ImportAudioResultDto {
+  /** 取り込めた録音。一覧そのものは recordingsChanged で更新される。 */
+  readonly imported: readonly RecordingDto[]
+  readonly failed: readonly ImportFailureDto[]
+}
+
+/** 変換の進み具合。長い音声の変換中に UI が固まって見えないようにする。 */
+export interface ImportProgressDto {
+  readonly done: number
+  readonly total: number
+  /** いま変換しているファイル名。全件終わったら空。 */
+  readonly fileName: string
+}
+
 export interface ProgressEventDto {
   readonly recordingId: string
   readonly step: PipelineStep
@@ -170,6 +190,17 @@ export interface RendererApi {
   /** 録音を促す知らせに対して「今はしない」を選んだ。マイクが空くまで黙らせる。 */
   dismissStartAlert(): Promise<void>
   retryStep(recordingId: string, step: PipelineStep): Promise<RecordingDto>
+
+  /** 手元の音声ファイルを取り込み、文字起こし以降を走らせる。 */
+  importAudioFiles(filePaths: readonly string[]): Promise<ImportAudioResultDto>
+  /** ネイティブのファイル選択を出してそのまま取り込む。キャンセルなら両方空。 */
+  chooseAudioFilesToImport(): Promise<ImportAudioResultDto>
+  /**
+   * ドロップされた File の実パス。
+   * Electron 32 以降 File.path は無くなったため、webUtils を持つ preload に頼む。
+   */
+  pathForFile(file: File): string
+  onImportProgress(listener: (event: ImportProgressDto) => void): () => void
   updateNote(recordingId: string, note: string): Promise<void>
   renameRecording(recordingId: string, title: string): Promise<RecordingDto>
   renameSpeaker(recordingId: string, speakerId: string, label: string): Promise<Speaker[]>
@@ -229,6 +260,9 @@ export const IPC = {
   startAlert: 'transport:startAlert',
   dismissStartAlert: 'transport:dismissStartAlert',
   retryStep: 'pipeline:retry',
+  importAudioFiles: 'recordings:import',
+  chooseAudioFilesToImport: 'recordings:chooseImport',
+  importProgress: 'recordings:importProgress',
   updateNote: 'recordings:updateNote',
   renameRecording: 'recordings:rename',
   renameSpeaker: 'recordings:renameSpeaker',

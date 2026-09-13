@@ -1,6 +1,8 @@
+import { basename } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell, type FileFilter } from 'electron'
 import type { PipelineStep } from '@domain/Recording'
 import { ConfigurationError, toMessage } from '@domain/errors'
+import { IMPORTABLE_EXTENSIONS } from '@domain/AudioImport'
 import { findAsset, formatBytes } from '@domain/ModelCatalog'
 import { DEFAULT_SEARCH_LIMIT, searchIndexTransition } from '@domain/SemanticSearch'
 import type { Settings, SettingsPatch } from '@domain/Settings'
@@ -11,6 +13,9 @@ import {
   toFolderDto,
   toRecordingDto,
   type FolderDto,
+  type ImportAudioResultDto,
+  type ImportFailureDto,
+  type ImportProgressDto,
   type ModelProgressDto,
   type ProgressEventDto,
   type RecordingDetailDto,
@@ -235,18 +240,33 @@ export const registerIpcHandlers = (
    * 個々のステップの失敗は ProcessRecording が録音の状態として記録するので、
    * ここで拾うのはワーカーごと落ちたような想定外の場合だけ。
    */
-  const runPipeline = (recordingId: string): void => {
-    pipeline
-      .run({ recordingId })
-      .catch((error: unknown) => {
-        send(IPC.progress, {
-          recordingId,
-          step: 'mix',
-          status: 'failed',
-          error: toMessage(error)
-        } satisfies ProgressEventDto)
-      })
-      .finally(() => send(IPC.recordingsChanged))
+  const runPipeline = async (recordingId: string): Promise<void> => {
+    try {
+      await pipeline.run({ recordingId })
+    } catch (error: unknown) {
+      send(IPC.progress, {
+        recordingId,
+        step: 'mix',
+        status: 'failed',
+        error: toMessage(error)
+      } satisfies ProgressEventDto)
+    } finally {
+      send(IPC.recordingsChanged)
+    }
+  }
+
+  /**
+   * 後処理は 1 件ずつ投げる。
+   *
+   * PipelineClient は抱えている依頼が残っている間ワーカーを終了させないため、run を
+   * 続けて呼ぶと 1 プロセスで複数のジョブを捌く。話者識別と要約のネイティブが確保した
+   * メモリが次のジョブへ持ち越され、ADR-008 が 1 プロセス 1 ジョブにした理由そのものに
+   * 戻ってしまう。複数ファイルの取り込みでも録音停止の直後でも、ここを通して直列にする。
+   */
+  let pipelineQueue: Promise<void> = Promise.resolve()
+
+  const enqueuePipeline = (recordingId: string): void => {
+    pipelineQueue = pipelineQueue.then(() => runPipeline(recordingId))
   }
 
   const controller: TransportController = {
@@ -287,7 +307,7 @@ export const registerIpcHandlers = (
       notifyTransport()
       send(IPC.recordingsChanged)
 
-      runPipeline(recording.id)
+      enqueuePipeline(recording.id)
       void startStartWatch()
 
       return toRecordingDto(recording)
@@ -335,6 +355,53 @@ export const registerIpcHandlers = (
     })
     send(IPC.recordingsChanged)
     return recording
+  })
+
+  /**
+   * 手元の音声ファイルを順に取り込む。
+   *
+   * 1 件ずつにするのは、afconvert を何本も同時に動かしてもディスクとコアを取り合う
+   * だけで速くならないため。変換が済んだ録音はその都度一覧へ出し、残りの変換を
+   * 待たせない。1 件の失敗で他のファイルを諦めることはせず、理由を集めて返す。
+   */
+  const importAudioFiles = async (paths: readonly string[]): Promise<ImportAudioResultDto> => {
+    const imported: RecordingDto[] = []
+    const failed: ImportFailureDto[] = []
+
+    for (const [index, filePath] of paths.entries()) {
+      send(IPC.importProgress, {
+        done: index,
+        total: paths.length,
+        fileName: basename(filePath)
+      } satisfies ImportProgressDto)
+
+      try {
+        const recording = await container.importAudioFile.execute({ filePath })
+        imported.push(toRecordingDto(recording))
+        send(IPC.recordingsChanged)
+        enqueuePipeline(recording.id)
+      } catch (error: unknown) {
+        failed.push({ fileName: basename(filePath), reason: toMessage(error) })
+      }
+    }
+
+    // 終わりの合図は invoke の解決に任せる。ここで最後の進捗を送ると、それが
+    // 解決より後に届いて「取り込み中」の表示が消えなくなる。
+    return { imported, failed }
+  }
+
+  handle(IPC.importAudioFiles, async (paths: unknown) => importAudioFiles(asFilePaths(paths)))
+
+  handle(IPC.chooseAudioFilesToImport, async (): Promise<ImportAudioResultDto> => {
+    const result = await dialog.showOpenDialog({
+      title: '取り込む音声ファイルを選択',
+      properties: ['openFile', 'multiSelections'],
+      buttonLabel: '取り込む',
+      filters: AUDIO_IMPORT_FILTERS
+    })
+    if (result.canceled || result.filePaths.length === 0) return { imported: [], failed: [] }
+
+    return importAudioFiles(result.filePaths)
   })
 
   handle(IPC.updateNote, async (id: unknown, note: unknown): Promise<void> => {
@@ -646,6 +713,29 @@ export const registerIpcHandlers = (
   searchSync.request()
 
   return controller
+}
+
+/** 取り込みのファイル選択で見せる拡張子。対応形式の定義は domain に 1 つだけ置く。 */
+const AUDIO_IMPORT_FILTERS: FileFilter[] = [
+  { name: '音声ファイル', extensions: [...IMPORTABLE_EXTENSIONS] }
+]
+
+/**
+ * 一度に取り込める上限。
+ * フォルダごとドロップされたときに、何百件もの変換が走り出さないための歯止め。
+ */
+const MAX_IMPORT_FILES = 50
+
+const asFilePaths = (value: unknown): string[] => {
+  if (!Array.isArray(value)) throw new Error('取り込むファイルが指定されていません。')
+
+  const paths = value.filter((item): item is string => typeof item === 'string' && item.length > 0)
+  if (paths.length === 0) throw new Error('取り込むファイルが指定されていません。')
+  if (paths.length > MAX_IMPORT_FILES) {
+    throw new Error(`一度に取り込めるのは ${MAX_IMPORT_FILES} 件までです。`)
+  }
+
+  return paths
 }
 
 const FILE_FILTERS: Record<'whisper-model' | 'llm-model' | 'onnx-model', FileFilter[]> = {

@@ -1,10 +1,12 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { PipelineStep } from '@domain/Recording'
 import type { Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import {
   IPC,
   type FolderDto,
+  type ImportAudioResultDto,
+  type ImportProgressDto,
   type ManagedAssetStatusDto,
   type ModelProgressDto,
   type ProgressEventDto,
@@ -45,6 +47,16 @@ const api: RendererApi = {
   dismissStartAlert: () => ipcRenderer.invoke(IPC.dismissStartAlert) as Promise<void>,
   retryStep: (recordingId, step: PipelineStep) =>
     ipcRenderer.invoke(IPC.retryStep, recordingId, step) as Promise<RecordingDto>,
+  importAudioFiles: (filePaths) =>
+    ipcRenderer.invoke(IPC.importAudioFiles, filePaths) as Promise<ImportAudioResultDto>,
+  chooseAudioFilesToImport: () =>
+    ipcRenderer.invoke(IPC.chooseAudioFilesToImport) as Promise<ImportAudioResultDto>,
+  /*
+   * File.path は Electron 32 で無くなったので、webUtils で実パスを引く。
+   * レンダラーは Node に触れないため、この変換は preload にしか置けない。
+   */
+  pathForFile: (file) => webUtils.getPathForFile(file),
+
   updateNote: (recordingId, note) =>
     ipcRenderer.invoke(IPC.updateNote, recordingId, note) as Promise<void>,
   renameRecording: (recordingId, title) =>
@@ -92,6 +104,7 @@ const api: RendererApi = {
   onSilenceAlert: (listener) => subscribe<SilenceAlertDto>(IPC.silenceAlert, listener),
   onStartAlert: (listener) => subscribe<StartAlertDto>(IPC.startAlert, listener),
   onModelProgress: (listener) => subscribe<ModelProgressDto>(IPC.modelProgress, listener),
+  onImportProgress: (listener) => subscribe<ImportProgressDto>(IPC.importProgress, listener),
 
   searchRecordings: (query) =>
     ipcRenderer.invoke(IPC.searchRecordings, query) as Promise<SearchHitDto[]>,

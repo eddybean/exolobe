@@ -139,6 +139,14 @@ code {
   height: 100%;
 }
 
+/*
+  取り込みの知らせを出している間だけ行を 2 段にする。常に 2 段にすると、
+  知らせが無いときに空の行が残って本体の高さが足りなくなる。
+*/
+.library--notified {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 /* ── ライブラリのツリー ───────────────────────── */
 
 .tree {
@@ -1289,4 +1297,67 @@ textarea:focus {
   padding: 0 2px;
   color: var(--accent);
   text-decoration: underline;
+}
+
+/* ── 音声ファイルの取り込み ─────────────────────── */
+
+.tree__header-actions {
+  display: flex;
+  gap: 2px;
+}
+
+/* 空状態の文章に混ぜる導線。ボタンだと分かる程度に色だけ変える。 */
+.tree__empty-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/*
+  ドロップ中の被せ。modal-backdrop より下（z-index 100）に置き、
+  pointer-events を切ってドロップ自体を奪わないようにする。
+*/
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.drop-overlay__label {
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 16px 24px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px color-mix(in srgb, black 20%, transparent);
+}
+
+/* 取り込みの進捗と失敗は、ツリーと詳細の上に跨いで出す。 */
+.library__import-status,
+.library__import-error {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  margin: 0;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.library__import-status {
+  color: var(--text-muted);
+  background: var(--surface);
+}
+
+.library__import-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
