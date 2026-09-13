@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 macOS 向けの Web 会議レコーダー（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜029）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜030）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -19,8 +19,10 @@ npm run lint         # oxlint
 npm test             # vitest run
 npm run test:watch
 npm run build        # typecheck + electron-vite build
-npm run package      # build + whisper-cli ビルド + electron-builder
-npm run setup        # 開発用に whisper-cli を Homebrew で導入
+npm run package      # build + whisper-cli / micwatch のビルド + electron-builder
+npm run setup        # 開発用に whisper-cli を Homebrew で導入し、micwatch をビルド
+npm run build:whisper  # whisper.cpp を Core ML 有効でビルド（配布版はこちら）
+npm run build:micwatch # micwatch（Swift）をビルド
 ```
 
 単一テストの実行:
@@ -69,6 +71,7 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 | main | 録音制御・システム音声キャプチャ（audiotee）・ライブラリ操作・IPC |
 | utilityProcess（`pipeline-worker`） | 文字起こし・話者識別・要約。ネイティブのクラッシュを隔離し、ジョブは 1 件ずつ直列 |
 | utilityProcess（`search-worker`） | 意味検索（bge-m3 の埋め込み・索引の同期）。依頼は並行に受け、3 分使われなければ終了 |
+| 子プロセス（`micwatch`） | 他アプリのマイク使用を見張り、録音の開始忘れを知らせる（録音中は動かさない、ADR-027） |
 
 パイプラインのワーカーは `PipelineClient` が必要時に fork し、ジョブが片付いたら終了させて次の依頼で
 作り直す。要約も話者識別も数 GB を使うネイティブコードで、プロセスごと終わらせるのが
@@ -107,7 +110,11 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 - モデル → `~/Library/Application Support/<app>/models/`（保存先ではない。再取得可能なため）
 - 意味検索の索引 → `userData/search/<録音ID>.json`（再生成できるキャッシュ。本文は持たず、
   チャンクの位置と 8 ビット量子化したベクトルだけ。削除済み録音の分は同期時に消える）
-- 設定 → `userData/settings.json`、録音中の中間 WAV → `userData/work/`
+- 設定 → `userData/settings.json`、録音中の中間 WAV と `tracks.json` → `userData/work/`
+  （パイプライン完了時に消える）
+- 同梱バイナリ → `resources/bin/`（`whisper-cli` / `micwatch` / `ggml-metal.metal`）。
+  ソースは `native/micwatch/`、配置は `scripts/build-*.sh` が行う。パスの解決は
+  `resolve*Binary.ts` が開発時とパッケージ時で切り替える（ADR-016）
 
 ディレクトリ名は `slugForRecording()` が `YYYY-MM-DD_HHmm-<id先頭8桁>` で作る。
 タイトルは後からリネームできるのでディレクトリ名には含めない。
