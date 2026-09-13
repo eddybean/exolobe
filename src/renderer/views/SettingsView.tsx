@@ -4,6 +4,7 @@ import { SUPPORTED_SAMPLE_RATES, type Settings, type SettingsPatch } from '@doma
 import type { SetupStateDto } from '@shared/ipc'
 import { ModelManager } from '../components/ModelManager'
 import { SemanticSearchSettings } from '../components/SemanticSearchSettings'
+import { VoiceprintSettings } from '../components/VoiceprintSettings'
 
 /**
  * 設定画面。保存先とモデルの指定がここに集まる。
@@ -294,6 +295,24 @@ export const SettingsView = ({
           </button>
         </div>
       </Field>
+
+      <Field
+        label="声の一致とみなす近さ"
+        hint="覚えた声と比べて、この値を超えたら名前を自動で入れます。上げるほど慎重になり（名前が入りにくくなり）、下げるほど別人に当たりやすくなります。"
+      >
+        <input
+          type="number"
+          min={0.1}
+          max={1}
+          step={0.05}
+          defaultValue={settings.diarization.voiceprintThreshold}
+          onBlur={(event) =>
+            update({ diarization: { voiceprintThreshold: Number(event.target.value) } })
+          }
+        />
+      </Field>
+
+      <VoiceprintSettings enabled={settings.diarization.enabled} storageDir={settings.storageDir} />
 
       <h3 className="settings__section">音声</h3>
 

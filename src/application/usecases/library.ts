@@ -15,7 +15,7 @@ import {
   type SettingsPatch
 } from '@domain/Settings'
 import { isRemoteSpeakerId, type Speaker } from '@domain/Speaker'
-import { mergeVoiceprint } from '@domain/Voiceprint'
+import { mergeVoiceprint, type Voiceprint } from '@domain/Voiceprint'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
 export interface LibraryDeps {
@@ -251,4 +251,54 @@ const findOrThrow = async (
   const recording = await repository.find(recordingId)
   if (!recording) throw new RecordingNotFoundError(recordingId)
   return recording
+}
+
+/**
+ * 設定画面に出す声紋帳の 1 件。
+ *
+ * ベクトルは渡さない。画面が使うのは名前と、どれだけ育っているかだけで、
+ * 192 個の数値を IPC の境界越しに運ぶ理由が無い。
+ */
+export interface VoiceprintView {
+  readonly name: string
+  readonly samples: number
+  readonly updatedAt: string
+}
+
+const toView = (voiceprint: Voiceprint): VoiceprintView => ({
+  name: voiceprint.name,
+  samples: voiceprint.samples,
+  updatedAt: voiceprint.updatedAt
+})
+
+/** 新しく覚えた順に並べる。直前に付けた名前が上に来るほうが確かめやすい。 */
+const listViews = async (voiceprints: VoiceprintRepositoryPort): Promise<VoiceprintView[]> =>
+  (await voiceprints.list())
+    .map(toView)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+
+export class ListVoiceprints {
+  constructor(private readonly voiceprints: VoiceprintRepositoryPort) {}
+
+  async execute(): Promise<VoiceprintView[]> {
+    return listViews(this.voiceprints)
+  }
+}
+
+/** 覚え違いを消す。消しても録音と付けた名前はそのまま残り、次回から当たらなくなるだけ。 */
+export class RemoveVoiceprint {
+  constructor(private readonly voiceprints: VoiceprintRepositoryPort) {}
+
+  async execute(name: string): Promise<VoiceprintView[]> {
+    await this.voiceprints.remove(name)
+    return listViews(this.voiceprints)
+  }
+}
+
+export class ClearVoiceprints {
+  constructor(private readonly voiceprints: VoiceprintRepositoryPort) {}
+
+  async execute(): Promise<void> {
+    await this.voiceprints.clear()
+  }
 }

@@ -22,6 +22,7 @@ import {
   type RecordingDto,
   type SearchHitDto,
   type SearchIndexStatusDto,
+  type VoiceprintDto,
   type SilenceAlertDto,
   type StartAlertDto,
   type TransportStateDto
@@ -72,6 +73,34 @@ export const registerIpcHandlers = (
   const send = (channel: string, payload?: unknown): void => {
     const window = getWindow()
     if (window && !window.isDestroyed()) window.webContents.send(channel, payload)
+  }
+
+  /**
+   * 取り消せない操作を OS のダイアログで確認する。
+   *
+   * renderer 側の confirm はブロッキングで見た目も浮くため使わない。
+   * ウィンドウが無い（トレイからの操作）場合もあるので、その時は親無しで出す。
+   */
+  const confirm = async (params: {
+    message: string
+    detail: string
+    confirmLabel?: string
+  }): Promise<boolean> => {
+    const window = getWindow()
+    const options = {
+      type: 'warning' as const,
+      buttons: [params.confirmLabel ?? '削除', 'キャンセル'],
+      defaultId: 1,
+      cancelId: 1,
+      message: params.message,
+      detail: params.detail
+    }
+
+    const result = window
+      ? await dialog.showMessageBox(window, options)
+      : await dialog.showMessageBox(options)
+
+    return result.response === 0
   }
 
   const transportState = (): TransportStateDto =>
@@ -438,22 +467,11 @@ export const registerIpcHandlers = (
    */
   handle(IPC.confirmDeleteRecording, async (id: unknown): Promise<boolean> => {
     const detail = await container.getRecordingDetail.execute(asString(id, '録音 ID'))
-    const window = getWindow()
 
-    const options = {
-      type: 'warning' as const,
-      buttons: ['削除', 'キャンセル'],
-      defaultId: 1,
-      cancelId: 1,
+    return confirm({
       message: `「${detail.recording.title}」を削除しますか？`,
       detail: '音声・文字起こし・要約・メモがすべて削除されます。この操作は取り消せません。'
-    }
-
-    const result = window
-      ? await dialog.showMessageBox(window, options)
-      : await dialog.showMessageBox(options)
-
-    return result.response === 0
+    })
   })
 
   handle(IPC.deleteRecording, async (id: unknown): Promise<void> => {
@@ -571,21 +589,10 @@ export const registerIpcHandlers = (
     const asset = findAsset(modelId)
     if (!asset) throw new ConfigurationError(`不明なモデルです: ${modelId}`)
 
-    const window = getWindow()
-    const options = {
-      type: 'warning' as const,
-      buttons: ['削除', 'キャンセル'],
-      defaultId: 1,
-      cancelId: 1,
+    return confirm({
       message: `「${asset.label}」を削除しますか？`,
       detail: `もう一度使うには ${formatBytes(asset.bytes)} のダウンロードが必要になります。`
-    }
-
-    const result = window
-      ? await dialog.showMessageBox(window, options)
-      : await dialog.showMessageBox(options)
-
-    return result.response === 0
+    })
   })
 
   handle(IPC.deleteModel, async (id: unknown) => {
@@ -652,12 +659,8 @@ export const registerIpcHandlers = (
   /** 有効なまま消すと次の同期で作り直されるので、そのことも添えて確認する。 */
   handle(IPC.confirmClearSearchIndex, async (): Promise<boolean> => {
     const status = await searchStatus()
-    const window = getWindow()
-    const options = {
-      type: 'warning' as const,
-      buttons: ['削除', 'キャンセル'],
-      defaultId: 1,
-      cancelId: 1,
+
+    return confirm({
       message: '意味検索のインデックスを削除しますか？',
       detail: [
         `${status.indexedCount} 件分、約 ${formatBytes(status.bytes)} が削除されます。`,
@@ -668,18 +671,48 @@ export const registerIpcHandlers = (
       ]
         .filter(Boolean)
         .join('\n')
-    }
-
-    const result = window
-      ? await dialog.showMessageBox(window, options)
-      : await dialog.showMessageBox(options)
-
-    return result.response === 0
+    })
   })
 
   handle(IPC.clearSearchIndex, async (): Promise<SearchIndexStatusDto> => {
     await clearSearchIndex()
     return searchStatus()
+  })
+
+  handle(IPC.listVoiceprints, async (): Promise<VoiceprintDto[]> => container.listVoiceprints.execute())
+
+  /** 消しても録音と付けた名前は残る。何が起きるかを取り違えないよう明示する。 */
+  handle(IPC.confirmRemoveVoiceprint, async (name: unknown): Promise<boolean> =>
+    confirm({
+      message: `「${asString(name, '話者名')}」の声を忘れますか？`,
+      detail: [
+        'この声で自動的に名前が入らなくなります。',
+        '録音と、すでに付けた話者名はそのまま残ります。',
+        'もう一度どこかの録音で同じ名前を付ければ、また覚えます。'
+      ].join('\n'),
+      confirmLabel: '忘れる'
+    })
+  )
+
+  handle(IPC.removeVoiceprint, async (name: unknown): Promise<VoiceprintDto[]> =>
+    container.removeVoiceprint.execute(asString(name, '話者名'))
+  )
+
+  handle(IPC.confirmClearVoiceprints, async (): Promise<boolean> => {
+    const entries = await container.listVoiceprints.execute()
+    return confirm({
+      message: '覚えた声をすべて忘れますか？',
+      detail: [
+        `${entries.length} 人分の声が削除されます。`,
+        '録音と、すでに付けた話者名はそのまま残ります。'
+      ].join('\n'),
+      confirmLabel: 'すべて忘れる'
+    })
+  })
+
+  handle(IPC.clearVoiceprints, async (): Promise<VoiceprintDto[]> => {
+    await container.clearVoiceprints.execute()
+    return container.listVoiceprints.execute()
   })
 
   handle(IPC.chooseStorageDir, async (): Promise<string | undefined> => {

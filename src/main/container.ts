@@ -13,10 +13,13 @@ import {
   RenameFolder
 } from '@application/usecases/folders'
 import {
+  ClearVoiceprints,
   DeleteRecording,
   GetRecordingDetail,
   GetSetupState,
   ListRecordings,
+  ListVoiceprints,
+  RemoveVoiceprint,
   RenameRecording,
   RenameSpeaker,
   UpdateNote,
@@ -83,6 +86,9 @@ export interface Container {
   readonly deleteModel: DeleteModel
   readonly getSearchIndexStatus: GetSearchIndexStatus
   readonly clearSearchIndex: ClearSearchIndex
+  readonly listVoiceprints: ListVoiceprints
+  readonly removeVoiceprint: RemoveVoiceprint
+  readonly clearVoiceprints: ClearVoiceprints
 }
 
 export const createContainer = (): Container => {
@@ -167,6 +173,9 @@ export const createContainer = (): Container => {
       repository,
       system: new NodeSystemResourceProbe()
     }),
-    clearSearchIndex: new ClearSearchIndex(searchIndex)
+    clearSearchIndex: new ClearSearchIndex(searchIndex),
+    listVoiceprints: new ListVoiceprints(voiceprints),
+    removeVoiceprint: new RemoveVoiceprint(voiceprints),
+    clearVoiceprints: new ClearVoiceprints(voiceprints)
   }
 }

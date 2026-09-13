@@ -63,6 +63,7 @@
             <tr><td><a href="#adr-028">ADR-028</a></td><td>話者識別の実行方式</td><td>WASM をやめ、公式プリビルドのネイティブアドオンへ</td></tr>
             <tr><td><a href="#adr-029">ADR-029</a></td><td>自然文による意味検索</td><td>bge-m3 を検索専用ワーカーで動かし、索引は userData に本文なしで置く</td></tr>
             <tr><td><a href="#adr-030">ADR-030</a></td><td>既存の音声ファイルの取り込み</td><td>取り込み時に 16kHz へ変換し、全体を相手側として話者識別にかける</td></tr>
+            <tr><td><a href="#adr-031">ADR-031</a></td><td>話者名の引き継ぎ</td><td>声紋で過去に付けた名前を当て、学習は利用者の名付けだけから行う</td></tr>
           </tbody>
         </table>
       </div>
@@ -2218,6 +2219,137 @@
         </ul>
       </div>
 
+      <h2 id="adr-031">ADR-031 話者名の引き継ぎ（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-031</span>
+          <p class="adr__title">声紋で過去に付けた名前を当て、学習は利用者の名付けだけから行う</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          話者識別が返すクラスタ名（<code>spk0</code>, <code>spk1</code>…）は 1 つの録音の中でしか
+          意味を持ちません。同じ相手と毎週会っていても、録音のたびに番号は振り直され、
+          <code>remote:spk0</code> が前回と同じ人である保証はありません。結果として、一度
+          「田中さん」と名付けても次の録音では「参加者A」に戻り、同じ作業を毎回繰り返すことになります。
+        </p>
+
+        <h4>実測（3D-Speaker CampPlus / <code>sherpa-onnx-node</code>）</h4>
+        <div class="measured">
+          <span class="measured__label">声紋の次元</span>192（<code>SpeakerEmbeddingExtractor.dim</code>）<br />
+          <span class="measured__label">追加で必要なモデル</span>
+          無し —— 話者分割が使う <code>embeddingModelPath</code> をそのまま読める<br />
+          <span class="measured__label">同一話者のコサイン類似度</span>概ね 0.65 以上<br />
+          <span class="measured__label">別話者のコサイン類似度</span>概ね 0.5 未満
+        </div>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>論点</th><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td rowspan="2">声紋の取り出し</td>
+                <td><strong><code>SpeakerEmbeddingExtractor</code> で同じ音をもう一度通す</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td><code>OfflineSpeakerDiarization</code> はクラスタ番号しか返さず、内部で作った
+                重心ベクトルを外に出さない。抽出は分割に比べれば軽く、1 人あたり最大 30 秒ぶんで済む</td>
+              </tr>
+              <tr>
+                <td><code>sherpa-onnx</code> の <code>SpeakerEmbeddingManager</code> に照合させる</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>照合はコサイン類似度だけで、純粋関数として書けばネイティブ抜きでテストできる。
+                閾値・2 位との差・名前の重複といったこのアプリ固有の判断を、ネイティブの向こう側に
+                置く理由が無い</td>
+              </tr>
+              <tr>
+                <td rowspan="2">学習の契機</td>
+                <td><strong>利用者が名前を変えたときだけ登録する</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>下記</td>
+              </tr>
+              <tr>
+                <td>自動で当てた名前もそのまま登録して育てる</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>一度の取り違えが声紋に混ざり、次の取り違えを呼ぶ。利用者は誤りに気付かないまま
+                精度が落ちていき、どこから壊れたのかを追えない</td>
+              </tr>
+              <tr>
+                <td rowspan="2">引き当てた名前の優先度</td>
+                <td><strong>この録音で既に付いている名前を優先する</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>「田中さん」を「佐藤さん」に直した録音で話者識別をやり直したとき、声紋の一致を
+                優先すると直した意味が無くなる</td>
+              </tr>
+              <tr>
+                <td>常に声紋の一致を優先する</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>推定が利用者の判断を押し戻す。訂正できない機能は、訂正できる誤りを訂正できない誤りに変える</td>
+              </tr>
+              <tr>
+                <td rowspan="2">声紋帳の置き場所</td>
+                <td><strong>保存先ルートの <code>voiceprints.json</code></strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>録音ライブラリと一体のもので、別のマシンへ移せば呼んでいた名前も付いてくる。
+                意味検索の索引（<a href="#adr-029">ADR-029</a>）と違い再生成できないので
+                <code>userData</code> のキャッシュとしては扱わない</td>
+              </tr>
+              <tr>
+                <td>録音を削除したら、その録音由来の声紋も消す</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>録音を整理するたびに認識精度が落ちる。声紋は本文ではなく「その人をどう呼ぶか」で、
+                元の録音とは寿命が違う。設定画面から一覧・個別削除・一括削除できる</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="verdict">
+          <strong>声紋帳が育つのは、利用者が明示的に名前を付けたときだけです。</strong>
+          自動で当てた名前は学習に戻しません。「田中さん」と入ったのが実は佐藤さんだった場合、
+          利用者が直せばそのベクトルは佐藤さんとして登録され、田中さんの声紋は触られません。
+          誤りが自分自身を強化しないので、間違いは 1 回で終わります。
+        </div>
+
+        <h4>扱い</h4>
+        <ul>
+          <li>
+            照合は閾値（既定 0.6、設定で変更可）に加えて<strong>2 位との差 0.05 以上</strong>を要求する。
+            似た声が 2 人登録されていて僅差で競っている状況は、どちらを選んでも半々の賭けになる。
+            当てにいかず「参加者A」のままにすれば、利用者が付け直せる。
+          </li>
+          <li>
+            1 つの名前が複数の話者に当たったら、最も似ている 1 人にだけ付ける。
+            同じ会議に同じ人が 2 人いることはない。
+          </li>
+          <li>
+            声紋に使うのは 1 秒以上のターンだけで、合計 3 秒に満たない話者は声紋を作らない
+            （<code>src/infrastructure/diarization/voiceSamples.ts</code>）。
+            「はい」「なるほど」といった相槌は声の特徴より前後の無音が支配的で、混ぜるほど
+            声紋が平均へ寄って誰とも一致しなくなる。上限は 1 人 30 秒 —— それ以上渡しても精度は変わらない。
+          </li>
+          <li>
+            話者ごとの声紋は録音ディレクトリの <code>voices.json</code> に残す。名前を付けるのは
+            パイプラインが終わった何日も後で、そのときには <code>work/</code> の WAV が消えている。
+            <code>Speaker</code> 型に持たせない —— あれは IPC で renderer まで渡る DTO で、
+            192 個の数値を毎回運ぶ理由が無い。
+          </li>
+          <li>
+            <strong><code>PIPELINE_STEPS</code> は変えない</strong>（<a href="#adr-030">ADR-030</a>）。
+            すべて <code>diarize</code> ステップの中で完結する。
+          </li>
+          <li>
+            声紋の抽出に失敗しても話者識別そのものは通す。名前の自動適用は「付け直す手間を省く」
+            だけの働きで、これが動かなくても話者の分離という本体は完成している。
+            利用者から見れば従来どおり「参加者A」が並ぶだけで、手で付け直せる。
+          </li>
+          <li>
+            声紋には埋め込みモデルのファイル名を添える。モデルを入れ替えたら過去のベクトルとは
+            比較できないため、一致の判定からも平均からも除く。
+          </li>
+        </ul>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -2286,6 +2418,10 @@
             <tr>
               <td><a href="#adr-030">ADR-030</a> 取り込みは afconvert が読める形式だけ</td>
               <td>webm / mkv / mov / wma の会議録画を渡したい要求が実際に出たとき。ffmpeg の任意ダウンロードが次の一手だが、arm64 の署名要件（未署名バイナリは Gatekeeper に止められる）と配布時のライセンス表示を先に確かめる必要がある</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-031">ADR-031</a> 声紋の一致で名前を自動適用</td>
+              <td>短い発話しかない相手で取りこぼしが目立つとき。同僚どうしの取り違えが実際に起きたとき（閾値と 2 位との差を見直す）</td>
             </tr>
             <tr>
               <td><a href="#adr-030">ADR-030</a> 取り込んだ音声は全体を相手側として扱う</td>

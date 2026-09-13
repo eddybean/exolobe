@@ -5,6 +5,9 @@ import {
   GetSetupState,
   ListRecordings,
   RenameRecording,
+  ClearVoiceprints,
+  ListVoiceprints,
+  RemoveVoiceprint,
   RenameSpeaker,
   UpdateNote,
   UpdateSettings
@@ -20,6 +23,7 @@ import {
   FakeVoiceprintRepository
 } from './fakes'
 import { normalize } from '@domain/vector'
+import type { Voiceprint } from '@domain/Voiceprint'
 
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
 const recording = createRecording({ id: 'rec-1', startedAt, title: 'サンプル会議' })
@@ -350,5 +354,44 @@ describe('GetSetupState', () => {
     expect(state.needsStorageDir).toBe(false)
     expect(state.needsTranscriptionModel).toBe(false)
     expect(state.needsSummarizationModel).toBe(false)
+  })
+})
+
+describe('声紋帳の管理', () => {
+  const print = (name: string, updatedAt: string, samples = 1): Voiceprint => ({
+    name,
+    vector: Float32Array.from([1, 0]),
+    samples,
+    modelKey: 'campplus:192',
+    updatedAt
+  })
+
+  let voiceprints: FakeVoiceprintRepository
+
+  beforeEach(async () => {
+    voiceprints = new FakeVoiceprintRepository()
+    await voiceprints.put(print('田中さん', '2026-09-10T00:00:00.000Z', 3))
+    await voiceprints.put(print('佐藤さん', '2026-09-12T00:00:00.000Z'))
+  })
+
+  it('ベクトルを外に出さず、新しい順に並べて返す', async () => {
+    const listed = await new ListVoiceprints(voiceprints).execute()
+
+    expect(listed).toEqual([
+      { name: '佐藤さん', samples: 1, updatedAt: '2026-09-12T00:00:00.000Z' },
+      { name: '田中さん', samples: 3, updatedAt: '2026-09-10T00:00:00.000Z' }
+    ])
+  })
+
+  it('名前を指定して 1 件だけ消せる', async () => {
+    const remaining = await new RemoveVoiceprint(voiceprints).execute('田中さん')
+
+    expect(remaining.map((entry) => entry.name)).toEqual(['佐藤さん'])
+  })
+
+  it('全部消せる', async () => {
+    await new ClearVoiceprints(voiceprints).execute()
+
+    expect(await voiceprints.list()).toEqual([])
   })
 })

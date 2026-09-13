@@ -6,7 +6,7 @@ import type { ChunkLocator, SearchSource } from '@domain/SemanticSearch'
 import type { AudioCodec, Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import type { SpeakerTurn, TranscriptSegment } from '@domain/TranscriptSegment'
-import type { RecordingVoices, SpeakerVector, Voiceprint } from '@domain/Voiceprint'
+import type { RecordingVoices, Voiceprint } from '@domain/Voiceprint'
 
 /**
  * 内側の層が外界に触れるための境界。実装はすべて infrastructure 層に置き、

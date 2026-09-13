@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 macOS 向けの Web 会議レコーダー（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜030）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜031）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -104,9 +104,11 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 ### データの置き場所
 
 - 録音の成果物 → 設定の保存先ルート配下、1 録音 = 1 ディレクトリ
-  （`meta.json` / `audio.m4a` / `transcript.json` / `transcript.md` / `summary.md` / `note.md`）。
-  一覧キャッシュは `index.json`、フォルダ定義は `folders.json`。`index.json` は
-  各 `meta.json` から再構築できるキャッシュに過ぎない（ADR-015）。
+  （`meta.json` / `audio.m4a` / `transcript.json` / `transcript.md` / `summary.md` / `note.md` /
+  `voices.json` = 話者ごとの声紋）。
+  一覧キャッシュは `index.json`、フォルダ定義は `folders.json`、声紋帳は `voiceprints.json`。
+  `index.json` は各 `meta.json` から再構築できるキャッシュに過ぎない（ADR-015）。
+  `voiceprints.json` は**再生成できない**ので、キャッシュとして扱わない（ADR-031）。
 - モデル → `~/Library/Application Support/<app>/models/`（保存先ではない。再取得可能なため）
 - 意味検索の索引 → `userData/search/<録音ID>.json`（再生成できるキャッシュ。本文は持たず、
   チャンクの位置と 8 ビット量子化したベクトルだけ。削除済み録音の分は同期時に消える）
@@ -138,6 +140,9 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   （短いタイトルがクエリの「〜したミーティング」と一致して本文より上に来る、ADR-029）。
 - 音声コーデックの既定を AAC-LC から HE-AAC に変えない（`afconvert` がビットレート
   指定を無視して品質が落ちる、ADR-005）。
+- 話者名の自動適用（ADR-031）で、**声紋帳が育つのは `RenameSpeaker` からだけ**にする。
+  自動で当てた名前を学習に戻すと、一度の取り違えが声紋に混ざって次の取り違えを呼ぶ。
+  引き当てた名前は、その録音で既に付いている名前より優先しない（利用者の訂正を推定で押し戻さない）。
 - 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、
   外したときに「自分が言っていない発言」が残る（ADR-030）。変換は取り込み時に `afconvert` で
   16kHz モノラルにし、`--mix` を外さない（片チャンネルを捨てると話者が丸ごと消える）。
