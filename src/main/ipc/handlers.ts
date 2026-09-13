@@ -20,6 +20,10 @@ import {
   type ProgressEventDto,
   type RecordingDetailDto,
   type RecordingDto,
+  type ChatAvailabilityDto,
+  type ChatChunkDto,
+  type ChatDoneDto,
+  type ChatTurnDto,
   type SearchHitDto,
   type SearchIndexStatusDto,
   type VoiceprintDto,
@@ -34,6 +38,7 @@ import { notifySilence } from '../silenceNotification'
 import { createStartMonitor } from '../startMonitor'
 import { notifyMeetingStart } from '../startNotification'
 import { PipelineClient } from '../worker/PipelineClient'
+import { ChatClient } from '../worker/ChatClient'
 import { SearchClient } from '../worker/SearchClient'
 
 /** 無音を判定する間隔。会議の沈黙は分単位なので、1 秒ごとで十分細かい。 */
@@ -134,9 +139,30 @@ export const registerIpcHandlers = (
    * メモリが足りなくなり、会議アプリの音声まで途切れかねないため。
    */
   const search = new SearchClient()
+
+  /**
+   * チャット。要約と同じ 5GB 級のモデルを、チャット専用のワーカーに載せる。
+   *
+   * 3 つのモデル（文字起こし・要約・埋め込み）と取り合うので、優先順位を決めておく:
+   * パイプライン ＞ チャット（利用者が画面で待っている） ＞ 索引の同期。
+   */
+  const chat = new ChatClient()
+
+  // 話題語での絞り込みは意味検索のワーカーに解かせる。埋め込みモデルと LLM を
+  // 同じプロセスに載せないため、プロセスをまたいでここで橋渡しする。
+  chat.onFindCandidates(async ({ topic, limit }) => {
+    const { search: config } = await container.settings.load()
+    if (!config.enabled) return []
+
+    const hits = await search.search(topic, limit)
+    // 役目は終わり。この後すぐ LLM が数 GB を要求するので、先に返させる。
+    search.releaseWhenIdle()
+    return hits.map((hit) => hit.recordingId)
+  })
+
   const searchSync = createSearchSyncScheduler({
     isEnabled: async () => (await container.settings.load()).search.enabled,
-    isBusy: () => pipeline.isBusy() || active !== undefined,
+    isBusy: () => pipeline.isBusy() || active !== undefined || chat.isBusy(),
     run: async (onProgress) => {
       await search.sync(onProgress)
     },
@@ -150,7 +176,11 @@ export const registerIpcHandlers = (
   }
 
   pipeline.onBusyChange((busy) => {
-    if (busy) yieldSearch()
+    if (busy) {
+      yieldSearch()
+      // 生成中の回答は打ち切らない。数秒で終わるうえ、利用者が画面で待っている。
+      chat.releaseWhenIdle()
+    }
     // 処理が片付けば文字起こしと要約が揃っているので、索引に入れる好機でもある。
     else searchSync.request()
   })
@@ -560,6 +590,8 @@ export const registerIpcHandlers = (
         await search.shutdown()
         searchSync.request()
       }
+      // モデル無しで起きていたワーカーは、新しいモデルを読み直させる。
+      if (modelId === 'summarization-model') await chat.shutdown()
       return settings
     } catch (error: unknown) {
       const message = toMessage(error)
@@ -596,6 +628,7 @@ export const registerIpcHandlers = (
     const modelId = asString(id, 'モデル ID')
     // 読み込み中のモデルファイルを消さないよう、先にワーカーを終わらせる。
     if (modelId === 'search-model') await search.shutdown()
+    if (modelId === 'summarization-model') await chat.shutdown()
     return container.deleteModel.execute(modelId)
   })
 
@@ -606,9 +639,26 @@ export const registerIpcHandlers = (
     // 次の録音まで待たずにここで反映する。
     if (!active) await startStartWatch()
     await applySearchSettings(before, settings)
+    await applyChatSettings(before, settings)
     send(IPC.recordingsChanged)
     return settings
   })
+
+  /**
+   * チャットが読み込み済みのモデルと設定がずれたら、ワーカーを終わらせる。
+   *
+   * セッションは起動時の設定でモデルを読んだまま生き続けるので、
+   * 差し替えはプロセスを作り直すことでしか反映できない。
+   */
+  const applyChatSettings = async (before: Settings, after: Settings): Promise<void> => {
+    const changed =
+      before.summarization.modelPath !== after.summarization.modelPath ||
+      before.summarization.contextSize !== after.summarization.contextSize ||
+      before.memoryProtection !== after.memoryProtection ||
+      (before.chat.enabled && !after.chat.enabled)
+
+    if (changed) await chat.shutdown()
+  }
 
   /** 意味検索の設定の変化を索引に反映する。無効にしたら使わない索引の容量を返す。 */
   const applySearchSettings = async (before: Settings, after: Settings): Promise<void> => {
@@ -652,6 +702,105 @@ export const registerIpcHandlers = (
   })
 
   handle(IPC.getSearchIndexStatus, async () => searchStatus())
+
+  const chatAvailability = async (): Promise<ChatAvailabilityDto> => {
+    const settings = await container.settings.load()
+    // 設定だけが残ってファイルが消えている場合を「取得済み」と見せない。
+    const models = await container.getModelStatus.execute()
+    const modelInstalled =
+      models.find((model) => model.id === 'summarization-model')?.installed ?? false
+
+    return {
+      enabled: settings.chat.enabled,
+      modelInstalled,
+      semanticSearchAvailable: settings.search.enabled && settings.search.modelPath !== '',
+      ...(pipeline.isBusy() || active !== undefined
+        ? { busyReason: '録音や処理が終わるまで待ってください。' }
+        : {})
+    }
+  }
+
+  handle(IPC.getChatAvailability, async () => chatAvailability())
+
+  /** 利用者が止めた依頼。途中までの本文を「失敗」ではなく「中断」として見せるため。 */
+  const cancelled = new Set<string>()
+
+
+  /**
+   * 問いを受けて答えを流す。
+   *
+   * 答えは chat:chunk / chat:done で届けるので、この invoke は受け付けたことだけを返す。
+   * 生成は数十秒かかることがあり、invoke の戻り値で待たせると画面が固まって見える。
+   */
+  handle(IPC.askChat, async (params: unknown): Promise<void> => {
+    const { requestId, question, history } = asChatRequest(params)
+
+    const done = (payload: Omit<ChatDoneDto, 'requestId'>): void => {
+      send(IPC.chatDone, { requestId, ...payload } satisfies ChatDoneDto)
+    }
+
+    // パイプラインが動いている間はワーカーを起こさない。文字起こしと要約に
+    // 加えて 5GB を載せると、会議アプリの音声まで途切れかねない。
+    if (pipeline.isBusy() || active !== undefined) {
+      done({
+        text: '',
+        citations: [],
+        droppedCount: 0,
+        aborted: false,
+        error: '録音の処理中です。終わってからもう一度お試しください。'
+      })
+      return
+    }
+
+    const settings = await container.settings.load()
+    if (!settings.chat.enabled) {
+      done({
+        text: '',
+        citations: [],
+        droppedCount: 0,
+        aborted: false,
+        error: 'チャットが無効です。設定画面で有効にしてください。'
+      })
+      return
+    }
+
+    // 埋め込みモデルと LLM を同時に載せない。話題語での絞り込みが要るときは、
+    // チャットのワーカーが改めて main 越しに検索を頼んでくる。
+    search.cancelSync()
+    search.releaseWhenIdle()
+
+    try {
+      const answer = await chat.ask({
+        question,
+        history,
+        onChunk: (text) => send(IPC.chatChunk, { requestId, text } satisfies ChatChunkDto)
+      })
+      done({
+        text: answer.text,
+        citations: answer.citations,
+        ...(answer.scopeLabel === undefined ? {} : { scopeLabel: answer.scopeLabel }),
+        droppedCount: answer.droppedCount,
+        aborted: cancelled.delete(requestId)
+      })
+    } catch (error: unknown) {
+      done({
+        text: '',
+        citations: [],
+        droppedCount: 0,
+        aborted: cancelled.delete(requestId),
+        error: toMessage(error)
+      })
+    } finally {
+      // 索引が待たされていた分をここで進める。
+      searchSync.request()
+    }
+  })
+
+  handle(IPC.cancelChat, async (id: unknown): Promise<void> => {
+    const requestId = asString(id, '依頼 ID')
+    cancelled.add(requestId)
+    chat.cancel(requestId)
+  })
 
   /** 有効なまま消すと次の同期で作り直されるので、そのことも添えて確認する。 */
   handle(IPC.confirmClearSearchIndex, async (): Promise<boolean> => {
@@ -791,6 +940,34 @@ const handle = (
       throw new Error(toMessage(error))
     }
   })
+}
+
+/** renderer から届く値は信頼しない。会話履歴は形が崩れやすいので入口で絞る。 */
+const asChatRequest = (
+  value: unknown
+): { requestId: string; question: string; history: ChatTurnDto[] } => {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('チャットの依頼が指定されていません。')
+  }
+  const params = value as Record<string, unknown>
+  const rawHistory = params['history']
+  const history = Array.isArray(rawHistory) ? rawHistory : []
+
+  return {
+    requestId: asString(params['requestId'], '依頼 ID'),
+    // 異常に長い入力で 1 回分の入力を超えないよう、ここで抑える。
+    question: asString(params['question'], '質問').slice(0, 1_000),
+    history: history
+      .filter(
+        (turn): turn is ChatTurnDto =>
+          typeof turn === 'object' &&
+          turn !== null &&
+          ((turn as Record<string, unknown>)['role'] === 'user' ||
+            (turn as Record<string, unknown>)['role'] === 'assistant') &&
+          typeof (turn as Record<string, unknown>)['text'] === 'string'
+      )
+      .map((turn) => ({ role: turn.role, text: turn.text }))
+  }
 }
 
 const asString = (value: unknown, label: string): string => {
