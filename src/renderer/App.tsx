@@ -9,6 +9,7 @@ import type {
 import { LibrarySidebar } from './components/LibrarySidebar'
 import { messageOf } from './errorMessage'
 import { importSummary } from './library/fileDrop'
+import { useChat } from './hooks/useChat'
 import { useFileDrop } from './hooks/useFileDrop'
 import { isSemanticSearchAvailable } from './library/semanticSearch'
 import { TransportBar } from './components/TransportBar'
@@ -38,6 +39,9 @@ export const App = (): ReactElement => {
   const [importError, setImportError] = useState<string>()
 
   const transport = useTransport(setup?.settings.audio.sampleRate ?? 16_000)
+  // 会話は画面を切り替えても残す。引用から録音へ飛ぶとチャット画面は外れるので、
+  // チャット側に持たせると戻ったときに会話が消える。
+  const chat = useChat()
 
   const refreshSetup = useCallback(async (): Promise<void> => {
     const state = await window.recorder.getSetupState()
@@ -199,6 +203,7 @@ export const App = (): ReactElement => {
 
         {screen === 'chat' && (
           <ChatView
+            chat={chat}
             onOpenRecording={(id) => {
               setSelectedId(id)
               setScreen('library')

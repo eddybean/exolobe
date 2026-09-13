@@ -87,16 +87,20 @@ const ensureChatMemory = async (deps: AskChatDeps, modelPath: string): Promise<v
  * 話題語で候補を絞る。
  *
  * 期間で絞った結果が空なら呼ばない — 利用者が指定した期間の外を勝手に見に行かない。
- * 失敗しても期間だけで答える。検索が使えないことを理由に、答えられる問いまで
- * 断る方が損害が大きい。
+ * 意味検索が使えない構成でも呼ばない。使えないときの「該当なし」は検索結果ではなく
+ * 単に確かめられなかっただけで、それで候補を落とすと期間で答えられる問いまで
+ * 「記録がありません」になる。失敗したときに期間だけで答えるのも同じ理由。
  */
 const narrowByTopic = async (
   deps: AskChatDeps,
   plan: ChatQueryPlan,
   candidates: readonly Recording[],
-  limit: number
+  limit: number,
+  searchAvailable: boolean
 ): Promise<readonly Recording[]> => {
-  if (!deps.finder || !hasTopic(plan) || candidates.length === 0) return candidates
+  if (!deps.finder || !searchAvailable || !hasTopic(plan) || candidates.length === 0) {
+    return candidates
+  }
 
   let ids: readonly string[]
   try {
@@ -154,7 +158,13 @@ export class AskChat {
       .filter((recording) => isSettled(recording) && inRange(recording, plan))
       .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
 
-    const narrowed = await narrowByTopic(this.deps, plan, settledInRange, limit)
+    const narrowed = await narrowByTopic(
+      this.deps,
+      plan,
+      settledInRange,
+      limit,
+      settings.search.enabled && settings.search.modelPath !== ''
+    )
     const chosen = narrowed.slice(0, limit)
 
     // 文脈が空でもモデルには尋ねる。「記録が無い」と答えるのも回答のうちで、

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import type { ChatCitationDto } from '@shared/ipc'
 import { Markdown } from '../components/Markdown'
 import { formatDateTime } from '../format'
-import { useChat } from '../hooks/useChat'
+import type { ChatController } from '../hooks/useChat'
 
 const EXAMPLES = [
   '先週のTODOをまとめて',
@@ -49,13 +49,17 @@ const Citations = ({
  *
  * 録音の詳細の隣ではなく独立した画面に置く。チャットの相手は「選択中の 1 件」では
  * なくライブラリ全体で、詳細ペインの横に並べると対象が何なのか画面が嘘をつく。
+ *
+ * 会話そのものは App が持つ。引用から録音へ飛ぶとこの画面は外れるので、
+ * ここで持つと戻ってきたときに会話が消えてしまう。
  */
 export const ChatView = ({
+  chat,
   onOpenRecording
 }: {
+  chat: ChatController
   onOpenRecording: (recordingId: string) => void
 }): ReactElement => {
-  const chat = useChat()
   const [draft, setDraft] = useState('')
   const logRef = useRef<HTMLDivElement>(null)
 

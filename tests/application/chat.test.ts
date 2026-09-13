@@ -51,7 +51,10 @@ const build = async (options: { finder?: boolean } = {}): Promise<AskChat> => {
   chat = new FakeChatCompletion()
   finder = new FakeRecordingFinder()
 
-  await settings.save({ summarization: { modelPath: MODEL_PATH } })
+  await settings.save({
+    summarization: { modelPath: MODEL_PATH },
+    search: { enabled: true, modelPath: '/models/bge-m3.gguf' }
+  })
   system.sizes.set(MODEL_PATH, 5 * 1_024 ** 3)
 
   for (const recording of [lastWeek, twoWeeksAgo]) {
@@ -173,6 +176,27 @@ describe('AskChat — 話題で絞る', () => {
     await ask(askChat, '先週のことをまとめて')
 
     expect(finder.calls).toHaveLength(0)
+  })
+
+  it('意味検索が無効なら finder を呼ばず、期間で絞った結果で答える', async () => {
+    const askChat = await build({ finder: true })
+    // 検索が使えないのに話題語で絞ると、候補が空になって「記録が無い」と答えてしまう。
+    await settings.save({ search: { enabled: false } })
+
+    await ask(askChat, '先週の見積もりの話をまとめて')
+
+    expect(finder.calls).toHaveLength(0)
+    expect(chat.calls[0]?.prompt).toContain('先週の定例')
+  })
+
+  it('意味検索が有効でモデルもあれば finder を使う', async () => {
+    const askChat = await build({ finder: true })
+    await settings.save({ search: { enabled: true, modelPath: '/models/bge-m3.gguf' } })
+    finder.ids = ['rec-last']
+
+    await ask(askChat, '先週の見積もりの話をまとめて')
+
+    expect(finder.calls).toHaveLength(1)
   })
 
   it('finder が無くても期間だけで答える', async () => {
