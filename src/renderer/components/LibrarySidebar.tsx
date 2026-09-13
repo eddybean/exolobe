@@ -8,9 +8,11 @@ import {
   type ReactElement
 } from 'react'
 import type { FolderDto, RecordingDto } from '@shared/ipc'
+import { messageOf } from '../errorMessage'
 import { isCommitEnter } from '../keyboard'
 import { autoExpandedKeys, buildLibraryTree, type LibraryNode } from '../library/tree'
 import { STATUS_LABELS } from '../format'
+import { SemanticSearchResults, type SemanticSearchState } from './SemanticSearchResults'
 
 const RECORDING_MIME = 'application/x-recording-id'
 const FOLDER_MIME = 'application/x-folder-id'
@@ -100,10 +102,13 @@ export const LibrarySidebar = ({
   onRenameFolder,
   onDeleteFolder,
   onMoveFolder,
-  onMoveRecording
+  onMoveRecording,
+  semanticAvailable
 }: {
   folders: readonly FolderDto[]
   recordings: readonly RecordingDto[]
+  /** 意味検索が有効でモデルもあるか。無ければ切り替え自体を出さない。 */
+  semanticAvailable: boolean
   selectedId: string | undefined
   onSelect: (id: string) => void
   onCreateFolder: (params: { name: string; parentId?: string }) => void
@@ -113,18 +118,28 @@ export const LibrarySidebar = ({
   onMoveRecording: (recordingId: string, folderId: string | undefined) => void
 }): ReactElement => {
   const [query, setQuery] = useState('')
+  const [mode, setMode] = useState<'keyword' | 'semantic'>('keyword')
+  const [semantic, setSemantic] = useState<SemanticSearchState | undefined>()
+  // 設定で無効にされたら、選んでいたモードに関わらずキーワードに戻す。
+  const semanticMode = semanticAvailable && mode === 'semantic'
   const [dropTarget, setDropTarget] = useState<string | undefined>()
   const [createModal, setCreateModal] = useState<{ parentId?: string } | undefined>()
   /** ユーザーが明示的に開閉したノード。既定の開閉より優先する。 */
   const [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(new Map())
 
+  // 意味検索のモードでは語句の絞り込みをしない。Enter を押すまでツリーは全件のまま。
+  const keywordQuery = semanticMode ? '' : query
   const tree = useMemo(
-    () => buildLibraryTree(folders, recordings, query),
-    [folders, recordings, query]
+    () => buildLibraryTree(folders, recordings, keywordQuery),
+    [folders, recordings, keywordQuery]
   )
   const auto = useMemo(
-    () => autoExpandedKeys(tree, selectedId === undefined ? { query } : { query, selectedId }),
-    [tree, query, selectedId]
+    () =>
+      autoExpandedKeys(
+        tree,
+        selectedId === undefined ? { query: keywordQuery } : { query: keywordQuery, selectedId }
+      ),
+    [tree, keywordQuery, selectedId]
   )
 
   // 検索語が変わると開くべきノードも変わるので、前の絞り込みでの開閉は捨てる。
@@ -168,6 +183,37 @@ export const LibrarySidebar = ({
 
   const hasMatches = tree[0] !== undefined && tree[0].recordings.length > 0
 
+  /**
+   * 1 文字ごとに問い合わせるとモデルの計算が追いつかないので、Enter で確定させる。
+   * 結果が返る前に次を打ったら、古い結果で上書きしない。
+   */
+  const latestSearch = useRef(0)
+  const runSemanticSearch = (): void => {
+    const text = query.trim()
+    if (!text) return
+
+    const ticket = latestSearch.current + 1
+    latestSearch.current = ticket
+    setSemantic({ kind: 'searching' })
+    window.recorder
+      .searchRecordings(text)
+      .then((hits) => {
+        if (latestSearch.current === ticket) setSemantic({ kind: 'done', hits })
+      })
+      .catch((error: unknown) => {
+        if (latestSearch.current !== ticket) return
+        setSemantic({ kind: 'error', message: messageOf(error) })
+      })
+  }
+
+  const switchMode = (next: 'keyword' | 'semantic'): void => {
+    setMode(next)
+    setSemantic(undefined)
+    latestSearch.current += 1
+  }
+
+  const showSemanticResults = semanticMode && semantic !== undefined && query.trim() !== ''
+
   return (
     <nav className="tree">
       <div className="tree__header">
@@ -185,13 +231,46 @@ export const LibrarySidebar = ({
         <input
           type="search"
           className="tree__search"
-          placeholder="タイトル・要約で絞り込む"
+          placeholder={
+            semanticMode ? '例: 天気の話をした会議（Enter で検索）' : 'タイトル・要約で絞り込む'
+          }
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (semanticMode && isCommitEnter(event)) {
+              event.preventDefault()
+              runSemanticSearch()
+            }
+          }}
         />
+        {semanticAvailable && (
+          <fieldset className="semantic__modes" aria-label="検索の方法">
+            <button
+              type="button"
+              className={semanticMode ? 'semantic__mode' : 'semantic__mode semantic__mode--active'}
+              aria-pressed={!semanticMode}
+              onClick={() => switchMode('keyword')}
+            >
+              キーワード
+            </button>
+            <button
+              type="button"
+              className={semanticMode ? 'semantic__mode semantic__mode--active' : 'semantic__mode'}
+              aria-pressed={semanticMode}
+              title="文章の意味で探します。例:「天気の話をした会議」"
+              onClick={() => switchMode('semantic')}
+            >
+              意味
+            </button>
+          </fieldset>
+        )}
       </div>
 
-      {!hasMatches && (
+      {showSemanticResults && (
+        <SemanticSearchResults state={semantic} selectedId={selectedId} onSelect={onSelect} />
+      )}
+
+      {!showSemanticResults && !hasMatches && (
         <p className="tree__empty">
           {recordings.length === 0
             ? '録音はまだありません。下の「録音」ボタンで開始できます。'
@@ -199,26 +278,32 @@ export const LibrarySidebar = ({
         </p>
       )}
 
-      <ul className="tree__list">
-        {tree.map((node) => (
-          <TreeNode
-            key={node.key}
-            node={node}
-            depth={0}
-            selectedId={selectedId}
-            dropTarget={dropTarget}
-            isOpen={isOpen}
-            onToggle={toggle}
-            onSelect={onSelect}
-            onRequestCreateChild={(parentId) => setCreateModal({ parentId })}
-            onRenameFolder={onRenameFolder}
-            onDeleteFolder={onDeleteFolder}
-            onDragOver={acceptDrop}
-            onDragLeave={() => setDropTarget(undefined)}
-            onDrop={handleDrop}
-          />
-        ))}
-      </ul>
+      {/*
+        意味検索の結果を出している間はツリーを出さない。hidden 属性では
+        `.tree__list` の display 指定に負けて消えないので、描画ごと分ける。
+      */}
+      {!showSemanticResults && (
+        <ul className="tree__list">
+          {tree.map((node) => (
+            <TreeNode
+              key={node.key}
+              node={node}
+              depth={0}
+              selectedId={selectedId}
+              dropTarget={dropTarget}
+              isOpen={isOpen}
+              onToggle={toggle}
+              onSelect={onSelect}
+              onRequestCreateChild={(parentId) => setCreateModal({ parentId })}
+              onRenameFolder={onRenameFolder}
+              onDeleteFolder={onDeleteFolder}
+              onDragOver={acceptDrop}
+              onDragLeave={() => setDropTarget(undefined)}
+              onDrop={handleDrop}
+            />
+          ))}
+        </ul>
+      )}
 
       {createModal && (
         <FolderNameModal

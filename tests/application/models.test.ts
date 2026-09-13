@@ -84,8 +84,16 @@ describe('ModelCatalog', () => {
       { transcription: { vadModelPath: '/p' } },
       { summarization: { modelPath: '/p' } },
       { diarization: { segmentationModelPath: '/p' } },
-      { diarization: { embeddingModelPath: '/p' } }
+      { diarization: { embeddingModelPath: '/p' } },
+      { search: { modelPath: '/p' } }
     ])
+  })
+
+  it('意味検索モデルは任意にし、取得物をチェックサムで確かめる', () => {
+    const asset = findAsset('search-model')
+
+    expect(asset?.optional).toBe(true)
+    expect(asset?.sha256).toMatch(/^[0-9a-f]{64}$/)
   })
 
   it('Core ML エンコーダは文字起こしモデルの隣に置く名前で配布されている', () => {
@@ -203,6 +211,16 @@ describe('DownloadModel', () => {
     expect(updated.diarization.embeddingModelPath).toContain('3dspeaker')
   })
 
+  it('意味検索モデルは search の設定へ入る', async () => {
+    const settings = new FakeSettingsRepository(defaultSettings())
+
+    const updated = await new DownloadModel(settings, new FakeModelStore()).execute({
+      id: 'search-model'
+    })
+
+    expect(updated.search.modelPath).toBe('/models/bge-m3-q8_0.gguf')
+  })
+
   it('進捗を呼び出し側へ渡す', async () => {
     const progress: [number, number | undefined][] = []
 
@@ -290,6 +308,21 @@ describe('DeleteModel', () => {
 
     expect(store.removed).toEqual(['summarization-model'])
     expect(updated.summarization.modelPath).toBe('')
+  })
+
+  it('意味検索モデルを消すと search の参照も外れる', async () => {
+    const store = new FakeModelStore()
+    store.present.add('/models/bge-m3-q8_0.gguf')
+    const base = defaultSettings()
+    const settings = new FakeSettingsRepository({
+      ...base,
+      search: { enabled: true, modelPath: '/models/bge-m3-q8_0.gguf' }
+    })
+
+    const updated = await deleter(settings, store).execute('search-model')
+
+    expect(store.removed).toEqual(['search-model'])
+    expect(updated.search.modelPath).toBe('')
   })
 
   it('自分で選んだ外部ファイルは消さず、参照だけ外す', async () => {

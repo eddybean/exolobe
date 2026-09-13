@@ -19,7 +19,9 @@ export default defineConfig({
         input: {
           index: resolve('src/main/index.ts'),
           // パイプラインは utilityProcess で動かすため独立したエントリにする。
-          'pipeline-worker': resolve('src/main/worker/pipeline-worker.ts')
+          'pipeline-worker': resolve('src/main/worker/pipeline-worker.ts'),
+          // 意味検索もネイティブの推論を使うので、同じく独立したエントリにする。
+          'search-worker': resolve('src/main/worker/search-worker.ts')
         }
       }
     }

@@ -101,6 +101,37 @@ export interface ProgressEventDto {
   readonly error?: string
 }
 
+/** 意味検索の 1 件の結果。関連度の高い順に並ぶ。 */
+export interface SearchHitDto {
+  readonly recordingId: string
+  readonly title: string
+  /** ISO 8601 文字列。 */
+  readonly startedAt: string
+  readonly score: number
+  readonly source: 'summary' | 'note' | 'transcript'
+  /** 当たった箇所の抜粋。なぜ当たったのかを利用者が確かめられるようにする。 */
+  readonly excerpt: string
+  /** 文字起こしで当たった場合の、該当区間の開始時刻。 */
+  readonly startMs?: number
+}
+
+/** 索引をバックグラウンドで録音一覧に合わせる処理の状態。 */
+export type SearchSyncStateDto =
+  | { readonly state: 'idle' }
+  /** 録音やその後処理が終わるのを待っている。 */
+  | { readonly state: 'waiting' }
+  | { readonly state: 'running'; readonly done: number; readonly total: number }
+  | { readonly state: 'error'; readonly message: string }
+
+export interface SearchIndexStatusDto {
+  readonly enabled: boolean
+  readonly modelInstalled: boolean
+  readonly indexedCount: number
+  readonly recordingCount: number
+  readonly bytes: number
+  readonly sync: SearchSyncStateDto
+}
+
 export const toRecordingDto = (
   recording: Recording,
   summaryPreview?: string
@@ -175,6 +206,14 @@ export interface RendererApi {
   onSilenceAlert(listener: (event: SilenceAlertDto) => void): () => void
   onStartAlert(listener: (event: StartAlertDto) => void): () => void
   onModelProgress(listener: (event: ModelProgressDto) => void): () => void
+
+  /** 自然文のクエリで録音を探す。意味検索が有効でモデルがある場合だけ使える。 */
+  searchRecordings(query: string): Promise<SearchHitDto[]>
+  getSearchIndexStatus(): Promise<SearchIndexStatusDto>
+  /** 索引の削除前の確認。ネイティブダイアログを出し、実行してよければ true を返す。 */
+  confirmClearSearchIndex(): Promise<boolean>
+  clearSearchIndex(): Promise<SearchIndexStatusDto>
+  onSearchIndexChanged(listener: (state: SearchSyncStateDto) => void): () => void
 }
 
 /** IPC チャンネル名。main と preload で共有し、綴りのずれを防ぐ。 */
@@ -216,5 +255,10 @@ export const IPC = {
   pushMicPcm: 'transport:micPcm',
   progress: 'pipeline:progress',
   recordingsChanged: 'recordings:changed',
-  transportChanged: 'transport:changed'
+  transportChanged: 'transport:changed',
+  searchRecordings: 'search:query',
+  getSearchIndexStatus: 'search:status',
+  confirmClearSearchIndex: 'search:confirmClear',
+  clearSearchIndex: 'search:clear',
+  searchIndexChanged: 'search:changed'
 } as const

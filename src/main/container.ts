@@ -21,6 +21,7 @@ import {
   UpdateNote,
   UpdateSettings
 } from '@application/usecases/library'
+import { ClearSearchIndex, GetSearchIndexStatus } from '@application/usecases/search'
 import {
   CancelModelDownload,
   DeleteModel,
@@ -38,6 +39,8 @@ import {
 import { MicUsageProbe } from '@infrastructure/mic/MicUsageProbe'
 import { resolveMicWatchBinary } from '@infrastructure/mic/resolveMicWatchBinary'
 import { FileModelStore } from '@infrastructure/download/FileModelStore'
+import { FileSearchIndex, SEARCH_INDEX_DIR } from '@infrastructure/search/FileSearchIndex'
+import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import {
   JsonSettingsRepository,
   SettingsStorageLocator
@@ -73,6 +76,8 @@ export interface Container {
   readonly downloadModel: DownloadModel
   readonly cancelModelDownload: CancelModelDownload
   readonly deleteModel: DeleteModel
+  readonly getSearchIndexStatus: GetSearchIndexStatus
+  readonly clearSearchIndex: ClearSearchIndex
 }
 
 export const createContainer = (): Container => {
@@ -102,6 +107,9 @@ export const createContainer = (): Container => {
   )
   // モデルは再取得できるキャッシュなので、録音の保存先とは分けて置く。
   const models = new FileModelStore(join(userData, 'models'))
+  // 意味検索の索引も再生成できるキャッシュ。書き込みは検索ワーカーが行い、
+  // main は容量の確認と一括削除にだけ使う。
+  const searchIndex = new FileSearchIndex(join(userData, SEARCH_INDEX_DIR))
 
   const library = { repository, artifacts }
   const capture = { repository, capture: recorder, artifacts }
@@ -136,6 +144,13 @@ export const createContainer = (): Container => {
     getModelStatus: new GetModelStatus(settings, models),
     downloadModel: new DownloadModel(settings, models),
     cancelModelDownload: new CancelModelDownload(models),
-    deleteModel: new DeleteModel(settings, models, repository)
+    deleteModel: new DeleteModel(settings, models, repository),
+    getSearchIndexStatus: new GetSearchIndexStatus({
+      settings,
+      index: searchIndex,
+      repository,
+      system: new NodeSystemResourceProbe()
+    }),
+    clearSearchIndex: new ClearSearchIndex(searchIndex)
   }
 }

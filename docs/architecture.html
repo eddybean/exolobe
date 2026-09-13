@@ -128,13 +128,14 @@
 │   ├── diarization/        sherpa-onnx、話者数の上限処理
 │   ├── download/           再開可能なダウンローダ、モデル配置
 │   ├── persistence/        録音メタデータと成果物ファイル
+│   ├── search/             意味検索の埋め込み（node-llama-cpp）と索引ファイル
 │   └── settings/           設定 JSON
 │
 ├── main/                   Electron main
 │   ├── container.ts        依存を結線する唯一の場所
 │   ├── ipc/handlers.ts     renderer からの入力を検証して usecase へ渡す
 │   ├── tray.ts             メニューバー
-│   └── worker/             パイプライン用の utilityProcess
+│   └── worker/             パイプライン用・意味検索用の utilityProcess
 │
 ├── preload/                contextBridge で型付き API を公開
 ├── renderer/               React の UI
@@ -295,12 +296,17 @@
               <td>画面が再読み込みされる。録音は main 側で継続</td>
             </tr>
             <tr>
-              <td>utilityProcess</td>
+              <td>utilityProcess（パイプライン）</td>
               <td>ミックス、文字起こし、話者識別、要約、エンコード</td>
               <td>
                 処理中のジョブは失われるが、録音済みファイルと状態はディスクに残る。
                 次の依頼でワーカーを作り直す
               </td>
+            </tr>
+            <tr>
+              <td>utilityProcess（意味検索）</td>
+              <td>意味検索の索引作成とクエリの埋め込み。3 分使われなければ終了</td>
+              <td>検索と索引作成が失敗するだけ。索引は再生成できる</td>
             </tr>
             <tr>
               <td>子プロセス</td>
@@ -314,6 +320,12 @@
         ワーカーは Electron API を持たない Node 環境で動くため、<code>electron</code> を import しません。
         必要なパス（<code>userData</code>、同梱リソース）は環境変数で渡しています。ジョブは 1 件ずつ
         直列に処理します。whisper と LLM を同時にメモリへ載せると 16GB では足りないためです。
+      </p>
+      <p>
+        意味検索のワーカーは別に立てます（<a href="decisions.html#adr-029">ADR-029</a>）。パイプラインの列に
+        並ぶと要約の間ずっと検索が待たされ、1 回ごとに作り直すとモデルの読み込みで検索のたびに数秒かかるためです。
+        パイプラインが動き出したら索引の同期を止めてワーカーを終わらせ、要約とメモリを取り合わないようにします。
+        結線は <code>search-container.ts</code> の 1 か所です。
       </p>
 
       <h2>main と renderer の境界</h2>

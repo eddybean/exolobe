@@ -14,6 +14,7 @@ export type ManagedAssetId =
   | 'summarization-model'
   | 'diarization-segmentation'
   | 'diarization-embedding'
+  | 'search-model'
 
 export interface ManagedAsset {
   readonly id: ManagedAssetId
@@ -126,6 +127,24 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     bytes: 28_300_000,
     optional: true,
     applyTo: (path) => ({ diarization: { embeddingModelPath: path } })
+  },
+  /**
+   * 意味検索に bge-m3 を選んでいる理由:
+   * 日本語を含む多言語で強く、クエリに指示文の前置きが要らない（自然文をそのまま渡せる）。
+   * 同系の multilingual-e5-small は 130MB と軽いが、会議の言い換え表現で取りこぼしが増える。
+   * 配布元は VAD と同じ ggml-org（llama.cpp の公式変換）。MIT ライセンス。
+   */
+  {
+    id: 'search-model',
+    label: '意味検索モデル（任意）',
+    description:
+      'bge-m3（Q8_0）。「天気の話をした会議」のような自然な文章で録音を探せるようにします。',
+    url: 'https://huggingface.co/ggml-org/bge-m3-Q8_0-GGUF/resolve/main/bge-m3-q8_0.gguf',
+    fileName: 'bge-m3-q8_0.gguf',
+    bytes: 634_553_760,
+    sha256: 'aa473d51f451a22f0fcf39ba3330c14bed38a385712b1113440f69df4047a173',
+    optional: true,
+    applyTo: (path) => ({ search: { modelPath: path } })
   }
 ]
 

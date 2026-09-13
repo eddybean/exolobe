@@ -180,5 +180,7 @@ const configuredPath = (settings: Settings, id: ManagedAssetId): string => {
       return settings.diarization.segmentationModelPath
     case 'diarization-embedding':
       return settings.diarization.embeddingModelPath
+    case 'search-model':
+      return settings.search.modelPath
   }
 }

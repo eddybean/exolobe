@@ -3,6 +3,7 @@ import { type MemoryProtection } from '@domain/MemoryGuard'
 import { SUPPORTED_SAMPLE_RATES, type Settings, type SettingsPatch } from '@domain/Settings'
 import type { SetupStateDto } from '@shared/ipc'
 import { ModelManager } from '../components/ModelManager'
+import { SemanticSearchSettings } from '../components/SemanticSearchSettings'
 
 /**
  * 設定画面。保存先とモデルの指定がここに集まる。
@@ -77,6 +78,12 @@ export const SettingsView = ({
         アプリが管理するモデルです。ダウンロードすると保存場所が自動で設定されます。
       </p>
       <ModelManager onChanged={onChanged} />
+
+      <h3 className="settings__section">意味検索</h3>
+      <SemanticSearchSettings
+        enabled={settings.search.enabled}
+        onToggle={(enabled) => update({ search: { enabled } })}
+      />
 
       <h3 className="settings__section">録音</h3>
 

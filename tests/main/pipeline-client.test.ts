@@ -91,4 +91,35 @@ describe('PipelineClient', () => {
     await second
     expect(worker?.killed).toBe(true)
   })
+
+  it('ジョブを抱えている間だけ busy を知らせる（検索の同期を譲らせるため）', async () => {
+    const { client, workers } = setup()
+    const changes: boolean[] = []
+    client.onBusyChange((busy) => changes.push(busy))
+
+    const first = client.run({ recordingId: 'r1' })
+    const second = client.run({ recordingId: 'r2' })
+    expect(client.isBusy()).toBe(true)
+
+    const worker = workers[0]
+    worker?.complete(worker.sent[0]?.jobId ?? '')
+    await first
+    worker?.complete(worker.sent[1]?.jobId ?? '')
+    await second
+
+    expect(changes).toEqual([true, false])
+    expect(client.isBusy()).toBe(false)
+  })
+
+  it('ワーカーが落ちて待機中のジョブが消えたときも idle を知らせる', async () => {
+    const { client, workers } = setup()
+    const changes: boolean[] = []
+    client.onBusyChange((busy) => changes.push(busy))
+
+    const job = client.run({ recordingId: 'r1' })
+    workers[0]?.emit('exit', 1)
+
+    await expect(job).rejects.toThrow()
+    expect(changes).toEqual([true, false])
+  })
 })

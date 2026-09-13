@@ -10,12 +10,16 @@ import type {
   ProgressReporterPort,
   RecordingArtifactPort,
   RecordingRepositoryPort,
+  SearchIndexEntry,
+  SearchIndexPort,
   SettingsRepositoryPort,
   SummarizationPort,
   SystemResourcePort,
+  TextEmbedderPort,
   TranscriptionPort
 } from '@application/ports'
 import type { Folder } from '@domain/Folder'
+import { normalize } from '@domain/SemanticSearch'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import {
@@ -282,5 +286,50 @@ export class FakeSystemResource implements SystemResourcePort {
   }
   async fileSize(path: string): Promise<number | undefined> {
     return this.sizes.get(path)
+  }
+}
+
+/**
+ * キーワードの有無をそのまま次元にした擬似的な埋め込み。
+ * 同じ語を含む文どうしが近くなるので、順位付けの流れを本物のモデル無しで確かめられる。
+ */
+export class FakeTextEmbedder implements TextEmbedderPort {
+  static readonly KEYWORDS = ['雨', '予算', '採用'] as const
+  modelKey = 'fake-model'
+  calls: string[] = []
+  error?: Error
+  loaded = false
+
+  async embed(text: string): Promise<Float32Array> {
+    if (this.error) throw this.error
+    this.calls.push(text)
+    this.loaded = true
+    // 末尾の小さな定数は、どの語も含まない文をゼロベクトルにしないため。
+    return normalize([
+      ...FakeTextEmbedder.KEYWORDS.map((keyword) => (text.includes(keyword) ? 1 : 0)),
+      0.01
+    ])
+  }
+}
+
+export class FakeSearchIndex implements SearchIndexPort {
+  readonly entries = new Map<string, SearchIndexEntry>()
+  cleared = 0
+
+  async list(): Promise<SearchIndexEntry[]> {
+    return [...this.entries.values()]
+  }
+  async put(entry: SearchIndexEntry): Promise<void> {
+    this.entries.set(entry.recordingId, entry)
+  }
+  async remove(recordingId: string): Promise<void> {
+    this.entries.delete(recordingId)
+  }
+  async clear(): Promise<void> {
+    this.cleared += 1
+    this.entries.clear()
+  }
+  async stats(): Promise<{ count: number; bytes: number }> {
+    return { count: this.entries.size, bytes: this.entries.size * 1_000 }
   }
 }
