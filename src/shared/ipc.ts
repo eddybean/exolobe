@@ -152,6 +152,66 @@ export interface SearchIndexStatusDto {
   readonly sync: SearchSyncStateDto
 }
 
+/** チャットの 1 ターン。system は渡さない（問いのたびに main 側で作り直す）。 */
+export interface ChatTurnDto {
+  readonly role: 'user' | 'assistant'
+  readonly text: string
+}
+
+/** 回答の根拠にした録音。答えの中の [1] [2] と同じ並び。 */
+export interface ChatCitationDto {
+  readonly recordingId: string
+  readonly title: string
+  /** ISO 8601 文字列。 */
+  readonly startedAt: string
+  readonly source: 'summary' | 'transcript'
+  /** 文字起こしを載せた場合の、その範囲の先頭時刻。 */
+  readonly startMs?: number
+  /** 長さの都合で途中までしか載せられなかったか。 */
+  readonly truncated: boolean
+}
+
+export interface ChatAnswerDto {
+  readonly text: string
+  readonly citations: readonly ChatCitationDto[]
+  /** 「先週（08/31〜09/06）の 3 件」。何を見て答えたかを利用者に示す。 */
+  readonly scopeLabel?: string
+  readonly usedTranscript: boolean
+  readonly droppedCount: number
+}
+
+/** 生成中の断片。requestId で宛先のメッセージを決める。 */
+export interface ChatChunkDto {
+  readonly requestId: string
+  readonly text: string
+}
+
+/**
+ * 生成の終わり。
+ *
+ * 成功も失敗もここで受ける。途中まで流した後に別のチャンネルで失敗が届くと、
+ * 画面側の状態遷移が二手に分かれて取りこぼしやすくなる。
+ */
+export interface ChatDoneDto {
+  readonly requestId: string
+  readonly text: string
+  readonly citations: readonly ChatCitationDto[]
+  readonly scopeLabel?: string
+  readonly droppedCount: number
+  /** 利用者が途中で止めたか。止めた場合も、そこまでの本文は残す。 */
+  readonly aborted: boolean
+  readonly error?: string
+}
+
+export interface ChatAvailabilityDto {
+  readonly enabled: boolean
+  readonly modelInstalled: boolean
+  /** 話題語での絞り込みが効くか。無くても期間だけで答えられる。 */
+  readonly semanticSearchAvailable: boolean
+  /** 今は使えない理由。空なら使える。 */
+  readonly busyReason?: string
+}
+
 /**
  * 声紋帳の 1 件。ベクトルは渡さない（画面が使わないうえ、境界を越える意味が無い）。
  */
@@ -257,6 +317,21 @@ export interface RendererApi {
   clearSearchIndex(): Promise<SearchIndexStatusDto>
   onSearchIndexChanged(listener: (state: SearchSyncStateDto) => void): () => void
 
+  /**
+   * ライブラリ全体へ自然文で問いかける。
+   *
+   * 答えは chat:chunk / chat:done で届くので、この呼び出しの戻り値は待たない。
+   */
+  askChat(params: {
+    requestId: string
+    question: string
+    history: readonly ChatTurnDto[]
+  }): Promise<void>
+  cancelChat(requestId: string): Promise<void>
+  getChatAvailability(): Promise<ChatAvailabilityDto>
+  onChatChunk(listener: (event: ChatChunkDto) => void): () => void
+  onChatDone(listener: (event: ChatDoneDto) => void): () => void
+
   /** 話者名の自動適用に使う声紋帳。 */
   listVoiceprints(): Promise<VoiceprintDto[]>
   /** 削除前の確認。ネイティブダイアログを出し、実行してよければ true を返す。 */
@@ -314,6 +389,11 @@ export const IPC = {
   confirmClearSearchIndex: 'search:confirmClear',
   clearSearchIndex: 'search:clear',
   searchIndexChanged: 'search:changed',
+  askChat: 'chat:ask',
+  cancelChat: 'chat:cancel',
+  getChatAvailability: 'chat:availability',
+  chatChunk: 'chat:chunk',
+  chatDone: 'chat:done',
   listVoiceprints: 'voiceprints:list',
   confirmRemoveVoiceprint: 'voiceprints:confirmRemove',
   removeVoiceprint: 'voiceprints:remove',

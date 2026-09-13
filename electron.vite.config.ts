@@ -21,7 +21,9 @@ export default defineConfig({
           // パイプラインは utilityProcess で動かすため独立したエントリにする。
           'pipeline-worker': resolve('src/main/worker/pipeline-worker.ts'),
           // 意味検索もネイティブの推論を使うので、同じく独立したエントリにする。
-          'search-worker': resolve('src/main/worker/search-worker.ts')
+          'search-worker': resolve('src/main/worker/search-worker.ts'),
+          // チャットも要約と同じ 5GB 級のモデルを載せるので、main から隔離する。
+          'chat-worker': resolve('src/main/worker/chat-worker.ts')
         }
       }
     }

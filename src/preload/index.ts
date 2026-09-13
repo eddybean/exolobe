@@ -12,6 +12,9 @@ import {
   type ProgressEventDto,
   type RecordingDetailDto,
   type RecordingDto,
+  type ChatAvailabilityDto,
+  type ChatChunkDto,
+  type ChatDoneDto,
   type RendererApi,
   type SearchHitDto,
   type SearchIndexStatusDto,
@@ -117,6 +120,13 @@ const api: RendererApi = {
     ipcRenderer.invoke(IPC.clearSearchIndex) as Promise<SearchIndexStatusDto>,
   onSearchIndexChanged: (listener) =>
     subscribe<SearchSyncStateDto>(IPC.searchIndexChanged, listener),
+
+  askChat: (params) => ipcRenderer.invoke(IPC.askChat, params) as Promise<void>,
+  cancelChat: (requestId) => ipcRenderer.invoke(IPC.cancelChat, requestId) as Promise<void>,
+  getChatAvailability: () =>
+    ipcRenderer.invoke(IPC.getChatAvailability) as Promise<ChatAvailabilityDto>,
+  onChatChunk: (listener) => subscribe<ChatChunkDto>(IPC.chatChunk, listener),
+  onChatDone: (listener) => subscribe<ChatDoneDto>(IPC.chatDone, listener),
   listVoiceprints: () => ipcRenderer.invoke(IPC.listVoiceprints) as Promise<VoiceprintDto[]>,
   confirmRemoveVoiceprint: (name) =>
     ipcRenderer.invoke(IPC.confirmRemoveVoiceprint, name) as Promise<boolean>,
