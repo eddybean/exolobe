@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultSettings, isConfigured, mergeSettings, validateSettings } from '@domain/Settings'
+import { VOICEPRINT_MATCH_THRESHOLD } from '@domain/Voiceprint'
 
 describe('defaultSettings', () => {
   it('保存先未選択・話者クラスタリング有効を既定にする', () => {
@@ -7,6 +8,7 @@ describe('defaultSettings', () => {
 
     expect(settings.storageDir).toBeNull()
     expect(settings.diarization.enabled).toBe(true)
+    expect(settings.diarization.voiceprintThreshold).toBe(VOICEPRINT_MATCH_THRESHOLD)
     expect(settings.audio.sampleRate).toBe(16_000)
   })
 
@@ -76,6 +78,15 @@ describe('validateSettings', () => {
   it('話者数の上限が 2 未満なら弾く', () => {
     const settings = mergeSettings(defaultSettings(), { diarization: { maxSpeakers: 1 } })
     expect(validateSettings(settings)).toContain('話者数の上限は 2 以上を指定してください。')
+  })
+
+  it('声紋の一致閾値が範囲外なら弾く', () => {
+    for (const voiceprintThreshold of [0, 1.2]) {
+      const settings = mergeSettings(defaultSettings(), { diarization: { voiceprintThreshold } })
+      expect(validateSettings(settings)).toContain(
+        '声紋の一致閾値は 0 より大きく 1 以下の値を指定してください。'
+      )
+    }
   })
 
   it('VAD モデルが未取得でも保存を妨げない', () => {

@@ -13,16 +13,20 @@ import type {
   RecordingArtifactPort,
   RecordingRepositoryPort,
   RecordingSource,
+  RecordingVoices,
   SearchIndexEntry,
   SearchIndexPort,
   SettingsRepositoryPort,
+  SpeakerEmbeddingPort,
   SummarizationPort,
   SystemResourcePort,
   TextEmbedderPort,
-  TranscriptionPort
+  TranscriptionPort,
+  Voiceprint,
+  VoiceprintRepositoryPort
 } from '@application/ports'
 import type { Folder } from '@domain/Folder'
-import { normalize } from '@domain/SemanticSearch'
+import { normalize } from '@domain/vector'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import {
@@ -120,6 +124,7 @@ export class FakeArtifactStore implements RecordingArtifactPort {
   transcripts = new Map<string, { segments: TranscriptSegment[]; speakers: Speaker[] }>()
   summaries = new Map<string, string>()
   notes = new Map<string, string>()
+  voices = new Map<string, RecordingVoices>()
   cleanedUp: string[] = []
   removed: string[] = []
 
@@ -151,6 +156,12 @@ export class FakeArtifactStore implements RecordingArtifactPort {
       speakers: [...data.speakers]
     })
   }
+  async readVoices(recording: Recording): Promise<RecordingVoices | undefined> {
+    return this.voices.get(recording.id)
+  }
+  async writeVoices(recording: Recording, voices: RecordingVoices): Promise<void> {
+    this.voices.set(recording.id, voices)
+  }
   async readSummary(recording: Recording): Promise<string | undefined> {
     return this.summaries.get(recording.id)
   }
@@ -169,6 +180,7 @@ export class FakeArtifactStore implements RecordingArtifactPort {
   async removeAll(recording: Recording): Promise<void> {
     this.removed.push(recording.id)
     this.transcripts.delete(recording.id)
+    this.voices.delete(recording.id)
     this.summaries.delete(recording.id)
     this.notes.delete(recording.id)
   }
@@ -217,6 +229,45 @@ export class FakeDiarizer implements DiarizationPort {
     this.lastWavPath = params.wavPath
     if (this.error) throw this.error
     return this.turns
+  }
+}
+
+export class FakeSpeakerEmbedder implements SpeakerEmbeddingPort {
+  readonly modelKey = 'fake-embedding:2'
+  /** クラスタ名ごとに返す声紋。登録の無いクラスタは結果に含めない。 */
+  byCluster = new Map<string, Float32Array>()
+  calls: { wavPath: string; clusters: string[] }[] = []
+  error?: Error
+
+  async embedSpeakers(params: {
+    wavPath: string
+    turns: readonly SpeakerTurn[]
+  }): Promise<{ speaker: string; vector: Float32Array }[]> {
+    const clusters = [...new Set(params.turns.map((turn) => turn.speaker))]
+    this.calls.push({ wavPath: params.wavPath, clusters })
+    if (this.error) throw this.error
+
+    return clusters.flatMap((speaker) => {
+      const vector = this.byCluster.get(speaker)
+      return vector ? [{ speaker, vector }] : []
+    })
+  }
+}
+
+export class FakeVoiceprintRepository implements VoiceprintRepositoryPort {
+  entries: Voiceprint[] = []
+
+  async list(): Promise<Voiceprint[]> {
+    return [...this.entries]
+  }
+  async put(voiceprint: Voiceprint): Promise<void> {
+    this.entries = [...this.entries.filter((e) => e.name !== voiceprint.name), voiceprint]
+  }
+  async remove(name: string): Promise<void> {
+    this.entries = this.entries.filter((e) => e.name !== name)
+  }
+  async clear(): Promise<void> {
+    this.entries = []
   }
 }
 

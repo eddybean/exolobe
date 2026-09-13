@@ -1,15 +1,25 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { DiarizationPort, ProgressReporterPort } from '@application/ports'
+import type {
+  DiarizationPort,
+  ProgressReporterPort,
+  SpeakerEmbeddingPort
+} from '@application/ports'
 import { ProcessRecording } from '@application/usecases/ProcessRecording'
 import { AfconvertEncoder } from '@infrastructure/audio/AfconvertEncoder'
 import { TrackMixer } from '@infrastructure/audio/TrackMixer'
 import { NullDiarizer, SherpaOnnxDiarizer } from '@infrastructure/diarization/SherpaOnnxDiarizer'
+import { SherpaOnnxEmbeddingSessionFactory } from '@infrastructure/diarization/SherpaOnnxEmbeddingSessionFactory'
 import { SherpaOnnxSessionFactory } from '@infrastructure/diarization/SherpaOnnxSessionFactory'
+import {
+  NullSpeakerEmbedder,
+  SherpaOnnxSpeakerEmbedder
+} from '@infrastructure/diarization/SherpaOnnxSpeakerEmbedder'
 import {
   FileRecordingArtifactStore,
   FileRecordingRepository
 } from '@infrastructure/persistence/FileRecordingStore'
+import { FileVoiceprintRepository } from '@infrastructure/persistence/FileVoiceprintStore'
 import {
   JsonSettingsRepository,
   SettingsStorageLocator
@@ -53,6 +63,8 @@ export const createPipeline = async (
       vadModelPath: resolveVadModel(current.transcription)
     }),
     diarizer: createDiarizer(current.diarization),
+    embedder: createEmbedder(current.diarization),
+    voiceprints: new FileVoiceprintRepository(locator),
     summarizer: new LlamaCppSummarizer(
       {
         modelPath: current.summarization.modelPath,
@@ -85,6 +97,21 @@ const bundledWhisper = (): string | undefined => {
 const resolveVadModel = (config: TranscriptionSettings): string => {
   if (!config.vadEnabled || !config.vadModelPath) return ''
   return existsSync(config.vadModelPath) ? config.vadModelPath : ''
+}
+
+/**
+ * 声紋の抽出。話者識別と同じ埋め込みモデルを読む（ADR-031）。
+ * 分割が動かない設定なら声紋を取る相手もいないので、同じ条件で無効にする。
+ */
+const createEmbedder = (config: DiarizationSettings): SpeakerEmbeddingPort => {
+  if (!config.enabled || !config.segmentationModelPath || !config.embeddingModelPath) {
+    return new NullSpeakerEmbedder()
+  }
+
+  return new SherpaOnnxSpeakerEmbedder(
+    { embeddingModelPath: config.embeddingModelPath },
+    new SherpaOnnxEmbeddingSessionFactory()
+  )
 }
 
 /** モデルが揃っていなければ推論を試みず、2 話者分離のまま処理を通す。 */

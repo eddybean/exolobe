@@ -1,6 +1,7 @@
 import type { Speaker } from '@domain/Speaker'
 import type { SearchSettings } from '@domain/Settings'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
+import { dot } from '@domain/vector'
 
 /**
  * 意味検索（自然文のクエリで録音を探す）のための純粋な計算。
@@ -217,30 +218,6 @@ export const fingerprint = (modelKey: string, documents: readonly SearchDocument
   const payload = JSON.stringify([INDEX_FORMAT_VERSION, modelKey, documents])
   // 衝突すると更新を見逃すため、種を変えた 2 本をつないで 106 ビットにする。
   return cyrb53(payload, 1).toString(16) + cyrb53(payload, 2).toString(16)
-}
-
-/**
- * 長さ 1 に揃える。揃えておけば類似度は内積だけで求まる。
- * ゼロベクトルは NaN を生まないようそのまま返す。
- */
-export const normalize = (vector: ArrayLike<number>): Float32Array => {
-  const result = Float32Array.from(vector)
-  let sum = 0
-  for (const value of result) sum += value * value
-  const length = Math.sqrt(sum)
-  if (length === 0) return result
-
-  for (let index = 0; index < result.length; index += 1) {
-    result[index] = (result[index] ?? 0) / length
-  }
-  return result
-}
-
-export const dot = (a: Float32Array, b: Float32Array): number => {
-  let sum = 0
-  const length = Math.min(a.length, b.length)
-  for (let index = 0; index < length; index += 1) sum += (a[index] ?? 0) * (b[index] ?? 0)
-  return sum
 }
 
 /**

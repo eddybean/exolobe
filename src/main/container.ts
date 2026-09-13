@@ -13,10 +13,13 @@ import {
   RenameFolder
 } from '@application/usecases/folders'
 import {
+  ClearVoiceprints,
   DeleteRecording,
   GetRecordingDetail,
   GetSetupState,
   ListRecordings,
+  ListVoiceprints,
+  RemoveVoiceprint,
   RenameRecording,
   RenameSpeaker,
   UpdateNote,
@@ -34,6 +37,7 @@ import { AudioTeeSource } from '@infrastructure/audio/AudioTeeSource'
 import { resolveAudioTeeBinary } from '@infrastructure/audio/resolveAudioTeeBinary'
 import { DualTrackRecorder } from '@infrastructure/audio/DualTrackRecorder'
 import { FileFolderRepository } from '@infrastructure/persistence/FileFolderStore'
+import { FileVoiceprintRepository } from '@infrastructure/persistence/FileVoiceprintStore'
 import {
   FileRecordingArtifactStore,
   FileRecordingRepository
@@ -82,6 +86,9 @@ export interface Container {
   readonly deleteModel: DeleteModel
   readonly getSearchIndexStatus: GetSearchIndexStatus
   readonly clearSearchIndex: ClearSearchIndex
+  readonly listVoiceprints: ListVoiceprints
+  readonly removeVoiceprint: RemoveVoiceprint
+  readonly clearVoiceprints: ClearVoiceprints
 }
 
 export const createContainer = (): Container => {
@@ -92,6 +99,7 @@ export const createContainer = (): Container => {
   const repository = new FileRecordingRepository(locator)
   const artifacts = new FileRecordingArtifactStore(locator, join(userData, 'work'))
   const folderRepository = new FileFolderRepository(locator)
+  const voiceprints = new FileVoiceprintRepository(locator)
   const folderDeps = {
     folders: folderRepository,
     recordings: repository,
@@ -145,7 +153,7 @@ export const createContainer = (): Container => {
     getRecordingDetail: new GetRecordingDetail(library),
     updateNote: new UpdateNote(library),
     renameRecording: new RenameRecording(library),
-    renameSpeaker: new RenameSpeaker(library),
+    renameSpeaker: new RenameSpeaker({ ...library, voiceprints, clock: { now: () => new Date() } }),
     deleteRecording: new DeleteRecording(library),
     listFolders: new ListFolders(folderDeps),
     createFolder: new CreateFolder(folderDeps),
@@ -165,6 +173,9 @@ export const createContainer = (): Container => {
       repository,
       system: new NodeSystemResourceProbe()
     }),
-    clearSearchIndex: new ClearSearchIndex(searchIndex)
+    clearSearchIndex: new ClearSearchIndex(searchIndex),
+    listVoiceprints: new ListVoiceprints(voiceprints),
+    removeVoiceprint: new RemoveVoiceprint(voiceprints),
+    clearVoiceprints: new ClearVoiceprints(voiceprints)
   }
 }

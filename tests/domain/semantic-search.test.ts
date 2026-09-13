@@ -3,16 +3,15 @@ import {
   buildSearchDocuments,
   chunkText,
   chunkTranscript,
-  dot,
   excerptFor,
   fingerprint,
   focusQuery,
-  normalize,
   rankRecordings,
   searchIndexTransition,
   type SearchDocument,
   type SearchMaterial
 } from '@domain/SemanticSearch'
+import { dot, normalize } from '@domain/vector'
 import type { Speaker } from '@domain/Speaker'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
@@ -168,20 +167,6 @@ describe('fingerprint', () => {
 
   it('モデルが変われば値が変わる（別モデルのベクトルとは比較できない）', () => {
     expect(fingerprint('other-model', documents)).not.toBe(fingerprint('bge-m3', documents))
-  })
-})
-
-describe('normalize / dot', () => {
-  it('長さ 1 に揃え、内積がコサイン類似度になる', () => {
-    const a = normalize([3, 4])
-    const b = normalize([6, 8])
-
-    expect(Array.from(a)).toEqual([expect.closeTo(0.6), expect.closeTo(0.8)])
-    expect(dot(a, b)).toBeCloseTo(1)
-  })
-
-  it('ゼロベクトルはゼロのまま返す（NaN を索引に入れない）', () => {
-    expect(Array.from(normalize([0, 0]))).toEqual([0, 0])
   })
 })
 

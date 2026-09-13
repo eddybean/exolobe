@@ -15,6 +15,7 @@ import {
   type RendererApi,
   type SearchHitDto,
   type SearchIndexStatusDto,
+  type VoiceprintDto,
   type SearchSyncStateDto,
   type SetupStateDto,
   type SilenceAlertDto,
@@ -115,7 +116,15 @@ const api: RendererApi = {
   clearSearchIndex: () =>
     ipcRenderer.invoke(IPC.clearSearchIndex) as Promise<SearchIndexStatusDto>,
   onSearchIndexChanged: (listener) =>
-    subscribe<SearchSyncStateDto>(IPC.searchIndexChanged, listener)
+    subscribe<SearchSyncStateDto>(IPC.searchIndexChanged, listener),
+  listVoiceprints: () => ipcRenderer.invoke(IPC.listVoiceprints) as Promise<VoiceprintDto[]>,
+  confirmRemoveVoiceprint: (name) =>
+    ipcRenderer.invoke(IPC.confirmRemoveVoiceprint, name) as Promise<boolean>,
+  removeVoiceprint: (name) =>
+    ipcRenderer.invoke(IPC.removeVoiceprint, name) as Promise<VoiceprintDto[]>,
+  confirmClearVoiceprints: () =>
+    ipcRenderer.invoke(IPC.confirmClearVoiceprints) as Promise<boolean>,
+  clearVoiceprints: () => ipcRenderer.invoke(IPC.clearVoiceprints) as Promise<VoiceprintDto[]>
 }
 
 contextBridge.exposeInMainWorld('recorder', api)

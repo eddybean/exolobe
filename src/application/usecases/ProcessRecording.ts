@@ -7,9 +7,11 @@ import type {
   RecordingRepositoryPort,
   RecordingSource,
   SettingsRepositoryPort,
+  SpeakerEmbeddingPort,
   SummarizationPort,
   SystemResourcePort,
-  TranscriptionPort
+  TranscriptionPort,
+  VoiceprintRepositoryPort
 } from '@application/ports'
 import {
   PIPELINE_STEPS,
@@ -38,10 +40,12 @@ import {
   SELF_SPEAKER_ID,
   defaultRemoteLabel,
   isRemoteSpeakerId,
+  remoteSpeakerId,
   type Speaker
 } from '@domain/Speaker'
 import { applyDiarization, mergeTracks, toMarkdown } from '@domain/Transcript'
-import type { TranscriptSegment } from '@domain/TranscriptSegment'
+import type { SpeakerTurn, TranscriptSegment } from '@domain/TranscriptSegment'
+import { matchVoiceprints, type SpeakerVector } from '@domain/Voiceprint'
 
 export interface ProcessRecordingDeps {
   readonly settings: SettingsRepositoryPort
@@ -50,6 +54,8 @@ export interface ProcessRecordingDeps {
   readonly mixer: AudioMixerPort
   readonly transcriber: TranscriptionPort
   readonly diarizer: DiarizationPort
+  readonly embedder: SpeakerEmbeddingPort
+  readonly voiceprints: VoiceprintRepositoryPort
   readonly summarizer: SummarizationPort
   readonly encoder: AudioEncoderPort
   readonly progress: ProgressReporterPort
@@ -341,16 +347,64 @@ export class ProcessRecording {
     if (!settings.diarization.enabled) return
 
     const existing = await this.requireTranscript(recording)
+    const wavPath = diarizationTarget(tracks)
     const turns = await this.deps.diarizer.diarize({
-      wavPath: diarizationTarget(tracks),
+      wavPath,
       maxSpeakers: settings.diarization.maxSpeakers
     })
 
     const segments = applyDiarization(existing.segments, turns)
+    const known = await this.recallKnownSpeakers({ recording, settings, wavPath, turns })
+
     await this.deps.artifacts.writeTranscript(recording, {
       segments,
-      speakers: buildSpeakers(segments, existing.speakers)
+      speakers: buildSpeakers(segments, existing.speakers, known)
     })
+  }
+
+  /**
+   * 今回の話者の声紋を録音に残し、声紋帳から名前を引き当てる。
+   *
+   * 失敗しても話者識別そのものは通す。名前の自動適用は「付け直す手間を省く」
+   * だけの働きで、これが動かなくても話者の分離という本体は完成している。
+   * 埋め込みモデルが壊れているときに、得られた分割まで捨てるのは割に合わない。
+   * 利用者から見れば従来どおり「参加者A」が並ぶだけで、手で付け直せる。
+   */
+  private async recallKnownSpeakers(params: {
+    recording: Recording
+    settings: Settings
+    wavPath: string
+    turns: readonly SpeakerTurn[]
+  }): Promise<ReadonlyMap<string, string>> {
+    if (params.turns.length === 0) return new Map()
+    const modelKey = this.deps.embedder.modelKey
+
+    try {
+      // 抽出より先に前回ぶんを捨てる。クラスタ番号は実行のたびに振り直されるので、
+      // 抽出に失敗したまま古い voices.json が残ると、次に名前を付けたときに
+      // 別人のベクトルをその名前で覚える。声紋帳は作り直せない。
+      await this.deps.artifacts.writeVoices(params.recording, { modelKey, speakers: [] })
+
+      const embedded = await this.deps.embedder.embedSpeakers({
+        wavPath: params.wavPath,
+        turns: params.turns
+      })
+      if (embedded.length === 0) return new Map()
+
+      const vectors: SpeakerVector[] = embedded.map(({ speaker, vector }) => ({
+        speakerId: remoteSpeakerId(speaker),
+        vector
+      }))
+
+      await this.deps.artifacts.writeVoices(params.recording, { modelKey, speakers: vectors })
+
+      return matchVoiceprints(vectors, await this.deps.voiceprints.list(), {
+        threshold: params.settings.diarization.voiceprintThreshold,
+        modelKey
+      })
+    } catch {
+      return new Map()
+    }
   }
 
   private async summarize({ recording, settings }: StepContext): Promise<void> {
@@ -391,13 +445,20 @@ export class ProcessRecording {
  * セグメントに登場する話者 ID から表示用の話者一覧を組み立てる。
  * 相手側のクラスタは登場順に「参加者A」「参加者B」… と採番する。
  *
- * 話者 ID が同じなら利用者が付けた名前を引き継ぐ。文字起こしや話者識別を
- * 後から再実行しただけで「田中さん」が「参加者A」に戻るのは、名前を付けた
- * 手間を黙って捨てることになる。
+ * 名前の優先順位は、利用者が付けた名前 → 声紋帳から引き当てた名前 → 既定の採番。
+ * 話者 ID が同じなら利用者が付けた名前を引き継ぐ。文字起こしや話者識別を後から
+ * 再実行しただけで「田中さん」が「参加者A」に戻るのは、名前を付けた手間を
+ * 黙って捨てることになる。
+ *
+ * 引き当てた名前を利用者の名前より優先しないのは、推定で訂正を押し戻さないため。
+ * 「田中さん」を「佐藤さん」に直した録音で話者識別をやり直したとき、声紋の一致を
+ * 優先すると直した意味が無くなる。既に付いている名前が既定の採番と同じ場合だけは
+ * 「利用者が付けたものではない」と見なし、引き当てに譲る。
  */
 const buildSpeakers = (
   segments: readonly TranscriptSegment[],
-  existing: readonly Speaker[] = []
+  existing: readonly Speaker[] = [],
+  known: ReadonlyMap<string, string> = new Map()
 ): Speaker[] => {
   const named = new Map(existing.map((speaker) => [speaker.id, speaker.label]))
   const speakers: Speaker[] = []
@@ -421,10 +482,18 @@ const buildSpeakers = (
       const fallback =
         segment.speakerId === REMOTE_SPEAKER_ID ? '参加者' : defaultRemoteLabel(remoteIndex)
       if (segment.speakerId !== REMOTE_SPEAKER_ID) remoteIndex += 1
+
+      // 既に付いている名前が既定の採番そのものなら、利用者が付けたものではない。
+      // そこだけ声紋の引き当てに譲る（声紋帳が育った後で話者識別をやり直せば、
+      // 過去の録音にも名前が入る）。
+      const given = named.get(segment.speakerId)
       speakers.push({
         id: segment.speakerId,
         kind: 'remote',
-        label: named.get(segment.speakerId) ?? fallback
+        label:
+          given !== undefined && given !== fallback
+            ? given
+            : (known.get(segment.speakerId) ?? fallback)
       })
     } else {
       speakers.push({

@@ -1,7 +1,9 @@
 import type {
+  ClockPort,
   RecordingArtifactPort,
   RecordingRepositoryPort,
-  SettingsRepositoryPort
+  SettingsRepositoryPort,
+  VoiceprintRepositoryPort
 } from '@application/ports'
 import type { Recording } from '@domain/Recording'
 import { ConfigurationError, RecordingNotFoundError } from '@domain/errors'
@@ -12,7 +14,8 @@ import {
   type Settings,
   type SettingsPatch
 } from '@domain/Settings'
-import type { Speaker } from '@domain/Speaker'
+import { isRemoteSpeakerId, type Speaker } from '@domain/Speaker'
+import { forgetSource, registerVoice, voiceSourceKey, type Voiceprint } from '@domain/Voiceprint'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
 export interface LibraryDeps {
@@ -120,9 +123,21 @@ export class RenameRecording {
   }
 }
 
-/** 話者に利用者が付けた名前を反映する。文字起こしの話者一覧だけを書き換える。 */
+export interface RenameSpeakerDeps extends LibraryDeps {
+  readonly voiceprints: VoiceprintRepositoryPort
+  readonly clock: ClockPort
+}
+
+/**
+ * 話者に利用者が付けた名前を反映する。文字起こしの話者一覧だけを書き換える。
+ *
+ * 併せて、その話者の声紋を声紋帳へ登録する。声紋帳が育つのはここだけ（ADR-031）。
+ * 自動で当てた名前を再登録しないことで、一度の取り違えが声紋に混ざって
+ * 次の取り違えを呼ぶ連鎖を断つ。利用者が「田中さん」を「佐藤さん」に直せば、
+ * その声は佐藤さんとして登録され、田中さんの声紋は触られない。
+ */
 export class RenameSpeaker {
-  constructor(private readonly deps: LibraryDeps) {}
+  constructor(private readonly deps: RenameSpeakerDeps) {}
 
   async execute(params: {
     recordingId: string
@@ -149,7 +164,51 @@ export class RenameSpeaker {
       speakers
     })
 
+    await this.rememberVoice(recording, params.speakerId, label)
+
     return speakers
+  }
+
+  /**
+   * この話者の声紋を名前に結び付けて残し、古い名前からは取り消す。
+   *
+   * 自分（マイクトラック）は録音のたびに確定していて引き当てる必要がないため、
+   * 相手側の話者だけを対象にする。声紋が無い録音（話者識別を無効にしていた、
+   * この機能より前に録った）では何もしない。名前を変えられないより良い。
+   *
+   * 取り消しまでが訂正の一部。「田中さん」を「佐藤さん」に直したのに田中さん側が
+   * 同じベクトルのまま残ると、次の録音で 1 位と 2 位が同点になり、
+   * 「差が無いなら当てにいかない」規則で両方とも弾かれる。
+   */
+  private async rememberVoice(
+    recording: Recording,
+    speakerId: string,
+    name: string
+  ): Promise<void> {
+    if (!isRemoteSpeakerId(speakerId)) return
+
+    const voices = await this.deps.artifacts.readVoices(recording)
+    const vector = voices?.speakers.find((speaker) => speaker.speakerId === speakerId)?.vector
+    if (!voices || !vector) return
+
+    const source = voiceSourceKey(recording.id, speakerId)
+    const now = this.deps.clock.now()
+    const registry = await this.deps.voiceprints.list()
+
+    for (const entry of registry) {
+      if (entry.name === name) continue
+      const remaining = forgetSource(entry, source, now)
+      if (remaining === entry) continue
+      if (remaining) await this.deps.voiceprints.put(remaining)
+      else await this.deps.voiceprints.remove(entry.name)
+    }
+
+    await this.deps.voiceprints.put(
+      registerVoice(
+        registry.find((entry) => entry.name === name),
+        { name, source, vector, modelKey: voices.modelKey, now }
+      )
+    )
   }
 }
 
@@ -205,4 +264,53 @@ const findOrThrow = async (
   const recording = await repository.find(recordingId)
   if (!recording) throw new RecordingNotFoundError(recordingId)
   return recording
+}
+
+/**
+ * 設定画面に出す声紋帳の 1 件。
+ *
+ * ベクトルは渡さない。画面が使うのは名前と、どれだけ育っているかだけで、
+ * 192 個の数値を IPC の境界越しに運ぶ理由が無い。
+ */
+export interface VoiceprintView {
+  readonly name: string
+  readonly samples: number
+  readonly updatedAt: string
+}
+
+const toView = (voiceprint: Voiceprint): VoiceprintView => ({
+  name: voiceprint.name,
+  samples: voiceprint.sources.length,
+  updatedAt: voiceprint.updatedAt
+})
+
+/** 新しく覚えた順に並べる。直前に付けた名前が上に来るほうが確かめやすい。 */
+const listViews = async (voiceprints: VoiceprintRepositoryPort): Promise<VoiceprintView[]> =>
+  (await voiceprints.list())
+    .map(toView)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+
+export class ListVoiceprints {
+  constructor(private readonly voiceprints: VoiceprintRepositoryPort) {}
+
+  async execute(): Promise<VoiceprintView[]> {
+    return listViews(this.voiceprints)
+  }
+}
+
+/** 覚え違いを消す。消しても録音と付けた名前はそのまま残り、次回から当たらなくなるだけ。 */
+export class RemoveVoiceprint {
+  constructor(private readonly voiceprints: VoiceprintRepositoryPort) {}
+
+  async execute(name: string): Promise<void> {
+    await this.voiceprints.remove(name)
+  }
+}
+
+export class ClearVoiceprints {
+  constructor(private readonly voiceprints: VoiceprintRepositoryPort) {}
+
+  async execute(): Promise<void> {
+    await this.voiceprints.clear()
+  }
 }

@@ -152,6 +152,17 @@ export interface SearchIndexStatusDto {
   readonly sync: SearchSyncStateDto
 }
 
+/**
+ * 声紋帳の 1 件。ベクトルは渡さない（画面が使わないうえ、境界を越える意味が無い）。
+ */
+export interface VoiceprintDto {
+  readonly name: string
+  /** 学習に使った話者の数（＝この名前を付けた録音の数）。 */
+  readonly samples: number
+  /** ISO 文字列。境界を越えるのは DTO だけなので Date は渡さない。 */
+  readonly updatedAt: string
+}
+
 export const toRecordingDto = (
   recording: Recording,
   summaryPreview?: string
@@ -245,6 +256,14 @@ export interface RendererApi {
   confirmClearSearchIndex(): Promise<boolean>
   clearSearchIndex(): Promise<SearchIndexStatusDto>
   onSearchIndexChanged(listener: (state: SearchSyncStateDto) => void): () => void
+
+  /** 話者名の自動適用に使う声紋帳。 */
+  listVoiceprints(): Promise<VoiceprintDto[]>
+  /** 削除前の確認。ネイティブダイアログを出し、実行してよければ true を返す。 */
+  confirmRemoveVoiceprint(name: string): Promise<boolean>
+  removeVoiceprint(name: string): Promise<VoiceprintDto[]>
+  confirmClearVoiceprints(): Promise<boolean>
+  clearVoiceprints(): Promise<VoiceprintDto[]>
 }
 
 /** IPC チャンネル名。main と preload で共有し、綴りのずれを防ぐ。 */
@@ -294,5 +313,10 @@ export const IPC = {
   getSearchIndexStatus: 'search:status',
   confirmClearSearchIndex: 'search:confirmClear',
   clearSearchIndex: 'search:clear',
-  searchIndexChanged: 'search:changed'
+  searchIndexChanged: 'search:changed',
+  listVoiceprints: 'voiceprints:list',
+  confirmRemoveVoiceprint: 'voiceprints:confirmRemove',
+  removeVoiceprint: 'voiceprints:remove',
+  confirmClearVoiceprints: 'voiceprints:confirmClear',
+  clearVoiceprints: 'voiceprints:clear'
 } as const

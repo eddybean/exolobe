@@ -31,6 +31,28 @@ declare module 'sherpa-onnx-node' {
     speaker: number
   }
 
+  export interface SpeakerEmbeddingExtractorConfig {
+    model: string
+    numThreads?: number
+    debug?: number
+    provider?: string
+  }
+
+  /** 声紋の抽出に使う入力ストリーム。このアプリでは 1 本ぶんずつ使い捨てる。 */
+  export interface OnlineStream {
+    acceptWaveform(params: { sampleRate: number; samples: Float32Array }): void
+    inputFinished(): void
+  }
+
+  export class SpeakerEmbeddingExtractor {
+    constructor(config: SpeakerEmbeddingExtractorConfig)
+    /** 声紋の次元数（3D-Speaker CampPlus は 192）。 */
+    readonly dim: number
+    createStream(): OnlineStream
+    isReady(stream: OnlineStream): boolean
+    compute(stream: OnlineStream, enableExternalBuffer?: boolean): Float32Array
+  }
+
   export class OfflineSpeakerDiarization {
     constructor(config: OfflineSpeakerDiarizationConfig)
     /** モデルが前提とするサンプルレート。 */
@@ -42,6 +64,9 @@ declare module 'sherpa-onnx-node' {
    * CJS の `module.exports`。Node の `import()` は名前付き export を推測できず
    * こちら側にしか入らないため、実装ではまず default を見る。
    */
-  const sherpa: { OfflineSpeakerDiarization: typeof OfflineSpeakerDiarization }
+  const sherpa: {
+    OfflineSpeakerDiarization: typeof OfflineSpeakerDiarization
+    SpeakerEmbeddingExtractor: typeof SpeakerEmbeddingExtractor
+  }
   export default sherpa
 }
