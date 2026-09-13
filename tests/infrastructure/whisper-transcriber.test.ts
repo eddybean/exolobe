@@ -8,6 +8,7 @@ import {
   parseWhisperJson,
   type WhisperRunner
 } from '@infrastructure/transcription/WhisperCppTranscriber'
+import { WavFileWriter } from '@infrastructure/audio/wav'
 
 const whisperJson = (
   entries: { from: number; to: number; text: string }[]
@@ -240,6 +241,27 @@ describe('WhisperCppTranscriber', () => {
       transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
     ).rejects.toThrow()
     await expect(stat(join(dir, 'mic.json'))).rejects.toThrow()
+  })
+
+  it('サンプルを持たない WAV は whisper を起動せず空の結果にする', async () => {
+    // マイクの無い環境では mic.wav がヘッダだけで残る（ADR-017）。whisper-cli は
+    // 中身の無い WAV を読めず、JSON を書かないまま終了コード 0 で終わるため、
+    // 起動させると「mic.json が無い」という無関係な ENOENT で録音全体が失敗する。
+    const emptyWav = join(dir, 'empty.wav')
+    await (await WavFileWriter.create(emptyWav, { sampleRate: 16_000 })).close()
+
+    let started = false
+    const transcriber = new WhisperCppTranscriber(
+      { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin' },
+      async () => {
+        started = true
+      }
+    )
+
+    expect(
+      await transcriber.transcribe({ wavPath: emptyWav, language: 'ja', speakerId: 'self' })
+    ).toEqual([])
+    expect(started).toBe(false)
   })
 
   it('モデル未設定なら設定画面へ誘導する', async () => {

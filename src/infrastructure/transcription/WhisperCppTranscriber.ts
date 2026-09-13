@@ -3,6 +3,7 @@ import { readFile, rm } from 'node:fs/promises'
 import type { TranscriptionPort } from '@application/ports'
 import { AppError, toMessage } from '@domain/errors'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
+import { wavDurationMs } from '@infrastructure/audio/wav'
 
 export class TranscriptionError extends AppError {}
 
@@ -83,6 +84,20 @@ const normalizeText = (text: string): string => {
   return trimmed
 }
 
+/**
+ * サンプルを 1 つも持たない WAV かどうか。
+ *
+ * WAV として読めないものは false を返して whisper に判断させる。ここで握り潰すと
+ * 壊れたファイルまで「発話なし」になり、本当の失敗が見えなくなる。
+ */
+const hasNoSamples = async (wavPath: string): Promise<boolean> => {
+  try {
+    return (await wavDurationMs(wavPath)) === 0
+  } catch {
+    return false
+  }
+}
+
 /** whisper-cli を起動する処理。テストで差し替えられるよう切り出す。 */
 export type WhisperRunner = (args: {
   binaryPath: string
@@ -143,6 +158,12 @@ export class WhisperCppTranscriber implements TranscriptionPort {
         '文字起こしモデルが設定されていません。設定画面でモデルを選んでください。'
       )
     }
+
+    // マイクの無い環境では mic.wav がヘッダだけで残る（ADR-017）。whisper-cli は
+    // 中身の無い WAV を読めず、JSON を書かないまま終了コード 0 で終わるため、
+    // 起動させると「mic.json が無い」という無関係な ENOENT になって録音全体が失敗する。
+    // 発話が 0 件なのは事実なので、空の結果として先へ進める。
+    if (await hasNoSamples(params.wavPath)) return []
 
     // whisper-cli は <出力プレフィックス>.json を書き出す。
     const outputPrefix = params.wavPath.replace(/\.wav$/, '')
