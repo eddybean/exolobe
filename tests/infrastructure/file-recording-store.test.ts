@@ -283,6 +283,25 @@ describe('FileRecordingArtifactStore — 話者の声紋', () => {
     expect(await artifacts.readVoices(recording)).toBeUndefined()
   })
 
+  it('数値でない成分を含む声紋は読み飛ばす', async () => {
+    const dir = join(storage, recording.slug)
+    await mkdir(dir, { recursive: true })
+    await writeFile(
+      join(dir, 'voices.json'),
+      JSON.stringify({
+        modelKey: 'campplus:192',
+        speakers: [
+          { speakerId: 'remote:spk0', vector: [null, 1] },
+          { speakerId: 'remote:spk1', vector: [0, 1] }
+        ]
+      }),
+      'utf8'
+    )
+
+    const voices = await artifacts.readVoices(recording)
+    expect(voices?.speakers.map((s) => s.speakerId)).toEqual(['remote:spk1'])
+  })
+
   it('録音を消すと声紋も消える', async () => {
     await artifacts.writeVoices(recording, {
       modelKey: 'campplus:192',

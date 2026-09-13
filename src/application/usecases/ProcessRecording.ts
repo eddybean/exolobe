@@ -377,8 +377,14 @@ export class ProcessRecording {
     turns: readonly SpeakerTurn[]
   }): Promise<ReadonlyMap<string, string>> {
     if (params.turns.length === 0) return new Map()
+    const modelKey = this.deps.embedder.modelKey
 
     try {
+      // 抽出より先に前回ぶんを捨てる。クラスタ番号は実行のたびに振り直されるので、
+      // 抽出に失敗したまま古い voices.json が残ると、次に名前を付けたときに
+      // 別人のベクトルをその名前で覚える。声紋帳は作り直せない。
+      await this.deps.artifacts.writeVoices(params.recording, { modelKey, speakers: [] })
+
       const embedded = await this.deps.embedder.embedSpeakers({
         wavPath: params.wavPath,
         turns: params.turns
@@ -390,14 +396,11 @@ export class ProcessRecording {
         vector
       }))
 
-      await this.deps.artifacts.writeVoices(params.recording, {
-        modelKey: this.deps.embedder.modelKey,
-        speakers: vectors
-      })
+      await this.deps.artifacts.writeVoices(params.recording, { modelKey, speakers: vectors })
 
       return matchVoiceprints(vectors, await this.deps.voiceprints.list(), {
         threshold: params.settings.diarization.voiceprintThreshold,
-        modelKey: this.deps.embedder.modelKey
+        modelKey
       })
     } catch {
       return new Map()

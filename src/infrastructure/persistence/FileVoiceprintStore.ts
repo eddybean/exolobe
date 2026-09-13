@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import type { VoiceprintRepositoryPort } from '@application/ports'
-import type { Voiceprint } from '@domain/Voiceprint'
+import { isVoiceVector, type Voiceprint } from '@domain/Voiceprint'
 import type { StorageLocator } from './FileRecordingStore'
 import { readJson, writeJsonAtomic } from './jsonFile'
 
@@ -30,7 +30,7 @@ const toVoiceprint = (value: unknown): Voiceprint | undefined => {
   const candidate = value as Partial<VoiceprintRecord>
   if (
     typeof candidate.name !== 'string' ||
-    !Array.isArray(candidate.vector) ||
+    !isVoiceVector(candidate.vector) ||
     typeof candidate.samples !== 'number' ||
     typeof candidate.modelKey !== 'string' ||
     typeof candidate.updatedAt !== 'string'

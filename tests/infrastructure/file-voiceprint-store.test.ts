@@ -87,6 +87,19 @@ describe('FileVoiceprintRepository', () => {
     expect(await repository.list()).toEqual([])
   })
 
+  it('数値でない成分を含む声紋は読み飛ばす（NaN は閾値の検査を素通りする）', async () => {
+    await writeFile(
+      join(storage, 'voiceprints.json'),
+      JSON.stringify([
+        { ...print('田中さん', [0, 1]), vector: ['x', 1] },
+        { ...print('佐藤さん', [0, 1]), vector: [0, 1] }
+      ]),
+      'utf8'
+    )
+
+    expect((await repository.list()).map((entry) => entry.name)).toEqual(['佐藤さん'])
+  })
+
   it('形の合わない要素は読み飛ばす', async () => {
     await writeFile(
       join(storage, 'voiceprints.json'),

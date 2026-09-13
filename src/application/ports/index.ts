@@ -99,7 +99,10 @@ export interface DiarizationPort {
 export interface SpeakerEmbeddingPort {
   /** 埋め込みモデルの識別子。変われば過去に作った声紋とは比較できない。 */
   readonly modelKey: string
-  /** `speaker` はダイアライザが付けたクラスタ名（例: `spk0`）。 */
+  /**
+   * `speaker` はダイアライザが付けたクラスタ名（例: `spk0`）。
+   * `vector` は**長さ 1 に正規化済み**で返す。照合を内積だけで行うため。
+   */
   embedSpeakers(params: {
     wavPath: string
     turns: readonly SpeakerTurn[]

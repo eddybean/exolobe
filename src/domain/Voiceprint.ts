@@ -28,6 +28,7 @@ export interface Voiceprint {
 /** 1 録音の中の話者 1 人ぶんの声紋。`speakerId` は `remote:spk0` 形式。 */
 export interface SpeakerVector {
   readonly speakerId: string
+  /** 長さ 1 に正規化済み（`SpeakerEmbeddingPort` の契約）。 */
   readonly vector: Float32Array
 }
 
@@ -41,6 +42,18 @@ export interface RecordingVoices {
   readonly modelKey: string
   readonly speakers: readonly SpeakerVector[]
 }
+
+/**
+ * 保存されていたベクトルを声紋として受け取れるか。
+ *
+ * NaN を 1 つでも通すと内積が NaN になり、閾値も 2 位との差も「比較が常に偽」で
+ * 素通りしてしまう。壊れたファイルが最も確信度の高い候補として振る舞うため、
+ * 読み込み口で弾く。
+ */
+export const isVoiceVector = (value: unknown): value is readonly number[] =>
+  Array.isArray(value) &&
+  value.length > 0 &&
+  value.every((element) => typeof element === 'number' && Number.isFinite(element))
 
 /**
  * 名前を自動で当てにいく下限。

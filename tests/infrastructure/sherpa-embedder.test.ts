@@ -35,12 +35,15 @@ class FakeSession implements SpeakerEmbeddingSession {
   disposed = 0
   error?: Error
 
-  constructor(readonly dim = 4) {}
+  constructor(
+    readonly dim = 4,
+    private readonly result?: Float32Array
+  ) {}
 
   compute(samples: Float32Array): Float32Array {
     this.received.push(samples)
     if (this.error) throw this.error
-    return Float32Array.from([samples.length, 0, 0, 0])
+    return this.result ?? Float32Array.from([samples.length, 0, 0, 0])
   }
 
   dispose(): void {
@@ -72,6 +75,26 @@ describe('SherpaOnnxSpeakerEmbedder', () => {
     const embedder = new SherpaOnnxSpeakerEmbedder(config, new FakeFactory())
 
     expect(embedder.modelKey).toBe('campplus.onnx')
+  })
+
+  it('長さ 1 に正規化して返す（類似度を内積だけで求められるようにする）', async () => {
+    // sherpa の compute() はノルム 10 前後の生のベクトルを返す。正規化を忘れると
+    // 内積が「ノルム × コサイン」になり、閾値も 2 位との差も効かなくなる。
+    const factory = new FakeFactory(new FakeSession(4, Float32Array.from([30, 40, 0, 0])))
+    const embedder = new SherpaOnnxSpeakerEmbedder(config, factory)
+    const wavPath = await writeWav(20)
+
+    const [entry] = await embedder.embedSpeakers({
+      wavPath,
+      turns: [turn(0, 5000, 'spk0')]
+    })
+
+    expect(Array.from(entry?.vector ?? [])).toEqual([
+      expect.closeTo(0.6),
+      expect.closeTo(0.8),
+      0,
+      0
+    ])
   })
 
   it('話者ごとに 1 本の声紋を返す', async () => {

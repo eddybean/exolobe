@@ -725,6 +725,19 @@ describe('ProcessRecording — 声紋による話者名の自動適用', () => {
     expect(ctx.embedder.calls).toEqual([])
   })
 
+  it('抽出に失敗したら前回の声紋を残さない（別人に名前が付くのを防ぐ）', async () => {
+    const ctx = await withVoices()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    expect((await ctx.artifacts.readVoices(ctx.recording))?.speakers).toHaveLength(2)
+
+    // クラスタ番号は実行のたびに振り直される。古い声紋が残ると、次に名前を
+    // 付けたときに別人のベクトルをその名前で覚えてしまう。
+    ctx.embedder.error = new Error('モデルを読めません')
+    await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
+
+    expect((await ctx.artifacts.readVoices(ctx.recording))?.speakers).toEqual([])
+  })
+
   it('声紋の抽出に失敗しても話者識別そのものは通す', async () => {
     const ctx = await withVoices()
     ctx.embedder.error = new Error('モデルを読めません')

@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 import type { SpeakerEmbeddingPort } from '@application/ports'
 import { AppError, toMessage } from '@domain/errors'
 import type { SpeakerTurn } from '@domain/TranscriptSegment'
+import { normalize } from '@domain/vector'
 import { readWav } from '@infrastructure/audio/wav'
 import { selectVoiceRanges, type SampleRange } from './voiceSamples'
 
@@ -74,7 +75,10 @@ export class SherpaOnnxSpeakerEmbedder implements SpeakerEmbeddingPort {
       for (const [speaker, speakerRanges] of ranges) {
         const samples = concatRanges(audio.samples, audio.sampleRate, speakerRanges)
         if (samples.length === 0) continue
-        result.push({ speaker, vector: session.compute(samples, audio.sampleRate) })
+        // sherpa の compute() はノルム 10 前後の生のベクトルを返す。ここで長さ 1 に
+        // 揃えておかないと、照合の内積が「ノルム × コサイン」になり、閾値も
+        // 2 位との差も桁ごと押し上げられて機能しない（別人に必ず名前が付く）。
+        result.push({ speaker, vector: normalize(session.compute(samples, audio.sampleRate)) })
       }
       return result
     } catch (error: unknown) {

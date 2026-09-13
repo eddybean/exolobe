@@ -17,7 +17,7 @@ import { AppError, ConfigurationError } from '@domain/errors'
 import type { Speaker } from '@domain/Speaker'
 import { toMarkdown } from '@domain/Transcript'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
-import type { RecordingVoices, SpeakerVector } from '@domain/Voiceprint'
+import { isVoiceVector, type RecordingVoices, type SpeakerVector } from '@domain/Voiceprint'
 import { readJson, writeJsonAtomic } from './jsonFile'
 
 export class StorageError extends AppError {}
@@ -186,10 +186,10 @@ const toVoices = (value: unknown): RecordingVoices | undefined => {
   for (const entry of candidate.speakers) {
     if (typeof entry !== 'object' || entry === null) continue
     const speaker = entry as { speakerId?: unknown; vector?: unknown }
-    if (typeof speaker.speakerId !== 'string' || !Array.isArray(speaker.vector)) continue
+    if (typeof speaker.speakerId !== 'string' || !isVoiceVector(speaker.vector)) continue
     speakers.push({
       speakerId: speaker.speakerId,
-      vector: Float32Array.from(speaker.vector.map(asNumber))
+      vector: Float32Array.from(speaker.vector)
     })
   }
 
