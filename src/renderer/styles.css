@@ -1395,3 +1395,210 @@ textarea:focus {
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
+
+/*
+ * チャット。
+ *
+ * 長文の往復を読ませる画面なので、幅を欲張らず中央に寄せて 1 行を短く保つ。
+ * 入力欄は下に固定し、会話が伸びてもそこだけが動かないようにする。
+ */
+.chat {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  height: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px;
+  gap: 12px;
+}
+
+.chat__header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.chat__heading {
+  margin: 0;
+  font-size: 15px;
+}
+
+.chat__lead {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chat__reset {
+  grid-row: 1;
+  grid-column: 2;
+  font-size: 12px;
+}
+
+.chat__log {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 4px;
+}
+
+.chat__empty {
+  margin: auto 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.chat__examples {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat__example {
+  font-size: 12px;
+  color: var(--accent);
+  background: transparent;
+  border-color: transparent;
+}
+
+.chat__example:hover {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+.chat__message {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+/* 質問は自分の言葉なので、回答と地を変えて視線の起点にする。 */
+.chat__message--user {
+  background: var(--surface-2);
+  border-color: transparent;
+  margin-left: 48px;
+}
+
+.chat__message--assistant {
+  margin-right: 48px;
+}
+
+.chat__question {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.chat__scope {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chat__thinking,
+.chat__aborted {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* 生成中だと分かるよう、最後の行に合わせて縁を灯す。 */
+.chat__message--streaming {
+  border-color: var(--accent);
+}
+
+.chat__error {
+  margin: 0;
+  color: var(--danger);
+}
+
+.chat__citations {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 10px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+.chat__citation {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 6px;
+  border-color: transparent;
+  background: transparent;
+  text-align: left;
+}
+
+.chat__citation:hover {
+  background: var(--surface-2);
+}
+
+.chat__citation-index {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat__citation-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chat__citation-meta {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chat__notice {
+  display: block;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
+.chat__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chat__input {
+  flex: 1;
+  resize: none;
+  font: inherit;
+  color: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.chat__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.chat__send,
+.chat__stop {
+  padding: 8px 16px;
+}
+
+.chat__stop {
+  color: var(--danger);
+  border-color: var(--danger);
+}

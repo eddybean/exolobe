@@ -13,11 +13,12 @@ import { useFileDrop } from './hooks/useFileDrop'
 import { isSemanticSearchAvailable } from './library/semanticSearch'
 import { TransportBar } from './components/TransportBar'
 import { useTransport } from './hooks/useTransport'
+import { ChatView } from './views/ChatView'
 import { OnboardingView } from './views/OnboardingView'
 import { RecordingDetailView } from './views/RecordingDetailView'
 import { SettingsView } from './views/SettingsView'
 
-type Screen = 'library' | 'settings' | 'onboarding'
+type Screen = 'library' | 'chat' | 'settings' | 'onboarding'
 
 /**
  * 画面の器。
@@ -172,6 +173,13 @@ export const App = (): ReactElement => {
           </button>
           <button
             type="button"
+            className={screen === 'chat' ? 'nav__link nav__link--active' : 'nav__link'}
+            onClick={() => setScreen('chat')}
+          >
+            チャット
+          </button>
+          <button
+            type="button"
             className={screen === 'settings' ? 'nav__link nav__link--active' : 'nav__link'}
             onClick={() => setScreen('settings')}
           >
@@ -186,6 +194,15 @@ export const App = (): ReactElement => {
             setup={setup}
             onChanged={() => void refreshSetup()}
             onOpenSettings={() => setScreen('settings')}
+          />
+        )}
+
+        {screen === 'chat' && (
+          <ChatView
+            onOpenRecording={(id) => {
+              setSelectedId(id)
+              setScreen('library')
+            }}
           />
         )}
 

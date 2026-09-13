@@ -1,0 +1,173 @@
+import { describe, expect, it } from 'vitest'
+import {
+  MAX_HISTORY_TURNS,
+  appendChunk,
+  completeMessage,
+  startTurn,
+  toHistory,
+  type ChatMessage
+} from '@renderer/chat/messages'
+
+const user = (id: string, text: string): ChatMessage => ({
+  id,
+  role: 'user',
+  text,
+  streaming: false
+})
+
+const assistant = (id: string, text: string, overrides: Partial<ChatMessage> = {}): ChatMessage => ({
+  id,
+  role: 'assistant',
+  text,
+  streaming: false,
+  ...overrides
+})
+
+describe('startTurn', () => {
+  it('質問と、これから書かれる空の回答を並べて置く', () => {
+    const messages = startTurn([], 'req-1', '先週のTODOをまとめて')
+
+    expect(messages).toHaveLength(2)
+    expect(messages[0]).toMatchObject({ role: 'user', text: '先週のTODOをまとめて' })
+    // 空の回答を先に置くことで、「考え中」の表示が別の仕組みにならずに済む。
+    expect(messages[1]).toMatchObject({ id: 'req-1', role: 'assistant', text: '', streaming: true })
+  })
+})
+
+describe('appendChunk', () => {
+  it('requestId が一致する回答にだけ追記する', () => {
+    const messages: ChatMessage[] = [
+      assistant('req-1', '見積', { streaming: true }),
+      assistant('req-2', '別の', { streaming: true })
+    ]
+
+    const next = appendChunk(messages, 'req-1', 'もり')
+
+    expect(next[0]?.text).toBe('見積もり')
+    expect(next[1]?.text).toBe('別の')
+  })
+
+  it('知らない requestId なら何も変えない', () => {
+    const messages = [assistant('req-1', '見積', { streaming: true })]
+
+    expect(appendChunk(messages, 'req-9', 'もり')).toEqual(messages)
+  })
+})
+
+describe('completeMessage', () => {
+  it('最終テキストで丸ごと置き換え、streaming を下ろす', () => {
+    const messages = [assistant('req-1', '見積も', { streaming: true })]
+
+    const next = completeMessage(messages, {
+      requestId: 'req-1',
+      text: '見積もりの提出です。',
+      citations: [],
+      droppedCount: 0,
+      aborted: false
+    })
+
+    expect(next[0]).toMatchObject({ text: '見積もりの提出です。', streaming: false })
+  })
+
+  it('中断なら、そこまでの本文を残したうえで中断と記す', () => {
+    const messages = [assistant('req-1', '見積も', { streaming: true })]
+
+    const next = completeMessage(messages, {
+      requestId: 'req-1',
+      text: '見積も',
+      citations: [],
+      droppedCount: 0,
+      aborted: true
+    })
+
+    expect(next[0]).toMatchObject({ text: '見積も', aborted: true, streaming: false })
+  })
+
+  it('失敗なら理由を持たせ、本文は空のままにする', () => {
+    const messages = [assistant('req-1', '', { streaming: true })]
+
+    const next = completeMessage(messages, {
+      requestId: 'req-1',
+      text: '',
+      citations: [],
+      droppedCount: 0,
+      aborted: false,
+      error: 'モデルがありません'
+    })
+
+    expect(next[0]).toMatchObject({ error: 'モデルがありません', streaming: false })
+  })
+
+  it('引用と対象の表記を持ち回る', () => {
+    const messages = [assistant('req-1', '', { streaming: true })]
+    const citations = [
+      {
+        recordingId: 'rec-1',
+        title: '週次定例',
+        startedAt: '2026-09-08T05:30:00.000Z',
+        source: 'summary' as const,
+        truncated: false
+      }
+    ]
+
+    const next = completeMessage(messages, {
+      requestId: 'req-1',
+      text: '答え',
+      citations,
+      scopeLabel: '先週（08/31〜09/06）の 1 件',
+      droppedCount: 0,
+      aborted: false
+    })
+
+    expect(next[0]?.citations).toEqual(citations)
+    expect(next[0]?.scopeLabel).toBe('先週（08/31〜09/06）の 1 件')
+  })
+})
+
+describe('toHistory', () => {
+  it('生成中の回答は履歴に含めない', () => {
+    const messages = [
+      user('u1', '先週のTODOは？'),
+      assistant('req-1', '見積もりです。'),
+      user('u2', 'もっと詳しく'),
+      assistant('req-2', '書きかけ', { streaming: true })
+    ]
+
+    expect(toHistory(messages)).toEqual([
+      { role: 'user', text: '先週のTODOは？' },
+      { role: 'assistant', text: '見積もりです。' },
+      { role: 'user', text: 'もっと詳しく' }
+    ])
+  })
+
+  it('失敗した回答は履歴に含めない', () => {
+    const messages = [
+      user('u1', '先週のTODOは？'),
+      assistant('req-1', '', { error: 'モデルがありません' })
+    ]
+
+    expect(toHistory(messages)).toEqual([{ role: 'user', text: '先週のTODOは？' }])
+  })
+
+  it('直近のターンだけに切る', () => {
+    const messages: ChatMessage[] = []
+    for (let index = 0; index < 10; index += 1) {
+      messages.push(user(`u${index}`, `質問${index}`), assistant(`a${index}`, `回答${index}`))
+    }
+
+    const history = toHistory(messages)
+
+    // 文脈を毎ターン作り直すぶん、履歴は短く保たないと 32K がすぐ埋まる。
+    expect(history).toHaveLength(MAX_HISTORY_TURNS)
+    expect(history.at(-1)).toEqual({ role: 'assistant', text: '回答9' })
+  })
+
+  it('中断した回答は、そこまでの本文を履歴に残す', () => {
+    const messages = [user('u1', '質問'), assistant('req-1', '途中まで', { aborted: true })]
+
+    expect(toHistory(messages)).toEqual([
+      { role: 'user', text: '質問' },
+      { role: 'assistant', text: '途中まで' }
+    ])
+  })
+})
