@@ -50,7 +50,7 @@ export interface ChatContext {
 export const CHARS_PER_TOKEN = 0.8
 
 /** 回答のために空けておくトークン数。NodeLlamaChatSessionFactory の maxTokens と揃える。 */
-export const ANSWER_TOKENS = 1_024
+export const ANSWER_TOKENS = 2_048
 
 /** システム指示とテンプレートのぶん。 */
 export const INSTRUCTION_TOKENS = 512

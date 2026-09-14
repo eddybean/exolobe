@@ -199,11 +199,56 @@ describe('withInlineSources', () => {
     expect(withInlineSources(text, citations)).toBe('- [ ] 求人票を更新する（週次定例 9月4日）')
   })
 
-  it('1 行に複数の番号があってもすべて置き換える', () => {
+  it('番号が 2 つまでならどちらも出す', () => {
     const text = '- 見積もりの話 [1][2]'
 
     expect(withInlineSources(text, citations)).toBe(
       '- 見積もりの話（週次定例 9月4日）（A社との商談 9月2日）'
+    )
+  })
+
+  it('番号が 3 つ以上並んだら先頭だけ出して件数でまとめる', () => {
+    // 毎回の定例に出てくる項目は出典が会議の数だけ並び、1 行が読めなくなる。
+    const many: ChatCitationDto[] = Array.from({ length: 8 }, (_unused, i) => ({
+      recordingId: `rec-${i}`,
+      title: `会議${i + 1}`,
+      startedAt: '2026-09-04T05:00:00.000Z',
+      source: 'summary',
+      truncated: false
+    }))
+    const text = '- 議事録を共有する [1][2][3][4][5][6][7][8]'
+
+    expect(withInlineSources(text, many)).toBe('- 議事録を共有する（会議1 9月4日 ほか7件）')
+  })
+
+  it('カンマ区切りで 1 つの括弧に書かれても置き換える', () => {
+    // モデルは [1][2] とも [1, 2] とも書く。どちらも根拠の並びとして扱う。
+    const text = '- 見積もりの話 [1, 2]'
+
+    expect(withInlineSources(text, citations)).toBe(
+      '- 見積もりの話（週次定例 9月4日）（A社との商談 9月2日）'
+    )
+  })
+
+  it('カンマ区切りが 3 つ以上でも件数でまとめる', () => {
+    const many: ChatCitationDto[] = Array.from({ length: 8 }, (_unused, i) => ({
+      recordingId: `rec-${i}`,
+      title: `会議${i + 1}`,
+      startedAt: '2026-09-04T05:00:00.000Z',
+      source: 'summary',
+      truncated: false
+    }))
+
+    expect(withInlineSources('- 議事録を共有する [1, 2, 3, 4, 5, 6, 7, 8]', many)).toBe(
+      '- 議事録を共有する（会議1 9月4日 ほか7件）'
+    )
+  })
+
+  it('離れた位置の番号はまとめない', () => {
+    const text = '- 見積もりの話 [1] と 採用の話 [2]'
+
+    expect(withInlineSources(text, citations)).toBe(
+      '- 見積もりの話（週次定例 9月4日） と 採用の話（A社との商談 9月2日）'
     )
   })
 

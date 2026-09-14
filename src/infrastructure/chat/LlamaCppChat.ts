@@ -67,9 +67,10 @@ export class LlamaCppChat implements ChatCompletionPort {
      * 二乗で膨らんで 32K がすぐ埋まる。履歴の正は画面側にあり、セッションの内部状態を
      * 正にすると二重管理になる。system が同じなら共通接頭辞の KV は再利用される。
      */
-    this.session.setHistory(params.system, params.history)
+    const session = this.session
+    session.setHistory(params.system, params.history)
 
-    return this.session.prompt(params.prompt, {
+    return session.prompt(params.prompt, {
       onChunk: params.onChunk,
       ...(params.signal === undefined ? {} : { signal: params.signal })
     })

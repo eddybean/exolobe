@@ -90,8 +90,20 @@ export const toHistory = (messages: readonly ChatMessage[]): ChatTurnDto[] =>
 const formatSourceDate = (iso: string): string =>
   new Intl.DateTimeFormat('ja-JP', { month: 'long', day: 'numeric' }).format(new Date(iso))
 
-/** 本文中の出典番号。チェックボックスの `[ ]` と紛れないよう、数字だけを見る。 */
-const CITATION_REF = /[ \t]*\[(\d{1,2})\]/g
+/**
+ * 本文中の出典番号の並び。
+ *
+ * チェックボックスの `[ ]` と紛れないよう数字だけを見る。続けて並んだものは
+ * 1 つの塊として扱う —— 毎回の定例に出てくる項目は出典が会議の数だけ並び、
+ * そのまま名前に開くと 1 行が読めなくなる。
+ */
+// モデルは [1][2] とも [1, 2] とも書く。どちらも 1 つの並びとして扱う。
+const CITATION_RUN = /(?:[ \t]*\[\d{1,2}(?:\s*,\s*\d{1,2})*\])+/g
+/** 並びの中の番号。括弧・カンマ・空白しか混ざらないので、数字だけを拾えばよい。 */
+const CITATION_NUMBER = /\d{1,2}/g
+
+/** 名前を開いて出す上限。これを超えたら先頭だけ出して残りは件数で言う。 */
+const MAX_INLINE_SOURCES = 2
 
 /**
  * 答えの中の `[1]` を「（会議名 9月4日）」に置き換える。
@@ -106,12 +118,21 @@ export const withInlineSources = (
 ): string => {
   if (citations.length === 0) return text
 
-  return text.replace(CITATION_REF, (whole, digits: string) => {
-    const citation = citations[Number.parseInt(digits, 10) - 1]
+  return text.replace(CITATION_RUN, (run) => {
+    const found = [...run.matchAll(CITATION_NUMBER)].map(
+      (match) => citations[Number.parseInt(match[0], 10) - 1]
+    )
     // 対応する出典が無い番号は、モデルの書き間違い。消すと根拠が消えたように見える。
-    return citation
-      ? `（${citation.title} ${formatSourceDate(citation.startedAt)}）`
-      : whole
+    if (found.length === 0 || found.some((citation) => citation === undefined)) return run
+
+    const named = found.filter((c): c is ChatCitationDto => c !== undefined)
+    const label = (c: ChatCitationDto): string => `${c.title} ${formatSourceDate(c.startedAt)}`
+
+    if (named.length > MAX_INLINE_SOURCES) {
+      const [first] = named
+      return first === undefined ? run : `（${label(first)} ほか${named.length - 1}件）`
+    }
+    return named.map((c) => `（${label(c)}）`).join('')
   })
 }
 
