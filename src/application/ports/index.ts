@@ -235,6 +235,14 @@ export interface RecordingArtifactPort {
   readVoices(recording: Recording): Promise<RecordingVoices | undefined>
   writeVoices(recording: Recording, voices: RecordingVoices): Promise<void>
 
+  /**
+   * 声紋を取り直すための一時 WAV を貸す。`run` が終わったら必ず捨てる。
+   *
+   * 1 時間の会議で約 115MB になる（16kHz モノラル 16bit）。抜けると保存先ではなく
+   * userData がじわじわ埋まり、利用者からは見えない。
+   */
+  withVoicesWav<T>(recording: Recording, run: (wavPath: string) => Promise<T>): Promise<T>
+
   readSummary(recording: Recording): Promise<string | undefined>
   writeSummary(recording: Recording, markdown: string): Promise<void>
 

@@ -131,6 +131,8 @@ export class FakeArtifactStore implements RecordingArtifactPort {
   voices = new Map<string, RecordingVoices>()
   cleanedUp: string[] = []
   removed: string[] = []
+  /** 貸したまま返っていない一時 WAV の数。片付け漏れの検証に使う。 */
+  voicesWavLeft = 0
 
   tracks = new Map<string, RecordingSource>()
 
@@ -177,6 +179,14 @@ export class FakeArtifactStore implements RecordingArtifactPort {
   }
   async writeNote(recording: Recording, markdown: string): Promise<void> {
     this.notes.set(recording.id, markdown)
+  }
+  async withVoicesWav<T>(recording: Recording, run: (wavPath: string) => Promise<T>): Promise<T> {
+    this.voicesWavLeft += 1
+    try {
+      return await run(`${this.workDir(recording)}/voices.wav`)
+    } finally {
+      this.voicesWavLeft -= 1
+    }
   }
   async cleanupIntermediates(recording: Recording): Promise<void> {
     this.cleanedUp.push(recording.id)
@@ -237,10 +247,13 @@ export class FakeDiarizer implements DiarizationPort {
 }
 
 export class FakeSpeakerEmbedder implements SpeakerEmbeddingPort {
-  readonly modelKey = 'fake-embedding:2'
+  /** 空文字は話者識別が無効な状態（`NullSpeakerEmbedder`）を表す。 */
+  modelKey = 'fake-embedding:2'
   /** クラスタ名ごとに返す声紋。登録の無いクラスタは結果に含めない。 */
   byCluster = new Map<string, Float32Array>()
   calls: { wavPath: string; clusters: string[] }[] = []
+  /** 直近に渡されたターン。声紋に使う区間の切り出しを検証するため。 */
+  turns: SpeakerTurn[] = []
   error?: Error
 
   async embedSpeakers(params: {
@@ -249,6 +262,7 @@ export class FakeSpeakerEmbedder implements SpeakerEmbeddingPort {
   }): Promise<{ speaker: string; vector: Float32Array }[]> {
     const clusters = [...new Set(params.turns.map((turn) => turn.speaker))]
     this.calls.push({ wavPath: params.wavPath, clusters })
+    this.turns = [...params.turns]
     if (this.error) throw this.error
 
     return clusters.flatMap((speaker) => {
