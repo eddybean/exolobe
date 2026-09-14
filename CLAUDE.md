@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 macOS 向けの Web 会議レコーダー（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜033）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜034）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -142,7 +142,13 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   （短いタイトルがクエリの「〜したミーティング」と一致して本文より上に来る、ADR-029）。
 - 音声コーデックの既定を AAC-LC から HE-AAC に変えない（`afconvert` がビットレート
   指定を無視して品質が落ちる、ADR-005）。
-- 話者名の自動適用（ADR-031）で、**声紋帳が育つのは `RenameSpeaker` からだけ**にする。
+- 過去の録音の声紋は `audio.m4a` から取り直す（ADR-034）。**話者識別はやり直さない** —
+  クラスタ番号が振り直され、既に付けた名前との対応が崩れる。入力はミックス済みなので
+  `transcript.json` の `self` と重なる区間を引く。`compute()` には
+  `enableExternalBuffer = false` を渡す（既定の true は Electron の V8 が外部バッファを
+  禁じていて必ず失敗する。素の Node では通るのでテストでは気付けない）。
+- 話者名の自動適用（ADR-031）で、**声紋帳が育つのは話者のリネームからだけ**にする
+  （実体は `RememberSpeakerVoice`、呼ぶのはリネームの IPC ハンドラ 1 か所）。
   自動で当てた名前を学習に戻すと、一度の取り違えが声紋に混ざって次の取り違えを呼ぶ。
   引き当てた名前は、その録音で既に付いている名前より優先しない（利用者の訂正を推定で押し戻さない）。
 - チャットで**どの録音を見るかを LLM の tool calling に決めさせない**（ADR-032）。日付・話者・

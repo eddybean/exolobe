@@ -66,6 +66,7 @@
             <tr><td><a href="#adr-031">ADR-031</a></td><td>話者名の引き継ぎ</td><td>声紋で過去に付けた名前を当て、学習は利用者の名付けだけから行う</td></tr>
             <tr><td><a href="#adr-032">ADR-032</a></td><td>チャットの絞り込み</td><td>どの録音を見るかは純粋関数で決め、tool calling を使わない</td></tr>
             <tr><td><a href="#adr-033">ADR-033</a></td><td>3 つのモデルの調停</td><td>チャットは専用ワーカーで、パイプラインに譲り索引より優先する</td></tr>
+            <tr><td><a href="#adr-034">ADR-034</a></td><td>過去の録音からの声紋の取り直し</td><td>audio.m4a から取り直し、話者識別はやり直さず、名前付けの裏で 1 回だけ走らせる</td></tr>
           </tbody>
         </table>
       </div>
@@ -2636,6 +2637,158 @@
         </ul>
       </div>
 
+
+      <h2 id="adr-034">ADR-034 過去の録音からの声紋の取り直し（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-034</span>
+          <p class="adr__title">声紋は audio.m4a から取り直す。話者識別はやり直さず、名前付けの裏で 1 回だけ走らせる</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          <a href="#adr-031">ADR-031</a> の声紋帳が育つのは <code>RenameSpeaker</code> だけで、そこは
+          録音ディレクトリの <code>voices.json</code> を読みます。ところが <code>voices.json</code> は
+          diarize ステップでしか書かれず、中間 WAV（<code>userData/work/</code>）は完了時に消えるため、
+          既に録り終えた録音では作る手段がありませんでした。話者に名前を付けるのはパイプラインが
+          終わった後、というのが普通の使い方なのに、機能が入る前の録音では名前を付けても
+          <strong>黙って捨てられていた</strong>状態です。diarize を個別リトライしても
+          <code>readTracks</code> が空を返して「録音データが見つかりません」で止まります。
+        </p>
+        <p>
+          併せて、<code>SpeakerEmbeddingExtractor.compute()</code> は既定で外部バッファ
+          （<code>napi_create_external_arraybuffer</code>）に声紋を載せて返しますが、Electron の V8 は
+          サンドボックスが有効で外部バッファを禁じており「External buffers are not allowed」で
+          必ず失敗していました。素の Node では通るため、単体テストも手元の <code>node</code> での
+          試行も緑のまま、アプリでだけ声紋が取れません。実機で動かして初めて分かりました。
+        </p>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>論点</th><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td rowspan="3">取り直しの入力</td>
+                <td><strong>保存先の <code>audio.m4a</code> を 16kHz モノラルへ戻す</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>録音と一緒に必ず残っている唯一の音。既に 16kHz モノラルで保存されているので
+                リサンプルもダウンミックスも起きず、変換で失うのは AAC-LC の圧縮ぶんだけ
+                （<a href="#adr-005">ADR-005</a>）</td>
+              </tr>
+              <tr>
+                <td><code>system.wav</code>（相手トラック）を消さずに残す</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>保存容量が跳ね上がる。1 時間の会議で 115MB の無圧縮 WAV を、使うか分からない
+                「後で名前を付けるかもしれない」ために全録音ぶん抱えることになる</td>
+              </tr>
+              <tr>
+                <td>過去の録音は諦める</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>名前を付けるのは後からという使い方では、機能そのものが働かない</td>
+              </tr>
+              <tr>
+                <td rowspan="2">話者の割り当て</td>
+                <td><strong><code>transcript.json</code> に残っているクラスタを使う</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>推論を増やさずに済む。利用者が画面で見ている話者の並びがそのまま使える</td>
+              </tr>
+              <tr>
+                <td>話者識別をやり直す</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>クラスタ番号は実行のたびに振り直される。既に付けた名前との対応が崩れ、
+                名前を付け直そうとした利用者の目の前で話者の並びが変わる</td>
+              </tr>
+              <tr>
+                <td rowspan="2">自分の声の扱い</td>
+                <td><strong><code>self</code> の発話と重なる区間を引く（前後 200ms 広げて）</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td><code>audio.m4a</code> はミックス済みで、diarize が使う <code>system.wav</code> と違い
+                自分の相槌が入っている。誰がいつ喋ったかは文字起こしで確定しているので推定は要らない。
+                ガードは文字起こしの時刻のぶれと AAC のプライミングのぶん</td>
+              </tr>
+              <tr>
+                <td>そのまま使う</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>相手の声紋に自分の声が混ざる。1 人あたり十数秒あれば足りる
+                （<code>selectVoiceRanges</code>）ので、削りすぎる心配より混ざる害が大きい</td>
+              </tr>
+              <tr>
+                <td rowspan="2">走らせる時機</td>
+                <td><strong>最初の名前付けの裏で、1 録音につき 1 回</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>名前は即座に反映し、声紋の登録だけが後から追いつく。できた
+                <code>voices.json</code> がそのままキャッシュになるので、同じ録音の 2 人目以降では
+                変換も抽出も走らない</td>
+              </tr>
+              <tr>
+                <td>詳細画面を開いたときに先回りする</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>見ただけの録音でも数 GB のネイティブを動かすことになる</td>
+              </tr>
+              <tr>
+                <td>圧縮由来の声紋の区別</td>
+                <td><strong>区別しない</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>おかしくなれば設定の「覚えた声」から名前ごと消せる。重みを下げる案は、
+                どれだけ下げるかの根拠が実測なしには出せない</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>決定</h4>
+        <ul>
+          <li>
+            <code>ExtractVoices</code> が <code>audio.m4a</code> を <code>afconvert</code> で
+            <strong>16000Hz 固定</strong>の WAV に戻し、<code>transcript.json</code> から組み直した
+            ターンで声紋を取り、<code>voices.json</code> に書く。サンプルレートを設定値ではなく
+            固定にしたのは、設定を変えた後に取り直しても過去の声紋と比べられる値にするため。
+          </li>
+          <li>
+            一時 WAV（1 時間で約 115MB）は <code>withVoicesWav</code> が貸して必ず捨てる。
+            保存先ではなく <code>work/</code> に置く。
+          </li>
+          <li>
+            声紋帳への登録を <code>RenameSpeaker</code> から <code>RememberSpeakerVoice</code> へ
+            切り出し、main 側の列で 1 件ずつ直列に流す。<code>voiceprints.json</code> が
+            読んで書き戻す形なので並行させると片方の登録が消えること、続けて名前を付けたときに
+            重い処理を 1 回に抑えることの両方が理由。<strong>声紋帳が育つのは、この列を呼ぶ
+            リネームの 1 か所だけ</strong>（<a href="#adr-031">ADR-031</a>）。
+          </li>
+          <li>
+            覚えられなかったことは詳細画面に 1 行出す。黙って捨てると、利用者から見える手がかりは
+            「設定の『覚えた声』に何も増えない」だけになり、次の録音で「参加者A」に戻って初めて気付く。
+          </li>
+          <li>
+            クラスタの付いていない裸の <code>remote</code> は対象にしない。話者が分かれていない録音で
+            複数人を混ぜた 1 本を誰かの声として覚えると、次の録音で取り違える。
+          </li>
+          <li>
+            <code>compute()</code> には <code>enableExternalBuffer = false</code> を渡す。
+          </li>
+          <li>
+            <code>PIPELINE_STEPS</code> は変えない（<a href="#adr-030">ADR-030</a>）。これはステップでは
+            なく、必要になったとき 1 回だけ走る取り直し処理。
+          </li>
+        </ul>
+
+        <h4>結果</h4>
+        <ul>
+          <li>
+            合成した会議（Apple の音声合成 3 話者・AAC-LC 32kbps）で、2 人ぶんの名前を続けて付けると
+            <code>voices.json</code> が 1 回だけ作られ、<code>voiceprints.json</code> に 2 件並ぶことを
+            実機で確認した。
+          </li>
+          <li>
+            <strong>圧縮と実際の声での精度は未測定。</strong>合成音声は埋め込みが互いに 0.93 前後
+            （同一話者 0.96）で詰まっており、閾値 0.6 の妥当性を測る材料にならない。本番の録音で
+            <code>system.wav</code> から作った声紋と <code>audio.m4a</code> から取り直したものを
+            突き合わせて確かめる必要がある。
+          </li>
+        </ul>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -2724,6 +2877,10 @@
             <tr>
               <td><a href="#adr-033">ADR-033</a> パイプライン稼働中はチャットを断る</td>
               <td>32GB 以上の機体が前提にできるとき。空きメモリで判定を分ける形が次の一手</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-034">ADR-034</a> 圧縮済みのミックスから声紋を取り直す</td>
+              <td>取り直した声紋で取り違えが実際に起きたとき。本番の録音で <code>system.wav</code> 由来のものと突き合わせて差を測るのが先</td>
             </tr>
             <tr>
               <td>arm64 のみのビルド</td>
