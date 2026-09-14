@@ -31,7 +31,11 @@ export class SherpaOnnxEmbeddingSessionFactory implements SpeakerEmbeddingSessio
         const stream = extractor.createStream()
         stream.acceptWaveform({ sampleRate, samples })
         stream.inputFinished()
-        return extractor.compute(stream)
+        // 第 2 引数は enableExternalBuffer。既定の true だと sherpa が外部バッファで
+        // 声紋を返し、Electron の V8（サンドボックス有効）が
+        // 「External buffers are not allowed」で撥ねる。素の Node では通るので、
+        // Fake を使うテストも素の Node での試行も緑のまま、アプリでだけ失敗する。
+        return extractor.compute(stream, false)
       },
       // ネイティブ側のハンドルに解放用の API は無く、GC 時にファイナライザが片付ける。
       // ワーカーはジョブごとに終了するので（ADR-008）、そこで確実に OS へ返る。

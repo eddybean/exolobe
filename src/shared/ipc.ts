@@ -227,6 +227,22 @@ export interface VoiceprintDto {
   readonly updatedAt: string
 }
 
+/**
+ * 話者に付けた名前を声紋として覚えられたか。
+ *
+ * 覚える処理は名前の反映とは別に裏で走るため、結果は後から届く。覚えられなかった
+ * ことを黙って捨てない ―― 利用者から見れば「設定の『覚えた声』に何も増えない」
+ * という形でしか現れず、原因にたどり着けない。
+ */
+export interface VoiceLearnedDto {
+  readonly recordingId: string
+  readonly speakerId: string
+  readonly label: string
+  readonly status: 'remembered' | 'skipped-self' | 'unavailable' | 'failed'
+  /** `failed` のときの理由。利用者に見せる文面。 */
+  readonly message?: string
+}
+
 export const toRecordingDto = (
   recording: Recording,
   summaryPreview?: string
@@ -312,6 +328,8 @@ export interface RendererApi {
   onSilenceAlert(listener: (event: SilenceAlertDto) => void): () => void
   onStartAlert(listener: (event: StartAlertDto) => void): () => void
   onModelProgress(listener: (event: ModelProgressDto) => void): () => void
+  /** 話者名を声紋として覚えた（あるいは覚えられなかった）ことの通知。 */
+  onVoiceLearned(listener: (event: VoiceLearnedDto) => void): () => void
 
   /** 自然文のクエリで録音を探す。意味検索が有効でモデルがある場合だけ使える。 */
   searchRecordings(query: string): Promise<SearchHitDto[]>
@@ -364,6 +382,7 @@ export const IPC = {
   updateNote: 'recordings:updateNote',
   renameRecording: 'recordings:rename',
   renameSpeaker: 'recordings:renameSpeaker',
+  voiceLearned: 'recordings:voiceLearned',
   deleteRecording: 'recordings:delete',
   confirmDeleteRecording: 'recordings:confirmDelete',
   revealRecording: 'recordings:reveal',

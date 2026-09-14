@@ -30,7 +30,7 @@ export class PipelineClient {
   private worker: PipelineWorker | undefined
   private readonly pending = new Map<
     string,
-    { resolve: (recording: RecordingDto) => void; reject: (error: Error) => void }
+    { resolve: (recording: RecordingDto | undefined) => void; reject: (error: Error) => void }
   >()
   private readonly busyListeners: ((busy: boolean) => void)[] = []
 
@@ -40,18 +40,37 @@ export class PipelineClient {
   ) {}
 
   async run(params: { recordingId: string; only?: readonly string[] }): Promise<RecordingDto> {
+    const recording = await this.request((jobId) => ({
+      type: 'run',
+      jobId,
+      recordingId: params.recordingId,
+      ...(params.only === undefined ? {} : { only: params.only })
+    }))
+
+    if (!recording) throw new Error('処理の結果を受け取れませんでした。')
+    return recording
+  }
+
+  /**
+   * 完了済みの録音から声紋を取り直す。
+   *
+   * 話者に名前を付けたときに、その録音の声紋が無ければ呼ばれる。ジョブを抱えている
+   * 間は busy になるので、意味検索の索引作成は自動的に待つ。
+   */
+  async extractVoices(recordingId: string): Promise<void> {
+    await this.request((jobId) => ({ type: 'voices', jobId, recordingId }))
+  }
+
+  private async request(
+    build: (jobId: string) => Record<string, unknown>
+  ): Promise<RecordingDto | undefined> {
     const worker = this.ensureWorker()
     const jobId = randomUUID()
 
-    return new Promise<RecordingDto>((resolve, reject) => {
+    return new Promise<RecordingDto | undefined>((resolve, reject) => {
       this.pending.set(jobId, { resolve, reject })
       if (this.pending.size === 1) this.notifyBusy(true)
-      worker.postMessage({
-        type: 'run',
-        jobId,
-        recordingId: params.recordingId,
-        ...(params.only === undefined ? {} : { only: params.only })
-      })
+      worker.postMessage(build(jobId))
     })
   }
 
@@ -89,6 +108,7 @@ export class PipelineClient {
       this.pending.delete(message.jobId)
 
       if (message.type === 'done') waiting?.resolve(message.recording)
+      else if (message.type === 'voices-done') waiting?.resolve(undefined)
       else waiting?.reject(new Error(message.message))
       if (waiting && this.pending.size === 0) this.notifyBusy(false)
 

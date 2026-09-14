@@ -9,6 +9,7 @@ import {
   type ImportProgressDto,
   type ManagedAssetStatusDto,
   type ModelProgressDto,
+  type VoiceLearnedDto,
   type ProgressEventDto,
   type RecordingDetailDto,
   type RecordingDto,
@@ -108,6 +109,7 @@ const api: RendererApi = {
   onSilenceAlert: (listener) => subscribe<SilenceAlertDto>(IPC.silenceAlert, listener),
   onStartAlert: (listener) => subscribe<StartAlertDto>(IPC.startAlert, listener),
   onModelProgress: (listener) => subscribe<ModelProgressDto>(IPC.modelProgress, listener),
+  onVoiceLearned: (listener) => subscribe<VoiceLearnedDto>(IPC.voiceLearned, listener),
   onImportProgress: (listener) => subscribe<ImportProgressDto>(IPC.importProgress, listener),
 
   searchRecordings: (query) =>

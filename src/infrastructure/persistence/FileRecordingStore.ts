@@ -35,6 +35,7 @@ const SUMMARY_MD = 'summary.md'
 const NOTE_MD = 'note.md'
 const TRACKS_FILE = 'tracks.json'
 const VOICES_FILE = 'voices.json'
+const VOICES_WAV = 'voices.wav'
 
 interface RecordingRecord {
   id: string
@@ -307,11 +308,30 @@ export class FileRecordingArtifactStore implements RecordingArtifactPort {
     await this.writeText(join(await this.dir(recording), NOTE_MD), markdown)
   }
 
+  /**
+   * 声紋を取り直すための一時 WAV を貸す。
+   *
+   * work/ 側に置く。保存先は利用者が他のツールからも見る場所で、処理の途中でしか
+   * 意味を持たない 100MB 超のファイルを置く場所ではない。
+   */
+  async withVoicesWav<T>(recording: Recording, run: (wavPath: string) => Promise<T>): Promise<T> {
+    const dir = this.workDir(recording)
+    await mkdir(dir, { recursive: true })
+    const wavPath = join(dir, VOICES_WAV)
+
+    try {
+      return await run(wavPath)
+    } finally {
+      await rm(wavPath, { force: true })
+    }
+  }
+
   async cleanupIntermediates(recording: Recording): Promise<void> {
     const dir = this.workDir(recording)
     // 取り込み由来の imported.wav も常に対象にする。録音由来のものには存在しないだけで、
     // どちらだったかを知るために消す直前の tracks.json を読む理由が無い（rm は force）。
-    for (const name of ['system.wav', 'mic.wav', 'imported.wav', 'mix.wav', TRACKS_FILE]) {
+    // voices.wav は取り直しが落ちたときの取りこぼし。
+    for (const name of ['system.wav', 'mic.wav', 'imported.wav', 'mix.wav', VOICES_WAV, TRACKS_FILE]) {
       await rm(join(dir, name), { force: true })
     }
   }

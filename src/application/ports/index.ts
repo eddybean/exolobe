@@ -207,6 +207,16 @@ export interface RecordingRepositoryPort {
   remove(id: string): Promise<void>
 }
 
+/**
+ * 完了済みの録音から声紋を取り直す。
+ *
+ * 実体はネイティブの埋め込みモデルを読む重い処理で、main プロセスでは動かさない
+ * （ADR-008）。ユースケースからは「必要なら用意される」ことだけが見えていればいい。
+ */
+export interface VoiceExtractionPort {
+  extract(recordingId: string): Promise<void>
+}
+
 /** 1 件の録音に紐づくファイル群（音声・文字起こし・要約・メモ）。 */
 export interface RecordingArtifactPort {
   workDir(recording: Recording): string
@@ -234,6 +244,14 @@ export interface RecordingArtifactPort {
    */
   readVoices(recording: Recording): Promise<RecordingVoices | undefined>
   writeVoices(recording: Recording, voices: RecordingVoices): Promise<void>
+
+  /**
+   * 声紋を取り直すための一時 WAV を貸す。`run` が終わったら必ず捨てる。
+   *
+   * 1 時間の会議で約 115MB になる（16kHz モノラル 16bit）。抜けると保存先ではなく
+   * userData がじわじわ埋まり、利用者からは見えない。
+   */
+  withVoicesWav<T>(recording: Recording, run: (wavPath: string) => Promise<T>): Promise<T>
 
   readSummary(recording: Recording): Promise<string | undefined>
   writeSummary(recording: Recording, markdown: string): Promise<void>
