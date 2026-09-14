@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { autoExpandedKeys, buildLibraryTree } from '@renderer/library/tree'
+import {
+  buildLibraryTree,
+  resolveOpen,
+  searchExpandedKeys,
+  type LibraryNode
+} from '@renderer/library/tree'
 import type { FolderDto, RecordingDto } from '@shared/ipc'
 
 const STEPS = ['mix', 'transcribe', 'diarize', 'summarize', 'encode'] as const
@@ -103,7 +108,7 @@ describe('buildLibraryTree', () => {
   })
 })
 
-describe('autoExpandedKeys', () => {
+describe('searchExpandedKeys', () => {
   const folders: FolderDto[] = [
     { id: 'f1', name: '案件X' },
     { id: 'f2', name: '定例', parentId: 'f1' },
@@ -111,23 +116,70 @@ describe('autoExpandedKeys', () => {
   ]
   const recordings: RecordingDto[] = [rec('a', { folderId: 'f2' }), rec('b')]
 
-  it('検索中は、部分木に録音を含むノードだけを開く', () => {
+  it('部分木に録音を含むノードだけを開く', () => {
     const tree = buildLibraryTree(folders, recordings, 'a')
 
-    expect(autoExpandedKeys(tree, { query: 'a' })).toEqual(new Set(['all', 'f1', 'f2']))
+    expect(searchExpandedKeys(tree)).toEqual(new Set(['all', 'f1', 'f2']))
   })
 
-  it('選択中の録音を含むノードとその祖先を開く', () => {
-    const tree = buildLibraryTree(folders, recordings, '')
+  it('当たりが無ければ何も開かない', () => {
+    const tree = buildLibraryTree(folders, recordings, 'zzz')
 
-    expect(autoExpandedKeys(tree, { query: '', selectedId: 'a' })).toEqual(
-      new Set(['all', 'f1', 'f2'])
-    )
+    expect(searchExpandedKeys(tree)).toEqual(new Set())
+  })
+})
+
+describe('resolveOpen', () => {
+  const folders: FolderDto[] = [{ id: 'f1', name: '案件X' }]
+  const recordings: RecordingDto[] = [rec('a', { folderId: 'f1' })]
+  const tree = buildLibraryTree(folders, recordings, '')
+  const [all, , f1] = tree
+  const none = new Map<string, boolean>()
+
+  const open = (
+    node: LibraryNode,
+    params: Partial<Parameters<typeof resolveOpen>[1]> = {}
+  ): boolean =>
+    resolveOpen(node, {
+      toggled: none,
+      searchToggled: none,
+      searchExpanded: new Set<string>(),
+      searching: false,
+      ...params
+    })
+
+  it('既定では「すべて」だけが開き、フォルダは閉じている', () => {
+    expect(open(all as LibraryNode)).toBe(true)
+    expect(open(f1 as LibraryNode)).toBe(false)
   })
 
-  it('検索も選択もなければ何も開かない', () => {
-    const tree = buildLibraryTree(folders, recordings, '')
+  it('ユーザーが閉じた「すべて」は閉じたままになる', () => {
+    expect(open(all as LibraryNode, { toggled: new Map([['all', false]]) })).toBe(false)
+  })
 
-    expect(autoExpandedKeys(tree, { query: '' })).toEqual(new Set())
+  it('検索中は当たりを含むノードを開く', () => {
+    expect(
+      open(f1 as LibraryNode, { searching: true, searchExpanded: new Set(['f1']) })
+    ).toBe(true)
+  })
+
+  it('検索中はユーザーが手で決めた開閉に影響されない', () => {
+    expect(
+      open(all as LibraryNode, {
+        searching: true,
+        searchExpanded: new Set(['all']),
+        toggled: new Map([['all', false]])
+      })
+    ).toBe(true)
+  })
+
+  it('検索中の開閉操作は検索中だけ効く', () => {
+    const searchToggled = new Map([['all', false]])
+
+    expect(
+      open(all as LibraryNode, { searching: true, searchExpanded: new Set(['all']), searchToggled })
+    ).toBe(false)
+    // 検索を抜ければ、手で決めた開閉に戻る。
+    expect(open(all as LibraryNode, { searchToggled })).toBe(true)
   })
 })

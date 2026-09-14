@@ -74,25 +74,18 @@ export const buildLibraryTree = (
 }
 
 /**
- * ユーザーの操作を待たずに開いておくべきノード。
+ * 検索中にだけ開いておくノード。当たった録音が畳まれた中に隠れては意味がない。
  *
- * 検索中は当たった録音が隠れていては意味がないので、中身のあるノードを開く。
- * 選択中の録音は、どのフォルダに属しているのかが見えている方が分かりやすい。
+ * ここで開くのはユーザーの明示操作ではないので、検索を抜けたら効力を失わせる
+ * （`resolveOpen` が検索中だけ参照する）。
  */
-export const autoExpandedKeys = (
-  nodes: readonly LibraryNode[],
-  options: { query: string; selectedId?: string }
-): Set<string> => {
-  const searching = options.query.trim().length > 0
+export const searchExpandedKeys = (nodes: readonly LibraryNode[]): Set<string> => {
   const keys = new Set<string>()
 
   const walk = (node: LibraryNode): boolean => {
-    const hasSelected =
-      options.selectedId !== undefined &&
-      node.recordings.some((recording) => recording.id === options.selectedId)
     // 子孫を先に辿らないと、祖先を開くべきか判断できない。
     const childHit = node.children.map(walk).some(Boolean)
-    const hit = hasSelected || childHit || (searching && node.recordings.length > 0)
+    const hit = childHit || node.recordings.length > 0
 
     if (hit) keys.add(node.key)
     return hit
@@ -100,4 +93,27 @@ export const autoExpandedKeys = (
 
   for (const node of nodes) walk(node)
   return keys
+}
+
+/**
+ * ノードを開くか。
+ *
+ * 検索中と平常時で別の状態を見るのは、検索のための一時的な開閉が、ユーザーが手で
+ * 決めた開閉を上書きしてしまわないようにするため。検索を抜ければ元の形に戻る。
+ */
+export const resolveOpen = (
+  node: LibraryNode,
+  params: {
+    /** ユーザーが手で開閉したノード。平常時はこれだけが既定を覆す。 */
+    toggled: ReadonlyMap<string, boolean>
+    /** 検索中の開閉。検索語が変わるたびに捨てる。 */
+    searchToggled: ReadonlyMap<string, boolean>
+    searchExpanded: ReadonlySet<string>
+    searching: boolean
+  }
+): boolean => {
+  if (params.searching) {
+    return params.searchToggled.get(node.key) ?? params.searchExpanded.has(node.key)
+  }
+  return params.toggled.get(node.key) ?? node.kind === 'all'
 }

@@ -34,6 +34,11 @@ export const App = (): ReactElement => {
   const [selectedId, setSelectedId] = useState<string>()
   const [detail, setDetail] = useState<RecordingDetailDto>()
   const [folders, setFolders] = useState<FolderDto[]>([])
+  /**
+   * ライブラリのツリーで、ユーザーが手で開閉したノード。
+   * サイドバーは画面を切り替えると消えるので、開閉状態はここで持ち越す。
+   */
+  const [expandedNodes, setExpandedNodes] = useState<ReadonlyMap<string, boolean>>(new Map())
   const [semanticAvailable, setSemanticAvailable] = useState(false)
   const [importing, setImporting] = useState<ImportProgressDto>()
   const [importError, setImportError] = useState<string>()
@@ -262,6 +267,10 @@ export const App = (): ReactElement => {
               }
               onImport={() => void chooseAndImport()}
               importing={importing !== undefined}
+              expanded={expandedNodes}
+              onToggleExpanded={(key, open) =>
+                setExpandedNodes((current) => new Map(current).set(key, open))
+              }
             />
             {detail ? (
               <RecordingDetailView

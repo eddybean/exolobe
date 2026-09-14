@@ -11,7 +11,12 @@ import type { FolderDto, RecordingDto } from '@shared/ipc'
 import { messageOf } from '../errorMessage'
 import { isCommitEnter } from '../keyboard'
 import { FOLDER_MIME, RECORDING_MIME } from '../library/fileDrop'
-import { autoExpandedKeys, buildLibraryTree, type LibraryNode } from '../library/tree'
+import {
+  buildLibraryTree,
+  resolveOpen,
+  searchExpandedKeys,
+  type LibraryNode
+} from '../library/tree'
 import { STATUS_LABELS } from '../format'
 import { SemanticSearchResults, type SemanticSearchState } from './SemanticSearchResults'
 
@@ -104,7 +109,9 @@ export const LibrarySidebar = ({
   onMoveRecording,
   onImport,
   importing,
-  semanticAvailable
+  semanticAvailable,
+  expanded,
+  onToggleExpanded
 }: {
   folders: readonly FolderDto[]
   recordings: readonly RecordingDto[]
@@ -121,6 +128,12 @@ export const LibrarySidebar = ({
   onImport: () => void
   /** 取り込みの変換中。押しても待たされるだけなので操作を止める。 */
   importing: boolean
+  /**
+   * ユーザーが手で開閉したノード。画面遷移でこのコンポーネントは消えるので、
+   * 状態は App が持つ（消えると「すべて」が既定で開き直してしまう）。
+   */
+  expanded: ReadonlyMap<string, boolean>
+  onToggleExpanded: (key: string, open: boolean) => void
 }): ReactElement => {
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<'keyword' | 'semantic'>('keyword')
@@ -129,8 +142,8 @@ export const LibrarySidebar = ({
   const semanticMode = semanticAvailable && mode === 'semantic'
   const [dropTarget, setDropTarget] = useState<string | undefined>()
   const [createModal, setCreateModal] = useState<{ parentId?: string } | undefined>()
-  /** ユーザーが明示的に開閉したノード。既定の開閉より優先する。 */
-  const [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(new Map())
+  /** 検索中だけの開閉。手で決めた開閉を検索の都合で書き換えないよう分けてある。 */
+  const [searchToggled, setSearchToggled] = useState<ReadonlyMap<string, boolean>>(new Map())
 
   // 意味検索のモードでは語句の絞り込みをしない。Enter を押すまでツリーは全件のまま。
   const keywordQuery = semanticMode ? '' : query
@@ -138,29 +151,30 @@ export const LibrarySidebar = ({
     () => buildLibraryTree(folders, recordings, keywordQuery),
     [folders, recordings, keywordQuery]
   )
-  const auto = useMemo(
-    () =>
-      autoExpandedKeys(
-        tree,
-        selectedId === undefined ? { query: keywordQuery } : { query: keywordQuery, selectedId }
-      ),
-    [tree, keywordQuery, selectedId]
+  const searching = keywordQuery.trim().length > 0
+  const searchExpanded = useMemo(
+    () => (searching ? searchExpandedKeys(tree) : new Set<string>()),
+    [tree, searching]
   )
 
   // 検索語が変わると開くべきノードも変わるので、前の絞り込みでの開閉は捨てる。
   useEffect(() => {
-    setToggled(new Map())
+    setSearchToggled(new Map())
   }, [query])
 
   const isOpen = useCallback(
     (node: LibraryNode): boolean =>
-      toggled.get(node.key) ?? (auto.has(node.key) || node.kind === 'all'),
-    [toggled, auto]
+      resolveOpen(node, { toggled: expanded, searchToggled, searchExpanded, searching }),
+    [expanded, searchToggled, searchExpanded, searching]
   )
 
-  const toggle = useCallback((node: LibraryNode, open: boolean): void => {
-    setToggled((current) => new Map(current).set(node.key, open))
-  }, [])
+  const toggle = useCallback(
+    (node: LibraryNode, open: boolean): void => {
+      if (searching) setSearchToggled((current) => new Map(current).set(node.key, open))
+      else onToggleExpanded(node.key, open)
+    },
+    [searching, onToggleExpanded]
+  )
 
   const handleDrop = useCallback(
     (event: DragEvent, folderId: string | undefined) => {
