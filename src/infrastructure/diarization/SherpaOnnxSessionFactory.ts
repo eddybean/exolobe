@@ -17,6 +17,7 @@ export class SherpaOnnxSessionFactory implements DiarizationSessionFactory {
   async create(config: {
     segmentationModelPath: string
     embeddingModelPath: string
+    clusteringThreshold: number
   }): Promise<DiarizationSession> {
     requireModel('話者分割モデル', config.segmentationModelPath)
     requireModel('話者埋め込みモデル', config.embeddingModelPath)
@@ -33,7 +34,9 @@ export class SherpaOnnxSessionFactory implements DiarizationSessionFactory {
     const diarization = new sherpa.OfflineSpeakerDiarization({
       segmentation: { pyannote: { model: config.segmentationModelPath }, numThreads },
       embedding: { model: config.embeddingModelPath, numThreads },
-      clustering: { numClusters: -1, threshold: 0.5 },
+      // numClusters を渡さないので threshold が話者数を決める。設定から来る値を
+      // そのまま使い、ここで丸めない（範囲は validateSettings が保証する）。
+      clustering: { numClusters: -1, threshold: config.clusteringThreshold },
       minDurationOn: 0.3,
       minDurationOff: 0.5
     })

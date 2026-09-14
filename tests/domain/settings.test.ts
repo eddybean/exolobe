@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { defaultSettings, isConfigured, mergeSettings, validateSettings } from '@domain/Settings'
+import {
+  DEFAULT_CLUSTERING_THRESHOLD,
+  defaultSettings,
+  isConfigured,
+  mergeSettings,
+  validateSettings
+} from '@domain/Settings'
 import { VOICEPRINT_MATCH_THRESHOLD } from '@domain/Voiceprint'
 
 describe('defaultSettings', () => {
@@ -9,6 +15,7 @@ describe('defaultSettings', () => {
     expect(settings.storageDir).toBeNull()
     expect(settings.diarization.enabled).toBe(true)
     expect(settings.diarization.voiceprintThreshold).toBe(VOICEPRINT_MATCH_THRESHOLD)
+    expect(settings.diarization.clusteringThreshold).toBe(DEFAULT_CLUSTERING_THRESHOLD)
     expect(settings.audio.sampleRate).toBe(16_000)
   })
 
@@ -85,6 +92,15 @@ describe('validateSettings', () => {
       const settings = mergeSettings(defaultSettings(), { diarization: { voiceprintThreshold } })
       expect(validateSettings(settings)).toContain(
         '声紋の一致閾値は 0 より大きく 1 以下の値を指定してください。'
+      )
+    }
+  })
+
+  it('話者を分ける近さが範囲外なら弾く', () => {
+    for (const clusteringThreshold of [0, 1.2]) {
+      const settings = mergeSettings(defaultSettings(), { diarization: { clusteringThreshold } })
+      expect(validateSettings(settings)).toContain(
+        '話者を分ける近さは 0 より大きく 1 以下の値を指定してください。'
       )
     }
   })

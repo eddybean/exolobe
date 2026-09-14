@@ -40,6 +40,7 @@ export interface DiarizationSessionFactory {
   create(config: {
     segmentationModelPath: string
     embeddingModelPath: string
+    clusteringThreshold: number
   }): Promise<DiarizationSession>
 }
 
@@ -57,6 +58,7 @@ export class SherpaOnnxDiarizer implements DiarizationPort {
     private readonly config: {
       segmentationModelPath: string
       embeddingModelPath: string
+      clusteringThreshold: number
     },
     private readonly factory: DiarizationSessionFactory
   ) {}

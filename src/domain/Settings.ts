@@ -24,6 +24,16 @@ export const DEFAULT_SUMMARY_PROMPT = [
   TRANSCRIPT_PLACEHOLDER
 ].join('\n')
 
+/**
+ * 話者分割のクラスタリングで「同じ人」とみなす距離の上限。
+ *
+ * sherpa-onnx は埋め込みどうしの距離がこの値を下回る間だけクラスタを併合する。
+ * 上げるほど併合が進んで話者が減り（同じ人が別人に割れにくくなる）、下げるほど
+ * 増える。0.5 は sherpa-onnx の既定で、会議音声ではここから動かす必要が出るのは
+ * 声質の近い参加者が混ざるときに限られる。
+ */
+export const DEFAULT_CLUSTERING_THRESHOLD = 0.5
+
 export interface TranscriptionSettings {
   /** 差し替え可能にするための識別子。将来クラウド実装を足す際の分岐キー。 */
   readonly provider: 'whisper-cpp'
@@ -77,6 +87,11 @@ export interface DiarizationSettings {
    * 上げるほど取りこぼすが、別人の名前を書き込む危険は減る（ADR-031）。
    */
   readonly voiceprintThreshold: number
+  /**
+   * 同じ人とみなす声の距離の上限。上げるほど話者がまとまり、下げるほど割れる。
+   * 声紋帳との照合（`voiceprintThreshold`）とは別で、こちらは 1 つの録音の中だけに効く。
+   */
+  readonly clusteringThreshold: number
 }
 
 /**
@@ -185,7 +200,8 @@ export const defaultSettings = (): Settings => ({
     maxSpeakers: 6,
     segmentationModelPath: '',
     embeddingModelPath: '',
-    voiceprintThreshold: VOICEPRINT_MATCH_THRESHOLD
+    voiceprintThreshold: VOICEPRINT_MATCH_THRESHOLD,
+    clusteringThreshold: DEFAULT_CLUSTERING_THRESHOLD
   },
   audio: {
     sampleRate: 16_000,
@@ -254,6 +270,12 @@ export const validateSettings = (settings: Settings): string[] => {
     settings.diarization.voiceprintThreshold > 1
   ) {
     errors.push('声紋の一致閾値は 0 より大きく 1 以下の値を指定してください。')
+  }
+  if (
+    settings.diarization.clusteringThreshold <= 0 ||
+    settings.diarization.clusteringThreshold > 1
+  ) {
+    errors.push('話者を分ける近さは 0 より大きく 1 以下の値を指定してください。')
   }
   if (!isMemoryProtection(settings.memoryProtection)) {
     errors.push('メモリ保護は「保守的」「標準」「オフ」のいずれかを指定してください。')
