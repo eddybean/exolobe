@@ -1,6 +1,6 @@
 import { toMessage } from '@domain/errors'
 import { toRecordingDto } from '@shared/ipc'
-import { createPipeline } from './pipeline-container'
+import { createPipeline, createVoiceExtractor } from './pipeline-container'
 import { isWorkerRequest, type WorkerResponse } from './protocol'
 
 /**
@@ -29,7 +29,18 @@ port.on('message', (message) => {
   // 直前のジョブが終わってから始める。
   queue = queue.then(async () => {
     try {
-      const pipeline = await createPipeline(process.env['OMR_USER_DATA'] ?? '', {
+      const userData = process.env['OMR_USER_DATA'] ?? ''
+
+      // 声紋の取り直しはパイプラインの外側の仕事だが、読むモデルもクラッシュの
+      // 危うさも同じなので同じワーカーで捌く。
+      if (request.type === 'voices') {
+        const extractor = await createVoiceExtractor(userData)
+        await extractor.execute(request.recordingId)
+        send({ type: 'voices-done', jobId: request.jobId })
+        return
+      }
+
+      const pipeline = await createPipeline(userData, {
         report: (event) => send({ type: 'progress', event })
       })
 

@@ -27,6 +27,7 @@ import type {
   TextEmbedderPort,
   TranscriptionPort,
   Voiceprint,
+  VoiceExtractionPort,
   VoiceprintRepositoryPort
 } from '@application/ports'
 import type { Folder } from '@domain/Folder'
@@ -269,6 +270,19 @@ export class FakeSpeakerEmbedder implements SpeakerEmbeddingPort {
       const vector = this.byCluster.get(speaker)
       return vector ? [{ speaker, vector }] : []
     })
+  }
+}
+
+export class FakeVoiceExtraction implements VoiceExtractionPort {
+  calls: string[] = []
+  /** 取り直しが成功したことにするなら、ここで voices.json を書く。 */
+  onExtract?: (recordingId: string) => Promise<void>
+  error?: Error
+
+  async extract(recordingId: string): Promise<void> {
+    this.calls.push(recordingId)
+    if (this.error) throw this.error
+    await this.onExtract?.(recordingId)
   }
 }
 

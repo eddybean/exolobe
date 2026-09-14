@@ -32,6 +32,7 @@ import {
   type TransportStateDto
 } from '@shared/ipc'
 import type { Container } from '../container'
+import { createVoiceLearning } from '../voiceLearning'
 import { createSearchSyncScheduler } from '../searchSyncScheduler'
 import { createSilenceMonitor } from '../silenceMonitor'
 import { notifySilence } from '../silenceNotification'
@@ -158,6 +159,15 @@ export const registerIpcHandlers = (
     // 役目は終わり。この後すぐ LLM が数 GB を要求するので、先に返させる。
     search.releaseWhenIdle()
     return hits.map((hit) => hit.recordingId)
+  })
+
+  // 声紋の取り直しはパイプラインのワーカーに投げる。ここで初めてワーカーが揃う。
+  container.voiceExtraction.use((recordingId) => pipeline.extractVoices(recordingId))
+
+  /** 話者名を声紋として覚える列。名前の反映とは切り離して裏で 1 件ずつ流す。 */
+  const voiceLearning = createVoiceLearning({
+    remember: container.rememberSpeakerVoice,
+    notify: (event) => send(IPC.voiceLearned, event)
   })
 
   const searchSync = createSearchSyncScheduler({
@@ -481,13 +491,17 @@ export const registerIpcHandlers = (
   })
 
   handle(IPC.renameSpeaker, async (id: unknown, speakerId: unknown, label: unknown) => {
-    const speakers = await container.renameSpeaker.execute({
+    const params = {
       recordingId: asString(id, '録音 ID'),
       speakerId: asString(speakerId, '話者 ID'),
       label: asString(label, '話者名')
-    })
+    }
+    const speakers = await container.renameSpeaker.execute(params)
     // 索引の文字起こしチャンクは「話者名: 発言」なので、名前が変われば作り直す。
     searchSync.request()
+    // 声紋の登録は待たない。声紋がまだ無い録音では音声の変換から始めるため
+    // 数十秒かかることがあり、名前の反映まで止めては入力欄の前で待たせてしまう。
+    voiceLearning.enqueue({ ...params, label: params.label.trim() })
     return speakers
   })
 

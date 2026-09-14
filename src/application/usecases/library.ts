@@ -3,6 +3,7 @@ import type {
   RecordingArtifactPort,
   RecordingRepositoryPort,
   SettingsRepositoryPort,
+  VoiceExtractionPort,
   VoiceprintRepositoryPort
 } from '@application/ports'
 import type { Recording } from '@domain/Recording'
@@ -123,21 +124,14 @@ export class RenameRecording {
   }
 }
 
-export interface RenameSpeakerDeps extends LibraryDeps {
-  readonly voiceprints: VoiceprintRepositoryPort
-  readonly clock: ClockPort
-}
-
 /**
  * 話者に利用者が付けた名前を反映する。文字起こしの話者一覧だけを書き換える。
  *
- * 併せて、その話者の声紋を声紋帳へ登録する。声紋帳が育つのはここだけ（ADR-031）。
- * 自動で当てた名前を再登録しないことで、一度の取り違えが声紋に混ざって
- * 次の取り違えを呼ぶ連鎖を断つ。利用者が「田中さん」を「佐藤さん」に直せば、
- * その声は佐藤さんとして登録され、田中さんの声紋は触られない。
+ * 声紋帳への登録は `RememberSpeakerVoice` が受け持つ。声紋の取り直しが要る録音では
+ * 数十秒かかることがあり、名前の反映まで待たせないために分けてある。
  */
 export class RenameSpeaker {
-  constructor(private readonly deps: RenameSpeakerDeps) {}
+  constructor(private readonly deps: LibraryDeps) {}
 
   async execute(params: {
     recordingId: string
@@ -164,34 +158,60 @@ export class RenameSpeaker {
       speakers
     })
 
-    await this.rememberVoice(recording, params.speakerId, label)
-
     return speakers
   }
+}
 
-  /**
-   * この話者の声紋を名前に結び付けて残し、古い名前からは取り消す。
-   *
-   * 自分（マイクトラック）は録音のたびに確定していて引き当てる必要がないため、
-   * 相手側の話者だけを対象にする。声紋が無い録音（話者識別を無効にしていた、
-   * この機能より前に録った）では何もしない。名前を変えられないより良い。
-   *
-   * 取り消しまでが訂正の一部。「田中さん」を「佐藤さん」に直したのに田中さん側が
-   * 同じベクトルのまま残ると、次の録音で 1 位と 2 位が同点になり、
-   * 「差が無いなら当てにいかない」規則で両方とも弾かれる。
-   */
-  private async rememberVoice(
-    recording: Recording,
-    speakerId: string,
-    name: string
-  ): Promise<void> {
-    if (!isRemoteSpeakerId(speakerId)) return
+/** 声紋を覚えられたか。覚えられなかった理由は利用者に見せる。 */
+export type VoiceMemoryResult = 'remembered' | 'skipped-self' | 'unavailable'
 
-    const voices = await this.deps.artifacts.readVoices(recording)
-    const vector = voices?.speakers.find((speaker) => speaker.speakerId === speakerId)?.vector
-    if (!voices || !vector) return
+export interface RememberSpeakerVoiceDeps extends LibraryDeps {
+  readonly voiceprints: VoiceprintRepositoryPort
+  readonly voices: VoiceExtractionPort
+  readonly clock: ClockPort
+}
 
-    const source = voiceSourceKey(recording.id, speakerId)
+/**
+ * 名前を付けた話者の声紋を声紋帳へ登録し、古い名前からは取り消す。
+ *
+ * 声紋帳が育つのはここだけ（ADR-031）。**呼ぶのは話者のリネームを受けた 1 か所に
+ * 限る**こと。自動で当てた名前を再登録すると、一度の取り違えが声紋に混ざって
+ * 次の取り違えを呼ぶ。利用者が「田中さん」を「佐藤さん」に直せば、その声は
+ * 佐藤さんとして登録され、田中さんの声紋は触られない。
+ *
+ * 自分（マイクトラック）は録音のたびに確定していて引き当てる必要がないため、
+ * 相手側の話者だけを対象にする。
+ *
+ * 取り消しまでが訂正の一部。「田中さん」を「佐藤さん」に直したのに田中さん側が
+ * 同じベクトルのまま残ると、次の録音で 1 位と 2 位が同点になり、
+ * 「差が無いなら当てにいかない」規則で両方とも弾かれる。
+ */
+export class RememberSpeakerVoice {
+  constructor(private readonly deps: RememberSpeakerVoiceDeps) {}
+
+  async execute(params: {
+    recordingId: string
+    speakerId: string
+    label: string
+  }): Promise<VoiceMemoryResult> {
+    if (!isRemoteSpeakerId(params.speakerId)) return 'skipped-self'
+
+    const recording = await findOrThrow(this.deps.repository, params.recordingId)
+
+    let voices = await this.deps.artifacts.readVoices(recording)
+    let vector = vectorOf(voices, params.speakerId)
+
+    // 話者識別が終わった後に名前を付けるのが普通の使い方で、その頃には中間 WAV が
+    // 消えている。声紋が無ければ保存済みの音声から取り直す（失敗は理由ごと投げる）。
+    if (!vector) {
+      await this.deps.voices.extract(params.recordingId)
+      voices = await this.deps.artifacts.readVoices(recording)
+      vector = vectorOf(voices, params.speakerId)
+    }
+    if (!voices || !vector) return 'unavailable'
+
+    const name = params.label.trim()
+    const source = voiceSourceKey(recording.id, params.speakerId)
     const now = this.deps.clock.now()
     const registry = await this.deps.voiceprints.list()
 
@@ -209,8 +229,16 @@ export class RenameSpeaker {
         { name, source, vector, modelKey: voices.modelKey, now }
       )
     )
+
+    return 'remembered'
   }
 }
+
+const vectorOf = (
+  voices: { speakers: readonly { speakerId: string; vector: Float32Array }[] } | undefined,
+  speakerId: string
+): Float32Array | undefined =>
+  voices?.speakers.find((speaker) => speaker.speakerId === speakerId)?.vector
 
 export class DeleteRecording {
   constructor(private readonly deps: LibraryDeps) {}

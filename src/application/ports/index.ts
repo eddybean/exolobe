@@ -207,6 +207,16 @@ export interface RecordingRepositoryPort {
   remove(id: string): Promise<void>
 }
 
+/**
+ * 完了済みの録音から声紋を取り直す。
+ *
+ * 実体はネイティブの埋め込みモデルを読む重い処理で、main プロセスでは動かさない
+ * （ADR-008）。ユースケースからは「必要なら用意される」ことだけが見えていればいい。
+ */
+export interface VoiceExtractionPort {
+  extract(recordingId: string): Promise<void>
+}
+
 /** 1 件の録音に紐づくファイル群（音声・文字起こし・要約・メモ）。 */
 export interface RecordingArtifactPort {
   workDir(recording: Recording): string

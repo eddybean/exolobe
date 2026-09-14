@@ -8,16 +8,20 @@ import {
   ClearVoiceprints,
   ListVoiceprints,
   RemoveVoiceprint,
+  RememberSpeakerVoice,
   RenameSpeaker,
   UpdateNote,
   UpdateSettings
 } from '@application/usecases/library'
+import type { VoiceMemoryResult } from '@application/usecases/library'
+import { ConfigurationError } from '@domain/errors'
 import { createRecording } from '@domain/Recording'
 import { defaultSettings } from '@domain/Settings'
 import { SELF_SPEAKER_ID, type Speaker } from '@domain/Speaker'
 import {
   FakeArtifactStore,
   FakeClock,
+  FakeVoiceExtraction,
   FakeRecordingRepository,
   FakeSettingsRepository,
   FakeVoiceprintRepository
@@ -154,34 +158,12 @@ describe('RenameRecording', () => {
 })
 
 describe('RenameSpeaker', () => {
-  const MODEL = 'fake-embedding:2'
-  const voice = (degrees: number): Float32Array => {
-    const radians = (degrees * Math.PI) / 180
-    return normalize([Math.cos(radians), Math.sin(radians)])
-  }
-
-  let voiceprints: FakeVoiceprintRepository
-  let renameDeps: typeof deps & {
-    voiceprints: FakeVoiceprintRepository
-    clock: FakeClock
-  }
-
   beforeEach(async () => {
     await artifacts.writeTranscript(recording, { segments, speakers })
-    voiceprints = new FakeVoiceprintRepository()
-    renameDeps = {
-      ...deps,
-      voiceprints,
-      clock: new FakeClock(new Date('2026-09-13T12:00:00.000Z'))
-    }
-    await artifacts.writeVoices(recording, {
-      modelKey: MODEL,
-      speakers: [{ speakerId: 'remote:spk0', vector: voice(0) }]
-    })
   })
 
   it('指定した話者のラベルだけを変える', async () => {
-    const updated = await new RenameSpeaker(renameDeps).execute({
+    const updated = await new RenameSpeaker(deps).execute({
       recordingId: 'rec-1',
       speakerId: 'remote:spk0',
       label: '田中さん'
@@ -194,7 +176,7 @@ describe('RenameSpeaker', () => {
   })
 
   it('セグメントは書き換えない', async () => {
-    await new RenameSpeaker(renameDeps).execute({
+    await new RenameSpeaker(deps).execute({
       recordingId: 'rec-1',
       speakerId: 'remote:spk0',
       label: '田中さん'
@@ -203,12 +185,54 @@ describe('RenameSpeaker', () => {
     expect((await artifacts.readTranscript(recording))?.segments).toEqual(segments)
   })
 
-  it('付けた名前で声紋帳に登録する', async () => {
-    await new RenameSpeaker(renameDeps).execute({
-      recordingId: 'rec-1',
-      speakerId: 'remote:spk0',
-      label: '田中さん'
+  it('空の話者名は拒否する', async () => {
+    await expect(
+      new RenameSpeaker(deps).execute({ recordingId: 'rec-1', speakerId: 'remote:spk0', label: ' ' })
+    ).rejects.toThrow('話者名を入力してください。')
+  })
+
+  it('文字起こしがまだ無ければ拒否する', async () => {
+    const other = createRecording({ id: 'rec-2', startedAt })
+    await repository.save(other)
+
+    await expect(
+      new RenameSpeaker(deps).execute({ recordingId: 'rec-2', speakerId: 'self', label: 'A' })
+    ).rejects.toThrow('文字起こしがまだありません。')
+  })
+})
+
+describe('RememberSpeakerVoice', () => {
+  const MODEL = 'fake-embedding:2'
+  const voice = (degrees: number): Float32Array => {
+    const radians = (degrees * Math.PI) / 180
+    return normalize([Math.cos(radians), Math.sin(radians)])
+  }
+
+  let voiceprints: FakeVoiceprintRepository
+  let voices: FakeVoiceExtraction
+  let remember: RememberSpeakerVoice
+
+  const rememberName = (label: string, speakerId = 'remote:spk0'): Promise<VoiceMemoryResult> =>
+    remember.execute({ recordingId: 'rec-1', speakerId, label })
+
+  beforeEach(async () => {
+    await artifacts.writeTranscript(recording, { segments, speakers })
+    voiceprints = new FakeVoiceprintRepository()
+    voices = new FakeVoiceExtraction()
+    remember = new RememberSpeakerVoice({
+      ...deps,
+      voiceprints,
+      voices,
+      clock: new FakeClock(new Date('2026-09-13T12:00:00.000Z'))
     })
+    await artifacts.writeVoices(recording, {
+      modelKey: MODEL,
+      speakers: [{ speakerId: 'remote:spk0', vector: voice(0) }]
+    })
+  })
+
+  it('付けた名前で声紋帳に登録する', async () => {
+    expect(await rememberName('田中さん')).toBe('remembered')
 
     expect(voiceprints.entries).toEqual([
       {
@@ -221,6 +245,40 @@ describe('RenameSpeaker', () => {
     ])
   })
 
+  it('声紋が残っていれば取り直しに行かない', async () => {
+    await rememberName('田中さん')
+
+    expect(voices.calls).toEqual([])
+  })
+
+  it('声紋が無ければ取り直してから登録する', async () => {
+    artifacts.voices.delete(recording.id)
+    voices.onExtract = async () => {
+      await artifacts.writeVoices(recording, {
+        modelKey: MODEL,
+        speakers: [{ speakerId: 'remote:spk0', vector: voice(0) }]
+      })
+    }
+
+    expect(await rememberName('田中さん')).toBe('remembered')
+    expect(voices.calls).toEqual(['rec-1'])
+    expect(voiceprints.entries.map((entry) => entry.name)).toEqual(['田中さん'])
+  })
+
+  it('取り直しても声紋が得られなければ、覚えられなかったと返す', async () => {
+    artifacts.voices.delete(recording.id)
+
+    expect(await rememberName('田中さん')).toBe('unavailable')
+    expect(voiceprints.entries).toEqual([])
+  })
+
+  it('取り直しが失敗したら理由をそのまま投げる', async () => {
+    artifacts.voices.delete(recording.id)
+    voices.error = new ConfigurationError('話者識別が無効なため、この録音から声を覚えられません。')
+
+    await expect(rememberName('田中さん')).rejects.toThrow('話者識別が無効なため')
+  })
+
   it('別の録音で同じ名前を付けると声紋を平均し、出所が増える', async () => {
     await voiceprints.put({
       name: '田中さん',
@@ -230,37 +288,22 @@ describe('RenameSpeaker', () => {
       updatedAt: '2026-01-01T00:00:00.000Z'
     })
 
-    await new RenameSpeaker(renameDeps).execute({
-      recordingId: 'rec-1',
-      speakerId: 'remote:spk0',
-      label: '田中さん'
-    })
+    await rememberName('田中さん')
 
     expect(voiceprints.entries[0]?.sources).toHaveLength(2)
     expect(voiceprints.entries[0]?.vector[0]).toBeCloseTo(Math.SQRT1_2, 5)
   })
 
   it('付け直すと古い名前の声紋を取り消す（同じ声が 2 つの名前で残らない）', async () => {
-    const rename = (label: string): Promise<readonly Speaker[]> =>
-      new RenameSpeaker(renameDeps).execute({
-        recordingId: 'rec-1',
-        speakerId: 'remote:spk0',
-        label
-      })
-
-    await rename('田中さん')
-    await rename('佐藤さん')
+    await rememberName('田中さん')
+    await rememberName('佐藤さん')
 
     expect(voiceprints.entries.map((entry) => entry.name)).toEqual(['佐藤さん'])
   })
 
   it('同じ録音の同じ話者に何度付け直しても、学習の数は増えない', async () => {
     for (const label of ['田中さん', '佐藤さん', '田中さん']) {
-      await new RenameSpeaker(renameDeps).execute({
-        recordingId: 'rec-1',
-        speakerId: 'remote:spk0',
-        label
-      })
+      await rememberName(label)
     }
 
     expect(voiceprints.entries.map((entry) => [entry.name, entry.sources.length])).toEqual([
@@ -280,11 +323,7 @@ describe('RenameSpeaker', () => {
       updatedAt: '2026-01-01T00:00:00.000Z'
     })
 
-    await new RenameSpeaker(renameDeps).execute({
-      recordingId: 'rec-1',
-      speakerId: 'remote:spk0',
-      label: '佐藤さん'
-    })
+    await rememberName('佐藤さん')
 
     expect(
       voiceprints.entries.map((entry) => [entry.name, entry.sources.map((s) => s.key)])
@@ -294,42 +333,11 @@ describe('RenameSpeaker', () => {
     ])
   })
 
-  it('声紋が残っていない録音では、名前だけを変える', async () => {
-    artifacts.voices.delete(recording.id)
-
-    const updated = await new RenameSpeaker(renameDeps).execute({
-      recordingId: 'rec-1',
-      speakerId: 'remote:spk0',
-      label: '田中さん'
-    })
-
-    expect(updated[1]?.label).toBe('田中さん')
-    expect(voiceprints.entries).toEqual([])
-  })
-
-  it('自分の呼び名を変えても声紋帳には登録しない', async () => {
-    await new RenameSpeaker(renameDeps).execute({
-      recordingId: 'rec-1',
-      speakerId: SELF_SPEAKER_ID,
-      label: '私'
-    })
+  it('自分の呼び名は声紋帳に登録せず、取り直しにも行かない', async () => {
+    expect(await rememberName('私', SELF_SPEAKER_ID)).toBe('skipped-self')
 
     expect(voiceprints.entries).toEqual([])
-  })
-
-  it('空の話者名は拒否する', async () => {
-    await expect(
-      new RenameSpeaker(renameDeps).execute({ recordingId: 'rec-1', speakerId: 'remote:spk0', label: ' ' })
-    ).rejects.toThrow('話者名を入力してください。')
-  })
-
-  it('文字起こしがまだ無ければ拒否する', async () => {
-    const other = createRecording({ id: 'rec-2', startedAt })
-    await repository.save(other)
-
-    await expect(
-      new RenameSpeaker(renameDeps).execute({ recordingId: 'rec-2', speakerId: 'self', label: 'A' })
-    ).rejects.toThrow('文字起こしがまだありません。')
+    expect(voices.calls).toEqual([])
   })
 })
 

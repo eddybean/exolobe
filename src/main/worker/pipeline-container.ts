@@ -5,7 +5,9 @@ import type {
   ProgressReporterPort,
   SpeakerEmbeddingPort
 } from '@application/ports'
+import { ExtractVoices } from '@application/usecases/ExtractVoices'
 import { ProcessRecording } from '@application/usecases/ProcessRecording'
+import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
 import { AfconvertEncoder } from '@infrastructure/audio/AfconvertEncoder'
 import { TrackMixer } from '@infrastructure/audio/TrackMixer'
 import { NullDiarizer, SherpaOnnxDiarizer } from '@infrastructure/diarization/SherpaOnnxDiarizer'
@@ -73,6 +75,25 @@ export const createPipeline = async (
       },
       new NodeLlamaSessionFactory()
     )
+  })
+}
+
+/**
+ * 声紋の取り直し用の依存を組み立てる。
+ *
+ * パイプラインと同じワーカーで動くが、要るのは埋め込みモデルとデコーダだけ。
+ * whisper も LLM も読まない ―― 名前を付けるたびに 5GB を読み込んでいては使えない。
+ */
+export const createVoiceExtractor = async (userDataPath: string): Promise<ExtractVoices> => {
+  const settings = new JsonSettingsRepository(join(userDataPath, 'settings.json'))
+  const locator = new SettingsStorageLocator(settings)
+  const current = await settings.load()
+
+  return new ExtractVoices({
+    repository: new FileRecordingRepository(locator),
+    artifacts: new FileRecordingArtifactStore(locator, join(userDataPath, 'work')),
+    embedder: createEmbedder(current.diarization),
+    decoder: new AfconvertDecoder()
   })
 }
 

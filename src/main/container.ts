@@ -19,6 +19,7 @@ import {
   GetSetupState,
   ListRecordings,
   ListVoiceprints,
+  RememberSpeakerVoice,
   RemoveVoiceprint,
   RenameRecording,
   RenameSpeaker,
@@ -38,6 +39,7 @@ import { resolveAudioTeeBinary } from '@infrastructure/audio/resolveAudioTeeBina
 import { DualTrackRecorder } from '@infrastructure/audio/DualTrackRecorder'
 import { FileFolderRepository } from '@infrastructure/persistence/FileFolderStore'
 import { FileVoiceprintRepository } from '@infrastructure/persistence/FileVoiceprintStore'
+import { WorkerVoiceExtraction } from './voiceLearning'
 import {
   FileRecordingArtifactStore,
   FileRecordingRepository
@@ -71,6 +73,9 @@ export interface Container {
   readonly updateNote: UpdateNote
   readonly renameRecording: RenameRecording
   readonly renameSpeaker: RenameSpeaker
+  readonly rememberSpeakerVoice: RememberSpeakerVoice
+  /** 声紋の取り直しの窓。ワーカーを持つ側（IPC 登録時）が実体を差し込む。 */
+  readonly voiceExtraction: WorkerVoiceExtraction
   readonly deleteRecording: DeleteRecording
   readonly listFolders: ListFolders
   readonly createFolder: CreateFolder
@@ -100,6 +105,7 @@ export const createContainer = (): Container => {
   const artifacts = new FileRecordingArtifactStore(locator, join(userData, 'work'))
   const folderRepository = new FileFolderRepository(locator)
   const voiceprints = new FileVoiceprintRepository(locator)
+  const voiceExtraction = new WorkerVoiceExtraction()
   const folderDeps = {
     folders: folderRepository,
     recordings: repository,
@@ -153,7 +159,14 @@ export const createContainer = (): Container => {
     getRecordingDetail: new GetRecordingDetail(library),
     updateNote: new UpdateNote(library),
     renameRecording: new RenameRecording(library),
-    renameSpeaker: new RenameSpeaker({ ...library, voiceprints, clock: { now: () => new Date() } }),
+    renameSpeaker: new RenameSpeaker(library),
+    rememberSpeakerVoice: new RememberSpeakerVoice({
+      ...library,
+      voiceprints,
+      voices: voiceExtraction,
+      clock: { now: () => new Date() }
+    }),
+    voiceExtraction,
     deleteRecording: new DeleteRecording(library),
     listFolders: new ListFolders(folderDeps),
     createFolder: new CreateFolder(folderDeps),
