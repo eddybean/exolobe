@@ -715,7 +715,7 @@
         <div class="verdict">
           <strong>原因は日本語の productName でした。</strong>
           実行ファイル名・ヘルパーアプリ名・フレームワーク参照がすべてこの名前から生成されるためです。
-          <code>productName</code> を <code>Meeting Recorder</code> に戻し、利用者に見える名前は
+          <code>productName</code> を <code>MeetingRecorder</code> に戻し、利用者に見える名前は
           <code>CFBundleDisplayName</code> で日本語にしました。Finder やメニューバーでは
           従来どおり「会議レコーダー」と表示されます。
         </div>
@@ -765,9 +765,9 @@
         </div>
 
         <p>ad-hoc 署名で配布した場合、利用者側で一度だけ次の操作が必要です。</p>
-        <pre><code>xattr -dr com.apple.quarantine "/Applications/Meeting Recorder.app"</code></pre>
+        <pre><code>xattr -dr com.apple.quarantine "/Applications/MeetingRecorder.app"</code></pre>
         <p>Finder の表示名は <code>CFBundleDisplayName</code> による「会議レコーダー」ですが、
-        バンドルのファイル名は <code>Meeting Recorder.app</code> です。ターミナルではファイル名の方を使います。</p>
+        バンドルのファイル名は <code>MeetingRecorder.app</code> です。ターミナルではファイル名の方を使います。</p>
         <p>この手順は Release の説明文に自動で記載されるほか、.dmg 内の「はじめにお読みください.txt」にも同梱しています（Release ページを経由せず.dmg だけを受け取った人にも届くようにするため）。</p>
 
         <h4>開発時の注意</h4>
