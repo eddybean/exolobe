@@ -144,7 +144,8 @@ const createDiarizer = (config: DiarizationSettings): DiarizationPort => {
   return new SherpaOnnxDiarizer(
     {
       segmentationModelPath: config.segmentationModelPath,
-      embeddingModelPath: config.embeddingModelPath
+      embeddingModelPath: config.embeddingModelPath,
+      clusteringThreshold: config.clusteringThreshold
     },
     new SherpaOnnxSessionFactory()
   )

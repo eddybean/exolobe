@@ -297,6 +297,22 @@ export const SettingsView = ({
       </Field>
 
       <Field
+        label="同じ人とみなす声の近さ"
+        hint="1 つの録音の中で話者を分ける基準です。同じ人が別々の話者に割れるときは上げ、別人が 1 人にまとまるときは下げてください（既定 0.5）。"
+      >
+        <input
+          type="number"
+          min={0.1}
+          max={1}
+          step={0.05}
+          defaultValue={settings.diarization.clusteringThreshold}
+          onBlur={(event) =>
+            update({ diarization: { clusteringThreshold: Number(event.target.value) } })
+          }
+        />
+      </Field>
+
+      <Field
         label="声の一致とみなす近さ"
         hint="覚えた声と比べて、この値を超えたら名前を自動で入れます。上げるほど慎重になり（名前が入りにくくなり）、下げるほど別人に当たりやすくなります。"
       >

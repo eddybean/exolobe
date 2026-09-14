@@ -55,7 +55,11 @@ class FakeSession implements DiarizationSession {
 }
 
 class FakeFactory implements DiarizationSessionFactory {
-  calls: { segmentationModelPath: string; embeddingModelPath: string }[] = []
+  calls: {
+    segmentationModelPath: string
+    embeddingModelPath: string
+    clusteringThreshold: number
+  }[] = []
   error?: Error
 
   constructor(readonly session = new FakeSession()) {}
@@ -63,6 +67,7 @@ class FakeFactory implements DiarizationSessionFactory {
   async create(config: {
     segmentationModelPath: string
     embeddingModelPath: string
+    clusteringThreshold: number
   }): Promise<DiarizationSession> {
     this.calls.push(config)
     if (this.error) throw this.error
@@ -70,13 +75,17 @@ class FakeFactory implements DiarizationSessionFactory {
   }
 }
 
-const config = { segmentationModelPath: '/models/seg.onnx', embeddingModelPath: '/models/emb.onnx' }
+const config = {
+  segmentationModelPath: '/models/seg.onnx',
+  embeddingModelPath: '/models/emb.onnx',
+  clusteringThreshold: 0.5
+}
 
 describe('SherpaOnnxDiarizer', () => {
   it('モデルが未設定なら推論を試みずに設定を促す', async () => {
     const factory = new FakeFactory()
     const diarizer = new SherpaOnnxDiarizer(
-      { segmentationModelPath: '', embeddingModelPath: '' },
+      { segmentationModelPath: '', embeddingModelPath: '', clusteringThreshold: 0.5 },
       factory
     )
 
@@ -111,6 +120,19 @@ describe('SherpaOnnxDiarizer', () => {
       { startMs: 1500, endMs: 2250, speaker: 'spk1' }
     ])
     expect(factory.calls).toEqual([config])
+  })
+
+  it('話者を分ける近さをそのままセッションへ渡す', async () => {
+    // 同じ人が別人に割れるとき、利用者はここを上げて調整する。
+    const factory = new FakeFactory()
+    const wavPath = await writeWav('threshold.wav', [0, 1000])
+
+    await new SherpaOnnxDiarizer({ ...config, clusteringThreshold: 0.8 }, factory).diarize({
+      wavPath,
+      maxSpeakers: 6
+    })
+
+    expect(factory.calls[0]?.clusteringThreshold).toBe(0.8)
   })
 
   it('16bit PCM を [-1, 1] の Float32 に正規化して渡す', async () => {
