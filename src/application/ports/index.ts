@@ -124,6 +124,49 @@ export interface VoiceprintRepositoryPort {
   clear(): Promise<void>
 }
 
+/** 対話の 1 ターン。system は履歴に含めない（問いのたびに作り直すため）。 */
+export interface ChatTurn {
+  readonly role: 'user' | 'assistant'
+  readonly text: string
+}
+
+/** 生成の結果。途中で打ち切られたかどうかまでを含む。 */
+export interface ChatCompletion {
+  readonly text: string
+  /** 上限に達して書ききれなかったか。黙って尻切れにしないため。 */
+  readonly truncated: boolean
+}
+
+/**
+ * 会話形式の生成。
+ *
+ * SummarizationPort とは統合しない。あちらは「文字起こし 1 本 → 議事録 1 本」で、
+ * 分割と統合という業務ルールを実装の内側に抱えている。こちらは「履歴＋文脈 →
+ * 逐次出力」で、要求が重ならない。既存に onChunk を足せば、使わない ProcessRecording
+ * まで引数を運ぶことになる。同じネイティブライブラリを使うのは infrastructure の
+ * 事情であって、契約を一緒にする理由にはならない。
+ */
+export interface ChatCompletionPort {
+  complete(params: {
+    system: string
+    history: readonly ChatTurn[]
+    prompt: string
+    /** 生成中の断片。呼び出し側が画面へ流す。 */
+    onChunk: (text: string) => void
+    signal?: AbortSignal
+  }): Promise<ChatCompletion>
+}
+
+/**
+ * 話題語で録音の候補を絞る。
+ *
+ * 意味検索の実体（埋め込みモデル）は数 GB の LLM と同居させられないので別プロセスに置く。
+ * ユースケースからは録音 ID の配列を返すだけの窓にしておき、どこで解決するかを問わない。
+ */
+export interface RecordingFinderPort {
+  find(params: { topic: string; limit: number }): Promise<readonly string[]>
+}
+
 export interface SummarizationPort {
   summarize(params: {
     transcript: string

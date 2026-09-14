@@ -1,8 +1,11 @@
 import type {
   AudioCapturePort,
+  ChatCompletion,
   AudioDecoderPort,
   AudioEncoderPort,
   AudioMixerPort,
+  ChatCompletionPort,
+  ChatTurn,
   DualTrackSource,
   ClockPort,
   DiarizationPort,
@@ -11,6 +14,7 @@ import type {
   IdGeneratorPort,
   ProgressReporterPort,
   RecordingArtifactPort,
+  RecordingFinderPort,
   RecordingRepositoryPort,
   RecordingSource,
   RecordingVoices,
@@ -284,6 +288,43 @@ export class FakeSummarizer implements SummarizationPort {
     if (this.error) throw this.error
     this.receivedTranscript = params.transcript
     return this.result
+  }
+}
+
+/** 断片を順に流し、連結を返す。ストリーミングの配線をモデル無しで確かめられる。 */
+export class FakeChatCompletion implements ChatCompletionPort {
+  calls: { system: string; history: readonly ChatTurn[]; prompt: string }[] = []
+  chunks = ['決ま', 'ったことは', '見積もりの提出です。']
+  /** 上限に達して書ききれなかったことにする。 */
+  truncated = false
+  error?: Error
+
+  async complete(params: {
+    system: string
+    history: readonly ChatTurn[]
+    prompt: string
+    onChunk: (text: string) => void
+    signal?: AbortSignal
+  }): Promise<ChatCompletion> {
+    if (this.error) throw this.error
+    this.calls.push({ system: params.system, history: params.history, prompt: params.prompt })
+    for (const chunk of this.chunks) {
+      if (params.signal?.aborted) break
+      params.onChunk(chunk)
+    }
+    return { text: this.chunks.join(''), truncated: this.truncated }
+  }
+}
+
+export class FakeRecordingFinder implements RecordingFinderPort {
+  calls: { topic: string; limit: number }[] = []
+  ids: string[] = []
+  error?: Error
+
+  async find(params: { topic: string; limit: number }): Promise<readonly string[]> {
+    if (this.error) throw this.error
+    this.calls.push(params)
+    return this.ids
   }
 }
 

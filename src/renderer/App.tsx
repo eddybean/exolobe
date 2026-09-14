@@ -9,15 +9,17 @@ import type {
 import { LibrarySidebar } from './components/LibrarySidebar'
 import { messageOf } from './errorMessage'
 import { importSummary } from './library/fileDrop'
+import { useChat } from './hooks/useChat'
 import { useFileDrop } from './hooks/useFileDrop'
 import { isSemanticSearchAvailable } from './library/semanticSearch'
 import { TransportBar } from './components/TransportBar'
 import { useTransport } from './hooks/useTransport'
+import { ChatView } from './views/ChatView'
 import { OnboardingView } from './views/OnboardingView'
 import { RecordingDetailView } from './views/RecordingDetailView'
 import { SettingsView } from './views/SettingsView'
 
-type Screen = 'library' | 'settings' | 'onboarding'
+type Screen = 'library' | 'chat' | 'settings' | 'onboarding'
 
 /**
  * 画面の器。
@@ -37,6 +39,9 @@ export const App = (): ReactElement => {
   const [importError, setImportError] = useState<string>()
 
   const transport = useTransport(setup?.settings.audio.sampleRate ?? 16_000)
+  // 会話は画面を切り替えても残す。引用から録音へ飛ぶとチャット画面は外れるので、
+  // チャット側に持たせると戻ったときに会話が消える。
+  const chat = useChat()
 
   const refreshSetup = useCallback(async (): Promise<void> => {
     const state = await window.recorder.getSetupState()
@@ -172,6 +177,13 @@ export const App = (): ReactElement => {
           </button>
           <button
             type="button"
+            className={screen === 'chat' ? 'nav__link nav__link--active' : 'nav__link'}
+            onClick={() => setScreen('chat')}
+          >
+            チャット
+          </button>
+          <button
+            type="button"
             className={screen === 'settings' ? 'nav__link nav__link--active' : 'nav__link'}
             onClick={() => setScreen('settings')}
           >
@@ -186,6 +198,16 @@ export const App = (): ReactElement => {
             setup={setup}
             onChanged={() => void refreshSetup()}
             onOpenSettings={() => setScreen('settings')}
+          />
+        )}
+
+        {screen === 'chat' && (
+          <ChatView
+            chat={chat}
+            onOpenRecording={(id) => {
+              setSelectedId(id)
+              setScreen('library')
+            }}
           />
         )}
 
