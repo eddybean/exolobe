@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import type { ChatCitationDto } from '@shared/ipc'
 import { Markdown } from '../components/Markdown'
 import { formatDateTime } from '../format'
-import { withInlineSources } from '../chat/messages'
+import { answerNotice, withInlineSources } from '../chat/messages'
 import type { ChatController } from '../hooks/useChat'
 
 const EXAMPLES = [
@@ -149,6 +149,10 @@ export const ChatView = ({
             {message.streaming && message.text === '' && (
               <p className="chat__thinking">考えています…</p>
             )}
+            {(() => {
+              const notice = answerNotice(message)
+              return notice === undefined ? null : <p className="chat__thinking">{notice}</p>
+            })()}
             {message.aborted === true && <p className="chat__aborted">ここで中断しました。</p>}
 
             {message.citations !== undefined && (

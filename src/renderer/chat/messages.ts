@@ -52,6 +52,9 @@ export const appendChunk = (
  *
  * 断片の積み上げではなく最終テキストで丸ごと置き換える。取りこぼしや
  * 中断時のズレをここで一掃するため。
+ *
+ * ただし最終テキストが空なら、流れてきた本文を残す。モデルの戻り値が空でも
+ * 断片は届いていることがあり、丸ごと置き換えると読めていた答えが消える。
  */
 export const completeMessage = (
   messages: readonly ChatMessage[],
@@ -61,7 +64,7 @@ export const completeMessage = (
     message.id === done.requestId
       ? {
           ...message,
-          text: done.text,
+          text: done.text.trim() === '' ? message.text : done.text,
           citations: done.citations,
           ...(done.scopeLabel === undefined ? {} : { scopeLabel: done.scopeLabel }),
           streaming: false,
@@ -110,4 +113,18 @@ export const withInlineSources = (
       ? `（${citation.title} ${formatSourceDate(citation.startedAt)}）`
       : whole
   })
+}
+
+/**
+ * 本文が無いまま終わった回答に添える断り。
+ *
+ * 何も描かないと、下に並ぶ出典の一覧だけが残って「それが答え」に見える。
+ * 失敗と中断はそれぞれの表示があるので、ここでは扱わない。
+ */
+export const answerNotice = (message: ChatMessage): string | undefined => {
+  if (message.role !== 'assistant') return undefined
+  if (message.streaming || message.error !== undefined || message.aborted === true) return undefined
+  if (message.text.trim() !== '') return undefined
+
+  return 'モデルから答えが返りませんでした。もう一度お試しください。'
 }

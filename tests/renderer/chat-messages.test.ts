@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_HISTORY_TURNS,
+  answerNotice,
   appendChunk,
   completeMessage,
   startTurn,
@@ -226,5 +227,65 @@ describe('withInlineSources', () => {
     expect(withInlineSources('求人票を更新する  [1]', citations)).toBe(
       '求人票を更新する（週次定例 9月4日）'
     )
+  })
+})
+
+describe('completeMessage — 空の最終テキスト', () => {
+  it('最終テキストが空なら、流れてきた本文を残す', () => {
+    // prompt() の戻り値が空でも断片は届いていることがある。
+    // 丸ごと置き換えると、読めていた答えが消える。
+    const messages = [assistant('req-1', '見積もりの提出です。', { streaming: true })]
+
+    const next = completeMessage(messages, {
+      requestId: 'req-1',
+      text: '',
+      citations: [],
+      droppedCount: 0,
+      aborted: false
+    })
+
+    expect(next[0]?.text).toBe('見積もりの提出です。')
+    expect(next[0]?.streaming).toBe(false)
+  })
+
+  it('最終テキストがあれば、それで置き換える', () => {
+    const messages = [assistant('req-1', '見積も', { streaming: true })]
+
+    const next = completeMessage(messages, {
+      requestId: 'req-1',
+      text: '見積もりの提出です。',
+      citations: [],
+      droppedCount: 0,
+      aborted: false
+    })
+
+    expect(next[0]?.text).toBe('見積もりの提出です。')
+  })
+})
+
+describe('answerNotice', () => {
+  it('本文も理由も無い回答は、答えが返らなかったと伝える', () => {
+    // 何も描かないと、出典の一覧だけが残って「それが答え」に見える。
+    expect(answerNotice(assistant('req-1', ''))).toContain('答えが返りませんでした')
+  })
+
+  it('本文があれば何も言わない', () => {
+    expect(answerNotice(assistant('req-1', '答え'))).toBeUndefined()
+  })
+
+  it('生成中は何も言わない', () => {
+    expect(answerNotice(assistant('req-1', '', { streaming: true }))).toBeUndefined()
+  })
+
+  it('失敗は理由がそちらで出るので何も言わない', () => {
+    expect(answerNotice(assistant('req-1', '', { error: 'モデルがありません' }))).toBeUndefined()
+  })
+
+  it('中断で本文が無い場合は、中断の表示に任せる', () => {
+    expect(answerNotice(assistant('req-1', '', { aborted: true }))).toBeUndefined()
+  })
+
+  it('質問には何も言わない', () => {
+    expect(answerNotice(user('u1', '先週のTODOは？'))).toBeUndefined()
   })
 })
