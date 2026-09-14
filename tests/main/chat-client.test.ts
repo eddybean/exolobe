@@ -42,7 +42,8 @@ const answer = (text: string): ChatAnswerDto => ({
   text,
   citations: [],
   usedTranscript: false,
-  droppedCount: 0
+  droppedCount: 0,
+  truncated: false
 })
 
 let workers: FakeWorker[]

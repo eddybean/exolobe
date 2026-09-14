@@ -1,5 +1,6 @@
 import type {
   AudioCapturePort,
+  ChatCompletion,
   AudioDecoderPort,
   AudioEncoderPort,
   AudioMixerPort,
@@ -294,6 +295,8 @@ export class FakeSummarizer implements SummarizationPort {
 export class FakeChatCompletion implements ChatCompletionPort {
   calls: { system: string; history: readonly ChatTurn[]; prompt: string }[] = []
   chunks = ['決ま', 'ったことは', '見積もりの提出です。']
+  /** 上限に達して書ききれなかったことにする。 */
+  truncated = false
   error?: Error
 
   async complete(params: {
@@ -302,14 +305,14 @@ export class FakeChatCompletion implements ChatCompletionPort {
     prompt: string
     onChunk: (text: string) => void
     signal?: AbortSignal
-  }): Promise<string> {
+  }): Promise<ChatCompletion> {
     if (this.error) throw this.error
     this.calls.push({ system: params.system, history: params.history, prompt: params.prompt })
     for (const chunk of this.chunks) {
       if (params.signal?.aborted) break
       params.onChunk(chunk)
     }
-    return this.chunks.join('')
+    return { text: this.chunks.join(''), truncated: this.truncated }
   }
 }
 

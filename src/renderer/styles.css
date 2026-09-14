@@ -1503,7 +1503,8 @@ textarea:focus {
 }
 
 .chat__thinking,
-.chat__aborted {
+.chat__aborted,
+.chat__truncated {
   margin: 0;
   color: var(--text-muted);
   font-size: 12px;
@@ -1517,6 +1518,11 @@ textarea:focus {
 .chat__error {
   margin: 0;
   color: var(--danger);
+}
+
+/* 尻切れは「読み終えた」と誤解されるので、注意の色で断る。 */
+.chat__truncated {
+  color: var(--warning);
 }
 
 .chat__citations {

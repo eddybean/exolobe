@@ -35,6 +35,8 @@ export interface ChatAnswer {
   readonly scopeLabel?: string
   readonly usedTranscript: boolean
   readonly droppedCount: number
+  /** 生成の上限に達して書ききれなかったか。 */
+  readonly truncated: boolean
 }
 
 export interface AskChatDeps {
@@ -186,7 +188,7 @@ export class AskChat {
 
     await ensureChatMemory(this.deps, settings.summarization.modelPath)
 
-    const text = await this.deps.chat.complete({
+    const completion = await this.deps.chat.complete({
       system: DEFAULT_CHAT_SYSTEM_PROMPT,
       history: params.history,
       prompt: renderChatPrompt(DEFAULT_CHAT_PROMPT, {
@@ -200,13 +202,14 @@ export class AskChat {
     const dropped = narrowed.length - chosen.length + context.droppedCount
 
     return {
-      text,
+      text: completion.text,
       citations: context.citations,
       ...(plan.rangeLabel === undefined
         ? {}
         : { scopeLabel: `${plan.rangeLabel}の ${context.citations.length} 件` }),
       usedTranscript: context.citations.some((citation) => citation.source === 'transcript'),
-      droppedCount: dropped
+      droppedCount: dropped,
+      truncated: completion.truncated
     }
   }
 }

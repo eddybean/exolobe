@@ -1,4 +1,4 @@
-import type { ChatCompletionPort, ChatTurn } from '@application/ports'
+import type { ChatCompletion, ChatCompletionPort, ChatTurn } from '@application/ports'
 import { AppError } from '@domain/errors'
 import type { MemoryProtection } from '@domain/MemoryGuard'
 
@@ -13,7 +13,7 @@ export interface ChatLlmSession {
   prompt(
     text: string,
     options: { onChunk: (text: string) => void; signal?: AbortSignal }
-  ): Promise<string>
+  ): Promise<ChatCompletion>
   dispose(): Promise<void>
 }
 
@@ -50,7 +50,7 @@ export class LlamaCppChat implements ChatCompletionPort {
     prompt: string
     onChunk: (text: string) => void
     signal?: AbortSignal
-  }): Promise<string> {
+  }): Promise<ChatCompletion> {
     if (!this.config.modelPath) {
       throw new ChatError(
         'チャットに使うモデルが設定されていません。設定画面で要約モデルを取得してください。'

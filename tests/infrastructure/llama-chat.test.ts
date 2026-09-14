@@ -24,10 +24,10 @@ class FakeSession implements ChatLlmSession {
   async prompt(
     text: string,
     options: { onChunk: (t: string) => void; signal?: AbortSignal }
-  ): Promise<string> {
+  ): Promise<{ text: string; truncated: boolean }> {
     this.prompts.push(text)
     for (const chunk of this.chunks) options.onChunk(chunk)
-    return this.chunks.join('')
+    return { text: this.chunks.join(''), truncated: false }
   }
   async dispose(): Promise<void> {
     this.disposed += 1
@@ -64,13 +64,13 @@ const complete = async (
   overrides: Partial<{ history: readonly ChatTurn[]; prompt: string }> = {}
 ) => {
   const received: string[] = []
-  const text = await chat.complete({
+  const completion = await chat.complete({
     system: 'あなたはアシスタントです。',
     history: overrides.history ?? [],
     prompt: overrides.prompt ?? '質問です',
     onChunk: (chunk) => received.push(chunk)
   })
-  return { text, received }
+  return { text: completion.text, received }
 }
 
 describe('LlamaCppChat', () => {

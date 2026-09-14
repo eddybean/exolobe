@@ -130,6 +130,13 @@ export interface ChatTurn {
   readonly text: string
 }
 
+/** 生成の結果。途中で打ち切られたかどうかまでを含む。 */
+export interface ChatCompletion {
+  readonly text: string
+  /** 上限に達して書ききれなかったか。黙って尻切れにしないため。 */
+  readonly truncated: boolean
+}
+
 /**
  * 会話形式の生成。
  *
@@ -147,7 +154,7 @@ export interface ChatCompletionPort {
     /** 生成中の断片。呼び出し側が画面へ流す。 */
     onChunk: (text: string) => void
     signal?: AbortSignal
-  }): Promise<string>
+  }): Promise<ChatCompletion>
 }
 
 /**

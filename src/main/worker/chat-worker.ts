@@ -61,7 +61,8 @@ const toDto = (answer: ChatAnswer): ChatAnswerDto => ({
   })),
   ...(answer.scopeLabel === undefined ? {} : { scopeLabel: answer.scopeLabel }),
   usedTranscript: answer.usedTranscript,
-  droppedCount: answer.droppedCount
+  droppedCount: answer.droppedCount,
+  truncated: answer.truncated
 })
 
 port.on('message', (message) => {

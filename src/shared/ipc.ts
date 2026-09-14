@@ -178,6 +178,8 @@ export interface ChatAnswerDto {
   readonly scopeLabel?: string
   readonly usedTranscript: boolean
   readonly droppedCount: number
+  /** 生成の上限に達して書ききれなかったか。 */
+  readonly truncated: boolean
 }
 
 /** 生成中の断片。requestId で宛先のメッセージを決める。 */
@@ -198,6 +200,8 @@ export interface ChatDoneDto {
   readonly citations: readonly ChatCitationDto[]
   readonly scopeLabel?: string
   readonly droppedCount: number
+  /** 生成の上限に達して書ききれなかったか。 */
+  readonly truncated: boolean
   /** 利用者が途中で止めたか。止めた場合も、そこまでの本文は残す。 */
   readonly aborted: boolean
   readonly error?: string

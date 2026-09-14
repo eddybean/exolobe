@@ -14,6 +14,8 @@ export interface ChatMessage {
   readonly citations?: readonly ChatCitationDto[]
   readonly scopeLabel?: string
   readonly streaming: boolean
+  /** 生成の上限に達して書ききれなかったか。 */
+  readonly truncated?: boolean
   readonly aborted?: boolean
   readonly error?: string
 }
@@ -68,6 +70,7 @@ export const completeMessage = (
           citations: done.citations,
           ...(done.scopeLabel === undefined ? {} : { scopeLabel: done.scopeLabel }),
           streaming: false,
+          truncated: done.truncated,
           aborted: done.aborted,
           ...(done.error === undefined ? {} : { error: done.error })
         }
@@ -145,7 +148,13 @@ export const withInlineSources = (
 export const answerNotice = (message: ChatMessage): string | undefined => {
   if (message.role !== 'assistant') return undefined
   if (message.streaming || message.error !== undefined || message.aborted === true) return undefined
-  if (message.text.trim() !== '') return undefined
 
-  return 'モデルから答えが返りませんでした。もう一度お試しください。'
+  if (message.text.trim() === '') {
+    return 'モデルから答えが返りませんでした。もう一度お試しください。'
+  }
+  // 黙って尻切れにすると、利用者はそれが全部だと思う。
+  if (message.truncated === true) {
+    return '答えが長すぎたため、ここで打ち切られました。期間や聞き方を絞ると最後まで出ます。'
+  }
+  return undefined
 }

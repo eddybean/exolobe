@@ -746,6 +746,7 @@ export const registerIpcHandlers = (
         text: '',
         citations: [],
         droppedCount: 0,
+        truncated: false,
         aborted: false,
         error: '録音の処理中です。終わってからもう一度お試しください。'
       })
@@ -758,6 +759,7 @@ export const registerIpcHandlers = (
         text: '',
         citations: [],
         droppedCount: 0,
+        truncated: false,
         aborted: false,
         error: 'チャットが無効です。設定画面で有効にしてください。'
       })
@@ -780,6 +782,7 @@ export const registerIpcHandlers = (
         citations: answer.citations,
         ...(answer.scopeLabel === undefined ? {} : { scopeLabel: answer.scopeLabel }),
         droppedCount: answer.droppedCount,
+        truncated: answer.truncated,
         aborted: cancelled.delete(requestId)
       })
     } catch (error: unknown) {
@@ -787,6 +790,7 @@ export const registerIpcHandlers = (
         text: '',
         citations: [],
         droppedCount: 0,
+        truncated: false,
         aborted: cancelled.delete(requestId),
         error: toMessage(error)
       })

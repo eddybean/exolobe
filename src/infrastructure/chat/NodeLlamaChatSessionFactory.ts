@@ -16,25 +16,25 @@ export class ChatModelLoadError extends AppError {}
 const TEMPERATURE = 0.3
 
 /**
- * 1 回の回答の上限。
+ * 1 回の生成の上限（思考と本文の合計）。
  *
- * これは「生成するトークン数の合計」の上限で、思考（thought）セグメントも同じ枠から
- * 引かれる。8 件ぶんの ToDo を並べると 1,024 では足りず、途中で切れる。
+ * 8 件ぶんの ToDo を並べると本文だけで 2,000 字を超える。思考のぶんを足しても
+ * 収まるようにしておかないと、本文の途中で打ち切られる。
  */
-const MAX_TOKENS = 2_048
+const MAX_TOKENS = 4_096
 
 /**
- * 思考に使わせるトークン数。
+ * 思考に使わせるトークン数の上限。
  *
  * 既定はコンテキストの 75%（32K なら 24,576）で、MAX_TOKENS を軽く超える。
- * 結果として思考だけで生成枠を使い切り、**本文を 1 文字も書かないまま打ち切られる**
- * （実測: 40 秒生成して本文 0 文字）。onTextChunk は思考を配らないので、
- * 画面には何も出ないまま終わる。
+ * そのままだと思考だけで生成枠を使い切り、**本文を 1 文字も書かないまま打ち切られる**
+ * （実測: 40 秒生成して本文 0 文字）。onTextChunk は思考を配らないので画面には何も出ない。
  *
- * 渡された記録から該当する項目を拾う仕事に推論の積み重ねは要らないので、
- * 思考は使わせない。待ち時間もそのぶん縮む。
+ * かといって 0 にすると、モデルは考えるのをやめるのではなく**思考を本文として書き出す**。
+ * 前置きが枠を食って、今度は答えが尻切れになる。使わせたうえで上限で抑え、
+ * 本文のぶんを必ず残すのが正しい。
  */
-const THOUGHT_TOKENS = 0
+const THOUGHT_TOKENS = 1_024
 
 /**
  * node-llama-cpp で GGUF モデルを読み込み、会話用のセッションを作る。
@@ -73,8 +73,13 @@ export class NodeLlamaChatSessionFactory implements ChatLlmSessionFactory {
           }
           session.setChatHistory(history)
         },
-        prompt: (text: string, promptOptions: { onChunk: (t: string) => void; signal?: AbortSignal }) =>
-          session.prompt(text, {
+        prompt: async (
+          text: string,
+          promptOptions: { onChunk: (t: string) => void; signal?: AbortSignal }
+        ) => {
+          // promptWithMeta を使うのは stopReason が要るため。上限で打ち切られたことを
+          // 黙って飲み込むと、利用者には「答えが尻切れ」としか見えない。
+          const result = await session.promptWithMeta(text, {
             onTextChunk: promptOptions.onChunk,
             ...(promptOptions.signal === undefined ? {} : { signal: promptOptions.signal }),
             // 中断を例外にしない。途中まで生成した文をそのまま返し、
@@ -83,7 +88,10 @@ export class NodeLlamaChatSessionFactory implements ChatLlmSessionFactory {
             temperature: TEMPERATURE,
             maxTokens: MAX_TOKENS,
             budgets: { thoughtTokens: THOUGHT_TOKENS }
-          }),
+          })
+
+          return { text: result.responseText, truncated: result.stopReason === 'maxTokens' }
+        },
         dispose: async () => {
           await context.dispose()
           await model.dispose()

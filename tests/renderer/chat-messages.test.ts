@@ -66,6 +66,7 @@ describe('completeMessage', () => {
       text: '見積もりの提出です。',
       citations: [],
       droppedCount: 0,
+      truncated: false,
       aborted: false
     })
 
@@ -80,6 +81,7 @@ describe('completeMessage', () => {
       text: '見積も',
       citations: [],
       droppedCount: 0,
+      truncated: false,
       aborted: true
     })
 
@@ -94,6 +96,7 @@ describe('completeMessage', () => {
       text: '',
       citations: [],
       droppedCount: 0,
+      truncated: false,
       aborted: false,
       error: 'モデルがありません'
     })
@@ -119,6 +122,7 @@ describe('completeMessage', () => {
       citations,
       scopeLabel: '先週（08/31〜09/06）の 1 件',
       droppedCount: 0,
+      truncated: false,
       aborted: false
     })
 
@@ -286,6 +290,7 @@ describe('completeMessage — 空の最終テキスト', () => {
       text: '',
       citations: [],
       droppedCount: 0,
+      truncated: false,
       aborted: false
     })
 
@@ -301,6 +306,7 @@ describe('completeMessage — 空の最終テキスト', () => {
       text: '見積もりの提出です。',
       citations: [],
       droppedCount: 0,
+      truncated: false,
       aborted: false
     })
 
@@ -308,7 +314,36 @@ describe('completeMessage — 空の最終テキスト', () => {
   })
 })
 
+describe('completeMessage — 打ち切られた回答', () => {
+  it('上限で切れたことを持ち回る', () => {
+    const messages = [assistant('req-1', '途中まで', { streaming: true })]
+
+    const next = completeMessage(messages, {
+      requestId: 'req-1',
+      text: '途中まで',
+      citations: [],
+      droppedCount: 0,
+      truncated: true,
+      aborted: false
+    })
+
+    expect(next[0]?.truncated).toBe(true)
+  })
+})
+
 describe('answerNotice', () => {
+  it('上限で切れた回答は、続きがあることを伝える', () => {
+    // 黙って尻切れにすると、利用者はそれが全部だと思う。
+    expect(answerNotice(assistant('req-1', '途中まで', { truncated: true }))).toContain(
+      '長すぎた'
+    )
+  })
+
+  it('切れていない回答には何も言わない', () => {
+    expect(answerNotice(assistant('req-1', '答え', { truncated: false }))).toBeUndefined()
+  })
+
+
   it('本文も理由も無い回答は、答えが返らなかったと伝える', () => {
     // 何も描かないと、出典の一覧だけが残って「それが答え」に見える。
     expect(answerNotice(assistant('req-1', ''))).toContain('答えが返りませんでした')

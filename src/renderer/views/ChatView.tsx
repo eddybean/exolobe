@@ -151,7 +151,7 @@ export const ChatView = ({
             )}
             {(() => {
               const notice = answerNotice(message)
-              return notice === undefined ? null : <p className="chat__thinking">{notice}</p>
+              return notice === undefined ? null : <p className="chat__truncated">{notice}</p>
             })()}
             {message.aborted === true && <p className="chat__aborted">ここで中断しました。</p>}
 
