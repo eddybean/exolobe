@@ -5,7 +5,7 @@ appId: com.branch.online-meeting-recorder
 # 落ちる（実行ファイル名・ヘルパーアプリ名・フレームワーク参照がすべて
 # この名前から作られるため）。利用者に見える名前は下の CFBundleDisplayName で
 # 日本語にしているので、Finder やメニューバーでは「会議レコーダー」と表示される。
-productName: Meeting Recorder
+productName: MeetingRecorder
 
 artifactName: ${name}-${version}-${arch}.${ext}
 directories:

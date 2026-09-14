@@ -7,10 +7,10 @@
    macOS の Gatekeeper に隔離され起動できません。ターミナル（アプリケーション →
    ユーティリティ → ターミナル）を開き、次のコマンドを一度だけ実行してください。
 
-       xattr -dr com.apple.quarantine "/Applications/Meeting Recorder.app"
+       xattr -dr com.apple.quarantine "/Applications/MeetingRecorder.app"
 
    Finder には「会議レコーダー」と表示されますが、これは表示名です。
-   ファイル名は "Meeting Recorder.app" なので、上のコマンドはそのまま使ってください。
+   ファイル名は "MeetingRecorder.app" なので、上のコマンドはそのまま使ってください。
 
 3. 初回起動時にマイクとシステム音声の使用許可を求められます。
    マイクは自分の発言、システム音声は相手の発言の録音に使います。

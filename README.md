@@ -246,11 +246,11 @@ git push --follow-tags
 一度だけ次の操作が必要です（Release の説明文に自動で記載されます）。
 
 ```sh
-xattr -dr com.apple.quarantine "/Applications/Meeting Recorder.app"
+xattr -dr com.apple.quarantine "/Applications/MeetingRecorder.app"
 ```
 
 Finder には「会議レコーダー」と表示されますが、これは `CFBundleDisplayName` による
-表示名で、ファイル名は `Meeting Recorder.app` です。ターミナルでは上のパスを使います。
+表示名で、ファイル名は `MeetingRecorder.app` です。ターミナルでは上のパスを使います。
 この手順は .dmg に同梱した「はじめにお読みください.txt」にも書いてあります。
 
 Apple Developer 証明書がある場合は、リポジトリの Secrets に登録すると
