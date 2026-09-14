@@ -7,6 +7,7 @@ import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
 import { EditableSpeaker } from '../components/EditableSpeaker'
 import { isAudioReady } from '../library/audio'
+import { voiceLearnedNotice } from '../library/voiceLearning'
 import { resummarizeState, type ResummarizeState } from '../resummarize'
 import { failureTooltip, stepFailure } from '../stepFailure'
 
@@ -42,6 +43,7 @@ export const RecordingDetailView = ({
   const [note, setNote] = useState(detail.note)
   const [noteSaved, setNoteSaved] = useState(true)
   const [error, setError] = useState<string>()
+  const [voiceNotice, setVoiceNotice] = useState<string>()
   const audioRef = useRef<HTMLAudioElement>(null)
 
   const recordingId = detail.recording.id
@@ -53,6 +55,15 @@ export const RecordingDetailView = ({
     setNote(detail.note)
     setNoteSaved(true)
   }, [recordingId, detail.note])
+
+  // 声紋の登録は名前の反映より遅れて終わる。結果は後から届く。
+  useEffect(() => {
+    setVoiceNotice(undefined)
+    return window.recorder.onVoiceLearned((event) => {
+      if (event.recordingId !== recordingId) return
+      setVoiceNotice(voiceLearnedNotice(event))
+    })
+  }, [recordingId])
 
   // 入力が止まってから保存する。
   useEffect(() => {
@@ -93,6 +104,7 @@ export const RecordingDetailView = ({
   const renameSpeaker = useCallback(
     async (speakerId: string, label: string): Promise<void> => {
       setError(undefined)
+      setVoiceNotice(undefined)
       try {
         await window.recorder.renameSpeaker(recordingId, speakerId, label)
         onChanged()
@@ -156,6 +168,12 @@ export const RecordingDetailView = ({
       {error && (
         <p className="detail__error" role="alert">
           {error}
+        </p>
+      )}
+
+      {voiceNotice && (
+        <p className="detail__notice" role="status">
+          {voiceNotice}
         </p>
       )}
 

@@ -596,6 +596,15 @@ code {
   color: var(--danger);
 }
 
+/* 失敗ではないが伝えておきたいこと（声紋を覚えられなかった等）。 */
+.detail__notice {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
 /*
  * 1 行目にプレーヤーとタブ、2 行目に左右のパネルを置く。左右を別々の縦並びに
  * すると 1 行目の高さがそれぞれの中身で決まり、パネルの上端がずれてしまうため、
