@@ -5,8 +5,10 @@ import {
   completeMessage,
   startTurn,
   toHistory,
+  withInlineSources,
   type ChatMessage
 } from '@renderer/chat/messages'
+import type { ChatCitationDto } from '@shared/ipc'
 
 const user = (id: string, text: string): ChatMessage => ({
   id,
@@ -169,5 +171,60 @@ describe('toHistory', () => {
       { role: 'user', text: '質問' },
       { role: 'assistant', text: '途中まで' }
     ])
+  })
+})
+
+describe('withInlineSources', () => {
+  const citations: ChatCitationDto[] = [
+    {
+      recordingId: 'rec-1',
+      title: '週次定例',
+      startedAt: '2026-09-04T05:00:00.000Z',
+      source: 'summary',
+      truncated: false
+    },
+    {
+      recordingId: 'rec-2',
+      title: 'A社との商談',
+      startedAt: '2026-09-02T01:00:00.000Z',
+      source: 'summary',
+      truncated: false
+    }
+  ]
+
+  it('番号を出典のタイトルと日付に置き換える', () => {
+    const text = '- [ ] 求人票を更新する [1]'
+
+    expect(withInlineSources(text, citations)).toBe('- [ ] 求人票を更新する（週次定例 9月4日）')
+  })
+
+  it('1 行に複数の番号があってもすべて置き換える', () => {
+    const text = '- 見積もりの話 [1][2]'
+
+    expect(withInlineSources(text, citations)).toBe(
+      '- 見積もりの話（週次定例 9月4日）（A社との商談 9月2日）'
+    )
+  })
+
+  it('チェックボックスの [ ] は番号ではないので触らない', () => {
+    const text = '- [ ] 佐藤さんへメッセージを送る [2]'
+
+    expect(withInlineSources(text, citations)).toBe(
+      '- [ ] 佐藤さんへメッセージを送る（A社との商談 9月2日）'
+    )
+  })
+
+  it('出典に無い番号はそのまま残す', () => {
+    expect(withInlineSources('謎の根拠 [9]', citations)).toBe('謎の根拠 [9]')
+  })
+
+  it('出典が無ければ何も変えない', () => {
+    expect(withInlineSources('答え [1]', [])).toBe('答え [1]')
+  })
+
+  it('番号の前の空白は詰める', () => {
+    expect(withInlineSources('求人票を更新する  [1]', citations)).toBe(
+      '求人票を更新する（週次定例 9月4日）'
+    )
   })
 })

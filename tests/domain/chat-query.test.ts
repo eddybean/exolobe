@@ -81,3 +81,30 @@ describe('planChatQuery — 話題語', () => {
     expect(planChatQuery('先週のTODOをまとめて', NOW).question).toBe('先週のTODOをまとめて')
   })
 })
+
+describe('planChatQuery — 要約のどの節を見るか', () => {
+  it('TODO を尋ねられたら ToDo の節を指す', () => {
+    expect(planChatQuery('先週のTODOをまとめて', NOW).section).toBe('todo')
+    expect(planChatQuery('先週のタスクを一覧にして', NOW).section).toBe('todo')
+    expect(planChatQuery('次のアクションは？', NOW).section).toBe('todo')
+  })
+
+  it('決まったことを尋ねられたら決定事項の節を指す', () => {
+    expect(planChatQuery('今月の決定事項を一覧にして', NOW).section).toBe('decision')
+    expect(planChatQuery('A社との商談で決まったことは？', NOW).section).toBe('decision')
+  })
+
+  it('議論の流れを尋ねられたら議論の節を指す', () => {
+    expect(planChatQuery('先週の議論の流れを詳しく説明して', NOW).section).toBe('discussion')
+  })
+
+  it('概要を尋ねられたら概要の節を指す', () => {
+    expect(planChatQuery('先週の会議の概要を教えて', NOW).section).toBe('overview')
+  })
+
+  it('節を名指ししていなければ絞らない', () => {
+    // 「要約して」は要約全体を見たいのであって、概要の節だけを見たいわけではない。
+    expect(planChatQuery('先週の自分の発言だけを要約して', NOW).section).toBeUndefined()
+    expect(planChatQuery('先週は何があった？', NOW).section).toBeUndefined()
+  })
+})

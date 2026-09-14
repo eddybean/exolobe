@@ -177,7 +177,8 @@ export class AskChat {
       materials,
       scope: plan.speakerScope,
       useTranscript: plan.needsTranscript,
-      budgetChars: contextBudgetChars(settings.summarization.contextSize)
+      budgetChars: contextBudgetChars(settings.summarization.contextSize),
+      ...(plan.section === undefined ? {} : { section: plan.section })
     })
 
     await ensureChatMemory(this.deps, settings.summarization.modelPath)

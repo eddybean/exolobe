@@ -49,3 +49,22 @@ describe('既定のプロンプト', () => {
     expect(DEFAULT_CHAT_PROMPT).toContain(QUESTION_PLACEHOLDER)
   })
 })
+
+describe('出力の形の指示', () => {
+  it('会議ごとに並べるのではなく、内容で答えるよう求める', () => {
+    expect(DEFAULT_CHAT_SYSTEM_PROMPT).toContain('会議ごとに見出しを立てて並べない')
+  })
+
+  it('形は質問に合わせて選ばせる。決め打ちにしない', () => {
+    expect(DEFAULT_CHAT_SYSTEM_PROMPT).toContain('質問に合わせて選ぶ')
+    // やること・列挙・流れ・比較の 4 つの当て方を示すだけで、どれを使うかはモデルが決める。
+    expect(DEFAULT_CHAT_SYSTEM_PROMPT).toContain('- [ ] ')
+    expect(DEFAULT_CHAT_SYSTEM_PROMPT).toContain('箇条書き')
+    expect(DEFAULT_CHAT_SYSTEM_PROMPT).toContain('段落')
+    expect(DEFAULT_CHAT_SYSTEM_PROMPT).toContain('表')
+  })
+
+  it('会議の名前や日付はモデルに書かせない（番号から画面で補う）', () => {
+    expect(DEFAULT_CHAT_SYSTEM_PROMPT).toContain('会議の名前や日付は書かない')
+  })
+})

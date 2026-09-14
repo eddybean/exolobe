@@ -10,11 +10,23 @@ import { focusQuery } from '@domain/SemanticSearch'
 
 export type SpeakerScope = 'all' | 'self' | 'remote'
 
+/**
+ * 問いが名指ししている要約の節。
+ *
+ * 議事録は「概要／決定事項／ToDo／議論の流れ」の構成で作られる
+ * （DEFAULT_SUMMARY_PROMPT）ので、問いが節を名指ししているなら、その節だけを
+ * 文脈に載せれば足りる。全文を渡すと、4B 級のモデルは会議ごとの見出しを
+ * そのまま写して「会議の一覧」を答えにしてしまう。
+ */
+export type SummarySection = 'todo' | 'decision' | 'overview' | 'discussion'
+
 export interface ChatQueryPlan {
   readonly question: string
   readonly range?: DateRange
   readonly rangeLabel?: string
   readonly speakerScope: SpeakerScope
+  /** 問いが名指しした要約の節。名指ししていなければ undefined（＝要約の全体を見る）。 */
+  readonly section?: SummarySection
   /** 日付語・話者語・依頼の言い回しを除いた残り。意味検索に渡す。 */
   readonly topic: string
   /** 要約では答えられず、文字起こしが要るか。 */
@@ -58,6 +70,25 @@ const SPEAKER_RULES: readonly { readonly scope: SpeakerScope; readonly pattern: 
     pattern: new RegExp(`${REMOTE_PRONOUN}が(?:言った|話した|述べた|発言した)(?:こと)?${ONLY}`, 'g')
   }
 ]
+
+/**
+ * 節の名指し。上から順に見て最初に当たったものを採る。
+ *
+ * 「要約して」「まとめて」は節の名指しではない —— 要約の全体を見たいのであって、
+ * 概要の節だけを見たいわけではない。narrowing しすぎると、答えに要る記述が落ちる。
+ */
+const SECTION_RULES: readonly { readonly section: SummarySection; readonly pattern: RegExp }[] = [
+  {
+    section: 'todo',
+    pattern: /TODO|ToDo|To ?Do|タスク|やること|宿題|持ち帰り|アクション(?:アイテム)?|次に(?:やる|する)こと/i
+  },
+  { section: 'decision', pattern: /決定(?:事項)?|決まった(?:こと)?|決め事|合意(?:事項)?|結論/ },
+  { section: 'discussion', pattern: /議論(?:の流れ)?|話し合った(?:こと|内容)|経緯|やり取り|どんな話/ },
+  { section: 'overview', pattern: /概要|要点|サマリ(?:ー)?|ざっくり/ }
+]
+
+const detectSection = (question: string): SummarySection | undefined =>
+  SECTION_RULES.find((rule) => rule.pattern.test(question))?.section
 
 /** 要約は言い換えを含むので、言葉そのものを問われたら文字起こしに当たる。 */
 const VERBATIM = /逐語|原文|そのまま|一言一句|何と言っ|どう言っ|何て言っ/
@@ -122,10 +153,13 @@ export const planChatQuery = (question: string, now: Date): ChatQueryPlan => {
   // focusQuery は「〜をしたミーティング」まで落とす。意味検索に渡す形を揃えておく。
   const topic = withoutRequest.length === 0 ? '' : trimEdges(focusQuery(withoutRequest))
 
+  const section = detectSection(question)
+
   return {
     question,
     ...(date === undefined ? {} : { range: date.range, rangeLabel: date.label }),
     speakerScope: speaker.scope,
+    ...(section === undefined ? {} : { section }),
     topic,
     needsTranscript: speaker.scope !== 'all' || VERBATIM.test(question)
   }

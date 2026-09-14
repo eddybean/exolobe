@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import type { ChatCitationDto } from '@shared/ipc'
 import { Markdown } from '../components/Markdown'
 import { formatDateTime } from '../format'
+import { withInlineSources } from '../chat/messages'
 import type { ChatController } from '../hooks/useChat'
 
 const EXAMPLES = [
@@ -139,7 +140,8 @@ export const ChatView = ({
                 {message.error}
               </p>
             ) : message.role === 'assistant' ? (
-              <Markdown source={message.text} />
+              // 本文の [1] は、出典の会議名と日付に置き換えてから描く。
+              <Markdown source={withInlineSources(message.text, message.citations ?? [])} />
             ) : (
               <p className="chat__question">{message.text}</p>
             )}

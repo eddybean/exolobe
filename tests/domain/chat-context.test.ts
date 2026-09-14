@@ -226,3 +226,80 @@ describe('buildChatContext — 引用', () => {
     expect(context.citations[0]?.startMs).toBeUndefined()
   })
 })
+
+describe('buildChatContext — 要約の節で絞る', () => {
+  const summary = [
+    '## 概要',
+    '週次の定例。',
+    '',
+    '## 決定事項',
+    '- 面接官は自分が担当',
+    '',
+    '## ToDo（担当者と期限が分かる場合は併記）',
+    '- 求人票を来週までに更新する',
+    '',
+    '## 議論の流れ',
+    '- 採用の進み具合を確認した'
+  ].join('\n')
+
+  const withSummary = material({ recordingId: 'rec-1', summary })
+
+  const build = (section?: 'todo' | 'decision' | 'overview' | 'discussion') =>
+    buildChatContext({
+      materials: [withSummary],
+      scope: 'all',
+      useTranscript: false,
+      budgetChars: 10_000,
+      ...(section === undefined ? {} : { section })
+    })
+
+  it('ToDo を名指しされたら ToDo の節だけを載せる', () => {
+    const context = build('todo')
+
+    expect(context.text).toContain('求人票を来週までに更新する')
+    expect(context.text).not.toContain('面接官は自分が担当')
+    expect(context.text).not.toContain('採用の進み具合')
+  })
+
+  it('決定事項を名指しされたら決定事項の節だけを載せる', () => {
+    const context = build('decision')
+
+    expect(context.text).toContain('面接官は自分が担当')
+    expect(context.text).not.toContain('求人票を来週まで')
+  })
+
+  it('節の見出しは残す。何の一覧かをモデルが取り違えないように', () => {
+    expect(build('todo').text).toContain('## ToDo')
+  })
+
+  it('名指しが無ければ要約の全体を載せる', () => {
+    const context = build()
+
+    expect(context.text).toContain('面接官は自分が担当')
+    expect(context.text).toContain('求人票を来週までに更新する')
+  })
+
+  it('その節が要約に無ければ全体を載せる', () => {
+    const context = buildChatContext({
+      materials: [material({ recordingId: 'rec-1', summary: '## 概要\n雑談だけだった。' })],
+      scope: 'all',
+      useTranscript: false,
+      budgetChars: 10_000,
+      section: 'todo'
+    })
+
+    expect(context.text).toContain('雑談だけだった')
+  })
+
+  it('文字起こしを使うときは節で絞らない', () => {
+    const context = buildChatContext({
+      materials: [material({ recordingId: 'rec-1', summary })],
+      scope: 'self',
+      useTranscript: true,
+      budgetChars: 10_000,
+      section: 'todo'
+    })
+
+    expect(context.text).toContain('おはようございます')
+  })
+})

@@ -1,4 +1,4 @@
-import type { SpeakerScope } from '@domain/ChatQuery'
+import type { SpeakerScope, SummarySection } from '@domain/ChatQuery'
 import { isRemoteSpeakerId, SELF_SPEAKER_ID, type Speaker } from '@domain/Speaker'
 import { formatTimestamp } from '@domain/Transcript'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
@@ -58,6 +58,43 @@ export const CHAT_RESERVED_RATIO = 0.35
 export const MIN_PER_RECORDING_CHARS = 400
 
 const OMISSION = '…（以下省略）'
+
+/**
+ * 議事録の見出しから節を見分ける語。
+ *
+ * 要約の構成（DEFAULT_SUMMARY_PROMPT）は利用者が書き換えられるので、見出しの文字列を
+ * 決め打ちにせず語で当てる。当たらなければ絞らない —— 見つからないことを理由に
+ * 中身を落とすと、答えに要る記述ごと消える。
+ */
+const SECTION_HEADINGS: Record<SummarySection, RegExp> = {
+  todo: /todo|to ?do|タスク|やること|アクション|宿題|次に(?:やる|する)/i,
+  decision: /決定|決まった|決め事|合意|結論/,
+  overview: /概要|要点|サマリ/,
+  discussion: /議論|流れ|経緯|やり取り/
+}
+
+/**
+ * 要約から、名指しされた節だけを見出しごと取り出す。
+ *
+ * 見出しを落とさないのは、何の一覧なのかをモデルが取り違えないようにするため。
+ * 該当が無ければ undefined を返し、呼び出し側は全体を載せる。
+ */
+export const extractSummarySection = (
+  summary: string,
+  section: SummarySection
+): string | undefined => {
+  const pattern = SECTION_HEADINGS[section]
+  const lines = summary.split('\n')
+  const start = lines.findIndex((line) => /^#{1,6}\s/.test(line) && pattern.test(line))
+  if (start === -1) return undefined
+
+  const rest = lines.slice(start + 1)
+  const until = rest.findIndex((line) => /^#{1,6}\s/.test(line))
+  const body = until === -1 ? rest : rest.slice(0, until)
+
+  const extracted = [lines[start], ...body].join('\n').trim()
+  return extracted.length > 0 ? extracted : undefined
+}
 
 export const contextBudgetChars = (
   contextSize: number,
@@ -130,7 +167,8 @@ interface Candidate {
 const toCandidate = (
   material: ChatSourceMaterial,
   scope: SpeakerScope,
-  useTranscript: boolean
+  useTranscript: boolean,
+  section: SummarySection | undefined
 ): Candidate | undefined => {
   if (useTranscript || scope !== 'all' || !material.summary?.trim()) {
     const { body, startMs } = transcriptBody(material, scope)
@@ -149,7 +187,11 @@ const toCandidate = (
 
   const summary = material.summary?.trim()
   if (!summary) return undefined
-  return { material, source: 'summary', note: '（要約）', body: summary }
+
+  // 節を名指しされていれば、その節だけを渡す。要約の全体を渡すと、4B 級のモデルは
+  // 会議ごとの見出しをそのまま写して「会議の一覧」を答えにしてしまう。
+  const narrowed = section === undefined ? undefined : extractSummarySection(summary, section)
+  return { material, source: 'summary', note: '（要約）', body: narrowed ?? summary }
 }
 
 /**
@@ -179,9 +221,11 @@ export const buildChatContext = (params: {
   readonly scope: SpeakerScope
   readonly useTranscript: boolean
   readonly budgetChars: number
+  /** 問いが名指しした要約の節。文字起こしを使うときは効かない。 */
+  readonly section?: SummarySection
 }): ChatContext => {
   const all = params.materials
-    .map((material) => toCandidate(material, params.scope, params.useTranscript))
+    .map((material) => toCandidate(material, params.scope, params.useTranscript, params.section))
     .filter((candidate): candidate is Candidate => candidate !== undefined)
 
   if (all.length === 0) return { text: '', citations: [], droppedCount: 0 }

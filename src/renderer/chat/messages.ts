@@ -82,3 +82,32 @@ export const toHistory = (messages: readonly ChatMessage[]): ChatTurnDto[] =>
     .filter((message) => !message.streaming && message.error === undefined && message.text !== '')
     .map((message) => ({ role: message.role, text: message.text }))
     .slice(-MAX_HISTORY_TURNS)
+
+/** 出典の日付。時刻までは出さない —— 項目ごとに添えるので短いほど読める。 */
+const formatSourceDate = (iso: string): string =>
+  new Intl.DateTimeFormat('ja-JP', { month: 'long', day: 'numeric' }).format(new Date(iso))
+
+/** 本文中の出典番号。チェックボックスの `[ ]` と紛れないよう、数字だけを見る。 */
+const CITATION_REF = /[ \t]*\[(\d{1,2})\]/g
+
+/**
+ * 答えの中の `[1]` を「（会議名 9月4日）」に置き換える。
+ *
+ * モデルに会議名と日付を書き写させると、長いタイトルで崩れたり取り違えたりする。
+ * 番号だけ書かせて、名前はこちらで当てる —— 番号と出典の対応は文脈を組み立てた
+ * 時点で確定しているので、推論を挟む余地が無い。
+ */
+export const withInlineSources = (
+  text: string,
+  citations: readonly ChatCitationDto[]
+): string => {
+  if (citations.length === 0) return text
+
+  return text.replace(CITATION_REF, (whole, digits: string) => {
+    const citation = citations[Number.parseInt(digits, 10) - 1]
+    // 対応する出典が無い番号は、モデルの書き間違い。消すと根拠が消えたように見える。
+    return citation
+      ? `（${citation.title} ${formatSourceDate(citation.startedAt)}）`
+      : whole
+  })
+}
