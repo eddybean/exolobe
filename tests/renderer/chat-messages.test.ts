@@ -248,6 +248,26 @@ describe('withInlineSources', () => {
     )
   })
 
+  it('[1], [2] のようにカンマで区切って並べても 1 つの並びとして扱う', () => {
+    const many: ChatCitationDto[] = Array.from({ length: 8 }, (_unused, i) => ({
+      recordingId: `rec-${i}`,
+      title: `会議${i + 1}`,
+      startedAt: '2026-09-04T05:00:00.000Z',
+      source: 'summary',
+      truncated: false
+    }))
+
+    expect(withInlineSources('- 議事録を共有する [1], [2], [3], [4]', many)).toBe(
+      '- 議事録を共有する（会議1 9月4日 ほか3件）'
+    )
+  })
+
+  it('番号の後ろの読点は、次が番号でなければ残す', () => {
+    const text = '- 見積もりの話 [1]、その後'
+
+    expect(withInlineSources(text, citations)).toBe('- 見積もりの話（週次定例 9月4日）、その後')
+  })
+
   it('離れた位置の番号はまとめない', () => {
     const text = '- 見積もりの話 [1] と 採用の話 [2]'
 

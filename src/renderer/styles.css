@@ -1399,17 +1399,24 @@ textarea:focus {
 /*
  * チャット。
  *
- * 長文の往復を読ませる画面なので、幅を欲張らず中央に寄せて 1 行を短く保つ。
- * 入力欄は下に固定し、会話が伸びてもそこだけが動かないようにする。
+ * 横は画面いっぱいに使う。入力欄は下に固定し、会話が伸びてもそこだけが動かない。
+ *
+ * 左右の余白は中の要素で取り、**スクロールする箱（.chat__log）だけは端まで伸ばす**。
+ * 器の側に余白を持たせると、スクロールバーがその内側＝画面の途中に浮いて出る。
  */
 .chat {
   display: grid;
   grid-template-rows: auto 1fr auto auto;
   height: 100%;
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 16px;
+  padding: 16px 0;
   gap: 12px;
+}
+
+.chat__header,
+.chat__notice,
+.chat__composer {
+  margin-left: 16px;
+  margin-right: 16px;
 }
 
 .chat__header {
@@ -1442,7 +1449,8 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-right: 4px;
+  /* 余白は内側に取る。箱そのものは画面の端まで伸ばし、スクロールバーを右端に出す。 */
+  padding: 0 16px;
 }
 
 .chat__empty {
@@ -1480,15 +1488,14 @@ textarea:focus {
   background: var(--surface);
 }
 
-/* 質問は自分の言葉なので、回答と地を変えて視線の起点にする。 */
+/*
+ * 質問は自分の言葉なので、地を変えて右に寄せ、視線の起点にする。
+ * 回答側は寄せない —— 読むのは回答なので、幅は余さず使う。
+ */
 .chat__message--user {
   background: var(--surface-2);
   border-color: transparent;
-  margin-left: 48px;
-}
-
-.chat__message--assistant {
-  margin-right: 48px;
+  margin-left: 15%;
 }
 
 .chat__question {
