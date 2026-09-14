@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  CHAT_RESERVED_RATIO,
+  ANSWER_TOKENS,
+  CHARS_PER_TOKEN,
+  INSTRUCTION_TOKENS,
   MIN_PER_RECORDING_CHARS,
   buildChatContext,
   contextBudgetChars,
@@ -59,8 +61,40 @@ describe('filterSegmentsByScope', () => {
 })
 
 describe('contextBudgetChars', () => {
-  it('出力のぶんを残した文字数を返す', () => {
-    expect(contextBudgetChars(32_768)).toBe(Math.floor(32_768 * (1 - CHAT_RESERVED_RATIO) * 1.5))
+  it('回答と指示文のぶんを引いた残りを文字数に直す', () => {
+    const tokens = 32_768 - ANSWER_TOKENS - INSTRUCTION_TOKENS
+
+    expect(contextBudgetChars(32_768)).toBe(Math.floor(tokens * CHARS_PER_TOKEN))
+  })
+
+  it('1 文字が 1 トークンに収まる前提にしない', () => {
+    // 日本語は 1 文字で 1 トークン以上かかる。文字数の予算が
+    // トークン数を上回ると、モデルのコンテキストを静かに溢れさせる。
+    expect(CHARS_PER_TOKEN).toBeLessThanOrEqual(1)
+  })
+
+  it('予算が 32K のコンテキストを超えない', () => {
+    const budget = contextBudgetChars(32_768)
+    // 最悪でも 1 文字 = 1/CHARS_PER_TOKEN トークンとして見積もる。
+    const worstCase = budget / CHARS_PER_TOKEN + ANSWER_TOKENS + INSTRUCTION_TOKENS
+
+    expect(worstCase).toBeLessThanOrEqual(32_768)
+  })
+
+  it('会話履歴のぶんだけ予算が減る', () => {
+    const without = contextBudgetChars(32_768)
+    const with3000 = contextBudgetChars(32_768, { historyChars: 3_000 })
+
+    expect(with3000).toBeLessThan(without)
+    // 履歴 3000 字は 3000/CHARS_PER_TOKEN トークンぶんの席を取る。
+    expect(without - with3000).toBe(
+      Math.floor(without) - Math.floor((32_768 - ANSWER_TOKENS - INSTRUCTION_TOKENS -
+        Math.ceil(3_000 / CHARS_PER_TOKEN)) * CHARS_PER_TOKEN)
+    )
+  })
+
+  it('履歴が長すぎても負の予算にはしない', () => {
+    expect(contextBudgetChars(4_096, { historyChars: 100_000 })).toBe(0)
   })
 })
 
@@ -301,5 +335,24 @@ describe('buildChatContext — 要約の節で絞る', () => {
     })
 
     expect(context.text).toContain('おはようございます')
+  })
+})
+
+describe('buildChatContext — 予算が尽きている場合', () => {
+  it('予算が 0 なら何も載せず、全件を落としたと数える', () => {
+    // 中身の無い見出しだけを渡すと、モデルは「その会議には何も無かった」と読む。
+    const context = buildChatContext({
+      materials: [
+        material({ recordingId: 'rec-1', summary: '## 決定事項\n- 合意した' }),
+        material({ recordingId: 'rec-2', summary: '## 決定事項\n- 決めた' })
+      ],
+      scope: 'all',
+      useTranscript: false,
+      budgetChars: 0
+    })
+
+    expect(context.citations).toHaveLength(0)
+    expect(context.droppedCount).toBe(2)
+    expect(context.text).not.toContain('合意した')
   })
 })

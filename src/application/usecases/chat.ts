@@ -177,7 +177,10 @@ export class AskChat {
       materials,
       scope: plan.speakerScope,
       useTranscript: plan.needsTranscript,
-      budgetChars: contextBudgetChars(settings.summarization.contextSize),
+      // 会話履歴も同じコンテキストに載る。伸びたぶんだけ文脈の席は減る。
+      budgetChars: contextBudgetChars(settings.summarization.contextSize, {
+        historyChars: params.history.reduce((total, turn) => total + turn.text.length, 0)
+      }),
       ...(plan.section === undefined ? {} : { section: plan.section })
     })
 

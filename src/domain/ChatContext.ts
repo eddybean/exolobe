@@ -38,16 +38,22 @@ export interface ChatContext {
 }
 
 /**
- * 1 トークンあたりの日本語文字数の概算。
+ * 1 トークンに収まる日本語の文字数の概算。
  *
- * LlamaCppSummarizer の同名定数と値は同じだが、あちらを動かすと既存の要約の
- * 分割挙動が変わるため共有しない。正確なトークナイズはモデルを読まないとできず、
- * 安全側（少なめ）に見積もる方針も同じ。
+ * **少なめに見るのが安全側**。文字数の予算はこの値を掛けて出すので、大きく見積もる
+ * ほど多くの文字を通してしまう。日本語は漢字・かなが 1 文字 1 トークン、珍しい字は
+ * 2 トークン以上になるため、1 を超える値は必ずコンテキストを溢れさせる。
+ *
+ * LlamaCppSummarizer の同名定数（1.5）とは共有しない。あちらを動かすと既存の要約の
+ * 分割挙動が変わるため。
  */
-export const CHARS_PER_TOKEN = 1.5
+export const CHARS_PER_TOKEN = 0.8
 
-/** 出力と指示文のためにコンテキストから空けておく割合。 */
-export const CHAT_RESERVED_RATIO = 0.35
+/** 回答のために空けておくトークン数。NodeLlamaChatSessionFactory の maxTokens と揃える。 */
+export const ANSWER_TOKENS = 1_024
+
+/** システム指示とテンプレートのぶん。 */
+export const INSTRUCTION_TOKENS = 512
 
 /**
  * 1 録音に最低これだけは割く。下回るなら載せない。
@@ -96,10 +102,22 @@ export const extractSummarySection = (
   return extracted.length > 0 ? extracted : undefined
 }
 
+/**
+ * 文脈に載せてよい文字数。
+ *
+ * コンテキストは文脈だけのものではない。システム指示・会話履歴・これから書く回答が
+ * 同じ席を分け合うので、順に引いてから残りを文字数に直す。割合で雑に引くと、
+ * 履歴が伸びた会話で静かに溢れる。
+ */
 export const contextBudgetChars = (
   contextSize: number,
-  reservedRatio: number = CHAT_RESERVED_RATIO
-): number => Math.floor(contextSize * (1 - reservedRatio) * CHARS_PER_TOKEN)
+  options: { readonly historyChars?: number } = {}
+): number => {
+  const historyTokens = Math.ceil((options.historyChars ?? 0) / CHARS_PER_TOKEN)
+  const available = contextSize - ANSWER_TOKENS - INSTRUCTION_TOKENS - historyTokens
+
+  return available <= 0 ? 0 : Math.floor(available * CHARS_PER_TOKEN)
+}
 
 export const filterSegmentsByScope = (
   segments: readonly TranscriptSegment[],
@@ -229,6 +247,11 @@ export const buildChatContext = (params: {
     .filter((candidate): candidate is Candidate => candidate !== undefined)
 
   if (all.length === 0) return { text: '', citations: [], droppedCount: 0 }
+  // 予算が尽きていれば見出しだけを並べない。中身の無い見出しを渡すと、
+  // モデルは「その会議には何も無かった」と読む。
+  if (params.budgetChars <= 0) {
+    return { text: '', citations: [], droppedCount: params.materials.length }
+  }
 
   const capacity = Math.max(1, Math.floor(params.budgetChars / MIN_PER_RECORDING_CHARS))
   const chosen = all.slice(0, capacity)
