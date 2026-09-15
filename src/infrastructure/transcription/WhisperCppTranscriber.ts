@@ -55,6 +55,71 @@ export const averageLogprob = (
   return probs.reduce((sum, p) => sum + Math.log(p), 0) / probs.length
 }
 
+/** セグメントを落とした関門。閾値を見直すには、どこで落ちたかが要る。 */
+export type DropReason = 'non-speech' | 'boilerplate' | 'low-confidence'
+
+/** 落としたセグメントの記録。計測モードでのみ作られる。 */
+export interface DroppedSegment {
+  readonly speakerId: string
+  readonly startMs: number
+  readonly endMs: number
+  readonly text: string
+  readonly reason: DropReason
+  /** 確率を持つトークンがあったときだけ入る。 */
+  readonly avgLogprob?: number
+}
+
+/**
+ * 落としたセグメントの通知先。
+ *
+ * 出力先をここで決めないのは、`console` を持たない呼び出し元（テスト、将来の
+ * ファイル出力）からも同じ経路で受け取れるようにするため。
+ */
+export type DroppedSegmentReporter = (dropped: DroppedSegment) => void
+
+/** `1:02:03.450` 形式。会議は 1 時間を超えるので時まで出す。 */
+const formatTimestamp = (ms: number): string => {
+  const pad = (n: number, width = 2): string => String(n).padStart(width, '0')
+  return [
+    pad(Math.floor(ms / 3_600_000)),
+    pad(Math.floor(ms / 60_000) % 60),
+    `${pad(Math.floor(ms / 1_000) % 60)}.${pad(ms % 1_000, 3)}`
+  ].join(':')
+}
+
+/** 落としたセグメントを 1 行のログにする。 */
+export const formatDroppedSegment = (dropped: DroppedSegment): string =>
+  [
+    `[dropped:${dropped.reason}]`,
+    `${formatTimestamp(dropped.startMs)}-${formatTimestamp(dropped.endMs)}`,
+    dropped.speakerId,
+    ...(dropped.avgLogprob === undefined
+      ? []
+      : [`logprob=${dropped.avgLogprob.toFixed(3)}`]),
+    `「${dropped.text}」`
+  ].join(' ')
+
+/**
+ * 落としたセグメントを計測するための環境変数。
+ *
+ * 設定画面に出さず環境変数にしたのは、これが閾値を見直すための一時的な計測だから。
+ * 落としたセグメントには会議の本文がそのまま載るので、通常の利用では出さない。
+ *
+ * `OMR_LOG_DROPPED_SEGMENTS=1 npm run dev` で有効になる。パイプラインはワーカー
+ * （utilityProcess）で動くが、fork 時に `process.env` を丸ごと渡しているため届く。
+ */
+const LOG_DROPPED_SEGMENTS = 'OMR_LOG_DROPPED_SEGMENTS'
+
+/** 計測モードが有効なら通知先を作る。無効なら undefined（＝何も記録しない）。 */
+export const droppedSegmentLogger = (
+  env: Readonly<Record<string, string | undefined>>,
+  write: (line: string) => void
+): DroppedSegmentReporter | undefined => {
+  const flag = env[LOG_DROPPED_SEGMENTS]
+  if (flag === undefined || flag === '' || flag === '0') return undefined
+  return (dropped) => write(formatDroppedSegment(dropped))
+}
+
 /**
  * whisper-cli の JSON 出力を TranscriptSegment へ変換する。
  *
@@ -65,7 +130,11 @@ export const averageLogprob = (
  * whisper が作り出す文は、決まり文句の一覧では捕まえられない一方、トークンの確信度が
  * 揃って低い。要約はこの後の工程なので、ここで落としておかないと嘘が下流へ伝播する。
  */
-export const parseWhisperJson = (raw: string, speakerId: string): TranscriptSegment[] => {
+export const parseWhisperJson = (
+  raw: string,
+  speakerId: string,
+  onDropped?: DroppedSegmentReporter
+): TranscriptSegment[] => {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw) as unknown
@@ -77,21 +146,38 @@ export const parseWhisperJson = (raw: string, speakerId: string): TranscriptSegm
   if (!Array.isArray(entries)) return []
 
   return entries.flatMap((entry): TranscriptSegment[] => {
-    const text = normalizeText(entry.text ?? '')
+    const text = (entry.text ?? '').trim()
     if (text.length === 0) return []
-
-    const logprob = averageLogprob(entry.tokens)
-    if (logprob !== undefined && logprob < MIN_AVG_LOGPROB) return []
 
     const startMs = entry.offsets?.from
     const endMs = entry.offsets?.to
     if (typeof startMs !== 'number' || typeof endMs !== 'number') return []
 
-    return [{ startMs, endMs, speakerId, text }]
+    const logprob = averageLogprob(entry.tokens)
+    const reason = dropReason(text, logprob)
+    if (reason === undefined) return [{ startMs, endMs, speakerId, text }]
+
+    onDropped?.({
+      speakerId,
+      startMs,
+      endMs,
+      text,
+      reason,
+      ...(logprob === undefined ? {} : { avgLogprob: logprob })
+    })
+    return []
   })
 }
 
-/** whisper が挿入する非発話マーカーと余分な空白を落とす。 */
+/** セグメントを落とす理由。落とさないなら undefined。 */
+const dropReason = (text: string, logprob: number | undefined): DropReason | undefined => {
+  if (NON_SPEECH.test(text)) return 'non-speech'
+  if (isHallucination(text)) return 'boilerplate'
+  if (logprob !== undefined && logprob < MIN_AVG_LOGPROB) return 'low-confidence'
+  return undefined
+}
+
+/** whisper が挿入する非発話マーカー。 */
 const NON_SPEECH = /^(\[[^\]]*\]|\([^)]*\)|♪+|＊+)$/
 
 /**
@@ -124,12 +210,6 @@ const stripTrailingPunctuation = (text: string): string =>
 
 const isHallucination = (text: string): boolean =>
   HALLUCINATIONS.includes(stripTrailingPunctuation(text))
-
-const normalizeText = (text: string): string => {
-  const trimmed = text.trim()
-  if (NON_SPEECH.test(trimmed) || isHallucination(trimmed)) return ''
-  return trimmed
-}
 
 /**
  * サンプルを 1 つも持たない WAV かどうか。
@@ -193,6 +273,11 @@ export class WhisperCppTranscriber implements TranscriptionPort {
       /** 先に見せておく用語。whisper が受け取れる形にするのはこのクラスの仕事。 */
       glossary?: readonly string[]
       threads?: number
+      /**
+       * 落としたセグメントの通知先。計測モードのときだけ渡す。
+       * 未指定なら何も記録しない — 通常の利用で本文がログへ漏れないようにする。
+       */
+      onDropped?: DroppedSegmentReporter
     },
     private readonly run: WhisperRunner = defaultRunner
   ) {}
@@ -247,7 +332,11 @@ export class WhisperCppTranscriber implements TranscriptionPort {
 
     try {
       await this.run({ binaryPath: this.config.binaryPath, argv })
-      return parseWhisperJson(await readFile(jsonPath, 'utf8'), params.speakerId)
+      return parseWhisperJson(
+        await readFile(jsonPath, 'utf8'),
+        params.speakerId,
+        this.config.onDropped
+      )
     } finally {
       // 中間 JSON は保存先を汚さないよう必ず片付ける。
       await rm(jsonPath, { force: true })

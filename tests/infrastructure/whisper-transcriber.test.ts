@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   WhisperCppTranscriber,
   describeFailure,
+  droppedSegmentLogger,
+  formatDroppedSegment,
   parseWhisperJson,
+  type DroppedSegment,
   type WhisperRunner
 } from '@infrastructure/transcription/WhisperCppTranscriber'
 import { WavFileWriter } from '@infrastructure/audio/wav'
@@ -165,6 +168,49 @@ describe('parseWhisperJson', () => {
     expect(parseWhisperJson(raw, 'self')).toHaveLength(1)
   })
 
+  it('計測モードを渡さなければ何も報告しない', () => {
+    // 通常の利用では落とした事実をどこにも出さない。
+    const raw = whisperJsonWithTokens([
+      { from: 0, to: 2000, text: '雑音から生まれた文', tokenProbs: [0.2, 0.2] }
+    ])
+
+    expect(parseWhisperJson(raw, 'self')).toEqual([])
+  })
+
+  it('計測モードでは確信度で落としたセグメントを対数確率つきで報告する', () => {
+    const dropped: DroppedSegment[] = []
+    const raw = whisperJsonWithTokens([
+      { from: 1000, to: 2000, text: '雑音から生まれた文', tokenProbs: [0.2, 0.2] },
+      { from: 2000, to: 4000, text: '予算の話をします', tokenProbs: [0.9, 0.9] }
+    ])
+
+    parseWhisperJson(raw, 'remote', (d) => dropped.push(d))
+
+    expect(dropped).toHaveLength(1)
+    expect(dropped[0]).toMatchObject({
+      speakerId: 'remote',
+      startMs: 1000,
+      endMs: 2000,
+      text: '雑音から生まれた文',
+      reason: 'low-confidence'
+    })
+    expect(dropped[0]?.avgLogprob).toBeCloseTo(Math.log(0.2), 5)
+  })
+
+  it('計測モードでは非発話マーカーと定型句も理由を分けて報告する', () => {
+    // 閾値の妥当性を見るには、どの関門で落ちたかが分かる必要がある。
+    const dropped: DroppedSegment[] = []
+    const raw = whisperJson([
+      { from: 0, to: 500, text: '[BLANK_AUDIO]' },
+      { from: 500, to: 1000, text: 'ご視聴ありがとうございました' },
+      { from: 1000, to: 2000, text: '本題に入ります' }
+    ])
+
+    parseWhisperJson(raw, 'self', (d) => dropped.push(d))
+
+    expect(dropped.map((d) => d.reason)).toEqual(['non-speech', 'boilerplate'])
+  })
+
   it('確率 0 のトークンがあっても他のセグメントを巻き込まない', () => {
     // ln(0) = -Infinity を平均へ持ち込むと NaN 汚染で全滅しかねない。
     const raw = whisperJsonWithTokens([
@@ -173,6 +219,62 @@ describe('parseWhisperJson', () => {
     ])
 
     expect(parseWhisperJson(raw, 'self').map((s) => s.text)).toEqual(['正常な発話'])
+  })
+})
+
+describe('formatDroppedSegment', () => {
+  it('時刻・話者・理由・対数確率・本文を 1 行にまとめる', () => {
+    const line = formatDroppedSegment({
+      speakerId: 'remote',
+      startMs: 3_723_450,
+      endMs: 3_725_000,
+      text: '雑音から生まれた文',
+      reason: 'low-confidence',
+      avgLogprob: -1.4237
+    })
+
+    expect(line).toBe(
+      '[dropped:low-confidence] 01:02:03.450-01:02:05.000 remote logprob=-1.424 「雑音から生まれた文」'
+    )
+  })
+
+  it('対数確率が無い理由では logprob を書かない', () => {
+    const line = formatDroppedSegment({
+      speakerId: 'self',
+      startMs: 0,
+      endMs: 500,
+      text: '[BLANK_AUDIO]',
+      reason: 'non-speech'
+    })
+
+    expect(line).toBe('[dropped:non-speech] 00:00:00.000-00:00:00.500 self 「[BLANK_AUDIO]」')
+  })
+})
+
+describe('droppedSegmentLogger', () => {
+  it('環境変数が無ければ計測しない', () => {
+    // 通常の利用では落とした本文をログへ出さない。
+    expect(droppedSegmentLogger({}, () => {})).toBeUndefined()
+  })
+
+  it('空文字や 0 では計測しない', () => {
+    expect(droppedSegmentLogger({ OMR_LOG_DROPPED_SEGMENTS: '' }, () => {})).toBeUndefined()
+    expect(droppedSegmentLogger({ OMR_LOG_DROPPED_SEGMENTS: '0' }, () => {})).toBeUndefined()
+  })
+
+  it('有効なら整形した 1 行を書き出す', () => {
+    const lines: string[] = []
+    const report = droppedSegmentLogger({ OMR_LOG_DROPPED_SEGMENTS: '1' }, (l) => lines.push(l))
+
+    report?.({
+      speakerId: 'self',
+      startMs: 0,
+      endMs: 500,
+      text: '[BLANK_AUDIO]',
+      reason: 'non-speech'
+    })
+
+    expect(lines).toEqual(['[dropped:non-speech] 00:00:00.000-00:00:00.500 self 「[BLANK_AUDIO]」'])
   })
 })
 
@@ -256,6 +358,30 @@ describe('WhisperCppTranscriber', () => {
     await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
 
     expect(seen[0]).toContain('--suppress-nst')
+  })
+
+  it('計測モードが設定されていれば落としたセグメントを話者つきで渡す', async () => {
+    const dropped: DroppedSegment[] = []
+    const transcriber = new WhisperCppTranscriber(
+      {
+        binaryPath: 'whisper-cli',
+        modelPath: '/models/ggml.bin',
+        onDropped: (d) => dropped.push(d)
+      },
+      async ({ argv }) => {
+        const prefixIndex = argv.indexOf('--output-file')
+        await writeFile(
+          `${argv[prefixIndex + 1]}.json`,
+          whisperJson([{ from: 0, to: 500, text: '[BLANK_AUDIO]' }]),
+          'utf8'
+        )
+      }
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'remote' })
+
+    expect(dropped).toHaveLength(1)
+    expect(dropped[0]?.speakerId).toBe('remote')
   })
 
   it('トークンの確率を得るため JSON をフル出力させる', async () => {

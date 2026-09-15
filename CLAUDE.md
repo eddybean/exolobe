@@ -42,6 +42,10 @@ npx vitest run -t "テスト名の一部"
   （エラーではないので lint は通る）。CI は typecheck / lint / test / build を回す。
 - vitest は `TZ=Asia/Tokyo` を固定している。保存ディレクトリ名がローカル時刻由来のため。
 - シェルに `ELECTRON_RUN_AS_NODE=1` があると `npm run dev` が起動に失敗する。
+- `OMR_LOG_DROPPED_SEGMENTS=1` を付けて起動すると、文字起こしで落としたセグメントを
+  理由（`non-speech` / `boilerplate` / `low-confidence`）と平均対数確率つきで端末へ出す。
+  確信度の閾値を実録音で見直すための計測用。**既定では何も出さない** — 落としたセグメントには
+  会議の本文がそのまま載るため、通常の利用でログに残してはいけない。
 
 ## アーキテクチャ
 

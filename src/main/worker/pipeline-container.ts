@@ -29,7 +29,10 @@ import {
 import { LlamaCppSummarizer } from '@infrastructure/summarization/LlamaCppSummarizer'
 import { NodeLlamaSessionFactory } from '@infrastructure/summarization/NodeLlamaSessionFactory'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
-import { WhisperCppTranscriber } from '@infrastructure/transcription/WhisperCppTranscriber'
+import {
+  WhisperCppTranscriber,
+  droppedSegmentLogger
+} from '@infrastructure/transcription/WhisperCppTranscriber'
 import { resolveWhisperBinary } from '@infrastructure/transcription/resolveWhisperBinary'
 import type { DiarizationSettings, TranscriptionSettings } from '@domain/Settings'
 
@@ -47,6 +50,8 @@ export const createPipeline = async (
   const locator = new SettingsStorageLocator(settings)
   const current = await settings.load()
   const bundled = bundledWhisper()
+  // stdio: 'inherit' で fork されるため、書いた行はそのまま開発時の端末へ出る。
+  const dropped = droppedSegmentLogger(process.env, (line) => console.warn(line))
 
   return new ProcessRecording({
     settings,
@@ -63,7 +68,9 @@ export const createPipeline = async (
       }),
       modelPath: current.transcription.modelPath,
       vadModelPath: resolveVadModel(current.transcription),
-      glossary: current.transcription.glossary
+      glossary: current.transcription.glossary,
+      // 閾値を見直すための計測モード。既定では undefined が入り、何も記録しない。
+      ...(dropped === undefined ? {} : { onDropped: dropped })
     }),
     diarizer: createDiarizer(current.diarization),
     embedder: createEmbedder(current.diarization),
