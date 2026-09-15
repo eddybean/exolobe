@@ -18,6 +18,7 @@ import {
   type ChatDoneDto,
   type RendererApi,
   type SearchHitDto,
+  type TranscriptHitDto,
   type SearchIndexStatusDto,
   type VoiceprintDto,
   type SearchSyncStateDto,
@@ -114,6 +115,8 @@ const api: RendererApi = {
 
   searchRecordings: (query) =>
     ipcRenderer.invoke(IPC.searchRecordings, query) as Promise<SearchHitDto[]>,
+  searchTranscripts: (query) =>
+    ipcRenderer.invoke(IPC.searchTranscripts, query) as Promise<TranscriptHitDto[]>,
   getSearchIndexStatus: () =>
     ipcRenderer.invoke(IPC.getSearchIndexStatus) as Promise<SearchIndexStatusDto>,
   confirmClearSearchIndex: () =>

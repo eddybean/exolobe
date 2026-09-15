@@ -7,6 +7,7 @@ import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
 import { EditableSpeaker } from '../components/EditableSpeaker'
 import { isAudioReady } from '../library/audio'
+import { focusedSegmentIndex } from '../library/transcriptSearch'
 import { voiceLearnedNotice } from '../library/voiceLearning'
 import { resummarizeState, type ResummarizeState } from '../resummarize'
 import { failureTooltip, stepFailure } from '../stepFailure'
@@ -32,10 +33,13 @@ const RESUMMARIZE_HINT: Readonly<Record<ResummarizeState, string>> = {
  */
 export const RecordingDetailView = ({
   detail,
+  focus,
   onChanged,
   onDelete
 }: {
   detail: RecordingDetailDto
+  /** 本文の検索から飛んできた発言。nonce が変わるたびに飛び直す。 */
+  focus?: { startMs: number; nonce: number } | undefined
   onChanged: () => void
   onDelete: () => void
 }): ReactElement => {
@@ -96,6 +100,18 @@ export const RecordingDetailView = ({
     audio.currentTime = ms / 1000
     void audio.play()
   }, [])
+
+  /**
+   * 本文の検索から飛んできた発言。ここでは印を付けてスクロールするだけで、
+   * 再生までは始めない（探している最中に音が鳴り出すのは求められていない）。
+   */
+  const focusedIndex = focus === undefined ? -1 : focusedSegmentIndex(detail.segments, focus.startMs)
+  const focusedSegmentRef = useRef<HTMLLIElement | null>(null)
+  const focusNonce = focus?.nonce
+  useEffect(() => {
+    if (focusNonce === undefined) return
+    focusedSegmentRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focusNonce, recordingId])
 
   /**
    * 話者名の変更。要約は作り直さない（数分かかるので、名前を直すたびに走らせない）。
@@ -207,7 +223,11 @@ export const RecordingDetailView = ({
             ) : (
               <ol className="segments">
                 {detail.segments.map((segment, index) => (
-                  <li key={`${segment.startMs}-${index}`} className="segment">
+                  <li
+                    key={`${segment.startMs}-${index}`}
+                    ref={index === focusedIndex ? focusedSegmentRef : undefined}
+                    className={index === focusedIndex ? 'segment segment--focused' : 'segment'}
+                  >
                     <button
                       type="button"
                       className="segment__time"

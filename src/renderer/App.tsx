@@ -32,6 +32,15 @@ export const App = (): ReactElement => {
   const [screen, setScreen] = useState<Screen>('library')
   const [recordings, setRecordings] = useState<RecordingDto[]>([])
   const [selectedId, setSelectedId] = useState<string>()
+  /**
+   * 本文の検索から飛んだ先の発言。録音を開き直したら消えるよう録音 id ごと持つ。
+   * 同じヒットをもう一度押しても飛べるよう、押すたびに増える nonce を添える。
+   */
+  const [focus, setFocus] = useState<{
+    recordingId: string
+    startMs: number
+    nonce: number
+  }>()
   const [detail, setDetail] = useState<RecordingDetailDto>()
   const [folders, setFolders] = useState<FolderDto[]>([])
   /**
@@ -253,7 +262,19 @@ export const App = (): ReactElement => {
               recordings={recordings}
               semanticAvailable={semanticAvailable}
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={(id) => {
+                setSelectedId(id)
+                setFocus(undefined)
+              }}
+              onSelectSegment={(recordingId, startMs) => {
+                setSelectedId(recordingId)
+                setFocus((current) => ({
+                  recordingId,
+                  startMs,
+                  nonce: (current?.nonce ?? 0) + 1
+                }))
+              }}
+              focus={focus}
               onCreateFolder={(params) => void window.recorder.createFolder(params)}
               onRenameFolder={(folderId, name) =>
                 void window.recorder.renameFolder(folderId, name)
@@ -275,6 +296,7 @@ export const App = (): ReactElement => {
             {detail ? (
               <RecordingDetailView
                 detail={detail}
+                focus={focus?.recordingId === detail.recording.id ? focus : undefined}
                 onChanged={() => void refreshDetail()}
                 onDelete={() => void deleteRecording(detail.recording.id)}
               />

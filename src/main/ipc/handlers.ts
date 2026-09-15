@@ -26,6 +26,7 @@ import {
   type ChatTurnDto,
   type SearchHitDto,
   type SearchIndexStatusDto,
+  type TranscriptHitDto,
   type VoiceprintDto,
   type SilenceAlertDto,
   type StartAlertDto,
@@ -713,6 +714,13 @@ export const registerIpcHandlers = (
     // 要約などが走っている間は、答えたらすぐにモデルの分のメモリを返す。
     if (pipeline.isBusy()) search.releaseWhenIdle()
     return hits
+  })
+
+  handle(IPC.searchTranscripts, async (query: unknown): Promise<TranscriptHitDto[]> => {
+    // 意味検索と違いモデルを読まないので、設定の有効・無効に関わらず答えられる。
+    const text = asString(query, '検索する語').slice(0, 200)
+    const hits = await container.searchTranscripts.execute({ query: text })
+    return hits.map((hit) => ({ ...hit, startedAt: hit.startedAt.toISOString() }))
   })
 
   handle(IPC.getSearchIndexStatus, async () => searchStatus())
