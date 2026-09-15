@@ -27,6 +27,10 @@ describe('defaultSettings', () => {
     expect(settings.transcription.vadModelPath).toBe('')
   })
 
+  it('用語集は既定で空にする', () => {
+    expect(defaultSettings().transcription.glossary).toEqual([])
+  })
+
   it('意味検索は既定で無効にする', () => {
     const settings = defaultSettings()
 

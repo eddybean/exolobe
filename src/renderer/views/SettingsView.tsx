@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react'
+import { formatGlossary, parseGlossary } from '@domain/Glossary'
 import { type MemoryProtection } from '@domain/MemoryGuard'
 import { SUPPORTED_SAMPLE_RATES, type Settings, type SettingsPatch } from '@domain/Settings'
 import type { SetupStateDto } from '@shared/ipc'
@@ -167,6 +168,19 @@ export const SettingsView = ({
           <option value="en">英語</option>
           <option value="auto">自動判定</option>
         </select>
+      </Field>
+
+      <Field
+        label="用語集"
+        hint="1 行に 1 語。社名・製品名・人名・略語を登録しておくと、音の近い一般語に化けるのを防げます。多すぎると入り切らない分が無視されるので、間違えやすい語に絞ってください。"
+      >
+        <textarea
+          className="settings__prompt"
+          defaultValue={formatGlossary(settings.transcription.glossary)}
+          onBlur={(event) =>
+            update({ transcription: { glossary: parseGlossary(event.target.value) } })
+          }
+        />
       </Field>
 
       <Field
