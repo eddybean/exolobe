@@ -219,6 +219,20 @@ describe('FileRecordingArtifactStore', () => {
     expect(await artifacts.readSummary(recording)).toBe('要約')
   })
 
+  it('中間ファイルの片付けで空の作業ディレクトリも残さない', async () => {
+    await artifacts.writeTracks(recording, {
+      kind: 'dual',
+      systemWavPath: 'x',
+      micWavPath: 'y',
+      micOffsetMs: 0,
+      durationMs: 0
+    })
+
+    await artifacts.cleanupIntermediates(recording)
+
+    await expect(stat(artifacts.workDir(recording))).rejects.toThrow()
+  })
+
   it('取り込んだ音声の変換後 WAV も中間ファイルとして片付ける', async () => {
     await artifacts.writeTracks(recording, {
       kind: 'single',
@@ -230,6 +244,30 @@ describe('FileRecordingArtifactStore', () => {
     await artifacts.cleanupIntermediates(recording)
 
     await expect(stat(join(artifacts.workDir(recording), 'imported.wav'))).rejects.toThrow()
+  })
+
+  it('声紋用の一時 WAV を貸したあと空の作業ディレクトリを残さない', async () => {
+    await artifacts.withVoicesWav(recording, async (wavPath) => {
+      await writeFile(wavPath, 'pcm', 'utf8')
+    })
+
+    await expect(stat(artifacts.workDir(recording))).rejects.toThrow()
+  })
+
+  it('処理中の中間ファイルがあれば声紋用の片付けでは作業ディレクトリを消さない', async () => {
+    await artifacts.writeTracks(recording, {
+      kind: 'dual',
+      systemWavPath: 'x',
+      micWavPath: 'y',
+      micOffsetMs: 0,
+      durationMs: 0
+    })
+
+    await artifacts.withVoicesWav(recording, async (wavPath) => {
+      await writeFile(wavPath, 'pcm', 'utf8')
+    })
+
+    expect(await artifacts.readTracks(recording)).toBeDefined()
   })
 
   it('存在しない中間ファイルを消しても失敗しない', async () => {

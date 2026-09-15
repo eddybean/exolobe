@@ -208,9 +208,25 @@ describe('ProcessRecording — 失敗時の切り分け', () => {
     expect(result.status).toBe('failed')
   })
 
-  it('失敗が残っている間は中間ファイルを消さない', async () => {
+  it('要約だけが失敗したなら中間ファイルは片付ける', async () => {
     const ctx = await build()
     ctx.summarizer.error = new Error('要約モデルが読み込めません')
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])
+  })
+
+  it('文字起こしが失敗したら中間ファイルは残す', async () => {
+    const ctx = await build()
+    ctx.transcriber.error = new Error('whisper-cli が見つかりません')
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    expect(ctx.artifacts.cleanedUp).toEqual([])
+  })
+
+  it('エンコードが失敗したら中間ファイルは残す', async () => {
+    const ctx = await build()
+    ctx.encoder.error = new Error('afconvert が見つかりません')
 
     await ctx.process.execute({ recordingId: 'rec-1' })
     expect(ctx.artifacts.cleanedUp).toEqual([])
@@ -285,13 +301,17 @@ describe('ProcessRecording — 個別リトライ', () => {
     expect(result.status).toBe('ready')
   })
 
-  it('リトライで全ステップが揃えば中間ファイルを片付ける', async () => {
+  it('リトライで中間ファイルを使うステップが揃えば片付ける', async () => {
     const ctx = await build()
-    ctx.summarizer.error = new Error('要約モデルが読み込めません')
+    ctx.transcriber.error = new Error('whisper-cli が見つかりません')
     await ctx.process.execute({ recordingId: 'rec-1' })
-    ctx.summarizer.clearError()
+    expect(ctx.artifacts.cleanedUp).toEqual([])
+    ctx.transcriber.clearError()
 
-    await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
+    await ctx.process.execute({
+      recordingId: 'rec-1',
+      only: ['transcribe', 'diarize', 'summarize']
+    })
     expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])
   })
 })

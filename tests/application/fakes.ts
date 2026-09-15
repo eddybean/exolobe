@@ -218,6 +218,10 @@ export class FakeTranscriber implements TranscriptionPort {
   calls: { wavPath: string; speakerId: string }[] = []
   error?: Error
 
+  clearError(): void {
+    delete this.error
+  }
+
   async transcribe(params: {
     wavPath: string
     language: string
