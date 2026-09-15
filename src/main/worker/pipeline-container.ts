@@ -62,7 +62,8 @@ export const createPipeline = async (
         ...(bundled === undefined ? {} : { bundled })
       }),
       modelPath: current.transcription.modelPath,
-      vadModelPath: resolveVadModel(current.transcription)
+      vadModelPath: resolveVadModel(current.transcription),
+      glossary: current.transcription.glossary
     }),
     diarizer: createDiarizer(current.diarization),
     embedder: createEmbedder(current.diarization),

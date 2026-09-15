@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { readFile, rm } from 'node:fs/promises'
 import type { TranscriptionPort } from '@application/ports'
 import { AppError, toMessage } from '@domain/errors'
+import { glossaryPrompt } from '@domain/Glossary'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 import { wavDurationMs } from '@infrastructure/audio/wav'
 
@@ -143,6 +144,8 @@ export class WhisperCppTranscriber implements TranscriptionPort {
       modelPath: string
       /** 指定があるときだけ VAD を有効にする。未取得なら空文字が来る。 */
       vadModelPath?: string
+      /** 先に見せておく用語。whisper が受け取れる形にするのはこのクラスの仕事。 */
+      glossary?: readonly string[]
       threads?: number
     },
     private readonly run: WhisperRunner = defaultRunner
@@ -169,6 +172,8 @@ export class WhisperCppTranscriber implements TranscriptionPort {
     const outputPrefix = params.wavPath.replace(/\.wav$/, '')
     const jsonPath = `${outputPrefix}.json`
 
+    const prompt = glossaryPrompt(this.config.glossary ?? [])
+
     const argv = [
       '--model',
       this.config.modelPath,
@@ -185,6 +190,9 @@ export class WhisperCppTranscriber implements TranscriptionPort {
       ...(this.config.vadModelPath
         ? ['--vad', '--vad-model', this.config.vadModelPath]
         : []),
+      // --carry-initial-prompt が無いと用語集は先頭の 1 ウィンドウ（30 秒）にしか
+      // 効かない。会議の長さを考えると、付けなければ入れた意味がほぼ無い。
+      ...(prompt ? ['--prompt', prompt, '--carry-initial-prompt'] : []),
       ...(this.config.threads ? ['--threads', String(this.config.threads)] : [])
     ]
 

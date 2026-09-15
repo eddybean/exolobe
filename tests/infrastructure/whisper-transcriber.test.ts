@@ -206,6 +206,38 @@ describe('WhisperCppTranscriber', () => {
     expect(seen[0]).not.toContain('--vad')
   })
 
+  it('用語集があれば initial prompt として渡し、会議の最後まで効かせる', async () => {
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      {
+        binaryPath: 'whisper-cli',
+        modelPath: '/models/ggml.bin',
+        glossary: ['Anthropic', 'Claude Code']
+      },
+      captureArgv(seen)
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    const argv = seen[0] ?? []
+    expect(argv[argv.indexOf('--prompt') + 1]).toBe('Anthropic、Claude Code。')
+    // これが無いと最初の 30 秒にしか効かない。
+    expect(argv).toContain('--carry-initial-prompt')
+  })
+
+  it('用語集が空なら prompt を渡さない', async () => {
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin', glossary: [] },
+      captureArgv(seen)
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    expect(seen[0]).not.toContain('--prompt')
+    expect(seen[0]).not.toContain('--carry-initial-prompt')
+  })
+
   it('書き出された JSON を読んでセグメントを返す', async () => {
     const transcriber = new WhisperCppTranscriber(
       { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin' },

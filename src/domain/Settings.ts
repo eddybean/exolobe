@@ -51,6 +51,13 @@ export interface TranscriptionSettings {
   readonly vadEnabled: boolean
   /** VAD モデル（ggml 形式の Silero）のパス。未取得なら空文字。 */
   readonly vadModelPath: string
+  /**
+   * 文字起こしに先に見せておく用語（社名・製品名・人名・略語）。
+   *
+   * 音が近い一般語に化けるのを防ぐためのもので、whisper の initial prompt に渡る。
+   * 変換の規則は `@domain/Glossary`。
+   */
+  readonly glossary: readonly string[]
 }
 
 export interface SummarizationSettings {
@@ -184,7 +191,8 @@ export const defaultSettings = (): Settings => ({
     modelPath: '',
     language: 'ja',
     vadEnabled: true,
-    vadModelPath: ''
+    vadModelPath: '',
+    glossary: []
   },
   summarization: {
     provider: 'llama-cpp',
