@@ -56,11 +56,34 @@ export const splitTranscript = (transcript: string, maxChars: number): string[] 
   return chunks
 }
 
+/** 組み立て終わったプロンプトへ、利用者が外せない防御の指示を前置きする。 */
+const guarded = (prompt: string): string => `${HALLUCINATION_GUARD}\n\n${prompt}`
+
 /** プロンプトの差し込み位置に本文を入れる。位置指定が無い場合は末尾に付ける。 */
 export const renderPrompt = (template: string, transcript: string): string =>
   template.includes(TRANSCRIPT_PLACEHOLDER)
     ? template.split(TRANSCRIPT_PLACEHOLDER).join(transcript)
     : `${template}\n\n${transcript}`
+
+/**
+ * 文字起こしに混じるハルシネーションを要約へ持ち込ませないための前置き。
+ *
+ * 確信度での足切り（WhisperCppTranscriber）をすり抜けた分がここへ届く。whisper は
+ * 学習データに字幕を多く含むため、雑音や声の重なった区間で「同じ文の反復」や
+ * 動画の締めの決まり文句を出す。会議の内容としては明らかに浮くので、モデルに
+ * 判断させるほうが、語句の一覧を増やして本物の発話を巻き込むより安全。
+ *
+ * 要約プロンプトは設定で編集できる（`Settings.promptTemplate`）。防御の有無が
+ * 利用者ごとに変わらないよう、既定値に混ぜずに常に前置きとして付ける。
+ */
+export const HALLUCINATION_GUARD = [
+  '文字起こしは自動生成のため、誤りが混じっています。次のものは会議の内容ではないので、',
+  '要約に含めないでください。',
+  '- 同じ文や語句が不自然に繰り返されている箇所',
+  '- 「ご視聴ありがとうございました」のような動画字幕の定型句',
+  '- 前後の話の流れから明らかに浮いている、脈絡のない一文',
+  '判断に迷うものは、無理に解釈せずそのまま落としてください。'
+].join('\n')
 
 const CHUNK_PROMPT = [
   'これは長い会議の文字起こしの一部です。この範囲で話された内容を、後で全体の',
@@ -111,11 +134,11 @@ export class LlamaCppSummarizer implements SummarizationPort {
           ? params.transcript
           : (
               await sequentially(chunks, (chunk) =>
-                session.prompt(renderPrompt(CHUNK_PROMPT, chunk))
+                session.prompt(guarded(renderPrompt(CHUNK_PROMPT, chunk)))
               )
             ).join('\n\n')
 
-      return (await session.prompt(renderPrompt(params.promptTemplate, material))).trim()
+      return (await session.prompt(guarded(renderPrompt(params.promptTemplate, material)))).trim()
     } finally {
       // whisper など他の重い処理にメモリを譲るため、使い終わったら必ず解放する。
       await session.dispose()

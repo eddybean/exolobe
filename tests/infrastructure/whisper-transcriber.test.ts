@@ -17,6 +17,17 @@ const whisperJson = (
     transcription: entries.map((e) => ({ offsets: { from: e.from, to: e.to }, text: e.text }))
   })
 
+const whisperJsonWithTokens = (
+  entries: { from: number; to: number; text: string; tokenProbs: number[] }[]
+): string =>
+  JSON.stringify({
+    transcription: entries.map((e) => ({
+      offsets: { from: e.from, to: e.to },
+      text: e.text,
+      tokens: e.tokenProbs.map((p) => ({ text: '.', p }))
+    }))
+  })
+
 describe('parseWhisperJson', () => {
   it('オフセットとテキストをセグメントへ変換し、指定の話者を付ける', () => {
     const raw = whisperJson([{ from: 0, to: 1500, text: ' おはようございます ' }])
@@ -91,6 +102,77 @@ describe('parseWhisperJson', () => {
     expect(() => parseWhisperJson('{ broken', 'self')).toThrow(
       '文字起こし結果を読み取れませんでした。'
     )
+  })
+
+  it('平均対数確率が閾値を下回るセグメントを捨てる', () => {
+    // p=0.2 → ln(0.2) ≈ -1.61 で --logprob-thold の既定 -1.0 を下回る。
+    const raw = whisperJsonWithTokens([
+      { from: 0, to: 2000, text: '雑音から生まれた文', tokenProbs: [0.2, 0.2, 0.2] },
+      { from: 2000, to: 4000, text: '予算の話をします', tokenProbs: [0.9, 0.95, 0.88] }
+    ])
+
+    expect(parseWhisperJson(raw, 'self').map((s) => s.text)).toEqual(['予算の話をします'])
+  })
+
+  it('閾値ちょうどのセグメントは残す', () => {
+    // 落とすのは確信度が閾値を「下回った」ときだけ。境界は発話側に倒す。
+    const raw = whisperJsonWithTokens([
+      { from: 0, to: 2000, text: '判断に迷う発話', tokenProbs: [Math.exp(-1), Math.exp(-1)] }
+    ])
+
+    expect(parseWhisperJson(raw, 'self')).toHaveLength(1)
+  })
+
+  it('特殊トークンの確率は平均に含めない', () => {
+    // [_BEG_] などは発話ではないため、本文の確信度を歪めてはいけない。
+    const raw = JSON.stringify({
+      transcription: [
+        {
+          offsets: { from: 0, to: 2000 },
+          text: '来週の予定です',
+          tokens: [
+            { text: '[_BEG_]', p: 0.01 },
+            { text: '来週', p: 0.9 },
+            { text: 'の予定です', p: 0.9 },
+            { text: '[_TT_100]', p: 0.01 }
+          ]
+        }
+      ]
+    })
+
+    expect(parseWhisperJson(raw, 'self')).toHaveLength(1)
+  })
+
+  it('確率を持たないトークンしか無ければ確信度で判断しない', () => {
+    // 判断材料が無いことを「確信度が低い」と読み替えて消すと、本物の発話を失う。
+    const raw = JSON.stringify({
+      transcription: [
+        {
+          offsets: { from: 0, to: 2000 },
+          text: '確率の無い発話',
+          tokens: [{ text: '確率の無い発話' }]
+        }
+      ]
+    })
+
+    expect(parseWhisperJson(raw, 'self')).toHaveLength(1)
+  })
+
+  it('tokens を持たない JSON は従来どおり全て残す', () => {
+    // --output-json-full に対応しない whisper-cli でも文字起こしは成立させる。
+    const raw = whisperJson([{ from: 0, to: 2000, text: '本題に入ります' }])
+
+    expect(parseWhisperJson(raw, 'self')).toHaveLength(1)
+  })
+
+  it('確率 0 のトークンがあっても他のセグメントを巻き込まない', () => {
+    // ln(0) = -Infinity を平均へ持ち込むと NaN 汚染で全滅しかねない。
+    const raw = whisperJsonWithTokens([
+      { from: 0, to: 2000, text: '確率ゼロ', tokenProbs: [0, 0.9] },
+      { from: 2000, to: 4000, text: '正常な発話', tokenProbs: [0.9, 0.9] }
+    ])
+
+    expect(parseWhisperJson(raw, 'self').map((s) => s.text)).toEqual(['正常な発話'])
   })
 })
 
@@ -174,6 +256,19 @@ describe('WhisperCppTranscriber', () => {
     await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
 
     expect(seen[0]).toContain('--suppress-nst')
+  })
+
+  it('トークンの確率を得るため JSON をフル出力させる', async () => {
+    // --output-json-full が無いと p が書かれず、確信度で落とす判断ができない。
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin' },
+      captureArgv(seen)
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    expect(seen[0]).toContain('--output-json-full')
   })
 
   it('VAD モデルが指定されていれば無音区間を whisper へ渡さない', async () => {

@@ -13,7 +13,46 @@ interface WhisperJson {
   transcription?: {
     offsets?: { from?: number; to?: number }
     text?: string
+    /** `--output-json-full` のときだけ付く。`p` はトークンの確率。 */
+    tokens?: { text?: string; p?: number }[]
   }[]
+}
+
+/**
+ * セグメントを捨てる平均対数確率の下限。
+ *
+ * whisper-cli の `--logprob-thold` の既定値と同じ -1.0 を使う。whisper.cpp は
+ * この値をデコードのやり直し判断にしか使わず、確信度の低いセグメントも出力へ残す。
+ * 雑音や複数人の声が重なった区間で生まれるハルシネーションはここが低いので、
+ * 同じ基準で落とす。閾値を上げると本物の発話まで巻き込むため、下げる側にだけ倒す。
+ */
+const MIN_AVG_LOGPROB = -1
+
+/**
+ * `[_BEG_]` や `[_TT_100]` のような、発話ではない制御トークン。
+ * タイムスタンプ側は `_]` で終わらないため、接頭辞だけで判定する。
+ */
+const SPECIAL_TOKEN = /^\[_/
+
+/**
+ * セグメントの平均対数確率。判断材料が無いときは undefined を返す。
+ *
+ * 「確率が無い」を「確信度が低い」と読み替えて消すと、`--output-json-full` に
+ * 対応しない whisper-cli で文字起こしが丸ごと消える。
+ */
+export const averageLogprob = (
+  tokens: readonly { text?: string; p?: number }[] | undefined
+): number | undefined => {
+  const probs = (tokens ?? [])
+    .filter((token) => !SPECIAL_TOKEN.test(token.text ?? ''))
+    .map((token) => token.p)
+    .filter((p): p is number => typeof p === 'number')
+
+  if (probs.length === 0) return undefined
+
+  // 確率 0 のトークンは ln(0) = -Infinity になる。平均は -Infinity のまま
+  // 閾値を下回るので正しく落ちるが、NaN にはしないよう合計だけで済ませる。
+  return probs.reduce((sum, p) => sum + Math.log(p), 0) / probs.length
 }
 
 /**
@@ -21,6 +60,10 @@ interface WhisperJson {
  *
  * whisper は無音区間で `[BLANK_AUDIO]` や `(音楽)` のようなプレースホルダを
  * 出すことがある。会議の文字起こしでは雑音になるため取り除く。
+ *
+ * 加えて、平均対数確率が低いセグメントも落とす。雑音や複数人の声が重なった区間で
+ * whisper が作り出す文は、決まり文句の一覧では捕まえられない一方、トークンの確信度が
+ * 揃って低い。要約はこの後の工程なので、ここで落としておかないと嘘が下流へ伝播する。
  */
 export const parseWhisperJson = (raw: string, speakerId: string): TranscriptSegment[] => {
   let parsed: unknown
@@ -36,6 +79,9 @@ export const parseWhisperJson = (raw: string, speakerId: string): TranscriptSegm
   return entries.flatMap((entry): TranscriptSegment[] => {
     const text = normalizeText(entry.text ?? '')
     if (text.length === 0) return []
+
+    const logprob = averageLogprob(entry.tokens)
+    if (logprob !== undefined && logprob < MIN_AVG_LOGPROB) return []
 
     const startMs = entry.offsets?.from
     const endMs = entry.offsets?.to
@@ -182,6 +228,9 @@ export class WhisperCppTranscriber implements TranscriptionPort {
       '--language',
       params.language,
       '--output-json',
+      // トークンごとの確率（p）はフル出力にしか載らない。確信度の低いセグメントを
+      // 落とす判断に要る。JSON は読み終えたら消すので、肥大しても保存先には残らない。
+      '--output-json-full',
       '--output-file',
       outputPrefix,
       '--no-prints',
