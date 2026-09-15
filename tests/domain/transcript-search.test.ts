@@ -87,6 +87,17 @@ describe('matchTranscript', () => {
     expect(highlighted(match)).toEqual(['予算'])
   })
 
+  it('末尾近くで当たっても、当たった語は抜粋の先頭側に置く', () => {
+    // 一覧は抜粋を 2 行で打ち切る。末尾に寄せて切り出すと、当たった語が
+    // その 2 行の外に落ちて「なぜ当たったのか」が見えなくなる。
+    const long = `${'あ'.repeat(200)}予算です`
+
+    const match = matchTranscript([segment(0, long)], ['予算'])[0]!
+
+    expect(match.ranges[0]?.start).toBeLessThanOrEqual(31)
+    expect(match.excerpt.endsWith('予算です')).toBe(true)
+  })
+
   it('短い発言は切り出さないので … を付けない', () => {
     const match = matchTranscript([segment(0, '予算の話')], ['予算'])[0]!
 

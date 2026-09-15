@@ -95,7 +95,9 @@ const excerptAround = (
   const first = ranges[0]
   if (!first || text.length <= EXCERPT_CHARS) return { excerpt: text, ranges: [...ranges] }
 
-  const from = Math.max(0, Math.min(first.start - LEAD_CHARS, text.length - EXCERPT_CHARS))
+  // 窓は必ず最初の一致から数えて始める。末尾に寄せて長さを稼ぐと、一覧が抜粋を
+  // 2 行で打ち切ったときに当たった語がその外へ落ち、なぜ当たったのかが見えなくなる。
+  const from = Math.max(0, first.start - LEAD_CHARS)
   const to = Math.min(text.length, from + EXCERPT_CHARS)
   const head = from > 0 ? '…' : ''
   const tail = to < text.length ? '…' : ''

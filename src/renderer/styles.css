@@ -391,6 +391,79 @@ code {
   overflow: hidden;
 }
 
+.transcript-hits {
+  border-top: 1px solid var(--border);
+  padding: 8px 8px 12px;
+  overflow-y: auto;
+}
+
+.transcript-hits__heading {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.transcript-hits__note {
+  padding: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.transcript-hits__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.transcript-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+
+.transcript-hit:hover {
+  background: var(--surface-2);
+}
+
+.transcript-hit--selected {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.transcript-hit__title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transcript-hit__meta {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.transcript-hit__excerpt {
+  color: var(--text-muted);
+  font-size: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.transcript-hit__excerpt mark {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .semantic__status {
   flex: 1;
   color: var(--text-muted);
@@ -763,6 +836,16 @@ code {
   grid-template-columns: auto auto 1fr;
   gap: 8px;
   align-items: baseline;
+}
+
+/*
+  本文の検索から飛んできた発言の印。背景だけを変え、grid の桁を動かさない
+  （枠線を足すと時刻・話者・本文の縦の線がこの行だけずれる）。
+*/
+.segment--focused {
+  background: var(--surface-2);
+  border-radius: 6px;
+  box-shadow: 0 0 0 4px var(--surface-2);
 }
 
 .segment__time,

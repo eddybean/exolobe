@@ -19,7 +19,14 @@ import {
 } from '../library/tree'
 import { STATUS_LABELS } from '../format'
 import { SemanticSearchResults, type SemanticSearchState } from './SemanticSearchResults'
+import {
+  TranscriptSearchResults,
+  type TranscriptSearchState
+} from './TranscriptSearchResults'
 
+
+/** 本文の検索を走らせるまでの待ち。打っている途中の語で全件を読まないための間。 */
+const TRANSCRIPT_SEARCH_DEBOUNCE_MS = 250
 
 /**
  * フォルダ名を入力させるモーダル。
@@ -111,7 +118,9 @@ export const LibrarySidebar = ({
   importing,
   semanticAvailable,
   expanded,
-  onToggleExpanded
+  onToggleExpanded,
+  onSelectSegment,
+  focus
 }: {
   folders: readonly FolderDto[]
   recordings: readonly RecordingDto[]
@@ -134,10 +143,15 @@ export const LibrarySidebar = ({
    */
   expanded: ReadonlyMap<string, boolean>
   onToggleExpanded: (key: string, open: boolean) => void
+  /** 本文のヒットから開く。詳細画面はその発言まで送られる。 */
+  onSelectSegment: (recordingId: string, startMs: number) => void
+  /** いま開いている発言。本文のヒットの選択表示に使う。 */
+  focus: { recordingId: string; startMs: number } | undefined
 }): ReactElement => {
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<'keyword' | 'semantic'>('keyword')
   const [semantic, setSemantic] = useState<SemanticSearchState | undefined>()
+  const [transcriptHits, setTranscriptHits] = useState<TranscriptSearchState | undefined>()
   // 設定で無効にされたら、選んでいたモードに関わらずキーワードに戻す。
   const semanticMode = semanticAvailable && mode === 'semantic'
   const [dropTarget, setDropTarget] = useState<string | undefined>()
@@ -161,6 +175,36 @@ export const LibrarySidebar = ({
   useEffect(() => {
     setSearchToggled(new Map())
   }, [query])
+
+  /**
+   * 本文の検索。1 文字ごとに全件の transcript.json を読むのは重いので少し待つ。
+   * 待つのはファイルを読む回数を減らすためで、意味検索のような確定操作は要らない。
+   */
+  const latestTranscriptSearch = useRef(0)
+  useEffect(() => {
+    const text = keywordQuery.trim()
+    const ticket = latestTranscriptSearch.current + 1
+    latestTranscriptSearch.current = ticket
+    if (!text) {
+      setTranscriptHits(undefined)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setTranscriptHits({ kind: 'searching' })
+      window.recorder
+        .searchTranscripts(text)
+        .then((hits) => {
+          if (latestTranscriptSearch.current === ticket) setTranscriptHits({ kind: 'done', hits })
+        })
+        .catch((error: unknown) => {
+          if (latestTranscriptSearch.current !== ticket) return
+          setTranscriptHits({ kind: 'error', message: messageOf(error) })
+        })
+    }, TRANSCRIPT_SEARCH_DEBOUNCE_MS)
+
+    return () => clearTimeout(timer)
+  }, [keywordQuery])
 
   const isOpen = useCallback(
     (node: LibraryNode): boolean =>
@@ -201,6 +245,9 @@ export const LibrarySidebar = ({
   }, [])
 
   const hasMatches = tree[0] !== undefined && tree[0].recordings.length > 0
+  const hasTranscriptHits =
+    transcriptHits !== undefined &&
+    (transcriptHits.kind !== 'done' || transcriptHits.hits.length > 0)
 
   /**
    * 1 文字ごとに問い合わせるとモデルの計算が追いつかないので、Enter で確定させる。
@@ -265,7 +312,7 @@ export const LibrarySidebar = ({
           type="search"
           className="tree__search"
           placeholder={
-            semanticMode ? '例: 天気の話をした会議（Enter で検索）' : 'タイトル・要約で絞り込む'
+            semanticMode ? '例: 天気の話をした会議（Enter で検索）' : 'タイトル・要約・本文で絞り込む'
           }
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -303,7 +350,7 @@ export const LibrarySidebar = ({
         <SemanticSearchResults state={semantic} selectedId={selectedId} onSelect={onSelect} />
       )}
 
-      {!showSemanticResults && !hasMatches && (
+      {!showSemanticResults && !hasMatches && !hasTranscriptHits && (
         <p className="tree__empty">
           {recordings.length === 0 ? (
             <>
@@ -344,6 +391,14 @@ export const LibrarySidebar = ({
             />
           ))}
         </ul>
+      )}
+
+      {!showSemanticResults && transcriptHits && (
+        <TranscriptSearchResults
+          state={transcriptHits}
+          selected={focus}
+          onSelect={onSelectSegment}
+        />
       )}
 
       {createModal && (
