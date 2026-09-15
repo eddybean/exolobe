@@ -7,7 +7,7 @@ export interface HighlightRange {
 }
 
 /** 本文にクエリの語がそろった発言 1 件。 */
-export interface TranscriptMatch {
+export interface TranscriptKeywordMatch {
   readonly startMs: number
   readonly endMs: number
   readonly speakerId: string
@@ -30,7 +30,7 @@ export const DEFAULT_MATCHES_PER_RECORDING = 3
  * 全角の空白も区切りにするのは、日本語入力のまま打つと全角になるため。
  * 重複を畳むのは、同じ条件を二重に課してもヒットは変わらないから。
  */
-export const parseSearchTerms = (query: string): string[] => [
+export const parseKeywordQuery = (query: string): string[] => [
   ...new Set(query.split(/[\s　]+/u).filter((term) => term.length > 0))
 ]
 
@@ -122,10 +122,10 @@ export const matchTranscript = (
   segments: readonly TranscriptSegment[],
   terms: readonly string[],
   limit: number = DEFAULT_MATCHES_PER_RECORDING
-): TranscriptMatch[] => {
+): TranscriptKeywordMatch[] => {
   if (terms.length === 0 || limit <= 0) return []
 
-  const matches: TranscriptMatch[] = []
+  const matches: TranscriptKeywordMatch[] = []
   for (const segment of segments) {
     const folded = fold(segment.text)
     const perTerm = terms.map((term) => rangesOf(folded, term))

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   matchTranscript,
-  parseSearchTerms,
-  type TranscriptMatch
-} from '@domain/TranscriptSearch'
+  parseKeywordQuery,
+  type TranscriptKeywordMatch
+} from '@domain/TranscriptKeywordSearch'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
 const segment = (
@@ -14,20 +14,20 @@ const segment = (
 ): TranscriptSegment => ({ startMs, endMs: startMs + 3_000, speakerId, text })
 
 /** 抜粋の中で ranges が指している文字列（ハイライト対象）を取り出す。 */
-const highlighted = (match: TranscriptMatch): string[] =>
+const highlighted = (match: TranscriptKeywordMatch): string[] =>
   match.ranges.map((range) => match.excerpt.slice(range.start, range.start + range.length))
 
-describe('parseSearchTerms', () => {
+describe('parseKeywordQuery', () => {
   it('空白で語に分ける（全角の空白も区切りとして扱う）', () => {
-    expect(parseSearchTerms('予算　見直し 来期')).toEqual(['予算', '見直し', '来期'])
+    expect(parseKeywordQuery('予算　見直し 来期')).toEqual(['予算', '見直し', '来期'])
   })
 
   it('空白だけのクエリは語を持たない', () => {
-    expect(parseSearchTerms('   　 ')).toEqual([])
+    expect(parseKeywordQuery('   　 ')).toEqual([])
   })
 
   it('同じ語を繰り返しても 1 つに畳む（同じ条件を二重に課さない）', () => {
-    expect(parseSearchTerms('予算 予算')).toEqual(['予算'])
+    expect(parseKeywordQuery('予算 予算')).toEqual(['予算'])
   })
 })
 

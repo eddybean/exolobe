@@ -2,9 +2,9 @@ import type { RecordingArtifactPort, RecordingRepositoryPort } from '@applicatio
 import {
   DEFAULT_MATCHES_PER_RECORDING,
   matchTranscript,
-  parseSearchTerms,
+  parseKeywordQuery,
   type HighlightRange
-} from '@domain/TranscriptSearch'
+} from '@domain/TranscriptKeywordSearch'
 
 /** 文字起こしの本文に語がそろった発言 1 件。 */
 export interface TranscriptHit {
@@ -41,7 +41,7 @@ export class SearchTranscripts {
     limit?: number
     perRecording?: number
   }): Promise<TranscriptHit[]> {
-    const terms = parseSearchTerms(params.query)
+    const terms = parseKeywordQuery(params.query)
     if (terms.length === 0) return []
 
     const limit = params.limit ?? DEFAULT_TRANSCRIPT_HIT_LIMIT
