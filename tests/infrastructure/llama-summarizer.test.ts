@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  HALLUCINATION_GUARD,
   LlamaCppSummarizer,
   renderPrompt,
   splitTranscript,
@@ -47,6 +48,18 @@ describe('renderPrompt', () => {
   })
 })
 
+describe('HALLUCINATION_GUARD', () => {
+  it('反復と字幕の定型句を無視させる指示を含む', () => {
+    expect(HALLUCINATION_GUARD).toContain('繰り返')
+    expect(HALLUCINATION_GUARD).toContain('字幕')
+  })
+
+  it('利用者が編集できるプロンプトの既定値には入れない', () => {
+    // 設定画面で消せてしまうと、防御の有無が利用者ごとに変わる。
+    expect(DEFAULT_SUMMARY_PROMPT).not.toContain(HALLUCINATION_GUARD)
+  })
+})
+
 class FakeLlm implements LlmSession {
   prompts: string[] = []
   disposed = 0
@@ -84,6 +97,33 @@ describe('LlamaCppSummarizer', () => {
     expect(llm.prompts).toHaveLength(1)
     expect(llm.prompts[0]).toContain('おはようございます')
     expect(summary).toBe('## 概要\n要約結果')
+  })
+
+  it('利用者のプロンプトに関わらず防御の指示を前置きする', async () => {
+    const llm = new FakeLlm()
+    const summarizer = new LlamaCppSummarizer(config, factoryFor(llm))
+
+    await summarizer.summarize({
+      transcript: '**[00:00] 自分**\nおはようございます',
+      promptTemplate: `独自のプロンプト${TRANSCRIPT_PLACEHOLDER}`
+    })
+
+    expect(llm.prompts[0]).toContain(HALLUCINATION_GUARD)
+    expect(llm.prompts[0]).toContain('独自のプロンプト')
+  })
+
+  it('部分要約にも防御の指示を前置きする', async () => {
+    // 分割したときは部分要約がハルシネーションを拾い、統合へ持ち込んでしまう。
+    const llm = new FakeLlm()
+    const summarizer = new LlamaCppSummarizer({ ...config, contextSize: 1_024 }, factoryFor(llm))
+    const transcript = Array.from(
+      { length: 30 },
+      (_, i) => `**[00:0${i % 10}] 自分**\n${'あ'.repeat(60)}`
+    ).join('\n\n')
+
+    await summarizer.summarize({ transcript, promptTemplate: DEFAULT_SUMMARY_PROMPT })
+
+    expect(llm.prompts.every((p) => p.includes(HALLUCINATION_GUARD))).toBe(true)
   })
 
   it('長い文字起こしは部分要約してから統合する', async () => {
