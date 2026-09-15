@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type {
   RecordingArtifactPort,
@@ -170,6 +170,20 @@ const isTranscriptFile = (value: unknown): value is TranscriptFile => {
 const asNumber = (value: unknown): number => (typeof value === 'number' ? value : 0)
 
 /**
+ * 空になったディレクトリを畳む。
+ *
+ * 中身が残っている（ENOTEMPTY）ことも、そもそも作られていない（ENOENT）ことも
+ * 正常な結果なので、失敗は握る。片付けの巻き添えで処理を止める価値はない。
+ */
+const removeDirIfEmpty = async (dir: string): Promise<void> => {
+  try {
+    await rmdir(dir)
+  } catch {
+    // 意図的に無視する
+  }
+}
+
+/**
  * voices.json を話者の声紋として読む。
  *
  * JSON に Float32Array は無いので数値配列で持ち、読むときに戻す。声紋は名前を
@@ -323,6 +337,9 @@ export class FileRecordingArtifactStore implements RecordingArtifactPort {
       return await run(wavPath)
     } finally {
       await rm(wavPath, { force: true })
+      // パイプラインが動いていない過去の録音では、この WAV が work/ の唯一の住人。
+      // 消した器を残すと録音の数だけ空ディレクトリが溜まる。
+      await removeDirIfEmpty(dir)
     }
   }
 
@@ -334,6 +351,7 @@ export class FileRecordingArtifactStore implements RecordingArtifactPort {
     for (const name of ['system.wav', 'mic.wav', 'imported.wav', 'mix.wav', VOICES_WAV, TRACKS_FILE]) {
       await rm(join(dir, name), { force: true })
     }
+    await removeDirIfEmpty(dir)
   }
 
   async removeAll(recording: Recording): Promise<void> {

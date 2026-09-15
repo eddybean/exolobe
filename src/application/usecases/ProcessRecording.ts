@@ -71,6 +71,19 @@ const STEP_DEPENDENCIES: Readonly<Record<PipelineStep, readonly PipelineStep[]>>
   encode: ['mix']
 }
 
+/**
+ * 中間 WAV を入力に取るステップ。ここが全て done なら WAV はもう誰も読まない。
+ *
+ * 要約が入っていないのは、やり直しに必要なのが transcript.json だけだから。
+ * 要約モデルを入れていない機体では要約は永久に失敗したままで、全ステップ完了を
+ * 待つと数百 MB の WAV が消える見込みなく残り続ける（ADR-010 の「失敗しても
+ * 価値の高い成果物は守る」を、残骸を残さない側にも適用する）。
+ */
+const INTERMEDIATE_CONSUMERS: readonly PipelineStep[] = ['mix', 'transcribe', 'diarize', 'encode']
+
+const intermediatesDisposable = (steps: StepStates): boolean =>
+  INTERMEDIATE_CONSUMERS.every((step) => steps[step].status === 'done')
+
 const STEP_LABELS: Readonly<Record<PipelineStep, string>> = {
   mix: 'ミックス',
   transcribe: '文字起こし',
@@ -130,8 +143,8 @@ export class ProcessRecording {
 
     const processed = await this.saveSteps(recording, steps, overallStatus(steps))
 
-    // 中間 WAV はリトライで再利用するため、全ステップが揃ってから消す。
-    if (processed.status === 'ready') {
+    // 中間 WAV はリトライで再利用するため、それを読むステップが揃ってから消す。
+    if (intermediatesDisposable(processed.steps)) {
       await this.deps.artifacts.cleanupIntermediates(processed)
     }
 

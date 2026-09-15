@@ -240,8 +240,9 @@ describe('録音から保存までの一連の流れ', () => {
     // 音声とエンコードは完了している
     expect(processed.steps.encode.status).toBe('done')
     expect((await stat(join(storage, recording.slug, 'audio.m4a'))).size).toBeGreaterThan(0)
-    // リトライできるよう中間ファイルは残る
-    await expect(stat(join(ctx.artifacts.workDir(processed), 'mix.wav'))).resolves.toBeTruthy()
+    // 要約のリトライに要るのは文字起こしだけなので、中間ファイルは作業ディレクトリごと消える
+    await expect(stat(join(storage, recording.slug, 'transcript.json'))).resolves.toBeTruthy()
+    await expect(stat(ctx.artifacts.workDir(processed))).rejects.toThrow()
   }, 60_000)
 })
 
