@@ -135,6 +135,25 @@ export interface SearchHitDto {
   readonly startMs?: number
 }
 
+/** 抜粋の中でハイライトする位置。start は抜粋の先頭からの UTF-16 オフセット。 */
+export interface HighlightRangeDto {
+  readonly start: number
+  readonly length: number
+}
+
+/** 文字起こし本文のキーワード検索の 1 件。新しい録音から順に並ぶ。 */
+export interface TranscriptHitDto {
+  readonly recordingId: string
+  readonly title: string
+  /** ISO 8601 文字列。 */
+  readonly startedAt: string
+  /** 録音開始からの相対ミリ秒。詳細画面はここへ飛ぶ。 */
+  readonly startMs: number
+  readonly speakerLabel: string
+  readonly excerpt: string
+  readonly ranges: readonly HighlightRangeDto[]
+}
+
 /** 索引をバックグラウンドで録音一覧に合わせる処理の状態。 */
 export type SearchSyncStateDto =
   | { readonly state: 'idle' }
@@ -333,6 +352,8 @@ export interface RendererApi {
 
   /** 自然文のクエリで録音を探す。意味検索が有効でモデルがある場合だけ使える。 */
   searchRecordings(query: string): Promise<SearchHitDto[]>
+  /** 文字起こし本文のキーワード検索。推論を使わないので意味検索が無効でも動く。 */
+  searchTranscripts(query: string): Promise<TranscriptHitDto[]>
   getSearchIndexStatus(): Promise<SearchIndexStatusDto>
   /** 索引の削除前の確認。ネイティブダイアログを出し、実行してよければ true を返す。 */
   confirmClearSearchIndex(): Promise<boolean>
@@ -408,6 +429,7 @@ export const IPC = {
   recordingsChanged: 'recordings:changed',
   transportChanged: 'transport:changed',
   searchRecordings: 'search:query',
+  searchTranscripts: 'search:transcripts',
   getSearchIndexStatus: 'search:status',
   confirmClearSearchIndex: 'search:confirmClear',
   clearSearchIndex: 'search:clear',

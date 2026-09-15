@@ -27,6 +27,7 @@ import {
   UpdateSettings
 } from '@application/usecases/library'
 import { ClearSearchIndex, GetSearchIndexStatus } from '@application/usecases/search'
+import { SearchTranscripts } from '@application/usecases/SearchTranscripts'
 import {
   CancelModelDownload,
   DeleteModel,
@@ -69,6 +70,7 @@ export interface Container {
   readonly stopRecording: StopRecording
   readonly importAudioFile: ImportAudioFile
   readonly listRecordings: ListRecordings
+  readonly searchTranscripts: SearchTranscripts
   readonly getRecordingDetail: GetRecordingDetail
   readonly updateNote: UpdateNote
   readonly renameRecording: RenameRecording
@@ -156,6 +158,7 @@ export const createContainer = (): Container => {
       ids: { next: () => randomUUID() }
     }),
     listRecordings: new ListRecordings(library),
+    searchTranscripts: new SearchTranscripts(library),
     getRecordingDetail: new GetRecordingDetail(library),
     updateNote: new UpdateNote(library),
     renameRecording: new RenameRecording(library),
