@@ -503,6 +503,39 @@ code {
   font-size: 12px;
 }
 
+/* モーダルの中でだけ、一覧に高さの上限を与えて内側でスクロールさせる。
+   人数ぶんモーダルが伸びると、画面を覆うだけで元の見づらさが戻る。 */
+.voiceprints--scroll {
+  max-height: min(48vh, 360px);
+  overflow-y: auto;
+  margin: 0;
+  gap: 0;
+}
+
+/* 行が続くと境目が読めなくなるので、スクロールする一覧にだけ罫線を引く。 */
+.voiceprints--scroll .voiceprints__item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.voiceprints--scroll .voiceprints__item:last-child {
+  border-bottom: none;
+}
+
+/* 設定画面に残す 1 行（覚えている人数と、一覧を開くボタン）。 */
+.voiceprints__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.voiceprints__count {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 /* ── モーダル ───────────────────────────────── */
 
 .modal-backdrop {
@@ -526,6 +559,12 @@ code {
   box-shadow: 0 8px 24px color-mix(in srgb, black 20%, transparent);
 }
 
+/* 一覧を載せるモーダル。320px では「名前・学習の要約・忘れる」が 1 行に収まらない。
+   広げる一方で、狭いウィンドウでは画面からはみ出さないよう上限を切る。 */
+.modal--wide {
+  width: min(520px, calc(100vw - 48px));
+}
+
 .modal__title {
   margin: 0;
   font-size: 14px;
@@ -539,6 +578,12 @@ code {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* 「すべて忘れる」を左端、「閉じる」を右端に離す。取り返しのつかない操作を、
+   何度も押す閉じるボタンの隣に置かない。 */
+.modal__actions--split {
+  justify-content: space-between;
 }
 
 /* ── 状態バッジ ───────────────────────────── */
