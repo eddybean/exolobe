@@ -30,6 +30,8 @@ export const VoiceprintSettings = ({
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState(false)
   const openerRef = useRef<HTMLButtonElement>(null)
+  const labelRef = useRef<HTMLSpanElement>(null)
+  const restoring = useRef(false)
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
@@ -49,20 +51,33 @@ export const VoiceprintSettings = ({
 
   const close = useCallback((): void => {
     setOpen(false)
-    // 閉じたあとのフォーカスが body に落ちると、キーボードだけの操作で迷子になる。
-    openerRef.current?.focus()
+    restoring.current = true
   }, [])
 
-  /** 成否を返す。結果で画面を切り替える呼び出し（すべて忘れる）があるため。 */
-  const run = async (action: () => Promise<VoiceprintDto[]>): Promise<boolean> => {
+  /**
+   * 閉じたあとのフォーカスを戻す。
+   *
+   * 描き直しの後でないと戻し先が決まらない ―― すべて忘れた直後は「一覧を開く」
+   * ごと消えるので、そのときはラベルへ逃がす。body に落ちるとキーボードだけの
+   * 操作で現在地を見失う。
+   */
+  useEffect(() => {
+    if (open || !restoring.current) return
+    restoring.current = false
+    ;(openerRef.current ?? labelRef.current)?.focus()
+  }, [open])
+
+  const run = async (action: () => Promise<VoiceprintDto[]>): Promise<void> => {
     setError(undefined)
     setBusy(true)
     try {
-      setEntries(await action())
-      return true
+      const next = await action()
+      setEntries(next)
+      // 空になった一覧を見せても操作するものが無い。設定画面の案内に戻す。
+      // ここで閉じないと open が true のまま残り、以後エラーを表に出せなくなる。
+      if (next.length === 0) close()
     } catch (actionError: unknown) {
       setError(messageOf(actionError))
-      return false
     } finally {
       setBusy(false)
     }
@@ -70,19 +85,21 @@ export const VoiceprintSettings = ({
 
   const remove = async (name: string): Promise<void> => {
     if (!(await window.recorder.confirmRemoveVoiceprint(name))) return
-    // 続けて消したいことがあるので、1 件消しただけではモーダルを閉じない。
+    // 続けて消したいことがあるので、1 件消しただけでは閉じない（空になれば run が閉じる）。
     await run(() => window.recorder.removeVoiceprint(name))
   }
 
   const clear = async (): Promise<void> => {
     if (!(await window.recorder.confirmClearVoiceprints())) return
-    // 空になった一覧を見せても操作するものが無い。設定画面の案内に戻す。
-    if (await run(() => window.recorder.clearVoiceprints())) close()
+    await run(() => window.recorder.clearVoiceprints())
   }
 
   return (
     <div className="field">
-      <span className="field__label">覚えた声</span>
+      {/* tabIndex は、すべて忘れて「一覧を開く」が消えたときのフォーカスの逃がし先。 */}
+      <span className="field__label" ref={labelRef} tabIndex={-1}>
+        覚えた声
+      </span>
 
       {storageDir === null ? (
         <span className="voiceprints__empty">保存先を選ぶと、覚えた声をここに一覧します。</span>
@@ -114,7 +131,8 @@ export const VoiceprintSettings = ({
         </span>
       )}
 
-      {open && entries !== undefined && entries.length > 0 && (
+      {/* 空になったら run が閉じるので、ここで件数を見張る必要はない。 */}
+      {open && entries !== undefined && (
         <VoiceprintListModal
           entries={entries}
           busy={busy}
@@ -176,6 +194,14 @@ const VoiceprintListModal = ({
       const last = focusable[focusable.length - 1]
       if (first === undefined || last === undefined) return
 
+      // 消えた行の「忘れる」にフォーカスがあった等でパネルの外へ落ちていたら、
+      // 素通りさせずに引き戻す。落ちたままだと Tab が背後の設定画面へ進む。
+      if (!panelRef.current.contains(document.activeElement)) {
+        event.preventDefault()
+        first.focus()
+        return
+      }
+
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault()
         last.focus()
@@ -188,7 +214,7 @@ const VoiceprintListModal = ({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  const title = `覚えた声（${entries.length}人）`
+  const title = `覚えた声（${entries.length} 人）`
 
   return (
     <div className="modal-backdrop" onClick={onClose}>

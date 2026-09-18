@@ -473,12 +473,11 @@ code {
 
 .voiceprints {
   list-style: none;
-  margin: 0 0 8px;
+  margin: 0;
   padding: 0;
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
 .voiceprints__item {
@@ -508,8 +507,6 @@ code {
 .voiceprints--scroll {
   max-height: min(48vh, 360px);
   overflow-y: auto;
-  margin: 0;
-  gap: 0;
 }
 
 /* 行が続くと境目が読めなくなるので、スクロールする一覧にだけ罫線を引く。 */
