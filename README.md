@@ -1,4 +1,4 @@
-# 会議レコーダー（online-meeting-recorder）
+# Duoscribe
 
 [![CI](https://github.com/eddybean/online-meeting-recorder/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eddybean/online-meeting-recorder/actions/workflows/ci.yml)
 [![Release](https://github.com/eddybean/online-meeting-recorder/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/eddybean/online-meeting-recorder/actions/workflows/release.yml)
@@ -250,11 +250,9 @@ git push --follow-tags
 一度だけ次の操作が必要です（Release の説明文に自動で記載されます）。
 
 ```sh
-xattr -dr com.apple.quarantine "/Applications/MeetingRecorder.app"
+xattr -dr com.apple.quarantine "/Applications/Duoscribe.app"
 ```
 
-Finder には「会議レコーダー」と表示されますが、これは `CFBundleDisplayName` による
-表示名で、ファイル名は `MeetingRecorder.app` です。ターミナルでは上のパスを使います。
 この手順は .dmg に同梱した「はじめにお読みください.txt」にも書いてあります。
 
 Apple Developer 証明書がある場合は、リポジトリの Secrets に登録すると
@@ -268,9 +266,7 @@ electron-builder が正式な署名と公証を行い、この手順は不要に
 
 **アプリ名は ASCII のままにしてください。** `productName` を日本語にすると、
 生成されたアプリが起動直後に SIGTRAP で落ちます（実行ファイル名・ヘルパーアプリ名・
-フレームワーク参照がすべてこの名前から作られるため）。利用者に見える名前は
-`CFBundleDisplayName` で日本語にしてあるので、Finder やメニューバーでは
-「会議レコーダー」と表示されます。
+フレームワーク参照がすべてこの名前から作られるため）。
 
 ### whisper-cli の同梱
 

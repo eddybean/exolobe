@@ -20,7 +20,7 @@ export const createTray = (controller: TransportController, showWindow: () => vo
   icon.setTemplateImage(true)
 
   const tray = new Tray(icon)
-  tray.setToolTip('会議レコーダー')
+  tray.setToolTip('Duoscribe')
 
   const refresh = (): void => {
     const state = controller.state()

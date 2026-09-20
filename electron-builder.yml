@@ -1,11 +1,10 @@
-appId: com.branch.online-meeting-recorder
+appId: com.branch.duoscribe
 
-# productName は必ず ASCII にする。
-# 日本語（会議レコーダー）にすると、生成されたアプリが起動直後に SIGTRAP で
-# 落ちる（実行ファイル名・ヘルパーアプリ名・フレームワーク参照がすべて
-# この名前から作られるため）。利用者に見える名前は下の CFBundleDisplayName で
-# 日本語にしているので、Finder やメニューバーでは「会議レコーダー」と表示される。
-productName: MeetingRecorder
+# productName は必ず ASCII にする。日本語にすると、生成されたアプリが起動直後に
+# SIGTRAP で落ちる（実行ファイル名・ヘルパーアプリ名・フレームワーク参照がすべて
+# この名前から作られるため）。Duoscribe は ASCII なので、表示名を別に持たず
+# Finder もメニューバーもこの名前をそのまま出す（ADR-013）。
+productName: Duoscribe
 
 artifactName: ${name}-${version}-${arch}.${ext}
 directories:
@@ -38,6 +37,9 @@ asarUnpack:
 
 mac:
   category: public.app-category.productivity
+  # scripts/build-icon.mjs が生成する。同じ寸法定義からメニューバー用の
+  # アイコン（src/main/trayIcon.ts）も出しているので、意匠を変えるなら両方作り直す。
+  icon: build/icon.icns
   target:
     - target: dmg
       arch: [arm64]
@@ -50,8 +52,6 @@ mac:
     NSAudioCaptureUsageDescription: 会議相手の音声を録音するためにシステム音声を取得します。
     NSMicrophoneUsageDescription: 会議中のあなたの発言を録音するためにマイクを使用します。
     LSMinimumSystemVersion: '14.2'
-    # Finder やメニューバーに出る表示名。実行ファイル名とは別に指定できる。
-    CFBundleDisplayName: 会議レコーダー
 
 dmg:
   title: ${productName}
