@@ -1,7 +1,7 @@
 # Duoscribe
 
-[![CI](https://github.com/eddybean/online-meeting-recorder/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eddybean/online-meeting-recorder/actions/workflows/ci.yml)
-[![Release](https://github.com/eddybean/online-meeting-recorder/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/eddybean/online-meeting-recorder/actions/workflows/release.yml)
+[![CI](https://github.com/eddybean/duoscribe/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eddybean/duoscribe/actions/workflows/ci.yml)
+[![Release](https://github.com/eddybean/duoscribe/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/eddybean/duoscribe/actions/workflows/release.yml)
 
 Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし・話者識別・要約までを
 この Mac の中だけで**行うデスクトップアプリ。音声もテキストも外部には送信しません。
