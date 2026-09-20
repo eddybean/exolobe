@@ -180,7 +180,7 @@ export const App = (): ReactElement => {
   return (
     <div className="app">
       <nav className="nav">
-        <h1 className="nav__brand">会議レコーダー</h1>
+        <h1 className="nav__brand">Duoscribe</h1>
         <div className="nav__links">
           <button
             type="button"
