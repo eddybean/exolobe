@@ -62,7 +62,7 @@ export const createApplicationMenu = (
             label: 'ドキュメントを開く',
             click: () => {
               void shell.openExternal(
-                'https://github.com/eddybean/online-meeting-recorder/tree/main/docs'
+                'https://github.com/eddybean/duoscribe/tree/main/docs'
               )
             }
           }
