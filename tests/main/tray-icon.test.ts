@@ -74,16 +74,52 @@ describe('メニューバーのアイコン', () => {
       }
     }
 
-    // 半径 10.5 の円なので 300 ピクセル前後は不透明になる
-    expect(visible).toBeGreaterThan(200)
+    // 上下の棒の高さの合計 95 行 × 幅 3px
+    expect(visible).toBe(285)
   })
 
   it('テンプレート画像として使えるよう RGB は黒にする', () => {
     const data = pixels()
-    const rowStart = 16 * (1 + 32 * 4) + 1
-    const center = rowStart + 16 * 4
+    // 1 本目の棒（x=2..4）の一番下の行
+    const offset = 14 * (1 + 32 * 4) + 1 + 3 * 4
 
-    expect([data[center], data[center + 1], data[center + 2]]).toEqual([0, 0, 0])
-    expect(data[center + 3]).toBe(255)
+    expect([data[offset], data[offset + 1], data[offset + 2]]).toEqual([0, 0, 0])
+    expect(data[offset + 3]).toBe(255)
+  })
+
+  /**
+   * アプリアイコンと同じ「二本の軌跡」— 中心線の上下に波形を分けて置く形。
+   * 単色のテンプレート画像では色で 2 トラックを示せないため、
+   * 上下の非対称な形だけが意味を運ぶ。崩すと単なる波形アイコンになる。
+   */
+  const visibleColumns = (y: number): number[] => {
+    const data = pixels()
+    const rowStart = y * (1 + 32 * 4) + 1
+    const columns: number[] = []
+
+    for (let x = 0; x < 32; x += 1) {
+      if (data[rowStart + x * 4 + 3] !== 0) columns.push(x)
+    }
+
+    return columns
+  }
+
+  it('中心線の上下どちらにも波形がある', () => {
+    expect(visibleColumns(14).length).toBeGreaterThan(0)
+    expect(visibleColumns(17).length).toBeGreaterThan(0)
+  })
+
+  it('中心線には 2 行の溝があり、上下のトラックが分かれている', () => {
+    expect(visibleColumns(15)).toEqual([])
+    expect(visibleColumns(16)).toEqual([])
+  })
+
+  it('溝のすぐ上は棒 6 本に分かれている', () => {
+    const runs = visibleColumns(14).reduce(
+      (count, x, index, all) => (index === 0 || x !== all[index - 1]! + 1 ? count + 1 : count),
+      0
+    )
+
+    expect(runs).toBe(6)
   })
 })

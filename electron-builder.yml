@@ -37,6 +37,9 @@ asarUnpack:
 
 mac:
   category: public.app-category.productivity
+  # scripts/build-icon.mjs が生成する。同じ寸法定義からメニューバー用の
+  # アイコン（src/main/trayIcon.ts）も出しているので、意匠を変えるなら両方作り直す。
+  icon: build/icon.icns
   target:
     - target: dmg
       arch: [arm64]
