@@ -3,6 +3,7 @@ import { formatGlossary, parseGlossary } from '@domain/Glossary'
 import { type MemoryProtection } from '@domain/MemoryGuard'
 import { SUPPORTED_SAMPLE_RATES, type Settings, type SettingsPatch } from '@domain/Settings'
 import type { SetupStateDto } from '@shared/ipc'
+import { LicenseNotices } from '../components/LicenseNotices'
 import { ModelManager } from '../components/ModelManager'
 import { SemanticSearchSettings } from '../components/SemanticSearchSettings'
 import { VoiceprintSettings } from '../components/VoiceprintSettings'
@@ -383,6 +384,10 @@ export const SettingsView = ({
           onBlur={(event) => update({ audio: { bitrateKbps: Number(event.target.value) } })}
         />
       </Field>
+
+      <h3 className="settings__section">このアプリについて</h3>
+
+      <LicenseNotices />
     </section>
   )
 }

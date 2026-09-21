@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import type { VoiceprintDto } from '@shared/ipc'
 import { messageOf } from '../errorMessage'
+import { useModalKeys } from '../hooks/useModalKeys'
 import {
   filterVoiceprints,
   voiceprintCountLabel,
@@ -146,9 +147,6 @@ export const VoiceprintSettings = ({
   )
 }
 
-/** モーダル内でフォーカスを回す対象。この画面にあるのは入力とボタンだけ。 */
-const FOCUSABLE = 'button:not(:disabled), input:not(:disabled)'
-
 /**
  * 覚えた声の一覧そのもの。
  *
@@ -180,39 +178,7 @@ const VoiceprintListModal = ({
     inputRef.current?.focus()
   }, [])
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        onClose()
-        return
-      }
-      // aria-modal を名乗る以上、Tab で背後の設定画面へ抜けさせない。
-      if (event.key !== 'Tab' || panelRef.current === null) return
-
-      const focusable = panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (first === undefined || last === undefined) return
-
-      // 消えた行の「忘れる」にフォーカスがあった等でパネルの外へ落ちていたら、
-      // 素通りさせずに引き戻す。落ちたままだと Tab が背後の設定画面へ進む。
-      if (!panelRef.current.contains(document.activeElement)) {
-        event.preventDefault()
-        first.focus()
-        return
-      }
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  useModalKeys(panelRef, onClose)
 
   const title = `覚えた声（${entries.length} 人）`
 
