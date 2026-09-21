@@ -30,15 +30,15 @@ describe('第三者ソフトウェアの表記', () => {
   })
 
   it('すべての項目が出所の URL を持つ', () => {
-    for (const notice of THIRD_PARTY_NOTICES) {
-      expect(notice.url, notice.name).toMatch(/^https:\/\//)
-    }
+    const invalid = THIRD_PARTY_NOTICES.filter((notice) => !notice.url.startsWith('https://'))
+
+    expect(invalid.map((notice) => notice.name)).toEqual([])
   })
 
   it('挙げたライセンスの全文または参照先が揃っている', () => {
-    for (const notice of THIRD_PARTY_NOTICES) {
-      expect(LICENSE_TEXTS[notice.license], notice.name).toBeDefined()
-    }
+    const missing = THIRD_PARTY_NOTICES.filter((notice) => !(notice.license in LICENSE_TEXTS))
+
+    expect(missing.map((notice) => notice.name)).toEqual([])
   })
 
   it('同梱する npm 依存がすべて載っている', () => {
@@ -46,17 +46,18 @@ describe('第三者ソフトウェアの表記', () => {
       THIRD_PARTY_NOTICES.flatMap((notice) => (notice.packageName ? [notice.packageName] : []))
     )
 
-    for (const name of Object.keys(packageJson.dependencies)) {
-      expect(covered, `${name} のライセンス表記がありません`).toContain(name)
-    }
+    // 落ちたときに、表記の無いパッケージ名がそのまま出るようにする。
+    const missing = Object.keys(packageJson.dependencies).filter((name) => !covered.has(name))
+
+    expect(missing).toEqual([])
   })
 
   it('ダウンロードして使うモデルがすべて載っている', () => {
     const covered = new Set(THIRD_PARTY_NOTICES.flatMap((notice) => notice.assetIds ?? []))
 
-    for (const asset of MANAGED_ASSETS) {
-      expect(covered, `${asset.id} のライセンス表記がありません`).toContain(asset.id)
-    }
+    const missing = MANAGED_ASSETS.filter((asset) => !covered.has(asset.id))
+
+    expect(missing.map((asset) => asset.id)).toEqual([])
   })
 
   it('MIT と BSD-3-Clause は全文を持つ（写しの同梱が条件のため）', () => {
@@ -76,9 +77,10 @@ describe('第三者ソフトウェアの表記', () => {
   })
 
   it('著作権表示を載せた項目は、原文のまま Copyright から始める', () => {
-    for (const notice of THIRD_PARTY_NOTICES) {
-      if (notice.copyright === undefined) continue
-      expect(notice.copyright, notice.name).toMatch(/^Copyright/)
-    }
+    const invalid = THIRD_PARTY_NOTICES.filter(
+      (notice) => notice.copyright !== undefined && !notice.copyright.startsWith('Copyright')
+    )
+
+    expect(invalid.map((notice) => notice.name)).toEqual([])
   })
 })
