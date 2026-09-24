@@ -67,6 +67,7 @@
             <tr><td><a href="#adr-032">ADR-032</a></td><td>チャットの絞り込み</td><td>どの録音を見るかは純粋関数で決め、tool calling を使わない</td></tr>
             <tr><td><a href="#adr-033">ADR-033</a></td><td>3 つのモデルの調停</td><td>チャットは専用ワーカーで、パイプラインに譲り索引より優先する</td></tr>
             <tr><td><a href="#adr-034">ADR-034</a></td><td>過去の録音からの声紋の取り直し</td><td>audio.m4a から取り直し、話者識別はやり直さず、名前付けの裏で 1 回だけ走らせる</td></tr>
+            <tr><td><a href="#adr-035">ADR-035</a></td><td>保存データの形式の変更に備える</td><td>アプリのバージョンではなくファイルごとのスキーマ番号を持ち、理解できないものは上書きしない</td></tr>
           </tbody>
         </table>
       </div>
@@ -2787,6 +2788,157 @@
             （同一話者 0.96）で詰まっており、閾値 0.6 の妥当性を測る材料にならない。本番の録音で
             <code>system.wav</code> から作った声紋と <code>audio.m4a</code> から取り直したものを
             突き合わせて確かめる必要がある。
+          </li>
+        </ul>
+      </div>
+
+      <h2 id="adr-035">ADR-035 保存データの形式の変更に備える（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-035</span>
+          <p class="adr__title">アプリのバージョンではなくファイルごとのスキーマ番号を持つ。理解できなかったものは上書きで消さない</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          いずれ保存データの形を破壊的に変えたくなる（<a href="#adr-030">ADR-030</a> で
+          <code>PIPELINE_STEPS</code> に要素を足せなくなったのはその一例）。そのとき古いデータを正しく
+          変換するには、各ファイルがどの形で書かれたかが分かっている必要がある。当初は
+          「アプリのバージョンを保存しておく」案を検討した。
+        </p>
+        <p>
+          併せて現状を調べると、形式を変えなくてもデータを失う経路があった。
+        </p>
+        <ul>
+          <li>
+            <code>voiceprints.json</code> / <code>folders.json</code> は、読めなかったとき空として扱い、
+            次の書き込みで<strong>新しい 1 件だけで上書きする</strong>。声紋帳もフォルダ定義も再生成できない
+            （<a href="#adr-031">ADR-031</a>）。
+          </li>
+          <li>
+            <code>settings.json</code> は、読めなかったとき既定値で起動し、次の保存で
+            <code>storageDir: null</code> を含む内容で上書きする。利用者からはライブラリが丸ごと消えたように見える。
+          </li>
+          <li>
+            知らないキーや要素を落として書き戻す。新しい版が項目を足したファイルを古い版で一度保存すると、
+            足した項目が消える。保存先は利用者が選んだフォルダで、別のマシンへ移すことも想定している
+            （<a href="#adr-031">ADR-031</a>）ので、<strong>新しい版のデータを古い版が開く</strong>ことは
+            実際に起こる。
+          </li>
+        </ul>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>論点</th><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td rowspan="2">形式の識別</td>
+                <td><strong>ファイルごとの整数のスキーマ番号（<code>schemaVersion</code>）</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>破壊的に変えたときだけ上がるので、変換は <code>v1→v2→v3</code> と 1 段ずつ順に適用すればよい。
+                ファイルごとに別々のタイミングで変えられる</td>
+              </tr>
+              <tr>
+                <td>アプリのバージョン（<code>0.1.1</code>）</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>形式が変わらないリリースでも上がるので、変換の分岐が semver の範囲比較になる。
+                1 つの番号で全ファイルを表すことになり、別ブランチの開発ビルドも区別できない。
+                調査のための付帯情報として残すのはよいが、分岐の条件には使わない</td>
+              </tr>
+              <tr>
+                <td rowspan="2">キャッシュの扱い</td>
+                <td><strong>番号が合わなければ捨てて作り直す</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td><code>index.json</code> と意味検索の索引（<a href="#adr-029">ADR-029</a>）は再生成できる。
+                索引は既にこの形（<code>FILE_VERSION</code>）</td>
+              </tr>
+              <tr>
+                <td>キャッシュも変換する</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>作り直せるものに変換のコードとテストを抱える理由がない</td>
+              </tr>
+              <tr>
+                <td rowspan="2">読めないファイル</td>
+                <td><strong>書き込む前に <code>&lt;名前&gt;.unreadable-&lt;時刻&gt;</code> へ退避する</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>起動は止めず（既存の方針）、元の内容は手で取り戻せる形で残る。読むだけの操作では
+                ファイルに触れない</td>
+              </tr>
+              <tr>
+                <td>書き込みを拒む</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>設定が保存できなくなると、保存先を選び直すこともできずアプリが使えなくなる</td>
+              </tr>
+              <tr>
+                <td rowspan="2">知らないキー・要素</td>
+                <td><strong>読んだ生の内容に重ねて書き戻す</strong></td>
+                <td><span class="tag tag--adopt">採用</span></td>
+                <td>項目の追加（非破壊的な変更）なら番号を上げずに済み、古い版で保存しても消えない</td>
+              </tr>
+              <tr>
+                <td>理解できた部分だけを書く（従来）</td>
+                <td><span class="tag tag--reject">不採用</span></td>
+                <td>古い版を 1 回使うだけで新しい版のデータが欠ける</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>決定</h4>
+        <ul>
+          <li>
+            <strong>理解できなかったものを、理解できた部分だけで上書きしない。</strong>読めないファイルは
+            書き込み前に退避し、知らないキーや要素は書き戻しで残す。
+          </li>
+          <li>
+            データをキャッシュ（<code>index.json</code>、<code>userData/search/</code>）と正本
+            （<code>meta.json</code> / <code>transcript.json</code> / <code>voices.json</code> /
+            <code>folders.json</code> / <code>voiceprints.json</code> / <code>settings.json</code>）に分ける。
+            変換するのは正本だけ。<code>*.md</code> は人が読むための出力なので番号を持たない。
+          </li>
+          <li>
+            正本には <code>schemaVersion</code>（整数）を持たせる。番号の無いファイルは v1 とみなすので、
+            既存のデータには手を加えない。
+          </li>
+          <li>
+            <strong>自分が知っている番号より新しいファイルは上書きしない</strong>（読み取りだけにしてアプリの
+            更新を促す）。このガードは最初の破壊的な変更より<strong>前の</strong>リリースに入っていないと
+            働かないので、変換の仕組みより先に入れる。
+          </li>
+          <li>
+            番号を上げるのは、名前の変更・単位の変更・構造の組み替えのように意味が変わるときだけ。
+            項目の追加は既定値で補う読み込み（<code>mergeSettings</code> など）で吸収する。
+          </li>
+          <li>
+            変換は <code>(vN) =&gt; vN+1</code> の純粋関数を順につなぎ、過去の形の実物をテストの入力に残す。
+            一度出した変換は書き換えない。録音ごとのファイルは読むときに変換し、書き戻しは次の保存に任せる
+            （起動時の一括変換は、途中で失敗すると新旧が混ざる）。ライブラリ全体のファイルは書き戻す前に
+            元の内容を残す。
+          </li>
+        </ul>
+
+        <h4>進め方</h4>
+        <ol>
+          <li>
+            <code>settings.json</code> / <code>voiceprints.json</code> / <code>folders.json</code> の
+            退避と、知らないキー・要素の保持。
+          </li>
+          <li>
+            正本への <code>schemaVersion</code> の書き込みと、新しい番号のファイルを上書きしないガード。
+            録音ごとのファイル（<code>meta.json</code> / <code>transcript.json</code> / <code>voices.json</code>）
+            で知らないキーを残すのもここで行う。
+          </li>
+          <li>
+            変換関数をつなぐ仕組みは、最初の破壊的な変更が来たときに作る。
+          </li>
+        </ol>
+
+        <h4>結果</h4>
+        <ul>
+          <li>
+            退避したファイルができたことは今のところ利用者に知らせていない（ログに場所を出すだけ）。
+            実際に起きるようなら画面で知らせる。
           </li>
         </ul>
       </div>
