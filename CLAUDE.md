@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Duoscribe** — macOS 向けの Web 会議録音アプリ（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜034）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜035）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -168,6 +168,10 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 - チャットのプロンプト（`src/domain/ChatPrompt.ts`）は**設定で編集可能にしない**。
   「文脈だけを根拠にする」「`[1]` で引用する」という出力の契約を含み、画面の引用表示が
   それに依存する（ADR-032）。
+- 保存データの形を変えるときは ADR-035 に従う。項目の追加は番号を上げずに既定値で補い、
+  意味が変わるときだけ object のファイルの `schemaVersion` を上げる（配列の `voiceprints.json` /
+  `folders.json` はファイル名を変える）。**読めないもの・知らないキーを、理解できた部分だけで
+  上書きしない** — 書き込みは `jsonFile.ts` の `replaceStoredJson` / `replaceVersionedJson` を通す。
 - 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、
   外したときに「自分が言っていない発言」が残る（ADR-030）。変換は取り込み時に `afconvert` で
   16kHz モノラルにし、`--mix` を外さない（片チャンネルを捨てると話者が丸ごと消える）。

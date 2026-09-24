@@ -1,7 +1,11 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import type { SettingsRepositoryPort } from '@application/ports'
 import type { StorageLocator } from '@infrastructure/persistence/FileRecordingStore'
+import {
+  isPlainObject,
+  readStoredJson,
+  replaceVersionedJson,
+  type StoredJson
+} from '@infrastructure/persistence/jsonFile'
 import { ConfigurationError } from '@domain/errors'
 import {
   defaultSettings,
@@ -10,40 +14,44 @@ import {
   type SettingsPatch
 } from '@domain/Settings'
 
+/** settings.json の形式の番号。破壊的に変えたときだけ上げる（ADR-035）。 */
+const SCHEMA_VERSION = 1
+
 /**
  * 設定を 1 つの JSON ファイルに保存する。
  *
  * 保存済みの内容は既定値へマージして読み込むため、アプリの更新で設定項目が
- * 増えても古いファイルがそのまま使える。壊れていた場合も既定値で起動を続ける。
+ * 増えても古いファイルがそのまま使える。壊れていた場合も既定値で起動を続けるが、
+ * 次に保存する前に元のファイルを退避する（ADR-035）。
  */
 export class JsonSettingsRepository implements SettingsRepositoryPort {
   private cache: Settings | undefined
+  /** 最後に読み書きしたファイルの生の内容。知らないキーを書き戻しで残すために持つ。 */
+  private stored: StoredJson<Record<string, unknown>> = { kind: 'missing' }
 
   constructor(private readonly filePath: string) {}
 
   async load(): Promise<Settings> {
     if (this.cache) return this.cache
 
-    let stored: SettingsPatch = {}
-    try {
-      stored = JSON.parse(await readFile(this.filePath, 'utf8')) as SettingsPatch
-    } catch {
-      // 未作成・壊れた JSON は既定値で続行する。設定ファイルのせいで起動できない
-      // 状態を作らない。
-    }
-
-    this.cache = mergeSettings(defaultSettings(), stored)
+    // 未作成・壊れた JSON は既定値で続行する。設定ファイルのせいで起動できない
+    // 状態を作らない。
+    this.stored = await readStoredJson(this.filePath, isPlainObject)
+    this.cache = mergeSettings(
+      defaultSettings(),
+      this.stored.kind === 'ok' ? (this.stored.value as SettingsPatch) : {}
+    )
     return this.cache
   }
 
   async save(patch: SettingsPatch): Promise<Settings> {
     const merged = mergeSettings(await this.load(), patch)
+    // 新しい版が足したキーは、この版が知らなくても残す。
+    const written = { ...(this.stored.kind === 'ok' ? this.stored.value : {}), ...merged }
 
-    await mkdir(dirname(this.filePath), { recursive: true })
-    const temporary = `${this.filePath}.tmp`
-    await writeFile(temporary, `${JSON.stringify(merged, null, 2)}\n`, 'utf8')
-    await rename(temporary, this.filePath)
+    await replaceVersionedJson(this.filePath, this.stored, SCHEMA_VERSION, written)
 
+    this.stored = { kind: 'ok', value: written }
     this.cache = merged
     return merged
   }

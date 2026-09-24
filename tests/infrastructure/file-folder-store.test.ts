@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -56,5 +56,43 @@ describe('FileFolderRepository', () => {
     await writeFile(join(storage, 'folders.json'), '{ broken', 'utf8')
 
     expect(await repository.list()).toEqual([])
+  })
+
+  it('壊れた folders.json は書き込む前に退避する（フォルダ名は再生成できない）', async () => {
+    await writeFile(join(storage, 'folders.json'), '{ broken', 'utf8')
+
+    await repository.replaceAll([{ id: 'f1', name: '議事録' }])
+
+    const [quarantined] = (await readdir(storage)).filter((name) =>
+      name.startsWith('folders.json.unreadable-')
+    )
+    expect(await readFile(join(storage, quarantined ?? ''), 'utf8')).toBe('{ broken')
+    expect(await repository.list()).toEqual([{ id: 'f1', name: '議事録' }])
+  })
+
+  it('読めない要素や知らないキーを書き戻しで消さない（新しい版のデータを古い版で壊さない）', async () => {
+    await writeFile(
+      join(storage, 'folders.json'),
+      JSON.stringify([
+        { id: 'f1', name: '議事録', color: 'blue' },
+        { id: 'f2', name: '子', parentId: 'f1', color: 'red' },
+        { id: 'f3', name: '消す' },
+        { future: true }
+      ]),
+      'utf8'
+    )
+
+    // f1 の改名、f2 をトップレベルへ移動、f3 の削除を一度に行う。
+    await repository.replaceAll([
+      { id: 'f1', name: '会議' },
+      { id: 'f2', name: '子' }
+    ])
+
+    const content = JSON.parse(await readFile(join(storage, 'folders.json'), 'utf8')) as unknown[]
+    expect(content).toEqual([
+      { id: 'f1', name: '会議', color: 'blue' },
+      { id: 'f2', name: '子', color: 'red' },
+      { future: true }
+    ])
   })
 })

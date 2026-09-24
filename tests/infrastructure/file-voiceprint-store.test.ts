@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -113,6 +113,64 @@ describe('FileVoiceprintRepository', () => {
     await writeFile(join(storage, 'voiceprints.json'), '{ broken', 'utf8')
 
     expect(await repository.list()).toEqual([])
+  })
+
+  it('壊れた voiceprints.json は書き込む前に退避する（再生成できないので上書きで消さない）', async () => {
+    await writeFile(join(storage, 'voiceprints.json'), '{ broken', 'utf8')
+
+    await repository.put(print('田中さん', [1, 0]))
+
+    const [quarantined] = (await readdir(storage)).filter((name) =>
+      name.startsWith('voiceprints.json.unreadable-')
+    )
+    expect(quarantined).toBeDefined()
+    expect(await readFile(join(storage, quarantined ?? ''), 'utf8')).toBe('{ broken')
+    expect((await repository.list()).map((entry) => entry.name)).toEqual(['田中さん'])
+  })
+
+  it('配列でない voiceprints.json も読めないものとして退避する', async () => {
+    await writeFile(join(storage, 'voiceprints.json'), '{"entries":[]}', 'utf8')
+
+    await repository.put(print('田中さん', [1, 0]))
+
+    expect(
+      (await readdir(storage)).some((name) => name.startsWith('voiceprints.json.unreadable-'))
+    ).toBe(true)
+  })
+
+  it('読めない要素や知らないキーを書き戻しで消さない（新しい版のデータを古い版で壊さない）', async () => {
+    await writeFile(
+      join(storage, 'voiceprints.json'),
+      JSON.stringify([
+        { name: '未来の形', embedding: { dims: 2 } },
+        { ...record('佐藤さん'), futureField: 'keep' },
+        record('田中さん')
+      ]),
+      'utf8'
+    )
+
+    await repository.put(print('鈴木さん', [1, 0]))
+    await repository.remove('田中さん')
+
+    const content = JSON.parse(
+      await readFile(join(storage, 'voiceprints.json'), 'utf8')
+    ) as Record<string, unknown>[]
+    expect(content).toContainEqual({ name: '未来の形', embedding: { dims: 2 } })
+    expect(content).toContainEqual({ ...record('佐藤さん'), futureField: 'keep' })
+    expect(content.map((entry) => entry['name'])).not.toContain('田中さん')
+    expect(content.map((entry) => entry['name'])).toContain('鈴木さん')
+  })
+
+  it('全部消すときは読めない要素も消す（利用者が明示的に選んだ操作）', async () => {
+    await writeFile(
+      join(storage, 'voiceprints.json'),
+      JSON.stringify([{ name: '未来の形' }, record('佐藤さん')]),
+      'utf8'
+    )
+
+    await repository.clear()
+
+    expect(JSON.parse(await readFile(join(storage, 'voiceprints.json'), 'utf8'))).toEqual([])
   })
 
   it('数値でない成分を含む声紋は読み飛ばす（NaN は閾値の検査を素通りする）', async () => {
