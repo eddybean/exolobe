@@ -12,6 +12,7 @@ import { messageOf } from '../errorMessage'
 import { isCommitEnter } from '../keyboard'
 import { FOLDER_MIME, RECORDING_MIME } from '../library/fileDrop'
 import {
+  acceptedDrop,
   filterByQuery,
   folderChipRows,
   folderPathLabel,
@@ -217,21 +218,24 @@ export const LibrarySidebar = ({
     return () => clearTimeout(timer)
   }, [keywordQuery])
 
-  const handleDrop = useCallback(
-    (event: DragEvent, folderId: string | undefined) => {
+  /** フォルダのボタンへのドロップ。何を受けるかはボタンの種類で決まる（acceptedDrop）。 */
+  const dropOnChip = useCallback(
+    (event: DragEvent, chip: FolderChip) => {
+      const accepted = acceptedDrop(chip.kind, [...event.dataTransfer.types])
+      if (!accepted) return
       event.preventDefault()
       setDropTarget(undefined)
 
-      const recordingId = event.dataTransfer.getData(RECORDING_MIME)
-      if (recordingId) {
-        onMoveRecording(recordingId, folderId)
+      // 「すべて」「未分類」はどのフォルダでもない＝最上位・フォルダ無しを指す。
+      const target = chip.kind === 'folder' ? chip.key : undefined
+      if (accepted === 'recording') {
+        const recordingId = event.dataTransfer.getData(RECORDING_MIME)
+        if (recordingId) onMoveRecording(recordingId, target)
         return
       }
 
-      const draggedFolderId = event.dataTransfer.getData(FOLDER_MIME)
-      if (draggedFolderId && draggedFolderId !== folderId) {
-        onMoveFolder(draggedFolderId, folderId)
-      }
+      const folderId = event.dataTransfer.getData(FOLDER_MIME)
+      if (folderId && folderId !== target) onMoveFolder(folderId, target)
     },
     [onMoveFolder, onMoveRecording]
   )
@@ -288,15 +292,6 @@ export const LibrarySidebar = ({
             >
               ⤓
             </button>
-            <button
-              type="button"
-              className="tree__add"
-              title="新規フォルダ"
-              aria-label="新規フォルダ"
-              onClick={() => setModal({ kind: 'create' })}
-            >
-              ＋
-            </button>
           </span>
         </div>
         <input
@@ -342,7 +337,22 @@ export const LibrarySidebar = ({
       )}
 
       {!showSemanticResults && !searching && (
-        <div className="folders" aria-label="フォルダ">
+        <section className="folders" aria-labelledby="folders-title">
+          {/* 作成の入口はフォルダの見出しに置く。「ライブラリ」の横では何を作るのか読み取れなかった。 */}
+          <div className="folders__header">
+            <h3 id="folders-title" className="folders__title">
+              フォルダ
+            </h3>
+            <button
+              type="button"
+              className="tree__add"
+              title="新規フォルダ"
+              aria-label="新規フォルダ"
+              onClick={() => setModal({ kind: 'create' })}
+            >
+              ＋
+            </button>
+          </div>
           {chipRows.map((row, depth) => (
             // 段が深いほど下げ、どの段がどの段の子なのかを字下げで見せる。
             <div key={depth} className="folders__row" style={{ paddingLeft: `${depth * 14}px` }}>
@@ -354,13 +364,13 @@ export const LibrarySidebar = ({
                   dropping={dropTarget === chip.key}
                   onSelect={() => onSelectFolder(chip.key)}
                   onDragOver={(event) => {
+                    // 受けないボタンでは既定の動作（ドロップ不可）のままにし、強調も出さない。
+                    if (!acceptedDrop(chip.kind, [...event.dataTransfer.types])) return
                     event.preventDefault()
                     setDropTarget(chip.key)
                   }}
                   onDragLeave={() => setDropTarget(undefined)}
-                  onDrop={(event) =>
-                    handleDrop(event, chip.kind === 'folder' ? chip.key : undefined)
-                  }
+                  onDrop={(event) => dropOnChip(event, chip)}
                 />
               ))}
             </div>
@@ -383,7 +393,7 @@ export const LibrarySidebar = ({
               </button>
             </div>
           )}
-        </div>
+        </section>
       )}
 
       {!showSemanticResults && searching && (
@@ -474,10 +484,7 @@ type FolderModal =
   | { kind: 'create'; parentId?: string }
   | { kind: 'rename'; folder: FolderDto }
 
-/**
- * フォルダのボタン。録音やフォルダのドロップ先も兼ねる。
- * 「すべて」はドロップされても行き先が決まらないので受け付けない。
- */
+/** フォルダのボタン。録音やフォルダのドロップ先も兼ねる（何を受けるかは acceptedDrop）。 */
 const FolderChipButton = ({
   chip,
   selected,
@@ -514,7 +521,11 @@ const FolderChipButton = ({
         event.dataTransfer.setData(FOLDER_MIME, chip.key)
         event.dataTransfer.effectAllowed = 'move'
       }}
-      {...(chip.kind === 'all' ? {} : { onDragOver, onDragLeave, onDrop })}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      // 長い名前は省略して出すので、全文はホバーで読めるようにする。
+      title={chip.name}
     >
       <span className="folder-chip__name">{chip.name}</span>
       <span className="folder-chip__count">{chip.count}</span>

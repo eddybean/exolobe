@@ -49,6 +49,20 @@ describe('ライブラリ画面の構成', () => {
  * 取り込みのオーバーレイは、見た目を確かめる手段が単体テストに無い。
  * 「ドロップを奪わない」「モーダルより下」という壊れると分かりにくい 2 点を宣言で固定する。
  */
+/**
+ * 長いフォルダ名でボタンが 1 行を占め、段が無駄に増えないよう、幅を決めて省略する。
+ * 全文は title 属性（ホバー）で読める。
+ */
+describe('フォルダのボタン', () => {
+  it('長い名前は決まった幅で省略する', () => {
+    const rule = ruleFor('.folder-chip__name')
+
+    expect(rule).toMatch(/max-width:\s*\d+(em|px)/)
+    expect(rule).toMatch(/white-space:\s*nowrap/)
+    expect(rule).toMatch(/text-overflow:\s*ellipsis/)
+  })
+})
+
 describe('ドロップ中のオーバーレイ', () => {
   it('画面全体を覆う', () => {
     const rule = ruleFor('.drop-overlay')

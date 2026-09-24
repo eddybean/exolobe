@@ -214,6 +214,19 @@ code {
   border-bottom: 1px solid var(--border);
 }
 
+.folders__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.folders__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 .folders__row {
   display: flex;
   flex-wrap: wrap;
@@ -224,7 +237,6 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  max-width: 100%;
   padding: 3px 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -253,6 +265,8 @@ code {
 }
 
 .folder-chip__name {
+  /* 長い名前 1 つでボタンが行を占め、段が無駄に増えないよう幅を決める。全文はホバーで出す。 */
+  max-width: 12em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

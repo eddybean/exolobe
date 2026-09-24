@@ -1,4 +1,5 @@
 import type { FolderDto, RecordingDto } from '@shared/ipc'
+import { FOLDER_MIME, RECORDING_MIME } from './fileDrop'
 
 /**
  * ライブラリのフォルダの選び方。
@@ -153,4 +154,22 @@ export const filterByQuery = <T extends Pick<RecordingDto, 'title' | 'summaryPre
       text.toLowerCase().includes(needle)
     )
   )
+}
+
+/**
+ * フォルダのボタンが受けるドロップ。受けないなら undefined。
+ *
+ * 「すべて」は最上位（どのフォルダの子でもない）なので、フォルダを最上位へ出す先にする。
+ * 録音は受けない —— 全件を含む「すべて」へ移しても、何も変わらないように見えるため。
+ * 「未分類」は「どのフォルダにも入っていない」なので録音だけを受ける。フォルダも
+ * 受けると、最上位へ出す先が 2 つになって意味がぼやける。
+ * ドラッグ中は中身を読めず種類（types）しか見えないので、種類だけで決める。
+ */
+export const acceptedDrop = (
+  kind: FolderChip['kind'],
+  types: readonly string[]
+): 'recording' | 'folder' | undefined => {
+  if (types.includes(RECORDING_MIME)) return kind === 'all' ? undefined : 'recording'
+  if (types.includes(FOLDER_MIME)) return kind === 'unfiled' ? undefined : 'folder'
+  return undefined
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  acceptedDrop,
   filterByQuery,
   folderChipRows,
   folderPathLabel,
@@ -7,6 +8,7 @@ import {
   resolveFolderKey
 } from '@renderer/library/folders'
 import type { FolderDto, RecordingDto } from '@shared/ipc'
+import { FOLDER_MIME, RECORDING_MIME } from '@renderer/library/fileDrop'
 
 const folder = (id: string, name: string, parentId?: string): FolderDto => ({
   id,
@@ -152,5 +154,32 @@ describe('filterByQuery', () => {
 
   it('空の検索語なら全件', () => {
     expect(filterByQuery(recordings, '  ')).toHaveLength(5)
+  })
+})
+
+/**
+ * フォルダのボタンが何のドロップを受けるか。「すべて」は最上位（どのフォルダの子でもない）、
+ * 「未分類」はどのフォルダにも入っていない、という意味に揃える。受けないボタンでは
+ * 強調も出さず、落とせる場所をドラッグ中に見分けられるようにする。
+ */
+describe('acceptedDrop', () => {
+  it('「すべて」はフォルダを受ける（最上位へ出す）が、録音は受けない', () => {
+    expect(acceptedDrop('all', [FOLDER_MIME])).toBe('folder')
+    // 全件を含む「すべて」へ移しても、何も変わらないように見えてしまう。
+    expect(acceptedDrop('all', [RECORDING_MIME])).toBeUndefined()
+  })
+
+  it('「未分類」は録音を受ける（フォルダから外す）が、フォルダは受けない', () => {
+    expect(acceptedDrop('unfiled', [RECORDING_MIME])).toBe('recording')
+    expect(acceptedDrop('unfiled', [FOLDER_MIME])).toBeUndefined()
+  })
+
+  it('フォルダは録音もフォルダも受ける', () => {
+    expect(acceptedDrop('folder', [RECORDING_MIME])).toBe('recording')
+    expect(acceptedDrop('folder', [FOLDER_MIME])).toBe('folder')
+  })
+
+  it('アプリの外から来たもの（ファイルなど）は受けない', () => {
+    expect(acceptedDrop('folder', ['Files'])).toBeUndefined()
   })
 })
