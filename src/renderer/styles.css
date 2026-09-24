@@ -134,9 +134,41 @@ code {
 }
 
 .library {
+  /* 境目のつまみを重ねる基準。つまみは升目を取らせない。 */
+  position: relative;
   display: grid;
-  grid-template-columns: 320px 1fr;
+  /* 1 列目の幅は境目のドラッグで変わる（App が --library-width を渡す）。 */
+  grid-template-columns: var(--library-width, 320px) 1fr;
   height: 100%;
+}
+
+/* ドラッグ中は本文の選択が走らないようにし、どこにいても左右矢印のカーソルを保つ。 */
+.library--resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/*
+ * ライブラリと詳細の境目のつまみ。グリッドの升目を取ると 3 列目ができてしまうので、
+ * 絶対配置で境目の線（.tree の border-right）の上に重ねる。
+ */
+.pane-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--library-width, 320px) - 3px);
+  width: 6px;
+  z-index: 5;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.pane-resizer:hover,
+.pane-resizer:focus-visible,
+.library--resizing .pane-resizer {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  outline: none;
 }
 
 /*
@@ -202,104 +234,112 @@ code {
   overflow-y: auto;
 }
 
-/* 入れ子のリストは外側の padding を持たない。段差は行の padding-left で作る。 */
-.tree__list .tree__list {
-  padding: 2px 0;
-  overflow: visible;
+/*
+ * フォルダの選択。上に並べて選び、下の一覧にその中身を出す。
+ * 子フォルダは、選んだフォルダの下に 1 段ずつ足す（ボタンの列では親子を表せないため）。
+ */
+.folders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--border);
 }
 
-.tree__folder {
-  position: relative;
+.folders__header {
   display: flex;
   align-items: center;
-  width: 100%;
-  border: 1px solid transparent;
-  background: transparent;
-  border-radius: 6px;
-  padding: 6px 8px;
-  text-align: left;
-  gap: 4px;
+  justify-content: space-between;
 }
 
-.tree__folder:hover {
+.folders__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.folders__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.folder-chip:hover {
   background: var(--surface-2);
 }
 
-.tree__folder--drop {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+.folder-chip--selected {
   border-color: var(--accent);
-}
-
-.tree__folder-label {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  padding: 0;
-  text-align: left;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   font-weight: 600;
 }
 
-.tree__caret {
-  width: 10px;
-  flex: none;
-  color: var(--text-muted);
-  font-size: 10px;
+/* 選んだフォルダの祖先。どこにいるかが分かるよう、選択より控えめに強調する。 */
+.folder-chip--path {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 
-.tree__folder-name {
+.folder-chip--drop {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.folder-chip__name {
+  /* 長い名前 1 つでボタンが行を占め、段が無駄に増えないよう幅を決める。全文はホバーで出す。 */
+  max-width: 12em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tree__count {
+.folder-chip__count {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 400;
 }
 
-.tree__folder-input {
-  flex: 1;
-  padding: 2px 4px;
-}
-
-.tree__folder-actions {
+.folders__actions {
   display: flex;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.12s ease;
+  gap: 6px;
 }
 
-.tree__folder:hover .tree__folder-actions {
-  opacity: 1;
-}
-
-.tree__folder-actions button {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  line-height: 1;
+.folders__actions button {
+  padding: 2px 8px;
   font-size: 11px;
-  border-color: transparent;
-  background: transparent;
   color: var(--text-muted);
 }
 
-.tree__folder-actions button:hover {
-  background: var(--surface-2);
-  color: var(--text);
+.folders__actions .folders__delete {
+  color: var(--danger);
 }
 
-/* 録音はタイトルと処理状態だけの 1 行。日時や要約は詳細ペインに任せる。 */
+.folders__searching {
+  margin: 0;
+  padding: 8px 16px 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/*
+ * 録音は 2 行。1 行目にタイトルと処理状態、2 行目に日時と長さ。
+ * タイトルだけでは似た名前の定例が見分けられなかった。要約は詳細ペインに任せる。
+ */
 .tree__item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 1px;
   width: 100%;
   padding: 5px 8px;
   border: 1px solid transparent;
@@ -318,10 +358,35 @@ code {
   font-weight: 600;
 }
 
+.tree__item-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
 .tree__title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tree__meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 日付の区切り。行ではないので押せる見た目にしない。 */
+.tree__group {
+  padding: 8px 8px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 /* ── 意味検索 ───────────────────────────────── */
@@ -851,69 +916,136 @@ code {
   color: var(--text-muted);
 }
 
-.steps {
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.pipeline__summary {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pipeline__hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.pipeline__steps {
   list-style: none;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
   margin: 0;
   padding: 0;
 }
 
-.steps__item {
-  display: flex;
+.pipeline__step {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
+  column-gap: 10px;
+  row-gap: 4px;
   font-size: 12px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--surface-2);
+}
+
+/* 状態は色だけでなく形でも分かるようにする（完了＝塗り、処理中＝輪、待機＝薄い輪）。 */
+.pipeline__mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  justify-self: center;
+}
+
+.pipeline__step--done .pipeline__mark {
+  border-color: var(--success);
+  background: var(--success);
+}
+
+.pipeline__step--running .pipeline__mark {
+  border-color: var(--accent);
+}
+
+.pipeline__step--failed .pipeline__mark {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.pipeline__step--pending {
   color: var(--text-muted);
-  /* 一覧性が命なので、中身がどう増えてもバッヂ自体は 1 行に保つ。 */
-  white-space: nowrap;
 }
 
-.steps__item--running {
-  color: var(--warning);
+.pipeline__step--running .pipeline__label {
+  font-weight: 600;
 }
 
-.steps__item--done {
-  color: var(--success);
+.pipeline__state {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.steps__item--failed {
+.pipeline__step--running .pipeline__state {
+  color: var(--accent);
+}
+
+.pipeline__step--failed .pipeline__state {
   color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
-.steps__retry {
-  padding: 0 6px;
-  font-size: 11px;
+.pipeline__bar {
+  grid-column: 2 / -1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
 }
 
-.steps-block {
+.pipeline__bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.pipeline__problem {
+  grid-column: 2 / -1;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 /*
- * 失敗の全文。重ねて出すことはできない —— 親の .detail が overflow: hidden で
- * 切るため、画面外に消える。バッヂ列の下に場所を取って出す。
+ * 失敗の全文。ホバーで出す作りだとマウスを外した途端に消え、読む・コピーする前に
+ * 見失っていたので、常に出す。重ねて出すこともできない —— 親の .detail が
+ * overflow: hidden で切るため、画面外に消える。通常のフローに場所を取る。
  */
-.steps__detail {
+.pipeline__failure {
+  flex: 1;
   margin: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
   color: var(--text);
   font-size: 12px;
-  /* 全文を読ませるのが目的なので、バッヂの nowrap を持ち込まず折り返す。 */
   white-space: pre-wrap;
   /* ネイティブ由来の英語エラーは検索・報告に持ち出したくなる。選択させる。 */
   user-select: text;
   cursor: text;
+}
+
+.pipeline__retry {
+  flex-shrink: 0;
+  font-size: 12px;
 }
 
 .panel {
@@ -1415,6 +1547,16 @@ textarea:focus {
 
 .transport__icon--stop {
   border-radius: 2px;
+}
+
+.transport__shortcut {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
 }
 
 .transport__status {

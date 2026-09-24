@@ -225,21 +225,48 @@ const hasNoSamples = async (wavPath: string): Promise<boolean> => {
   }
 }
 
+/** `--print-progress` が stderr に出す行。`progress =  21%` のように空白で桁を揃える。 */
+const PROGRESS_LINE = /whisper_print_progress_callback:\s*progress\s*=\s*(\d+)%/
+
+/**
+ * stderr のチャンクから進捗の割合（0〜1）を読み取る関数を作る。
+ *
+ * stderr は行の区切りと無関係な単位で届くため、行が揃うまで溜めてから読む。
+ * 切れ目でそのまま読むと「progress = 2」と「1%」に割れて、21% を取り逃がす。
+ */
+export const whisperProgressReader = (
+  onProgress: (fraction: number) => void
+): ((chunk: string) => void) => {
+  let pending = ''
+  return (chunk) => {
+    const lines = (pending + chunk).split('\n')
+    pending = lines.pop() ?? ''
+    for (const line of lines) {
+      const match = PROGRESS_LINE.exec(line)
+      if (match?.[1]) onProgress(Number(match[1]) / 100)
+    }
+  }
+}
+
 /** whisper-cli を起動する処理。テストで差し替えられるよう切り出す。 */
 export type WhisperRunner = (args: {
   binaryPath: string
   argv: readonly string[]
+  /** stderr を届いた順に渡す。進捗を読むために使う。 */
+  onStderr?: (chunk: string) => void
 }) => Promise<void>
 
-const defaultRunner: WhisperRunner = ({ binaryPath, argv }) =>
+const defaultRunner: WhisperRunner = ({ binaryPath, argv, onStderr }) =>
   new Promise((resolve, reject) => {
-    execFile(binaryPath, [...argv], (error, _stdout, stderr) => {
+    const child = execFile(binaryPath, [...argv], (error, _stdout, stderr) => {
       if (error) {
         reject(new TranscriptionError(describeFailure(binaryPath, error, stderr), { cause: error }))
         return
       }
       resolve()
     })
+    // execFile は stderr を溜めて失敗時の文言に使うので、その経路は残したまま横から覗く。
+    if (onStderr) child.stderr?.on('data', (chunk: Buffer | string) => onStderr(String(chunk)))
   })
 
 /** whisper-cli の失敗を利用者が次に何をすべきか分かる文言へ翻訳する。 */
@@ -286,6 +313,7 @@ export class WhisperCppTranscriber implements TranscriptionPort {
     wavPath: string
     language: string
     speakerId: string
+    onProgress?: (fraction: number) => void
   }): Promise<TranscriptSegment[]> {
     if (!this.config.modelPath) {
       throw new TranscriptionError(
@@ -319,6 +347,8 @@ export class WhisperCppTranscriber implements TranscriptionPort {
       '--output-file',
       outputPrefix,
       '--no-prints',
+      // 進捗は --no-prints を付けたままでも stderr に出る。処理画面の割合表示に使う。
+      '--print-progress',
       // 拍手や物音を表すトークンを抑制する。VAD をすり抜けた雑音の分だけ効く。
       '--suppress-nst',
       ...(this.config.vadModelPath
@@ -331,7 +361,11 @@ export class WhisperCppTranscriber implements TranscriptionPort {
     ]
 
     try {
-      await this.run({ binaryPath: this.config.binaryPath, argv })
+      await this.run({
+        binaryPath: this.config.binaryPath,
+        argv,
+        ...(params.onProgress ? { onStderr: whisperProgressReader(params.onProgress) } : {})
+      })
       return parseWhisperJson(
         await readFile(jsonPath, 'utf8'),
         params.speakerId,

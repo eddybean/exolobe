@@ -215,6 +215,8 @@ export class FakeSettingsRepository implements SettingsRepositoryPort {
 export class FakeTranscriber implements TranscriptionPort {
   /** wavPath ごとに返すセグメント。テキストのみ指定し話者は呼び出し側の指定で埋める。 */
   byPath = new Map<string, { startMs: number; endMs: number; text: string }[]>()
+  /** wavPath ごとに、文字起こしの途中で通知する進捗（0〜1）。 */
+  progressByPath = new Map<string, number[]>()
   calls: { wavPath: string; speakerId: string }[] = []
   error?: Error
 
@@ -226,9 +228,13 @@ export class FakeTranscriber implements TranscriptionPort {
     wavPath: string
     language: string
     speakerId: string
+    onProgress?: (fraction: number) => void
   }): Promise<TranscriptSegment[]> {
     if (this.error) throw this.error
     this.calls.push({ wavPath: params.wavPath, speakerId: params.speakerId })
+    for (const fraction of this.progressByPath.get(params.wavPath) ?? []) {
+      params.onProgress?.(fraction)
+    }
     return (this.byPath.get(params.wavPath) ?? []).map((s) => ({
       ...s,
       speakerId: params.speakerId
@@ -416,13 +422,20 @@ export class FakeFileInfo implements FileInfoPort {
 }
 
 export class FakeProgressReporter implements ProgressReporterPort {
-  events: { recordingId: string; step: PipelineStep; status: string; error?: string }[] = []
+  events: {
+    recordingId: string
+    step: PipelineStep
+    status: string
+    error?: string
+    fraction?: number
+  }[] = []
 
   report(event: {
     recordingId: string
     step: PipelineStep
     status: 'running' | 'done' | 'failed'
     error?: string
+    fraction?: number
   }): void {
     this.events.push(event)
   }

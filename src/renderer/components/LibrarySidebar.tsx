@@ -12,18 +12,23 @@ import { messageOf } from '../errorMessage'
 import { isCommitEnter } from '../keyboard'
 import { FOLDER_MIME, RECORDING_MIME } from '../library/fileDrop'
 import {
-  buildLibraryTree,
-  resolveOpen,
-  searchExpandedKeys,
-  type LibraryNode
-} from '../library/tree'
+  acceptedDrop,
+  filterByQuery,
+  folderChipRows,
+  folderPathLabel,
+  recordingsInFolder,
+  resolveFolderKey,
+  type FolderChip,
+  type FolderKey
+} from '../library/folders'
 import { STATUS_LABELS } from '../format'
+import { useNow } from '../hooks/useNow'
+import { groupByDate, recordingRowMeta } from '../library/rows'
 import { SemanticSearchResults, type SemanticSearchState } from './SemanticSearchResults'
 import {
   TranscriptSearchResults,
   type TranscriptSearchState
 } from './TranscriptSearchResults'
-
 
 /** 本文の検索を走らせるまでの待ち。打っている途中の語で全件を読まないための間。 */
 const TRANSCRIPT_SEARCH_DEBOUNCE_MS = 250
@@ -36,18 +41,23 @@ const TRANSCRIPT_SEARCH_DEBOUNCE_MS = 250
  */
 const FolderNameModal = ({
   title,
+  initialName,
+  submitLabel,
   onCommit,
   onCancel
 }: {
   title: string
+  initialName: string
+  submitLabel: string
   onCommit: (name: string) => void
   onCancel: () => void
 }): ReactElement => {
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState(initialName)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    inputRef.current?.focus()
+    // 名前の変更では今の名前を選んでおき、打てばそのまま置き換わるようにする。
+    inputRef.current?.select()
   }, [])
 
   useEffect(() => {
@@ -88,7 +98,7 @@ const FolderNameModal = ({
             キャンセル
           </button>
           <button type="submit" disabled={draft.trim().length === 0}>
-            作成
+            {submitLabel}
           </button>
         </div>
       </form>
@@ -97,12 +107,12 @@ const FolderNameModal = ({
 }
 
 /**
- * フォルダと録音を 1 本にまとめたライブラリのツリー。
+ * ライブラリ。上にフォルダを並べて選び、下にそのフォルダの録音を日付で区切って出す。
  *
- * 3 ペインだと各列が狭くて読めなかったため、フォルダの中に録音を入れ子で出す。
- * 録音行はタイトルと処理状態だけの 1 行に絞り、日時や要約は詳細ペインに任せる。
- * 録音カードやフォルダ行をドラッグしてドロップすると、それぞれ
- * 「録音をフォルダへ割り当て」「フォルダの親子を入れ替え」が起きる。
+ * 以前はフォルダと録音を 1 本のツリーに入れ子で出していたが、フォルダを開くたびに
+ * 録音が間に挟まって縦に伸び、目当てのフォルダまで遠かった。ボタンの列では親子を
+ * 表せないので、選んだフォルダに子があれば子の列を 1 段ずつ足す（folderChipRows）。
+ * 録音行をフォルダのボタンへドロップすると移し、フォルダのボタン同士では親子を入れ替える。
  */
 export const LibrarySidebar = ({
   folders,
@@ -117,8 +127,8 @@ export const LibrarySidebar = ({
   onImport,
   importing,
   semanticAvailable,
-  expanded,
-  onToggleExpanded,
+  folderKey,
+  onSelectFolder,
   onSelectSegment,
   focus
 }: {
@@ -138,16 +148,17 @@ export const LibrarySidebar = ({
   /** 取り込みの変換中。押しても待たされるだけなので操作を止める。 */
   importing: boolean
   /**
-   * ユーザーが手で開閉したノード。画面遷移でこのコンポーネントは消えるので、
-   * 状態は App が持つ（消えると「すべて」が既定で開き直してしまう）。
+   * 選んでいるフォルダ。画面遷移でこのコンポーネントは消えるので、
+   * 状態は App が持つ（消えると「すべて」に戻ってしまう）。
    */
-  expanded: ReadonlyMap<string, boolean>
-  onToggleExpanded: (key: string, open: boolean) => void
+  folderKey: FolderKey
+  onSelectFolder: (key: FolderKey) => void
   /** 本文のヒットから開く。詳細画面はその発言まで送られる。 */
   onSelectSegment: (recordingId: string, startMs: number) => void
   /** いま開いている発言。本文のヒットの選択表示に使う。 */
   focus: { recordingId: string; startMs: number } | undefined
 }): ReactElement => {
+  const now = useNow()
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<'keyword' | 'semantic'>('keyword')
   const [semantic, setSemantic] = useState<SemanticSearchState | undefined>()
@@ -155,26 +166,27 @@ export const LibrarySidebar = ({
   // 設定で無効にされたら、選んでいたモードに関わらずキーワードに戻す。
   const semanticMode = semanticAvailable && mode === 'semantic'
   const [dropTarget, setDropTarget] = useState<string | undefined>()
-  const [createModal, setCreateModal] = useState<{ parentId?: string } | undefined>()
-  /** 検索中だけの開閉。手で決めた開閉を検索の都合で書き換えないよう分けてある。 */
-  const [searchToggled, setSearchToggled] = useState<ReadonlyMap<string, boolean>>(new Map())
+  const [modal, setModal] = useState<FolderModal | undefined>()
 
-  // 意味検索のモードでは語句の絞り込みをしない。Enter を押すまでツリーは全件のまま。
+  // 選んでいたフォルダが消えていたら「すべて」を見せる。
+  const currentKey = resolveFolderKey(folders, folderKey)
+  const selectedFolder = folders.find((folder) => folder.id === currentKey)
+
+  // 意味検索のモードでは語句の絞り込みをしない。Enter を押すまで一覧は全件のまま。
   const keywordQuery = semanticMode ? '' : query
-  const tree = useMemo(
-    () => buildLibraryTree(folders, recordings, keywordQuery),
-    [folders, recordings, keywordQuery]
-  )
   const searching = keywordQuery.trim().length > 0
-  const searchExpanded = useMemo(
-    () => (searching ? searchExpandedKeys(tree) : new Set<string>()),
-    [tree, searching]
+  const chipRows = useMemo(
+    () => folderChipRows(folders, recordings, currentKey),
+    [folders, recordings, currentKey]
   )
-
-  // 検索語が変わると開くべきノードも変わるので、前の絞り込みでの開閉は捨てる。
-  useEffect(() => {
-    setSearchToggled(new Map())
-  }, [query])
+  // 検索中はフォルダを横断する。選んだフォルダの外にある録音を「無い」と見せない。
+  const listed = useMemo(
+    () =>
+      searching
+        ? filterByQuery(recordings, keywordQuery)
+        : recordingsInFolder(folders, recordings, currentKey),
+    [folders, recordings, currentKey, searching, keywordQuery]
+  )
 
   /**
    * 本文の検索。1 文字ごとに全件の transcript.json を読むのは重いので少し待つ。
@@ -206,45 +218,28 @@ export const LibrarySidebar = ({
     return () => clearTimeout(timer)
   }, [keywordQuery])
 
-  const isOpen = useCallback(
-    (node: LibraryNode): boolean =>
-      resolveOpen(node, { toggled: expanded, searchToggled, searchExpanded, searching }),
-    [expanded, searchToggled, searchExpanded, searching]
-  )
-
-  const toggle = useCallback(
-    (node: LibraryNode, open: boolean): void => {
-      if (searching) setSearchToggled((current) => new Map(current).set(node.key, open))
-      else onToggleExpanded(node.key, open)
-    },
-    [searching, onToggleExpanded]
-  )
-
-  const handleDrop = useCallback(
-    (event: DragEvent, folderId: string | undefined) => {
+  /** フォルダのボタンへのドロップ。何を受けるかはボタンの種類で決まる（acceptedDrop）。 */
+  const dropOnChip = useCallback(
+    (event: DragEvent, chip: FolderChip) => {
+      const accepted = acceptedDrop(chip.kind, [...event.dataTransfer.types])
+      if (!accepted) return
       event.preventDefault()
       setDropTarget(undefined)
 
-      const recordingId = event.dataTransfer.getData(RECORDING_MIME)
-      if (recordingId) {
-        onMoveRecording(recordingId, folderId)
+      // 「すべて」「未分類」はどのフォルダでもない＝最上位・フォルダ無しを指す。
+      const target = chip.kind === 'folder' ? chip.key : undefined
+      if (accepted === 'recording') {
+        const recordingId = event.dataTransfer.getData(RECORDING_MIME)
+        if (recordingId) onMoveRecording(recordingId, target)
         return
       }
 
-      const draggedFolderId = event.dataTransfer.getData(FOLDER_MIME)
-      if (draggedFolderId && draggedFolderId !== folderId) {
-        onMoveFolder(draggedFolderId, folderId)
-      }
+      const folderId = event.dataTransfer.getData(FOLDER_MIME)
+      if (folderId && folderId !== target) onMoveFolder(folderId, target)
     },
     [onMoveFolder, onMoveRecording]
   )
 
-  const acceptDrop = useCallback((event: DragEvent, key: string) => {
-    event.preventDefault()
-    setDropTarget(key)
-  }, [])
-
-  const hasMatches = tree[0] !== undefined && tree[0].recordings.length > 0
   const hasTranscriptHits =
     transcriptHits !== undefined &&
     (transcriptHits.kind !== 'done' || transcriptHits.hits.length > 0)
@@ -297,15 +292,6 @@ export const LibrarySidebar = ({
             >
               ⤓
             </button>
-            <button
-              type="button"
-              className="tree__add"
-              title="新規フォルダ"
-              aria-label="新規フォルダ"
-              onClick={() => setCreateModal({})}
-            >
-              ＋
-            </button>
           </span>
         </div>
         <input
@@ -350,7 +336,71 @@ export const LibrarySidebar = ({
         <SemanticSearchResults state={semantic} selectedId={selectedId} onSelect={onSelect} />
       )}
 
-      {!showSemanticResults && !hasMatches && !hasTranscriptHits && (
+      {!showSemanticResults && !searching && (
+        <section className="folders" aria-labelledby="folders-title">
+          {/* 作成の入口はフォルダの見出しに置く。「ライブラリ」の横では何を作るのか読み取れなかった。 */}
+          <div className="folders__header">
+            <h3 id="folders-title" className="folders__title">
+              フォルダ
+            </h3>
+            <button
+              type="button"
+              className="tree__add"
+              title="新規フォルダ"
+              aria-label="新規フォルダ"
+              onClick={() => setModal({ kind: 'create' })}
+            >
+              ＋
+            </button>
+          </div>
+          {chipRows.map((row, depth) => (
+            // 段が深いほど下げ、どの段がどの段の子なのかを字下げで見せる。
+            <div key={depth} className="folders__row" style={{ paddingLeft: `${depth * 14}px` }}>
+              {row.map((chip) => (
+                <FolderChipButton
+                  key={chip.key}
+                  chip={chip}
+                  selected={chip.key === currentKey}
+                  dropping={dropTarget === chip.key}
+                  onSelect={() => onSelectFolder(chip.key)}
+                  onDragOver={(event) => {
+                    // 受けないボタンでは既定の動作（ドロップ不可）のままにし、強調も出さない。
+                    if (!acceptedDrop(chip.kind, [...event.dataTransfer.types])) return
+                    event.preventDefault()
+                    setDropTarget(chip.key)
+                  }}
+                  onDragLeave={() => setDropTarget(undefined)}
+                  onDrop={(event) => dropOnChip(event, chip)}
+                />
+              ))}
+            </div>
+          ))}
+
+          {selectedFolder && (
+            <div className="folders__actions">
+              <button type="button" onClick={() => setModal({ kind: 'create', parentId: selectedFolder.id })}>
+                子フォルダを作成
+              </button>
+              <button type="button" onClick={() => setModal({ kind: 'rename', folder: selectedFolder })}>
+                名前を変更
+              </button>
+              <button
+                type="button"
+                className="folders__delete"
+                onClick={() => onDeleteFolder(selectedFolder.id)}
+              >
+                削除
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {!showSemanticResults && searching && (
+        <p className="folders__searching">すべてのフォルダから探しています</p>
+      )}
+
+      {!showSemanticResults && listed.length === 0 && !hasTranscriptHits && (
         <p className="tree__empty">
           {recordings.length === 0 ? (
             <>
@@ -360,36 +410,39 @@ export const LibrarySidebar = ({
               </button>
               ます。
             </>
-          ) : (
+          ) : searching ? (
             '一致する録音がありません。'
+          ) : (
+            'このフォルダに録音はありません。録音を上のフォルダへドラッグすると移せます。'
           )}
         </p>
       )}
 
       {/*
-        意味検索の結果を出している間はツリーを出さない。hidden 属性では
+        意味検索の結果を出している間は一覧を出さない。hidden 属性では
         `.tree__list` の display 指定に負けて消えないので、描画ごと分ける。
       */}
-      {!showSemanticResults && (
+      {!showSemanticResults && listed.length > 0 && (
         <ul className="tree__list">
-          {tree.map((node) => (
-            <TreeNode
-              key={node.key}
-              node={node}
-              depth={0}
-              selectedId={selectedId}
-              dropTarget={dropTarget}
-              isOpen={isOpen}
-              onToggle={toggle}
-              onSelect={onSelect}
-              onRequestCreateChild={(parentId) => setCreateModal({ parentId })}
-              onRenameFolder={onRenameFolder}
-              onDeleteFolder={onDeleteFolder}
-              onDragOver={acceptDrop}
-              onDragLeave={() => setDropTarget(undefined)}
-              onDrop={handleDrop}
-            />
-          ))}
+          {groupByDate(listed, now).map((group) => [
+            <li key={`group:${group.label}`} className="tree__group" aria-hidden="true">
+              {group.label}
+            </li>,
+            ...group.recordings.map((recording) => (
+              <li key={recording.id}>
+                <RecordingRow
+                  recording={recording}
+                  selected={recording.id === selectedId}
+                  meta={
+                    searching
+                      ? `${recordingRowMeta(recording, now)} ・ ${folderPathLabel(folders, recording.folderId)}`
+                      : recordingRowMeta(recording, now)
+                  }
+                  onSelect={onSelect}
+                />
+              </li>
+            ))
+          ])}
         </ul>
       )}
 
@@ -401,209 +454,116 @@ export const LibrarySidebar = ({
         />
       )}
 
-      {createModal && (
+      {modal && (
         <FolderNameModal
-          title={createModal.parentId ? '子フォルダを作成' : '新規フォルダ'}
+          title={
+            modal.kind === 'rename'
+              ? 'フォルダの名前を変更'
+              : modal.parentId
+                ? '子フォルダを作成'
+                : '新規フォルダ'
+          }
+          initialName={modal.kind === 'rename' ? modal.folder.name : ''}
+          submitLabel={modal.kind === 'rename' ? '変更' : '作成'}
           onCommit={(name) => {
-            onCreateFolder(
-              createModal.parentId === undefined
-                ? { name }
-                : { name, parentId: createModal.parentId }
-            )
-            setCreateModal(undefined)
+            if (modal.kind === 'rename') {
+              if (name !== modal.folder.name) onRenameFolder(modal.folder.id, name)
+            } else {
+              onCreateFolder(modal.parentId === undefined ? { name } : { name, parentId: modal.parentId })
+            }
+            setModal(undefined)
           }}
-          onCancel={() => setCreateModal(undefined)}
+          onCancel={() => setModal(undefined)}
         />
       )}
     </nav>
   )
 }
 
-interface TreeNodeProps {
-  node: LibraryNode
-  depth: number
-  selectedId: string | undefined
-  dropTarget: string | undefined
-  isOpen: (node: LibraryNode) => boolean
-  onToggle: (node: LibraryNode, open: boolean) => void
-  onSelect: (id: string) => void
-  onRequestCreateChild: (parentId: string) => void
-  onRenameFolder: (folderId: string, name: string) => void
-  onDeleteFolder: (folderId: string) => void
-  onDragOver: (event: DragEvent, key: string) => void
-  onDragLeave: () => void
-  onDrop: (event: DragEvent, folderId: string | undefined) => void
-}
+type FolderModal =
+  | { kind: 'create'; parentId?: string }
+  | { kind: 'rename'; folder: FolderDto }
 
-const TreeNode = ({
-  node,
-  depth,
-  selectedId,
-  dropTarget,
-  isOpen,
-  onToggle,
+/** フォルダのボタン。録音やフォルダのドロップ先も兼ねる（何を受けるかは acceptedDrop）。 */
+const FolderChipButton = ({
+  chip,
+  selected,
+  dropping,
   onSelect,
-  onRequestCreateChild,
-  onRenameFolder,
-  onDeleteFolder,
   onDragOver,
   onDragLeave,
   onDrop
-}: TreeNodeProps): ReactElement => {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(node.name)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const open = isOpen(node)
-  const isFolder = node.kind === 'folder'
-  // 「すべて」だけはドロップされても行き先が決まらないので受け付けない。
-  const acceptsDrop = node.kind !== 'all'
-
-  const startEditing = (): void => {
-    setDraft(node.name)
-    setEditing(true)
-    requestAnimationFrame(() => {
-      inputRef.current?.focus()
-      inputRef.current?.select()
-    })
-  }
-
-  const commit = (): void => {
-    const name = draft.trim()
-    if (name && name !== node.name && node.folderId) onRenameFolder(node.folderId, name)
-    setEditing(false)
-  }
-
-  const dropHandlers = acceptsDrop
-    ? {
-        onDragOver: (event: DragEvent) => onDragOver(event, node.key),
-        onDragLeave,
-        onDrop: (event: DragEvent) => onDrop(event, node.folderId)
-      }
-    : {}
+}: {
+  chip: FolderChip
+  selected: boolean
+  dropping: boolean
+  onSelect: () => void
+  onDragOver: (event: DragEvent) => void
+  onDragLeave: () => void
+  onDrop: (event: DragEvent) => void
+}): ReactElement => {
+  const className = [
+    'folder-chip',
+    selected ? 'folder-chip--selected' : chip.onPath ? 'folder-chip--path' : '',
+    dropping ? 'folder-chip--drop' : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
-    <li>
-      <div
-        className={
-          'tree__folder' + (dropTarget === node.key ? ' tree__folder--drop' : '')
-        }
-        style={{ paddingLeft: `${8 + depth * 14}px` }}
-        draggable={isFolder && !editing}
-        onDragStart={(event) => {
-          if (!node.folderId) return
-          event.dataTransfer.setData(FOLDER_MIME, node.folderId)
-          event.dataTransfer.effectAllowed = 'move'
-        }}
-        {...dropHandlers}
-      >
-        {editing ? (
-          <input
-            ref={inputRef}
-            className="tree__folder-input"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={commit}
-            onKeyDown={(event) => {
-              if (isCommitEnter(event)) {
-                event.preventDefault()
-                commit()
-              }
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                setDraft(node.name)
-                setEditing(false)
-              }
-            }}
-          />
-        ) : (
-          <button
-            type="button"
-            className="tree__folder-label"
-            aria-expanded={open}
-            onClick={() => onToggle(node, !open)}
-          >
-            <span className="tree__caret" aria-hidden="true">
-              {open ? '▾' : '▸'}
-            </span>
-            <span className="tree__folder-name">{node.name}</span>
-            <span className="tree__count">{countRecordings(node)}</span>
-          </button>
-        )}
-
-        {isFolder && (
-          <span className="tree__folder-actions">
-            <button
-              type="button"
-              title="子フォルダを作成"
-              onClick={() => node.folderId && onRequestCreateChild(node.folderId)}
-            >
-              ＋
-            </button>
-            <button type="button" title="名前を変更" onClick={startEditing}>
-              ✎
-            </button>
-            <button
-              type="button"
-              title="削除"
-              onClick={() => node.folderId && onDeleteFolder(node.folderId)}
-            >
-              ✕
-            </button>
-          </span>
-        )}
-      </div>
-
-      {open && (node.children.length > 0 || node.recordings.length > 0) && (
-        <ul className="tree__list">
-          {node.children.map((child) => (
-            <TreeNode
-              key={child.key}
-              node={child}
-              depth={depth + 1}
-              selectedId={selectedId}
-              dropTarget={dropTarget}
-              isOpen={isOpen}
-              onToggle={onToggle}
-              onSelect={onSelect}
-              onRequestCreateChild={onRequestCreateChild}
-              onRenameFolder={onRenameFolder}
-              onDeleteFolder={onDeleteFolder}
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-            />
-          ))}
-
-          {node.recordings.map((recording) => (
-            <li key={recording.id}>
-              <button
-                type="button"
-                className={
-                  recording.id === selectedId ? 'tree__item tree__item--selected' : 'tree__item'
-                }
-                style={{ paddingLeft: `${22 + depth * 14}px` }}
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(RECORDING_MIME, recording.id)
-                  event.dataTransfer.effectAllowed = 'move'
-                }}
-                onClick={() => onSelect(recording.id)}
-                title={recording.title}
-              >
-                <span className="tree__title">{recording.title}</span>
-                <span className={`badge badge--${recording.status}`}>
-                  {STATUS_LABELS[recording.status] ?? recording.status}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </li>
+    <button
+      type="button"
+      className={className}
+      aria-pressed={selected}
+      onClick={onSelect}
+      draggable={chip.kind === 'folder'}
+      onDragStart={(event) => {
+        event.dataTransfer.setData(FOLDER_MIME, chip.key)
+        event.dataTransfer.effectAllowed = 'move'
+      }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      // 長い名前は省略して出すので、全文はホバーで読めるようにする。
+      title={chip.name}
+    >
+      <span className="folder-chip__name">{chip.name}</span>
+      <span className="folder-chip__count">{chip.count}</span>
+    </button>
   )
 }
 
-/** 行に出す件数。フォルダを畳んだままでも中身の有無が分かるようにする。 */
-const countRecordings = (node: LibraryNode): number =>
-  node.recordings.length + node.children.reduce((total, child) => total + countRecordings(child), 0)
+const RecordingRow = ({
+  recording,
+  selected,
+  meta,
+  onSelect
+}: {
+  recording: RecordingDto
+  selected: boolean
+  meta: string
+  onSelect: (id: string) => void
+}): ReactElement => (
+  <button
+    type="button"
+    className={selected ? 'tree__item tree__item--selected' : 'tree__item'}
+    draggable
+    onDragStart={(event) => {
+      event.dataTransfer.setData(RECORDING_MIME, recording.id)
+      event.dataTransfer.effectAllowed = 'move'
+    }}
+    onClick={() => onSelect(recording.id)}
+    title={recording.title}
+  >
+    <span className="tree__item-line">
+      <span className="tree__title">{recording.title}</span>
+      {/* 完了は大半の行の状態で、並べても何も語らない。手が要る状態だけ出す。 */}
+      {recording.status !== 'ready' && (
+        <span className={`badge badge--${recording.status}`}>
+          {STATUS_LABELS[recording.status] ?? recording.status}
+        </span>
+      )}
+    </span>
+    <span className="tree__meta">{meta}</span>
+  </button>
+)

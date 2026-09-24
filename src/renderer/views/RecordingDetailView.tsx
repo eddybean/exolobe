@@ -12,8 +12,13 @@ import { focusedSegmentIndex } from '../library/transcriptSearch'
 import { voiceLearnedNotice } from '../library/voiceLearning'
 import { resummarizeState, type ResummarizeState } from '../resummarize'
 import { failureTooltip, stepFailure } from '../stepFailure'
-
-const PIPELINE_STEPS: PipelineStep[] = ['mix', 'transcribe', 'diarize', 'summarize', 'encode']
+import {
+  applyProgressEvent,
+  estimateRemainingMs,
+  formatRemaining,
+  visiblePipelineSteps,
+  type ProgressSamples
+} from '../pipelineProgress'
 
 /** メモの自動保存までの待ち時間。打鍵のたびに書かないため。 */
 const NOTE_SAVE_DELAY_MS = 600
@@ -341,13 +346,19 @@ export const RecordingDetailView = ({
   )
 }
 
+/** 状態ごとの短い表記。色だけに頼らず文字でも読めるようにする。 */
+const STEP_STATE_LABELS: Readonly<Record<string, string>> = {
+  pending: '待機',
+  running: '処理中',
+  done: '完了',
+  failed: '失敗'
+}
+
 /**
- * ステップごとの状態。失敗したステップだけ個別に再実行できる。
+ * 処理状況。処理中はステップを縦に並べて進み具合を見せ、終わったら失敗だけを残す。
  *
- * 失敗の全文はバッヂの中に描かない（省略されて読めず、列も横に伸びる）。
- * 重ねて出す方法も採れない —— 親の .detail が overflow: hidden で切るため、
- * ネイティブの title 属性も含めて画面外に消えてしまう。そこでバッヂ列の下、
- * 通常のフローに場所を取って出す。文字はそのまま選択してコピーできる。
+ * 失敗の全文はそのステップの直下に常に出す。以前はホバーで出していたが、
+ * マウスを外すと消えて読む・コピーする前に見失っていた。
  */
 const PipelineStatus = ({
   recording,
@@ -355,46 +366,103 @@ const PipelineStatus = ({
 }: {
   recording: RecordingDetailDto['recording']
   onRetry: (step: PipelineStep) => void
-}): ReactElement => {
-  const [openStep, setOpenStep] = useState<PipelineStep>()
-  const openFailure = openStep ? stepFailure(openStep, recording.steps[openStep]) : undefined
+}): ReactElement | null => {
+  const { samples, receivedAtMs } = useProgressSamples()
+  const visible = visiblePipelineSteps(recording.steps)
+  if (visible.length === 0) return null
+
+  const sample = samples[recording.id]
+  const processing = recording.status === 'processing'
+  const remainingMs = sample ? estimateRemainingMs(sample, receivedAtMs) : undefined
 
   return (
-    // 閉じるのは列と文言をまとめて出たときだけ。バッヂから文言へマウスを
-    // 移す途中で消えると、選んでコピーする間がない。
-    <div className="steps-block" onMouseLeave={() => setOpenStep(undefined)}>
-      <ul className="steps">
-        {PIPELINE_STEPS.map((step) => {
-          const state = recording.steps[step]
+    <section className="pipeline" aria-label="処理状況">
+      <p className="pipeline__summary">
+        {processing ? '処理中' : '一部の処理が失敗しました'}
+        {processing && (
+          <span className="pipeline__hint">
+            {remainingMs !== undefined && `${formatRemaining(remainingMs)} ・ `}
+            ウィンドウを閉じても続きます
+          </span>
+        )}
+      </p>
+
+      <ol className="pipeline__steps">
+        {visible.map((step) => {
+          const state = recording.steps[step as PipelineStep]
+          const status = state?.status ?? 'pending'
           const failure = stepFailure(step, state)
-          const reveal = (): void => setOpenStep(failure ? step : undefined)
+          const fraction = status === 'running' && sample?.step === step ? sample.fraction : undefined
 
           return (
-            <li
-              key={step}
-              className={`steps__item steps__item--${state?.status ?? 'pending'}`}
-              onMouseEnter={reveal}
-              // 再実行ボタンにキーボードで到達したときも読めるようにする。
-              onFocus={reveal}
-            >
-              <span>{STEP_LABELS[step]}</span>
+            <li key={step} className={`pipeline__step pipeline__step--${status}`}>
+              <span className="pipeline__mark" aria-hidden="true" />
+              <span className="pipeline__label">{STEP_LABELS[step]}</span>
+              <span className="pipeline__state">
+                {fraction === undefined
+                  ? STEP_STATE_LABELS[status]
+                  : `${Math.round(fraction * 100)}%`}
+              </span>
+
+              {fraction !== undefined && (
+                <div
+                  className="pipeline__bar"
+                  role="progressbar"
+                  aria-label={`${STEP_LABELS[step]}の進み具合`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(fraction * 100)}
+                >
+                  <div className="pipeline__bar-fill" style={{ width: `${fraction * 100}%` }} />
+                </div>
+              )}
+
               {failure && (
-                <button type="button" className="steps__retry" onClick={() => onRetry(step)}>
-                  再実行
-                </button>
+                <div className="pipeline__problem">
+                  <p className="pipeline__failure" role="note">
+                    {failureTooltip(failure)}
+                  </p>
+                  <button
+                    type="button"
+                    className="pipeline__retry"
+                    onClick={() => onRetry(step as PipelineStep)}
+                  >
+                    再実行
+                  </button>
+                </div>
               )}
             </li>
           )
         })}
-      </ul>
-
-      {openFailure && (
-        <p className="steps__detail" role="note">
-          {failureTooltip(openFailure)}
-        </p>
-      )}
-    </div>
+      </ol>
+    </section>
   )
+}
+
+/**
+ * 進捗の通知から、録音ごとの割合の標本を持つ。
+ *
+ * 割合は保存されない一過性の値なので、録音の DTO には載せずここで受ける。
+ * 画面を開き直すと標本は空に戻るが、次の通知（数十秒おき）でまた埋まる。
+ */
+const useProgressSamples = (): { samples: ProgressSamples; receivedAtMs: number } => {
+  // 見積もりの「今」は最後に通知を受けた時刻に置く。描画のたびに時計を読むと、
+  // 通知と関係ない再描画で残り時間が揺れる。
+  const [progress, setProgress] = useState({ samples: {} as ProgressSamples, receivedAtMs: 0 })
+
+  useEffect(
+    () =>
+      window.recorder.onProgress((event) => {
+        const nowMs = Date.now()
+        setProgress((current) => ({
+          samples: applyProgressEvent(current.samples, event, nowMs),
+          receivedAtMs: nowMs
+        }))
+      }),
+    []
+  )
+
+  return progress
 }
 
 const messageOf = (error: unknown): string =>

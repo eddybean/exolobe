@@ -164,6 +164,30 @@ export const useTransport = (sampleRate: number): Transport => {
     }
   }, [busy, releaseMic])
 
+  // main から回ってきた開始・停止（メニュー・トレイ・通知・ショートカット）は、
+  // マイクの取得・解放を含むこの手順で行う。main が直接始めると自分の声が録れない。
+  // 購読し直さずに最新の start/stop を呼べるよう、参照を通す。
+  const actions = useRef({ start, stop })
+  useEffect(() => {
+    actions.current = { start, stop }
+  }, [start, stop])
+
+  useEffect(() => {
+    const handle = (): void => {
+      window.recorder
+        .takeTransportRequest()
+        .then((action) => {
+          if (action === 'start') return actions.current.start()
+          if (action === 'stop') return actions.current.stop()
+          return undefined
+        })
+        .catch((requestError: unknown) => setError(messageOf(requestError)))
+    }
+    // ウィンドウが無い状態からの開始は、読み込みを終えた今ここで受け取る。
+    handle()
+    return window.recorder.onTransportRequested(handle)
+  }, [])
+
   // アンマウント時にマイクを掴んだままにしない。
   useEffect(() => () => void releaseMic(), [releaseMic])
 

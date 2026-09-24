@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { BrowserWindow, app, shell, type Tray } from 'electron'
+import { BrowserWindow, app, globalShortcut, shell, type Tray } from 'electron'
 import { createContainer } from './container'
 import { registerIpcHandlers } from './ipc/handlers'
 import { createApplicationMenu } from './menu'
@@ -73,7 +73,7 @@ void app.whenReady().then(() => {
   const container = createContainer()
 
   mainWindow = createWindow()
-  const controller = registerIpcHandlers(container, () => mainWindow)
+  const controller = registerIpcHandlers(container, () => mainWindow, showWindow)
 
   // どちらも「ウィンドウを見ていなくても録音を止められる」ための導線。
   tray = createTray(controller, showWindow)
@@ -83,6 +83,9 @@ void app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) showWindow()
   })
 })
+
+// 登録したショートカットは終了時に外す（Electron が求める後始末）。
+app.on('will-quit', () => globalShortcut.unregisterAll())
 
 app.on('window-all-closed', () => {
   // 録音とバックグラウンド処理を続けたいので、macOS の慣習どおり終了しない。

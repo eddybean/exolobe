@@ -154,6 +154,22 @@ describe('memoryProtection', () => {
 })
 
 /**
+ * どのアプリを見ていても録音を始め・止められるショートカット。会議の最中に
+ * ウィンドウを探させないためのものなので、既定で有効にする。
+ */
+describe('globalShortcut', () => {
+  it('グローバルショートカットを既定で有効にする', () => {
+    expect(defaultSettings().recording.globalShortcutEnabled).toBe(true)
+  })
+
+  it('以前の設定ファイル（項目が無い）でも既定値で補う', () => {
+    const settings = mergeSettings(defaultSettings(), { recording: { silenceAlertEnabled: false } })
+
+    expect(settings.recording.globalShortcutEnabled).toBe(true)
+  })
+})
+
+/**
  * 録りっぱなしの見張り。既定で有効にしないと「止め忘れを防ぐ」目的を果たさないため、
  * 既定値そのものを仕様として固定する。
  */

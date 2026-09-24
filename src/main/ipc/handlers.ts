@@ -32,6 +32,7 @@ import {
   type StartAlertDto,
   type TransportStateDto
 } from '@shared/ipc'
+import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import type { Container } from '../container'
 import { createVoiceLearning } from '../voiceLearning'
 import { createSearchSyncScheduler } from '../searchSyncScheduler'
@@ -39,6 +40,8 @@ import { createSilenceMonitor } from '../silenceMonitor'
 import { notifySilence } from '../silenceNotification'
 import { createStartMonitor } from '../startMonitor'
 import { notifyMeetingStart } from '../startNotification'
+import { applyRecordingShortcut } from '../recordingShortcut'
+import { createTransportRequests } from '../transportRequests'
 import { PipelineClient } from '../worker/PipelineClient'
 import { ChatClient } from '../worker/ChatClient'
 import { SearchClient } from '../worker/SearchClient'
@@ -59,6 +62,11 @@ export interface TransportController {
   start(title?: string): Promise<RecordingDto>
   stop(): Promise<RecordingDto>
   state(): TransportStateDto
+  /**
+   * main で受けた開始・停止（メニュー・トレイ・通知・ショートカット）を renderer に回す。
+   * start/stop を直接呼ぶと renderer のマイク取得を通らず、自分の声が録れない。
+   */
+  request(action: 'start' | 'stop' | 'toggle'): void
   /** 録音状態の変化を購読する。メニューやトレイの表示を追従させるために使う。 */
   onStateChanged(listener: () => void): void
 }
@@ -71,7 +79,8 @@ export interface TransportController {
  */
 export const registerIpcHandlers = (
   container: Container,
-  getWindow: () => BrowserWindow | undefined
+  getWindow: () => BrowserWindow | undefined,
+  showWindow: () => void
 ): TransportController => {
   let active:
     | { recordingId: string; title: string; startedAtMs: number; silenceDurationMs: number }
@@ -131,7 +140,8 @@ export const registerIpcHandlers = (
   // 重い推論は別プロセスで動かす。ネイティブライブラリが落ちても UI は生き残る。
   const pipeline = new PipelineClient((event: ProgressEventDto) => {
     send(IPC.progress, event)
-    send(IPC.recordingsChanged)
+    // 割合だけの通知では保存された状態は変わらない。一覧を読み直させる理由が無い。
+    if (event.fraction === undefined) send(IPC.recordingsChanged)
   })
 
   /**
@@ -221,9 +231,7 @@ export const registerIpcHandlers = (
 
       notifySilence({
         minutes: Math.round(current.silenceDurationMs / 60_000),
-        onStop: () => {
-          controller.stop().catch((error: unknown) => console.error(toMessage(error)))
-        },
+        onStop: () => controller.request('stop'),
         onShowWindow: focusWindow
       })
     }
@@ -275,9 +283,7 @@ export const registerIpcHandlers = (
 
       notifyMeetingStart({
         minutes: Math.round(startAlertDelayMs / 60_000),
-        onStart: () => {
-          controller.start().catch((error: unknown) => console.error(toMessage(error)))
-        },
+        onStart: () => controller.request('start'),
         onShowWindow: focusWindow
       })
     }
@@ -371,10 +377,37 @@ export const registerIpcHandlers = (
     },
 
     state: transportState,
+    request: (action) => transportRequests.request(action),
     onStateChanged: (listener) => {
       stateListeners.push(listener)
     }
   }
+
+  const transportRequests = createTransportRequests({
+    hasRenderer: () => {
+      const window = getWindow()
+      return window !== undefined && !window.isDestroyed()
+    },
+    notifyRenderer: () => send(IPC.transportRequested),
+    openWindow: showWindow,
+    stopWithoutRenderer: () => controller.stop(),
+    isActive: () => active !== undefined,
+    now: () => Date.now()
+  })
+
+  handle(IPC.takeTransportRequest, async () => transportRequests.take())
+
+  /** 設定に合わせてショートカットを登録し直す。起動時と設定の変更時に呼ぶ。 */
+  const applyShortcut = async (): Promise<void> => {
+    const { recording } = await container.settings.load()
+    const registered = applyRecordingShortcut(recording.globalShortcutEnabled, () =>
+      controller.request('toggle')
+    )
+    if (!registered) {
+      console.warn(`[shortcut] ${RECORDING_SHORTCUT.label} は他のアプリが使っているため登録できませんでした。`)
+    }
+  }
+  void applyShortcut()
 
   handle(IPC.listRecordings, async (): Promise<RecordingDto[]> => {
     const recordings = await container.listRecordings.execute()
@@ -652,6 +685,7 @@ export const registerIpcHandlers = (
     // 開始忘れの見張りは録音していない間ずっと動いているので、設定の変更を
     // 次の録音まで待たずにここで反映する。
     if (!active) await startStartWatch()
+    await applyShortcut()
     await applySearchSettings(before, settings)
     await applyChatSettings(before, settings)
     send(IPC.recordingsChanged)
