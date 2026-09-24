@@ -63,6 +63,27 @@ describe('AfconvertDecoder', () => {
     expect(result.durationMs).toBeLessThan(1_100)
   }, 30_000)
 
+  /**
+   * 出力と同じ 16kHz モノラル 16bit の WAV に `--mix` を付けると、afconvert は
+   * 「Couldn't set audio converter property (-50)」で失敗する。文字起こし用に書き出した
+   * 音声をそのまま取り込む利用者は多いので、変換が要らない入力こそ通らないといけない。
+   */
+  it('既に 16kHz モノラル 16bit の WAV もそのまま読める', async () => {
+    const input = join(dir, 'mono16k.wav')
+    const writer = await WavFileWriter.create(input, { sampleRate: TARGET_RATE, channels: 1 })
+    await writer.write(int16Buffer(speechLike(TARGET_RATE)))
+    await writer.close()
+    const output = join(dir, 'imported.wav')
+
+    const result = await decoder.decode({ inputPath: input, outputPath: output, sampleRate: TARGET_RATE })
+
+    const wav = await readWav(output)
+    expect(wav.sampleRate).toBe(TARGET_RATE)
+    expect(wav.channels).toBe(1)
+    expect(wav.samples.length).toBe(TARGET_RATE)
+    expect(result.durationMs).toBe(1_000)
+  }, 30_000)
+
   it('エンコード済みの m4a も読める（配布用と同じ形式で往復できる）', async () => {
     const source = await writeStereo('src.wav', 1, TARGET_RATE)
     const m4a = join(dir, 'audio.m4a')
