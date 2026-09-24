@@ -40,6 +40,10 @@ npx vitest run -t "テスト名の一部"
   API を公開しなくなり typescript-eslint が動かないため、ESLint ではなく oxlint を使う。
   `react/set-state-in-effect` と一部の `jsx-a11y` は既知の未対応として警告に留めてある
   （エラーではないので lint は通る）。CI は typecheck / lint / test / build を回す。
+- `dev` / `typecheck` / `test` の前に `scripts/check-node-modules.mjs` が走り、
+  `node_modules` が `package-lock.json` と食い違っていれば止める。worktree を別ブランチに
+  使い回すと lockfile だけが進み、古い依存（例: Electron 33 のまま）が型エラーなど
+  コードの不具合に見える形で出るため。止まったら `npm ci` する。
 - vitest は `TZ=Asia/Tokyo` を固定している。保存ディレクトリ名がローカル時刻由来のため。
 - シェルに `ELECTRON_RUN_AS_NODE=1` があると `npm run dev` が起動に失敗する。
 - `OMR_LOG_DROPPED_SEGMENTS=1` を付けて起動すると、文字起こしで落としたセグメントを
