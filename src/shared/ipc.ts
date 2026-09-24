@@ -322,6 +322,11 @@ export interface RendererApi {
   requestMicPermission(): Promise<boolean>
   /** プライバシーとセキュリティの該当する画面を開く。 */
   openPrivacySettings(pane: PrivacyPaneDto): Promise<void>
+  /**
+   * テスト録音のうちシステム音声の側。録音とは別に短い間だけ取り込み、届いた音の
+   * 最大の大きさ（0〜1）を返す。録音中は断る。
+   */
+  probeSystemAudio(durationMs: number): Promise<number>
   retryStep(recordingId: string, step: PipelineStep): Promise<RecordingDto>
 
   /** 手元の音声ファイルを取り込み、文字起こし以降を走らせる。 */
@@ -434,6 +439,7 @@ export const IPC = {
   getMicPermission: 'permissions:mic',
   requestMicPermission: 'permissions:requestMic',
   openPrivacySettings: 'permissions:openSettings',
+  probeSystemAudio: 'permissions:probeSystemAudio',
   transportRequested: 'transport:requested',
   retryStep: 'pipeline:retry',
   importAudioFiles: 'recordings:import',

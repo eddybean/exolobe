@@ -57,6 +57,8 @@ const api: RendererApi = {
   getMicPermission: () => ipcRenderer.invoke(IPC.getMicPermission) as Promise<MicPermissionDto>,
   requestMicPermission: () => ipcRenderer.invoke(IPC.requestMicPermission) as Promise<boolean>,
   openPrivacySettings: (pane) => ipcRenderer.invoke(IPC.openPrivacySettings, pane) as Promise<void>,
+  probeSystemAudio: (durationMs) =>
+    ipcRenderer.invoke(IPC.probeSystemAudio, durationMs) as Promise<number>,
   takeTransportRequest: () =>
     ipcRenderer.invoke(IPC.takeTransportRequest) as Promise<TransportRequestDto | undefined>,
   retryStep: (recordingId, step: PipelineStep) =>
