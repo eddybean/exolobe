@@ -309,7 +309,10 @@ export const App = (): ReactElement => {
         )}
       </main>
 
-      <TransportBar transport={transport} />
+      <TransportBar
+        transport={transport}
+        shortcutEnabled={setup?.settings.recording.globalShortcutEnabled ?? false}
+      />
     </div>
   )
 }

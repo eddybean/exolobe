@@ -82,6 +82,11 @@ export interface RecordingSettings {
   readonly startAlertEnabled: boolean
   /** この時間ずっとマイクが使われていたら録音を促す。 */
   readonly startAlertDelayMs: number
+  /**
+   * どのアプリを見ていても録音を開始・停止できるキー操作を使うかどうか。
+   * 他のアプリから同じキーを奪うので、ぶつかる人が切れるようにしておく。
+   */
+  readonly globalShortcutEnabled: boolean
 }
 
 export interface DiarizationSettings {
@@ -183,7 +188,8 @@ export const defaultSettings = (): Settings => ({
     silenceDurationMs: 300_000,
     startAlertEnabled: true,
     // 1 分半。短い音声入力や着信の確認では届かず、会議の冒頭を取り逃さない長さ。
-    startAlertDelayMs: 90_000
+    startAlertDelayMs: 90_000,
+    globalShortcutEnabled: true
   },
   transcription: {
     provider: 'whisper-cpp',

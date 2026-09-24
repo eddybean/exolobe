@@ -49,6 +49,9 @@ export interface SetupStateDto {
   readonly needsSummarizationModel: boolean
 }
 
+/** main から renderer へ回す録音の操作。 */
+export type TransportRequestDto = 'start' | 'stop'
+
 /** 録音中に UI が表示する状態。 */
 export interface TransportStateDto {
   readonly recordingId?: string
@@ -301,6 +304,12 @@ export interface RendererApi {
   dismissSilenceAlert(): Promise<void>
   /** 録音を促す知らせに対して「今はしない」を選んだ。マイクが空くまで黙らせる。 */
   dismissStartAlert(): Promise<void>
+  /**
+   * main に置かれた録音の開始・停止の依頼を受け取る（受け取ったら消える）。
+   * メニューやショートカットは main で受けるが、マイクを取れるのは renderer だけなので、
+   * 実際の開始・停止は renderer が自分の手順で行う。
+   */
+  takeTransportRequest(): Promise<TransportRequestDto | undefined>
   retryStep(recordingId: string, step: PipelineStep): Promise<RecordingDto>
 
   /** 手元の音声ファイルを取り込み、文字起こし以降を走らせる。 */
@@ -357,6 +366,8 @@ export interface RendererApi {
   onTransportChanged(listener: (state: TransportStateDto) => void): () => void
   onSilenceAlert(listener: (event: SilenceAlertDto) => void): () => void
   onStartAlert(listener: (event: StartAlertDto) => void): () => void
+  /** 録音の開始・停止の依頼が置かれた。中身は takeTransportRequest で受け取る。 */
+  onTransportRequested(listener: () => void): () => void
   onModelProgress(listener: (event: ModelProgressDto) => void): () => void
   /** 話者名を声紋として覚えた（あるいは覚えられなかった）ことの通知。 */
   onVoiceLearned(listener: (event: VoiceLearnedDto) => void): () => void
@@ -407,6 +418,8 @@ export const IPC = {
   dismissSilenceAlert: 'transport:dismissSilenceAlert',
   startAlert: 'transport:startAlert',
   dismissStartAlert: 'transport:dismissStartAlert',
+  takeTransportRequest: 'transport:takeRequest',
+  transportRequested: 'transport:requested',
   retryStep: 'pipeline:retry',
   importAudioFiles: 'recordings:import',
   chooseAudioFilesToImport: 'recordings:chooseImport',

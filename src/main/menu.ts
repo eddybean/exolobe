@@ -1,5 +1,4 @@
 import { Menu, app, shell, type MenuItemConstructorOptions } from 'electron'
-import { toMessage } from '@domain/errors'
 import type { TransportController } from './ipc/handlers'
 
 /**
@@ -28,13 +27,13 @@ export const createApplicationMenu = (
             label: '録音を開始',
             accelerator: 'CmdOrCtrl+R',
             enabled: !active,
-            click: () => run(() => controller.start())
+            click: () => controller.request('start')
           },
           {
             label: '録音を停止',
             accelerator: 'CmdOrCtrl+.',
             enabled: active,
-            click: () => run(() => controller.stop())
+            click: () => controller.request('stop')
           },
           { type: 'separator' },
           { label: 'ウィンドウを表示', accelerator: 'CmdOrCtrl+0', click: showWindow }
@@ -78,11 +77,4 @@ export const createApplicationMenu = (
   // 録音状態が変わったら項目の有効／無効を追従させる。
   app.on('browser-window-focus', () => Menu.setApplicationMenu(build()))
   controller.onStateChanged(() => Menu.setApplicationMenu(build()))
-}
-
-/** メニューからの操作は待つ相手がいないので、失敗はログに残すだけにする。 */
-const run = (action: () => Promise<unknown>): void => {
-  action().catch((error: unknown) => {
-    console.error('[menu]', toMessage(error))
-  })
 }

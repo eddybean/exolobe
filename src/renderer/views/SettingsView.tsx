@@ -3,6 +3,7 @@ import { formatGlossary, parseGlossary } from '@domain/Glossary'
 import { type MemoryProtection } from '@domain/MemoryGuard'
 import { SUPPORTED_SAMPLE_RATES, type Settings, type SettingsPatch } from '@domain/Settings'
 import type { SetupStateDto } from '@shared/ipc'
+import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import { LicenseNotices } from '../components/LicenseNotices'
 import { ModelManager } from '../components/ModelManager'
 import { SemanticSearchSettings } from '../components/SemanticSearchSettings'
@@ -109,6 +110,19 @@ export const SettingsView = ({
           defaultValue={Math.round(settings.recording.silenceDurationMs / 60_000)}
           onBlur={(event) =>
             update({ recording: { silenceDurationMs: Number(event.target.value) * 60_000 } })
+          }
+        />
+      </Field>
+
+      <Field
+        label={`${RECORDING_SHORTCUT.label} でどこからでも録音を開始・停止する`}
+        hint="他のアプリを見ていても録音を始め・止められます。同じキーを使うアプリとぶつかる場合は切ってください。"
+      >
+        <input
+          type="checkbox"
+          checked={settings.recording.globalShortcutEnabled}
+          onChange={(event) =>
+            update({ recording: { globalShortcutEnabled: event.target.checked } })
           }
         />
       </Field>

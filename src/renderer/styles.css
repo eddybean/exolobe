@@ -1511,6 +1511,16 @@ textarea:focus {
   border-radius: 2px;
 }
 
+.transport__shortcut {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
 .transport__status {
   display: flex;
   align-items: center;

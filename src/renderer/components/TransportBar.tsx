@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import type { Transport } from '../hooks/useTransport'
 import { formatDuration } from '../format'
 
@@ -6,7 +7,14 @@ import { formatDuration } from '../format'
  * 画面下部に常時固定される操作バー。
  * どの画面にいても録音を開始・停止できることが要件なので、ビューの外側に置く。
  */
-export const TransportBar = ({ transport }: { transport: Transport }): ReactElement => {
+export const TransportBar = ({
+  transport,
+  shortcutEnabled
+}: {
+  transport: Transport
+  /** グローバルショートカットが有効なら、ボタンの横にキーを添えて存在を知らせる。 */
+  shortcutEnabled: boolean
+}): ReactElement => {
   const { state, elapsedMs, level, busy, warning, silenceAlert, startAlert } = transport
   const active = state.active
 
@@ -22,6 +30,11 @@ export const TransportBar = ({ transport }: { transport: Transport }): ReactElem
         <span className={active ? 'transport__icon transport__icon--stop' : 'transport__icon'} />
         {busy ? '処理中…' : active ? '停止' : '録音'}
       </button>
+      {shortcutEnabled && (
+        <kbd className="transport__shortcut" title="どのアプリを見ていても録音を開始・停止できます">
+          {RECORDING_SHORTCUT.label}
+        </kbd>
+      )}
 
       <div className="transport__status">
         {active ? (
