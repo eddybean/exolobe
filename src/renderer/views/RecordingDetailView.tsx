@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
-import type { PipelineStep } from '@domain/Recording'
+import { transcriptEditBlocker, type PipelineStep } from '@domain/Recording'
 import type { RecordingDetailDto } from '@shared/ipc'
 import { STEP_LABELS, formatDateTime, formatDuration } from '../format'
 import { CopyButton } from '../components/CopyButton'
 import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
 import { EditableSpeaker } from '../components/EditableSpeaker'
+import { EditableSegmentText } from '../components/EditableSegmentText'
 import { isAudioReady } from '../library/audio'
 import { focusedSegmentIndex } from '../library/transcriptSearch'
 import { voiceLearnedNotice } from '../library/voiceLearning'
@@ -21,7 +22,7 @@ type Tab = 'summary' | 'note'
 
 /** 再要約ボタンのツールチップ。押せないときは、その理由をその場で読めるようにする。 */
 const RESUMMARIZE_HINT: Readonly<Record<ResummarizeState, string>> = {
-  ready: '話者名を直したあとなど、要約を作り直す',
+  ready: '話者名や本文を直したあとなど、要約を作り直す',
   summarizing: '要約を作り直しています',
   busy: '他の処理が終わると要約し直せます',
   unavailable: '文字起こしができると要約し直せます'
@@ -133,6 +134,26 @@ export const RecordingDetailView = ({
   )
 
   /**
+   * 発言の本文の訂正。話者名と同じく要約は作り直さない。直し終えてから
+   * 「再要約」を押してもらう。
+   */
+  const editSegmentText = useCallback(
+    async (index: number, startMs: number, text: string): Promise<void> => {
+      setError(undefined)
+      try {
+        await window.recorder.editSegmentText(recordingId, { index, startMs }, text)
+        onChanged()
+      } catch (editError: unknown) {
+        setError(messageOf(editError))
+        throw editError
+      }
+    },
+    [recordingId, onChanged]
+  )
+
+  const editBlocker = transcriptEditBlocker(detail.recording.steps)
+
+  /**
    * タイトルの変更。保存ディレクトリ名は変わらないので、既に書き出した
    * ファイルの場所や外部ツールで開いていたパスは壊れない。
    */
@@ -231,6 +252,9 @@ export const RecordingDetailView = ({
                     <button
                       type="button"
                       className="segment__time"
+                      // 押してもフォーカスを奪わない。本文を直している最中に聞き直すと、
+                      // 編集欄の blur で直しかけの本文が確定されてしまうため。
+                      onMouseDown={(event) => event.preventDefault()}
                       onClick={() => seek(segment.startMs)}
                       disabled={!audioReady}
                       title={audioReady ? 'この位置から再生' : 'エンコードが終わると再生できます'}
@@ -241,7 +265,11 @@ export const RecordingDetailView = ({
                       label={labels.get(segment.speakerId) ?? segment.speakerId}
                       onCommit={(label) => renameSpeaker(segment.speakerId, label)}
                     />
-                    <p className="segment__text">{segment.text}</p>
+                    <EditableSegmentText
+                      text={segment.text}
+                      blocker={editBlocker}
+                      onCommit={(text) => editSegmentText(index, segment.startMs, text)}
+                    />
                   </li>
                 ))}
               </ol>

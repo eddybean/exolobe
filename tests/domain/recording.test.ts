@@ -11,7 +11,8 @@ import {
   slugForRecording,
   startStep,
   succeedStep,
-  tooShortRecording
+  tooShortRecording,
+  transcriptEditBlocker
 } from '@domain/Recording'
 
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
@@ -82,6 +83,25 @@ describe('ステップの状態遷移', () => {
   it('実行中のステップがあれば processing を返す', () => {
     expect(isProcessing(startStep(initialStepStates(), 'mix'))).toBe(true)
     expect(overallStatus(startStep(initialStepStates(), 'mix'))).toBe('processing')
+  })
+})
+
+describe('transcriptEditBlocker', () => {
+  it('文字起こし・話者識別が走っていなければ編集できる', () => {
+    expect(transcriptEditBlocker(initialStepStates())).toBeUndefined()
+    expect(transcriptEditBlocker(startStep(initialStepStates(), 'summarize'))).toBeUndefined()
+  })
+
+  it('文字起こしの最中は理由を返す', () => {
+    expect(transcriptEditBlocker(startStep(initialStepStates(), 'transcribe'))).toBe(
+      '文字起こしが終わるまでお待ちください。'
+    )
+  })
+
+  it('話者識別の最中は理由を返す', () => {
+    expect(transcriptEditBlocker(startStep(initialStepStates(), 'diarize'))).toBe(
+      '話者識別が終わるまでお待ちください。'
+    )
   })
 })
 

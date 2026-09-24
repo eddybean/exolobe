@@ -6,7 +6,7 @@ import type {
   VoiceExtractionPort,
   VoiceprintRepositoryPort
 } from '@application/ports'
-import type { Recording } from '@domain/Recording'
+import { transcriptEditBlocker, type Recording } from '@domain/Recording'
 import { ConfigurationError, RecordingNotFoundError } from '@domain/errors'
 import {
   isConfigured,
@@ -159,6 +159,61 @@ export class RenameSpeaker {
     })
 
     return speakers
+  }
+}
+
+/**
+ * 文字起こしの 1 セグメントの本文を、利用者が音声を聞いて直した内容に置き換える。
+ *
+ * 変えるのは本文だけで、区間・話者・セグメントの数と並びは保つ。意味検索の索引は
+ * 本文を持たずセグメントの位置（配列の添字）だけを持つため、数や並びが動くと
+ * 索引が別の発言を指してしまう。
+ *
+ * セグメントは id を持たないので、画面が見ていた位置と開始時刻の組で指す。
+ * 食い違うのは画面を開いた後に文字起こしが作り直された場合で、そのまま書くと
+ * 別の発言を上書きしてしまう。
+ */
+export class EditSegmentText {
+  constructor(private readonly deps: LibraryDeps) {}
+
+  async execute(params: {
+    recordingId: string
+    index: number
+    startMs: number
+    text: string
+  }): Promise<readonly TranscriptSegment[]> {
+    const recording = await findOrThrow(this.deps.repository, params.recordingId)
+    const blocker = transcriptEditBlocker(recording.steps)
+    if (blocker) {
+      throw new ConfigurationError(blocker)
+    }
+
+    const transcript = await this.deps.artifacts.readTranscript(recording)
+    if (!transcript) {
+      throw new ConfigurationError('文字起こしがまだありません。')
+    }
+
+    // transcript.md は 1 発言を 1 行に書く。貼り付けなどで混ざった改行は空白に畳む。
+    const text = params.text.replace(/\s*[\r\n]+\s*/g, ' ').trim()
+    if (text.length === 0) {
+      throw new ConfigurationError('本文を入力してください。')
+    }
+
+    const target = transcript.segments[params.index]
+    if (!target || target.startMs !== params.startMs) {
+      throw new ConfigurationError('文字起こしが更新されています。画面を開き直してください。')
+    }
+
+    const segments = transcript.segments.map((segment, index) =>
+      index === params.index ? { ...segment, text } : segment
+    )
+
+    await this.deps.artifacts.writeTranscript(recording, {
+      segments,
+      speakers: transcript.speakers
+    })
+
+    return segments
   }
 }
 

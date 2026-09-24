@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+
+/** 1 行の名前は input、発言の本文は textarea で直す。振る舞いは同じ。 */
+type EditableElement = HTMLInputElement | HTMLTextAreaElement
 import { isCommitEnter } from '../keyboard'
 
 export interface InlineEdit {
@@ -16,13 +19,13 @@ export interface InlineEdit {
    * input の ref に渡す。入力欄は編集中しか描かれないので、繋がった瞬間＝
    * 編集開始。そこで選択済みのフォーカスを当てる。
    */
-  readonly inputRef: (node: HTMLInputElement | null) => void
+  readonly inputRef: (node: EditableElement | null) => void
   readonly setDraft: (value: string) => void
   readonly start: () => void
   readonly commit: () => void
   readonly cancel: () => void
   /** Enter で確定、Escape で取り消し。input の onKeyDown にそのまま渡す。 */
-  readonly onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
+  readonly onKeyDown: (event: KeyboardEvent<EditableElement>) => void
 }
 
 /**
@@ -53,7 +56,7 @@ export const useInlineEdit = (
     setEditing(false)
   }, [value])
 
-  const inputRef = useCallback((node: HTMLInputElement | null): void => {
+  const inputRef = useCallback((node: EditableElement | null): void => {
     node?.focus()
     node?.select()
   }, [])
@@ -88,7 +91,7 @@ export const useInlineEdit = (
   }, [value])
 
   const onKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>): void => {
+    (event: KeyboardEvent<EditableElement>): void => {
       if (isCommitEnter(event)) {
         event.preventDefault()
         commit()
