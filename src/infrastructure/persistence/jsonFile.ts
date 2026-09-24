@@ -1,5 +1,8 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { basename, dirname } from 'node:path'
+import { AppError } from '@domain/errors'
+
+export class StorageError extends AppError {}
 
 export const readJson = async (path: string): Promise<unknown> => {
   try {
@@ -56,6 +59,41 @@ export const replaceStoredJson = async (
   }
   await writeJsonAtomic(path, value)
 }
+
+const SCHEMA_VERSION = 'schemaVersion'
+
+/**
+ * ファイルの形式の番号。番号の無いファイルは導入前に書かれたものなので v1。
+ * 数値でない番号は読み解けないので、新しい側（上書きしない側）に倒す。
+ */
+const schemaVersionOf = (value: Record<string, unknown>): number => {
+  const version = value[SCHEMA_VERSION]
+  if (version === undefined) return 1
+  return typeof version === 'number' ? version : Number.POSITIVE_INFINITY
+}
+
+/**
+ * 形式の番号を付けて置き換える。自分が知っている番号より新しいファイルは、
+ * 理解できない部分を失うので上書きしない（ADR-035）。
+ */
+export const replaceVersionedJson = async (
+  path: string,
+  previous: StoredJson<Record<string, unknown>>,
+  version: number,
+  value: Record<string, unknown>
+): Promise<void> => {
+  if (previous.kind === 'ok' && schemaVersionOf(previous.value) > version) {
+    throw new StorageError(
+      `${basename(path)} は新しい版の Duoscribe で保存されています。アプリを更新してください。`
+    )
+  }
+  // 番号は先頭に置く。手で開いたときに最初に目に入るように。
+  const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== SCHEMA_VERSION))
+  await replaceStoredJson(path, previous, { [SCHEMA_VERSION]: version, ...rest })
+}
+
+export const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** 書き込み途中の電源断で壊れたファイルを残さないよう、一時ファイル経由で置換する。 */
 export const writeJsonAtomic = async (path: string, value: unknown): Promise<void> => {

@@ -2898,8 +2898,15 @@
             変換するのは正本だけ。<code>*.md</code> は人が読むための出力なので番号を持たない。
           </li>
           <li>
-            正本には <code>schemaVersion</code>（整数）を持たせる。番号の無いファイルは v1 とみなすので、
-            既存のデータには手を加えない。
+            object の正本（<code>settings.json</code> / <code>meta.json</code> / <code>transcript.json</code> /
+            <code>voices.json</code>）には <code>schemaVersion</code>（整数）を持たせる。番号の無いファイルは
+            v1 とみなすので、既存のデータには手を加えない。数値でない番号は「理解できない」として新しい側に倒す。
+          </li>
+          <li>
+            配列の正本（<code>voiceprints.json</code> / <code>folders.json</code>）は番号を持たせず、
+            破壊的に変えるときは<strong>ファイル名を変える</strong>（<code>voiceprints.v2.json</code> など）。
+            <code>{ schemaVersion, entries }</code> に包み直すこと自体が破壊的な変更で、0.1.1 はそれを読めずに
+            空として上書きする。名前を変えれば古い版は古いファイルだけを見るので、ガードが要らない。
           </li>
           <li>
             <strong>自分が知っている番号より新しいファイルは上書きしない</strong>（読み取りだけにしてアプリの
@@ -2925,9 +2932,11 @@
             退避と、知らないキー・要素の保持。
           </li>
           <li>
-            正本への <code>schemaVersion</code> の書き込みと、新しい番号のファイルを上書きしないガード。
-            録音ごとのファイル（<code>meta.json</code> / <code>transcript.json</code> / <code>voices.json</code>）
-            で知らないキーを残すのもここで行う。
+            object の正本への <code>schemaVersion</code> の書き込みと、新しい番号のファイルを上書きしない
+            ガード。<code>meta.json</code> で知らないキーを残すのもここで行う。<code>transcript.json</code> と
+            <code>voices.json</code> はパイプラインが丸ごと作り直すファイルなので、上位の知らないキーは残さない
+            （残すと作り直した中身と食い違う）。文字起こしの手直しでは、読んだセグメントをそのまま持ち回るので
+            セグメント内の知らないキーは残る。
           </li>
           <li>
             変換関数をつなぐ仕組みは、最初の破壊的な変更が来たときに作る。

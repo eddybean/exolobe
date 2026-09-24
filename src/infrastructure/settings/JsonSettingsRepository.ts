@@ -1,8 +1,9 @@
 import type { SettingsRepositoryPort } from '@application/ports'
 import type { StorageLocator } from '@infrastructure/persistence/FileRecordingStore'
 import {
+  isPlainObject,
   readStoredJson,
-  replaceStoredJson,
+  replaceVersionedJson,
   type StoredJson
 } from '@infrastructure/persistence/jsonFile'
 import { ConfigurationError } from '@domain/errors'
@@ -12,6 +13,9 @@ import {
   type Settings,
   type SettingsPatch
 } from '@domain/Settings'
+
+/** settings.json の形式の番号。破壊的に変えたときだけ上げる（ADR-035）。 */
+const SCHEMA_VERSION = 1
 
 /**
  * 設定を 1 つの JSON ファイルに保存する。
@@ -45,16 +49,13 @@ export class JsonSettingsRepository implements SettingsRepositoryPort {
     // 新しい版が足したキーは、この版が知らなくても残す。
     const written = { ...(this.stored.kind === 'ok' ? this.stored.value : {}), ...merged }
 
-    await replaceStoredJson(this.filePath, this.stored, written)
+    await replaceVersionedJson(this.filePath, this.stored, SCHEMA_VERSION, written)
 
     this.stored = { kind: 'ok', value: written }
     this.cache = merged
     return merged
   }
 }
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** 設定から保存先を解決する。未設定のまま使われたら操作を促す。 */
 export class SettingsStorageLocator implements StorageLocator {

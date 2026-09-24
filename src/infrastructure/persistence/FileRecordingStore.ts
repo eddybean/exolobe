@@ -13,14 +13,14 @@ import {
   type StepState,
   type StepStates
 } from '@domain/Recording'
-import { AppError, ConfigurationError } from '@domain/errors'
+import { ConfigurationError } from '@domain/errors'
 import type { Speaker } from '@domain/Speaker'
 import { toMarkdown } from '@domain/Transcript'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 import { isVoiceVector, type RecordingVoices, type SpeakerVector } from '@domain/Voiceprint'
 import { readJson, writeJsonAtomic } from './jsonFile'
 
-export class StorageError extends AppError {}
+export { StorageError } from './jsonFile'
 
 /** 保存先ルートの解決。設定変更で変わるため、都度問い合わせる。 */
 export interface StorageLocator {

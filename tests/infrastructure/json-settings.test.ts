@@ -104,6 +104,34 @@ describe('JsonSettingsRepository', () => {
     })
   })
 
+  it('形式の番号（schemaVersion）を書き込む', async () => {
+    await new JsonSettingsRepository(filePath).save({ storageDir: '/Users/me/Meetings' })
+
+    expect(JSON.parse(await readFile(filePath, 'utf8'))).toMatchObject({ schemaVersion: 1 })
+  })
+
+  it('新しい版が書いた設定は読めるが、上書きは断る（古い版で壊さない）', async () => {
+    const newer = join(dir, 'newer.json')
+    const content = JSON.stringify({ schemaVersion: 2, storageDir: '/Users/me/Meetings' })
+    await writeFile(newer, content, 'utf8')
+
+    const repository = new JsonSettingsRepository(newer)
+    expect((await repository.load()).storageDir).toBe('/Users/me/Meetings')
+    await expect(repository.save({ storageDir: '/elsewhere' })).rejects.toThrow(
+      'アプリを更新してください'
+    )
+    expect(await readFile(newer, 'utf8')).toBe(content)
+  })
+
+  it('数値でない番号は理解できないものとして上書きを断る', async () => {
+    const odd = join(dir, 'odd-version.json')
+    await writeFile(odd, JSON.stringify({ schemaVersion: '2' }), 'utf8')
+
+    await expect(new JsonSettingsRepository(odd).save({ storageDir: '/x' })).rejects.toThrow(
+      'アプリを更新してください'
+    )
+  })
+
   it('中断で壊れないよう一時ファイル経由で置換する', async () => {
     await new JsonSettingsRepository(filePath).save({ storageDir: '/Users/me/Meetings' })
 
