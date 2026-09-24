@@ -294,12 +294,14 @@ code {
   color: var(--text);
 }
 
-/* 録音はタイトルと処理状態だけの 1 行。日時や要約は詳細ペインに任せる。 */
+/*
+ * 録音は 2 行。1 行目にタイトルと処理状態、2 行目に日時と長さ。
+ * タイトルだけでは似た名前の定例が見分けられなかった。要約は詳細ペインに任せる。
+ */
 .tree__item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 1px;
   width: 100%;
   padding: 5px 8px;
   border: 1px solid transparent;
@@ -318,10 +320,35 @@ code {
   font-weight: 600;
 }
 
+.tree__item-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
 .tree__title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tree__meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 日付の区切り。行ではないので押せる見た目にしない。 */
+.tree__group {
+  padding: 8px 8px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 /* ── 意味検索 ───────────────────────────────── */

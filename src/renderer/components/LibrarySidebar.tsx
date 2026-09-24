@@ -18,6 +18,8 @@ import {
   type LibraryNode
 } from '../library/tree'
 import { STATUS_LABELS } from '../format'
+import { useNow } from '../hooks/useNow'
+import { groupByDate, recordingRowMeta } from '../library/rows'
 import { SemanticSearchResults, type SemanticSearchState } from './SemanticSearchResults'
 import {
   TranscriptSearchResults,
@@ -148,6 +150,7 @@ export const LibrarySidebar = ({
   /** いま開いている発言。本文のヒットの選択表示に使う。 */
   focus: { recordingId: string; startMs: number } | undefined
 }): ReactElement => {
+  const now = useNow()
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<'keyword' | 'semantic'>('keyword')
   const [semantic, setSemantic] = useState<SemanticSearchState | undefined>()
@@ -377,6 +380,7 @@ export const LibrarySidebar = ({
               key={node.key}
               node={node}
               depth={0}
+              now={now}
               selectedId={selectedId}
               dropTarget={dropTarget}
               isOpen={isOpen}
@@ -433,11 +437,14 @@ interface TreeNodeProps {
   onDragOver: (event: DragEvent, key: string) => void
   onDragLeave: () => void
   onDrop: (event: DragEvent, folderId: string | undefined) => void
+  /** 日付の区切りと行の日時の基準。 */
+  now: Date
 }
 
 const TreeNode = ({
   node,
   depth,
+  now,
   selectedId,
   dropTarget,
   isOpen,
@@ -561,6 +568,7 @@ const TreeNode = ({
               key={child.key}
               node={child}
               depth={depth + 1}
+              now={now}
               selectedId={selectedId}
               dropTarget={dropTarget}
               isOpen={isOpen}
@@ -575,29 +583,40 @@ const TreeNode = ({
             />
           ))}
 
-          {node.recordings.map((recording) => (
-            <li key={recording.id}>
-              <button
-                type="button"
-                className={
-                  recording.id === selectedId ? 'tree__item tree__item--selected' : 'tree__item'
-                }
-                style={{ paddingLeft: `${22 + depth * 14}px` }}
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(RECORDING_MIME, recording.id)
-                  event.dataTransfer.effectAllowed = 'move'
-                }}
-                onClick={() => onSelect(recording.id)}
-                title={recording.title}
-              >
-                <span className="tree__title">{recording.title}</span>
-                <span className={`badge badge--${recording.status}`}>
-                  {STATUS_LABELS[recording.status] ?? recording.status}
-                </span>
-              </button>
-            </li>
-          ))}
+          {groupByDate(node.recordings, now).map((group) => [
+            <li key={`group:${group.label}`} className="tree__group" aria-hidden="true">
+              {group.label}
+            </li>,
+            ...group.recordings.map((recording) => (
+              <li key={recording.id}>
+                <button
+                  type="button"
+                  className={
+                    recording.id === selectedId ? 'tree__item tree__item--selected' : 'tree__item'
+                  }
+                  style={{ paddingLeft: `${22 + depth * 14}px` }}
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.setData(RECORDING_MIME, recording.id)
+                    event.dataTransfer.effectAllowed = 'move'
+                  }}
+                  onClick={() => onSelect(recording.id)}
+                  title={recording.title}
+                >
+                  <span className="tree__item-line">
+                    <span className="tree__title">{recording.title}</span>
+                    {/* 完了は大半の行の状態で、並べても何も語らない。手が要る状態だけ出す。 */}
+                    {recording.status !== 'ready' && (
+                      <span className={`badge badge--${recording.status}`}>
+                        {STATUS_LABELS[recording.status] ?? recording.status}
+                      </span>
+                    )}
+                  </span>
+                  <span className="tree__meta">{recordingRowMeta(recording, now)}</span>
+                </button>
+              </li>
+            ))
+          ])}
         </ul>
       )}
     </li>
