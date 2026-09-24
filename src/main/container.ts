@@ -15,6 +15,7 @@ import {
 import {
   ClearVoiceprints,
   DeleteRecording,
+  EditSegmentText,
   GetRecordingDetail,
   GetSetupState,
   ListRecordings,
@@ -75,6 +76,7 @@ export interface Container {
   readonly updateNote: UpdateNote
   readonly renameRecording: RenameRecording
   readonly renameSpeaker: RenameSpeaker
+  readonly editSegmentText: EditSegmentText
   readonly rememberSpeakerVoice: RememberSpeakerVoice
   /** 声紋の取り直しの窓。ワーカーを持つ側（IPC 登録時）が実体を差し込む。 */
   readonly voiceExtraction: WorkerVoiceExtraction
@@ -163,6 +165,7 @@ export const createContainer = (): Container => {
     updateNote: new UpdateNote(library),
     renameRecording: new RenameRecording(library),
     renameSpeaker: new RenameSpeaker(library),
+    editSegmentText: new EditSegmentText(library),
     rememberSpeakerVoice: new RememberSpeakerVoice({
       ...library,
       voiceprints,

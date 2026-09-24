@@ -493,6 +493,18 @@ export const registerIpcHandlers = (
     return speakers
   })
 
+  handle(IPC.editSegmentText, async (id: unknown, segment: unknown, text: unknown) => {
+    const segments = await container.editSegmentText.execute({
+      recordingId: asString(id, '録音 ID'),
+      ...asSegmentRef(segment),
+      text: typeof text === 'string' ? text : ''
+    })
+    // 索引の文字起こしチャンクは本文そのものから埋め込むので、直したら作り直す。
+    // 要約は作り直さない（数分かかる）。直し終えてから「再要約」を押してもらう。
+    searchSync.request()
+    return segments
+  })
+
   /** 削除は取り消せず、音声・文字起こし・要約・メモがまとめて消える。 */
   handle(IPC.confirmDeleteRecording, async (id: unknown): Promise<boolean> => {
     const detail = await container.getRecordingDetail.execute(asString(id, '録音 ID'))
@@ -988,6 +1000,17 @@ const asString = (value: unknown, label: string): string => {
     throw new Error(`${label}が指定されていません。`)
   }
   return value
+}
+
+const asSegmentRef = (value: unknown): { index: number; startMs: number } => {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('直すセグメントが指定されていません。')
+  }
+  const { index, startMs } = value as { index?: unknown; startMs?: unknown }
+  if (!Number.isInteger(index) || (index as number) < 0 || typeof startMs !== 'number') {
+    throw new Error('直すセグメントの指定が不正です。')
+  }
+  return { index: index as number, startMs }
 }
 
 const PIPELINE_STEP_NAMES: readonly string[] = [

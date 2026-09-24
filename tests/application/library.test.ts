@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   DeleteRecording,
+  EditSegmentText,
   GetRecordingDetail,
   GetSetupState,
   ListRecordings,
@@ -15,7 +16,7 @@ import {
 } from '@application/usecases/library'
 import type { VoiceMemoryResult } from '@application/usecases/library'
 import { ConfigurationError } from '@domain/errors'
-import { createRecording } from '@domain/Recording'
+import { createRecording, startStep } from '@domain/Recording'
 import { defaultSettings } from '@domain/Settings'
 import { SELF_SPEAKER_ID, type Speaker } from '@domain/Speaker'
 import {
@@ -197,6 +198,96 @@ describe('RenameSpeaker', () => {
 
     await expect(
       new RenameSpeaker(deps).execute({ recordingId: 'rec-2', speakerId: 'self', label: 'A' })
+    ).rejects.toThrow('文字起こしがまだありません。')
+  })
+})
+
+describe('EditSegmentText', () => {
+  beforeEach(async () => {
+    await artifacts.writeTranscript(recording, { segments, speakers })
+  })
+
+  it('指定したセグメントの本文だけを書き換える', async () => {
+    const updated = await new EditSegmentText(deps).execute({
+      recordingId: 'rec-1',
+      index: 1,
+      startMs: 2000,
+      text: 'よろしくお願いいたします'
+    })
+
+    expect(updated).toEqual([
+      segments[0],
+      { startMs: 2000, endMs: 3000, speakerId: 'remote:spk0', text: 'よろしくお願いいたします' }
+    ])
+    expect((await artifacts.readTranscript(recording))?.segments).toEqual(updated)
+  })
+
+  it('話者一覧は書き換えない', async () => {
+    await new EditSegmentText(deps).execute({
+      recordingId: 'rec-1',
+      index: 0,
+      startMs: 0,
+      text: 'おはよう'
+    })
+
+    expect((await artifacts.readTranscript(recording))?.speakers).toEqual(speakers)
+  })
+
+  it('前後の空白は落とす', async () => {
+    const updated = await new EditSegmentText(deps).execute({
+      recordingId: 'rec-1',
+      index: 0,
+      startMs: 0,
+      text: '  おはよう \n'
+    })
+
+    expect(updated[0]?.text).toBe('おはよう')
+  })
+
+  it('途中の改行は空白に畳む（transcript.md では 1 発言 1 行のため）', async () => {
+    const updated = await new EditSegmentText(deps).execute({
+      recordingId: 'rec-1',
+      index: 0,
+      startMs: 0,
+      text: 'おはよう\r\n  ございます'
+    })
+
+    expect(updated[0]?.text).toBe('おはよう ございます')
+  })
+
+  it('空の本文は拒否する', async () => {
+    await expect(
+      new EditSegmentText(deps).execute({ recordingId: 'rec-1', index: 0, startMs: 0, text: ' ' })
+    ).rejects.toThrow('本文を入力してください。')
+  })
+
+  it('画面が見ていたセグメントと開始時刻が食い違えば拒否する', async () => {
+    await expect(
+      new EditSegmentText(deps).execute({ recordingId: 'rec-1', index: 1, startMs: 0, text: 'x' })
+    ).rejects.toThrow('文字起こしが更新されています。')
+    expect((await artifacts.readTranscript(recording))?.segments).toEqual(segments)
+  })
+
+  it('範囲外の位置は拒否する', async () => {
+    await expect(
+      new EditSegmentText(deps).execute({ recordingId: 'rec-1', index: 2, startMs: 0, text: 'x' })
+    ).rejects.toThrow('文字起こしが更新されています。')
+  })
+
+  it('話者識別の最中は拒否する（終わったときに古い本文で上書きされるため）', async () => {
+    await repository.save({ ...recording, steps: startStep(recording.steps, 'diarize') })
+
+    await expect(
+      new EditSegmentText(deps).execute({ recordingId: 'rec-1', index: 0, startMs: 0, text: 'x' })
+    ).rejects.toThrow('話者識別が終わるまでお待ちください。')
+  })
+
+  it('文字起こしがまだ無ければ拒否する', async () => {
+    const other = createRecording({ id: 'rec-2', startedAt })
+    await repository.save(other)
+
+    await expect(
+      new EditSegmentText(deps).execute({ recordingId: 'rec-2', index: 0, startMs: 0, text: 'x' })
     ).rejects.toThrow('文字起こしがまだありません。')
   })
 })

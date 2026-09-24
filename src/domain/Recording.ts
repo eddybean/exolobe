@@ -126,6 +126,22 @@ export const isProcessing = (steps: StepStates): boolean =>
   PIPELINE_STEPS.some((step) => steps[step].status === 'running')
 
 /**
+ * 文字起こしの本文を今は直せない理由。直せるなら undefined。
+ *
+ * 文字起こしは本文を作り直し、話者識別は走り出しに読んだ本文へ話者を当てて
+ * 書き戻す。どちらも最中に直された本文は、終わったときに古い本文で上書きされて消える。
+ * 要約やエンコードは本文を書かないので止めない。
+ */
+export const transcriptEditBlocker = (steps: {
+  readonly transcribe: { readonly status: string }
+  readonly diarize: { readonly status: string }
+}): string | undefined => {
+  if (steps.transcribe.status === 'running') return '文字起こしが終わるまでお待ちください。'
+  if (steps.diarize.status === 'running') return '話者識別が終わるまでお待ちください。'
+  return undefined
+}
+
+/**
  * ステップ群から録音全体の状態を導出する。
  * 実行中が最優先、次に失敗（後続が成功していても失敗は隠さない）、最後に完了。
  */

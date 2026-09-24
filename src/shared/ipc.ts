@@ -314,6 +314,15 @@ export interface RendererApi {
   updateNote(recordingId: string, note: string): Promise<void>
   renameRecording(recordingId: string, title: string): Promise<RecordingDto>
   renameSpeaker(recordingId: string, speakerId: string, label: string): Promise<Speaker[]>
+  /**
+   * 1 セグメントの本文を直す。セグメントは id を持たないので、画面が見ていた
+   * 位置と開始時刻の組で指す（食い違えば文字起こしが作り直されたとみなして拒否される）。
+   */
+  editSegmentText(
+    recordingId: string,
+    segment: { index: number; startMs: number },
+    text: string
+  ): Promise<TranscriptSegment[]>
   deleteRecording(recordingId: string): Promise<void>
   /** 削除前の確認。ネイティブダイアログを出し、実行してよければ true を返す。 */
   confirmDeleteRecording(recordingId: string): Promise<boolean>
@@ -403,6 +412,7 @@ export const IPC = {
   updateNote: 'recordings:updateNote',
   renameRecording: 'recordings:rename',
   renameSpeaker: 'recordings:renameSpeaker',
+  editSegmentText: 'recordings:editSegmentText',
   voiceLearned: 'recordings:voiceLearned',
   deleteRecording: 'recordings:delete',
   confirmDeleteRecording: 'recordings:confirmDelete',

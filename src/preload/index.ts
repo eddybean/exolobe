@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { PipelineStep } from '@domain/Recording'
 import type { Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
+import type { TranscriptSegment } from '@domain/TranscriptSegment'
 import {
   IPC,
   type FolderDto,
@@ -69,6 +70,10 @@ const api: RendererApi = {
     ipcRenderer.invoke(IPC.renameRecording, recordingId, title) as Promise<RecordingDto>,
   renameSpeaker: (recordingId, speakerId, label) =>
     ipcRenderer.invoke(IPC.renameSpeaker, recordingId, speakerId, label) as Promise<Speaker[]>,
+  editSegmentText: (recordingId, segment, text) =>
+    ipcRenderer.invoke(IPC.editSegmentText, recordingId, segment, text) as Promise<
+      TranscriptSegment[]
+    >,
   deleteRecording: (recordingId) =>
     ipcRenderer.invoke(IPC.deleteRecording, recordingId) as Promise<void>,
   confirmDeleteRecording: (recordingId) =>
