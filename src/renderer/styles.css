@@ -202,96 +202,88 @@ code {
   overflow-y: auto;
 }
 
-/* 入れ子のリストは外側の padding を持たない。段差は行の padding-left で作る。 */
-.tree__list .tree__list {
-  padding: 2px 0;
-  overflow: visible;
-}
-
-.tree__folder {
-  position: relative;
+/*
+ * フォルダの選択。上に並べて選び、下の一覧にその中身を出す。
+ * 子フォルダは、選んだフォルダの下に 1 段ずつ足す（ボタンの列では親子を表せないため）。
+ */
+.folders {
   display: flex;
-  align-items: center;
-  width: 100%;
-  border: 1px solid transparent;
-  background: transparent;
-  border-radius: 6px;
-  padding: 6px 8px;
-  text-align: left;
-  gap: 4px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--border);
 }
 
-.tree__folder:hover {
+.folders__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.folder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.folder-chip:hover {
   background: var(--surface-2);
 }
 
-.tree__folder--drop {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+.folder-chip--selected {
   border-color: var(--accent);
-}
-
-.tree__folder-label {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  padding: 0;
-  text-align: left;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   font-weight: 600;
 }
 
-.tree__caret {
-  width: 10px;
-  flex: none;
-  color: var(--text-muted);
-  font-size: 10px;
+/* 選んだフォルダの祖先。どこにいるかが分かるよう、選択より控えめに強調する。 */
+.folder-chip--path {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 
-.tree__folder-name {
+.folder-chip--drop {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.folder-chip__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tree__count {
+.folder-chip__count {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 400;
 }
 
-.tree__folder-input {
-  flex: 1;
-  padding: 2px 4px;
-}
-
-.tree__folder-actions {
+.folders__actions {
   display: flex;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.12s ease;
+  gap: 6px;
 }
 
-.tree__folder:hover .tree__folder-actions {
-  opacity: 1;
-}
-
-.tree__folder-actions button {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  line-height: 1;
+.folders__actions button {
+  padding: 2px 8px;
   font-size: 11px;
-  border-color: transparent;
-  background: transparent;
   color: var(--text-muted);
 }
 
-.tree__folder-actions button:hover {
-  background: var(--surface-2);
-  color: var(--text);
+.folders__actions .folders__delete {
+  color: var(--danger);
+}
+
+.folders__searching {
+  margin: 0;
+  padding: 8px 16px 0;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 /*

@@ -7,6 +7,7 @@ import type {
   SetupStateDto
 } from '@shared/ipc'
 import { LibrarySidebar } from './components/LibrarySidebar'
+import type { FolderKey } from './library/folders'
 import { messageOf } from './errorMessage'
 import { importSummary } from './library/fileDrop'
 import { useChat } from './hooks/useChat'
@@ -47,7 +48,7 @@ export const App = (): ReactElement => {
    * ライブラリのツリーで、ユーザーが手で開閉したノード。
    * サイドバーは画面を切り替えると消えるので、開閉状態はここで持ち越す。
    */
-  const [expandedNodes, setExpandedNodes] = useState<ReadonlyMap<string, boolean>>(new Map())
+  const [folderKey, setFolderKey] = useState<FolderKey>('all')
   const [semanticAvailable, setSemanticAvailable] = useState(false)
   const [importing, setImporting] = useState<ImportProgressDto>()
   const [importError, setImportError] = useState<string>()
@@ -288,10 +289,8 @@ export const App = (): ReactElement => {
               }
               onImport={() => void chooseAndImport()}
               importing={importing !== undefined}
-              expanded={expandedNodes}
-              onToggleExpanded={(key, open) =>
-                setExpandedNodes((current) => new Map(current).set(key, open))
-              }
+              folderKey={folderKey}
+              onSelectFolder={setFolderKey}
             />
             {detail ? (
               <RecordingDetailView

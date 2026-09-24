@@ -1,0 +1,156 @@
+import { describe, expect, it } from 'vitest'
+import {
+  filterByQuery,
+  folderChipRows,
+  folderPathLabel,
+  recordingsInFolder,
+  resolveFolderKey
+} from '@renderer/library/folders'
+import type { FolderDto, RecordingDto } from '@shared/ipc'
+
+const folder = (id: string, name: string, parentId?: string): FolderDto => ({
+  id,
+  name,
+  ...(parentId === undefined ? {} : { parentId })
+})
+
+const recording = (id: string, folderId?: string, title = id): RecordingDto => ({
+  id,
+  title,
+  startedAt: '2026-09-24T05:00:00.000Z',
+  durationMs: 60_000,
+  status: 'ready',
+  steps: {} as RecordingDto['steps'],
+  slug: id,
+  ...(folderId === undefined ? {} : { folderId })
+})
+
+// 顧客 ─┬─ A社 ── 案件X
+//       └─ B社
+// 定例
+const folders = [
+  folder('customers', '顧客'),
+  folder('a', 'A社', 'customers'),
+  folder('x', '案件X', 'a'),
+  folder('b', 'B社', 'customers'),
+  folder('weekly', '定例')
+]
+const recordings = [
+  recording('r-root'),
+  recording('r-customers', 'customers'),
+  recording('r-a', 'a'),
+  recording('r-x', 'x'),
+  recording('r-weekly', 'weekly')
+]
+
+/**
+ * ライブラリはフォルダを上に並べて選び、下にその中身を出す。ボタンの列だけでは
+ * 親子を表せないので、選んだフォルダに子があれば、その子の列を 1 段ずつ足していく。
+ */
+describe('folderChipRows', () => {
+  it('1 段目は「すべて」「未分類」と最上位のフォルダ', () => {
+    const rows = folderChipRows(folders, recordings, 'all')
+
+    expect(rows.map((row) => row.map((chip) => chip.key))).toEqual([
+      ['all', 'unfiled', 'customers', 'weekly']
+    ])
+  })
+
+  it('選んだフォルダに子があれば、その子を次の段に出す', () => {
+    const rows = folderChipRows(folders, recordings, 'customers')
+
+    expect(rows.map((row) => row.map((chip) => chip.key))).toEqual([
+      ['all', 'unfiled', 'customers', 'weekly'],
+      ['a', 'b']
+    ])
+  })
+
+  it('深いフォルダを選んだら、祖先から順に段を積む（どこにいるか分かるように）', () => {
+    const rows = folderChipRows(folders, recordings, 'x')
+
+    expect(rows.map((row) => row.map((chip) => chip.key))).toEqual([
+      ['all', 'unfiled', 'customers', 'weekly'],
+      ['a', 'b'],
+      ['x']
+    ])
+    // 経路上のフォルダは選択中として見せる。
+    expect(rows.flat().filter((chip) => chip.onPath).map((chip) => chip.key)).toEqual([
+      'customers',
+      'a',
+      'x'
+    ])
+  })
+
+  it('件数は子フォルダの中の録音も数える', () => {
+    const [top] = folderChipRows(folders, recordings, 'all')
+
+    expect(Object.fromEntries((top ?? []).map((chip) => [chip.key, chip.count]))).toEqual({
+      all: 5,
+      unfiled: 1,
+      customers: 3,
+      weekly: 1
+    })
+  })
+})
+
+describe('recordingsInFolder', () => {
+  it('「すべて」は全件', () => {
+    expect(recordingsInFolder(folders, recordings, 'all')).toHaveLength(5)
+  })
+
+  it('「未分類」はどのフォルダにも入っていない録音', () => {
+    expect(recordingsInFolder(folders, recordings, 'unfiled').map((r) => r.id)).toEqual(['r-root'])
+  })
+
+  it('フォルダを選んだら、子フォルダの中の録音も含める', () => {
+    expect(recordingsInFolder(folders, recordings, 'customers').map((r) => r.id)).toEqual([
+      'r-customers',
+      'r-a',
+      'r-x'
+    ])
+  })
+
+  it('消えたフォルダの録音は「未分類」に出す（見えなくならないように）', () => {
+    const orphan = [recording('r-lost', 'deleted')]
+
+    expect(recordingsInFolder(folders, orphan, 'unfiled').map((r) => r.id)).toEqual(['r-lost'])
+  })
+})
+
+describe('resolveFolderKey', () => {
+  it('選んでいたフォルダが消えたら「すべて」に戻す', () => {
+    expect(resolveFolderKey(folders, 'deleted')).toBe('all')
+  })
+
+  it('あるフォルダと疑似フォルダはそのまま', () => {
+    expect(resolveFolderKey(folders, 'x')).toBe('x')
+    expect(resolveFolderKey(folders, 'unfiled')).toBe('unfiled')
+  })
+})
+
+describe('folderPathLabel', () => {
+  it('検索結果の行に添える、フォルダの位置', () => {
+    expect(folderPathLabel(folders, 'x')).toBe('顧客 / A社 / 案件X')
+  })
+
+  it('フォルダに入っていなければ「未分類」', () => {
+    expect(folderPathLabel(folders, undefined)).toBe('未分類')
+    expect(folderPathLabel(folders, 'deleted')).toBe('未分類')
+  })
+})
+
+describe('filterByQuery', () => {
+  it('タイトルと要約の冒頭を、大文字小文字を区別せずに探す', () => {
+    const items = [
+      recording('1', undefined, 'Kickoff'),
+      { ...recording('2'), summaryPreview: 'kickoff の段取り' },
+      recording('3', undefined, '定例')
+    ]
+
+    expect(filterByQuery(items, 'KICKOFF').map((r) => r.id)).toEqual(['1', '2'])
+  })
+
+  it('空の検索語なら全件', () => {
+    expect(filterByQuery(recordings, '  ')).toHaveLength(5)
+  })
+})
