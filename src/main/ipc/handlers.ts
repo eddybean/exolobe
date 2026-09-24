@@ -307,6 +307,7 @@ export const registerIpcHandlers = (
 
   /**
    * 停止後の処理。UI を待たせないため待たずに走らせ、進捗は IPC で伝える。
+   * 1 件ずつ流すのは PipelineClient が引き受けるので、ここでは続けて投げてよい。
    * 個々のステップの失敗は ProcessRecording が録音の状態として記録するので、
    * ここで拾うのはワーカーごと落ちたような想定外の場合だけ。
    */
@@ -323,20 +324,6 @@ export const registerIpcHandlers = (
     } finally {
       send(IPC.recordingsChanged)
     }
-  }
-
-  /**
-   * 後処理は 1 件ずつ投げる。
-   *
-   * PipelineClient は抱えている依頼が残っている間ワーカーを終了させないため、run を
-   * 続けて呼ぶと 1 プロセスで複数のジョブを捌く。話者識別と要約のネイティブが確保した
-   * メモリが次のジョブへ持ち越され、ADR-008 が 1 プロセス 1 ジョブにした理由そのものに
-   * 戻ってしまう。複数ファイルの取り込みでも録音停止の直後でも、ここを通して直列にする。
-   */
-  let pipelineQueue: Promise<void> = Promise.resolve()
-
-  const enqueuePipeline = (recordingId: string): void => {
-    pipelineQueue = pipelineQueue.then(() => runPipeline(recordingId))
   }
 
   const controller: TransportController = {
@@ -377,7 +364,7 @@ export const registerIpcHandlers = (
       notifyTransport()
       send(IPC.recordingsChanged)
 
-      enqueuePipeline(recording.id)
+      void runPipeline(recording.id)
       void startStartWatch()
 
       return toRecordingDto(recording)
@@ -449,7 +436,7 @@ export const registerIpcHandlers = (
         const recording = await container.importAudioFile.execute({ filePath })
         imported.push(toRecordingDto(recording))
         send(IPC.recordingsChanged)
-        enqueuePipeline(recording.id)
+        void runPipeline(recording.id)
       } catch (error: unknown) {
         failed.push({ fileName: basename(filePath), reason: toMessage(error) })
       }
