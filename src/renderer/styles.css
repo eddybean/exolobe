@@ -658,16 +658,6 @@ code {
   gap: 16px;
 }
 
-.licenses__group {
-  margin: 0 0 4px;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 4px;
-}
-
 .licenses__lead {
   margin: 0 0 8px;
   color: var(--text-muted);
@@ -1466,6 +1456,32 @@ textarea:focus {
 /* 入力欄が画面いっぱいに伸びると読みにくい。項目の中身は読みやすい幅で止める。 */
 .settings__body {
   max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/*
+ * 関係する設定をまとめる角丸のカード。見出しと下線だけでは、どこからどこまでが
+ * 一つのまとまりか読み取りにくかった。
+ */
+.settings-card {
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.settings-card__title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* 最後の項目の下の余白はカードの padding に任せる。二重に空くと下だけ間延びする。 */
+.settings-card > .field:last-child,
+.settings-card > :last-child {
+  margin-bottom: 0;
 }
 
 .settings__header {
@@ -1480,10 +1496,6 @@ textarea:focus {
 .onboarding h2 {
   font-size: 16px;
   margin: 0 0 4px;
-}
-
-.permissions {
-  margin-bottom: 8px;
 }
 
 /* 1 行に「何の許可か・状態・直し方」を並べる。状態は色だけでなく文言でも伝える。 */

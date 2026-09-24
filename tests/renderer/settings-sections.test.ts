@@ -71,3 +71,21 @@ describe('設定画面の構成', () => {
     expect(ruleFor('.settings')).not.toMatch(/overflow-y:\s*auto/)
   })
 })
+
+/**
+ * 項目の中は、関係する設定ごとに角丸のカードで囲む。見出しと下線だけでは
+ * どこからどこまでが一つのまとまりか読み取りにくかった。
+ */
+describe('設定のカード', () => {
+  it('角丸の枠と面で囲む', () => {
+    const rule = ruleFor('.settings-card')
+
+    expect(rule).toMatch(/border:\s*1px solid var\(--border\)/)
+    expect(rule).toMatch(/border-radius:\s*var\(--radius\)/)
+    expect(rule).toMatch(/background:\s*var\(--surface\)/)
+  })
+
+  it('カードとカードの間を空ける', () => {
+    expect(ruleFor('.settings__body')).toMatch(/gap:\s*\d+px/)
+  })
+})

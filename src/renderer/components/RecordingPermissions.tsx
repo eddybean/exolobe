@@ -44,8 +44,8 @@ export const RecordingPermissions = (): ReactElement => {
   const micView = mic === undefined ? undefined : micPermissionView(mic)
 
   return (
-    <section className="permissions" aria-labelledby="permissions-title">
-      <h3 id="permissions-title" className="settings__section">
+    <section className="settings-card permissions" aria-labelledby="permissions-title">
+      <h3 id="permissions-title" className="settings-card__title">
         録音に必要な許可
       </h3>
 

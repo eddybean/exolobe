@@ -20,8 +20,8 @@ export const LicenseNotices = (): ReactElement => (
     </p>
 
     {NOTICE_GROUPS.map((group) => (
-      <section key={group.title}>
-        <h3 className="licenses__group">{group.title}</h3>
+      <section key={group.title} className="settings-card">
+        <h3 className="settings-card__title">{group.title}</h3>
         <p className="licenses__lead">{group.description}</p>
         <ul className="licenses">
           {group.entries.map((notice) => (
@@ -31,8 +31,8 @@ export const LicenseNotices = (): ReactElement => (
       </section>
     ))}
 
-    <section>
-      <h3 className="licenses__group">ライセンス全文</h3>
+    <section className="settings-card">
+      <h3 className="settings-card__title">ライセンス全文</h3>
       {usedLicenses().map((id) => {
         const license = LICENSE_TEXTS[id]
         return (
