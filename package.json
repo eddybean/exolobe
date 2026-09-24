@@ -10,11 +10,15 @@
     "node": ">=22.12"
   },
   "scripts": {
+    "predev": "node scripts/check-node-modules.mjs",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "start": "electron-vite preview",
+    "pretypecheck": "node scripts/check-node-modules.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "pretest": "node scripts/check-node-modules.mjs",
     "test": "vitest run",
+    "pretest:watch": "node scripts/check-node-modules.mjs",
     "test:watch": "vitest",
     "lint": "oxlint",
     "setup": "bash scripts/setup.sh",
