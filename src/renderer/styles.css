@@ -1482,6 +1482,60 @@ textarea:focus {
   margin: 0 0 4px;
 }
 
+.permissions {
+  margin-bottom: 8px;
+}
+
+/* 1 行に「何の許可か・状態・直し方」を並べる。状態は色だけでなく文言でも伝える。 */
+.permissions__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.permissions__subject {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.permissions__name {
+  font-weight: 600;
+}
+
+.permissions__purpose {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.permissions__state {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.permissions__state--ok {
+  padding: 2px 10px;
+  border-radius: 999px;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.permissions__state--ng {
+  padding: 2px 10px;
+  border-radius: 999px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+}
+
+.permissions__hint {
+  display: block;
+  margin-top: 8px;
+}
+
 .settings__saved {
   color: var(--success);
   font-size: 12px;

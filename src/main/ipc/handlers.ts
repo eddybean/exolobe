@@ -1,5 +1,5 @@
 import { basename } from 'node:path'
-import { BrowserWindow, dialog, ipcMain, shell, type FileFilter } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, systemPreferences, type FileFilter } from 'electron'
 import type { PipelineStep } from '@domain/Recording'
 import { ConfigurationError, toMessage } from '@domain/errors'
 import { IMPORTABLE_EXTENSIONS } from '@domain/AudioImport'
@@ -42,6 +42,7 @@ import { createStartMonitor } from '../startMonitor'
 import { notifyMeetingStart } from '../startNotification'
 import { applyRecordingShortcut } from '../recordingShortcut'
 import { createTransportRequests } from '../transportRequests'
+import { privacySettingsUrl } from '../privacySettings'
 import { PipelineClient } from '../worker/PipelineClient'
 import { ChatClient } from '../worker/ChatClient'
 import { SearchClient } from '../worker/SearchClient'
@@ -396,6 +397,16 @@ export const registerIpcHandlers = (
   })
 
   handle(IPC.takeTransportRequest, async () => transportRequests.take())
+
+  // 録音に必要な許可。マイクは状態を問い合わせられるが、システム音声（Core Audio Tap）は
+  // 問い合わせる公開 API が無く、許可が無くても無音が流れるだけなので、画面を開く案内に留める。
+  handle(IPC.getMicPermission, async () => systemPreferences.getMediaAccessStatus('microphone'))
+  handle(IPC.requestMicPermission, async () => systemPreferences.askForMediaAccess('microphone'))
+  handle(IPC.openPrivacySettings, async (pane: unknown) => {
+    const url = privacySettingsUrl(pane)
+    if (url === undefined) throw new Error('開けない設定画面です。')
+    await shell.openExternal(url)
+  })
 
   /** 設定に合わせてショートカットを登録し直す。起動時と設定の変更時に呼ぶ。 */
   const applyShortcut = async (): Promise<void> => {

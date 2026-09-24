@@ -49,6 +49,12 @@ export interface SetupStateDto {
   readonly needsSummarizationModel: boolean
 }
 
+/** マイクの許可の状態。macOS（systemPreferences.getMediaAccessStatus）の値そのまま。 */
+export type MicPermissionDto = 'granted' | 'denied' | 'restricted' | 'not-determined' | 'unknown'
+
+/** 「システム設定を開く」で開く画面の種類。 */
+export type PrivacyPaneDto = 'microphone' | 'system-audio'
+
 /** main から renderer へ回す録音の操作。 */
 export type TransportRequestDto = 'start' | 'stop'
 
@@ -310,6 +316,12 @@ export interface RendererApi {
    * 実際の開始・停止は renderer が自分の手順で行う。
    */
   takeTransportRequest(): Promise<TransportRequestDto | undefined>
+  /** マイクの許可の状態。システム設定から戻ってきたときにも読み直す。 */
+  getMicPermission(): Promise<MicPermissionDto>
+  /** まだ聞かれていなければ、マイクの許可を求める。許可されたかを返す。 */
+  requestMicPermission(): Promise<boolean>
+  /** プライバシーとセキュリティの該当する画面を開く。 */
+  openPrivacySettings(pane: PrivacyPaneDto): Promise<void>
   retryStep(recordingId: string, step: PipelineStep): Promise<RecordingDto>
 
   /** 手元の音声ファイルを取り込み、文字起こし以降を走らせる。 */
@@ -419,6 +431,9 @@ export const IPC = {
   startAlert: 'transport:startAlert',
   dismissStartAlert: 'transport:dismissStartAlert',
   takeTransportRequest: 'transport:takeRequest',
+  getMicPermission: 'permissions:mic',
+  requestMicPermission: 'permissions:requestMic',
+  openPrivacySettings: 'permissions:openSettings',
   transportRequested: 'transport:requested',
   retryStep: 'pipeline:retry',
   importAudioFiles: 'recordings:import',

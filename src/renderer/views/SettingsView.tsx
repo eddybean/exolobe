@@ -6,6 +6,7 @@ import type { SetupStateDto } from '@shared/ipc'
 import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import { LicenseNotices } from '../components/LicenseNotices'
 import { ModelManager } from '../components/ModelManager'
+import { RecordingPermissions } from '../components/RecordingPermissions'
 import { SemanticSearchSettings } from '../components/SemanticSearchSettings'
 import { VoiceprintSettings } from '../components/VoiceprintSettings'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../settingsSections'
@@ -57,6 +58,11 @@ export const SettingsView = ({
   const content: Record<SettingsSectionId, ReactElement> = {
     recording: (
       <>
+        {/* 許可が無いと録音そのものが成り立たないので、この項目の先頭に置く。 */}
+        <RecordingPermissions />
+
+        <h3 className="settings__section">録音の操作と知らせ</h3>
+
         <Field
           label="無音が続いたら知らせる"
           hint="会議が終わっているのに録音が続いている状態を防ぎます。自動では停止しません。"
