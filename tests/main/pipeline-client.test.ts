@@ -76,20 +76,61 @@ describe('PipelineClient', () => {
     expect(workers[0]?.killed).toBe(true)
   })
 
-  it('待機中のジョブが残っているうちは終了させない', async () => {
+  it('続けて依頼しても、前のジョブが終わるまで次は投げない', () => {
+    const { client, workers } = setup()
+
+    void client.run({ recordingId: 'r1' })
+    void client.run({ recordingId: 'r2' })
+
+    expect(workers).toHaveLength(1)
+    expect(workers[0]?.sent).toHaveLength(1)
+  })
+
+  it('待っていたジョブは、前のワーカーを終了させてから新しいワーカーで動かす', async () => {
     const { client, workers } = setup()
 
     const first = client.run({ recordingId: 'r1' })
     const second = client.run({ recordingId: 'r2' })
-    const worker = workers[0]
 
-    worker?.complete(worker.sent[0]?.jobId ?? '')
+    workers[0]?.complete(workers[0].sent[0]?.jobId ?? '')
     await first
-    expect(worker?.killed).toBe(false)
 
-    worker?.complete(worker.sent[1]?.jobId ?? '')
+    expect(workers[0]?.killed).toBe(true)
+    expect(workers).toHaveLength(2)
+    expect(workers[1]?.sent[0]).toMatchObject({ type: 'run', recordingId: 'r2' })
+
+    workers[1]?.complete(workers[1].sent[0]?.jobId ?? '')
     await second
-    expect(worker?.killed).toBe(true)
+    expect(workers[1]?.killed).toBe(true)
+  })
+
+  it('声紋の取り直しもパイプラインと同じ列に並ぶ', async () => {
+    const { client, workers } = setup()
+
+    const run = client.run({ recordingId: 'r1' })
+    const voices = client.extractVoices('r2')
+    expect(workers).toHaveLength(1)
+
+    workers[0]?.complete(workers[0].sent[0]?.jobId ?? '')
+    await run
+
+    expect(workers[1]?.sent[0]).toMatchObject({ type: 'voices', recordingId: 'r2' })
+    workers[1]?.emit('message', { type: 'voices-done', jobId: workers[1].sent[0]?.jobId })
+    await voices
+  })
+
+  it('ワーカーが落ちても失敗させるのは実行中のジョブだけで、待っていたジョブは続ける', async () => {
+    const { client, workers } = setup()
+
+    const first = client.run({ recordingId: 'r1' })
+    const second = client.run({ recordingId: 'r2' })
+
+    workers[0]?.emit('exit', 1)
+    await expect(first).rejects.toThrow('処理プロセスが終了しました')
+
+    expect(workers).toHaveLength(2)
+    workers[1]?.complete(workers[1].sent[0]?.jobId ?? '')
+    await expect(second).resolves.toMatchObject({ id: 'r1' })
   })
 
   it('ジョブを抱えている間だけ busy を知らせる（検索の同期を譲らせるため）', async () => {
@@ -101,10 +142,11 @@ describe('PipelineClient', () => {
     const second = client.run({ recordingId: 'r2' })
     expect(client.isBusy()).toBe(true)
 
-    const worker = workers[0]
-    worker?.complete(worker.sent[0]?.jobId ?? '')
+    workers[0]?.complete(workers[0].sent[0]?.jobId ?? '')
     await first
-    worker?.complete(worker.sent[1]?.jobId ?? '')
+    // ジョブの合間に idle を挟まない。挟むと検索の同期が動き出し、すぐまた止められる。
+    expect(client.isBusy()).toBe(true)
+    workers[1]?.complete(workers[1].sent[0]?.jobId ?? '')
     await second
 
     expect(changes).toEqual([true, false])

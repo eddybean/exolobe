@@ -12,6 +12,12 @@ export interface PipelineWorker {
   kill(): boolean
 }
 
+interface Job {
+  readonly build: (jobId: string) => Record<string, unknown>
+  readonly resolve: (recording: RecordingDto | undefined) => void
+  readonly reject: (error: Error) => void
+}
+
 /**
  * パイプラインワーカーとのやり取りを担う。
  *
@@ -19,19 +25,17 @@ export interface PipelineWorker {
  * ライブラリのクラッシュで処理中のジョブは失われるが、その事実を利用者に返せる
  * ようにし、録音済みファイルと録音の状態はディスクに残ったままにする。
  *
- * 依頼が片付いたらワーカーを終了させ、次の依頼では新しいプロセスを起こす。
- * 話者識別の sherpa-onnx は WASM で、そのヒープは一度伸びると縮まず上限も 2GB
- * しかない。要約の LLM も同じプロセスに数 GB を確保する。使い回すと確保できる
- * メモリが目減りしていき、「memory access out of bounds」等で話者識別だけが
- * 落ちるようになるため、1 プロセス 1 ジョブで OS に返す。依存の組み立ては
- * ジョブごとに行っているので、作り直しても失うものは無い。
+ * 1 プロセスには 1 ジョブしか渡さない（ADR-008）。話者識別と要約のネイティブが
+ * 確保した数 GB は、プロセスを終わらせるのが確実に OS へ返す方法だから。依頼は
+ * ここで列に並べ、前のジョブのワーカーを終了させてから次のワーカーを起こす。
+ * 列を呼び出し側に持たせると、録音停止・取り込み・ステップの再実行・声紋の
+ * 取り直しと入口が増えるたびに守り漏れが出るため、唯一の入口であるここで持つ。
+ * 依存の組み立てはジョブごとに行っているので、作り直しても失うものは無い。
  */
 export class PipelineClient {
   private worker: PipelineWorker | undefined
-  private readonly pending = new Map<
-    string,
-    { resolve: (recording: RecordingDto | undefined) => void; reject: (error: Error) => void }
-  >()
+  private current: { readonly jobId: string; readonly job: Job } | undefined
+  private readonly queue: Job[] = []
   private readonly busyListeners: ((busy: boolean) => void)[] = []
 
   constructor(
@@ -61,25 +65,24 @@ export class PipelineClient {
     await this.request((jobId) => ({ type: 'voices', jobId, recordingId }))
   }
 
-  private async request(
+  private request(
     build: (jobId: string) => Record<string, unknown>
   ): Promise<RecordingDto | undefined> {
-    const worker = this.ensureWorker()
-    const jobId = randomUUID()
-
     return new Promise<RecordingDto | undefined>((resolve, reject) => {
-      this.pending.set(jobId, { resolve, reject })
-      if (this.pending.size === 1) this.notifyBusy(true)
-      worker.postMessage(build(jobId))
+      const wasBusy = this.isBusy()
+      this.queue.push({ build, resolve, reject })
+      if (!wasBusy) this.notifyBusy(true)
+      this.dispatch()
     })
   }
 
   /**
-   * ジョブを抱えている間か。意味検索の索引作成はこの間は待たせる。
-   * 要約のような数 GB のモデルと同時に埋め込みモデルを載せないため。
+   * 実行中か、順番を待つジョブがある間か。意味検索の索引作成はこの間は待たせる。
+   * 要約のような数 GB のモデルと同時に埋め込みモデルを載せないため。ジョブの合間も
+   * busy のままにし、同期が動き出してすぐ止められる無駄を作らない。
    */
   isBusy(): boolean {
-    return this.pending.size > 0
+    return this.current !== undefined || this.queue.length > 0
   }
 
   onBusyChange(listener: (busy: boolean) => void): void {
@@ -89,6 +92,17 @@ export class PipelineClient {
   dispose(): void {
     this.worker?.kill()
     this.worker = undefined
+  }
+
+  /** 何も動いていなければ、列の先頭を新しいワーカーで始める。 */
+  private dispatch(): void {
+    if (this.current) return
+    const job = this.queue.shift()
+    if (!job) return
+
+    const jobId = randomUUID()
+    this.current = { jobId, job }
+    this.ensureWorker().postMessage(job.build(jobId))
   }
 
   private ensureWorker(): PipelineWorker {
@@ -104,45 +118,43 @@ export class PipelineClient {
         return
       }
 
-      const waiting = this.pending.get(message.jobId)
-      this.pending.delete(message.jobId)
+      if (this.worker !== worker || this.current?.jobId !== message.jobId) return
+      const { job } = this.current
 
-      if (message.type === 'done') waiting?.resolve(message.recording)
-      else if (message.type === 'voices-done') waiting?.resolve(undefined)
-      else waiting?.reject(new Error(message.message))
-      if (waiting && this.pending.size === 0) this.notifyBusy(false)
+      if (message.type === 'done') job.resolve(message.recording)
+      else if (message.type === 'voices-done') job.resolve(undefined)
+      else job.reject(new Error(message.message))
 
-      this.recycle(worker)
+      this.finish(worker)
     })
 
     worker.on('exit', () => {
-      if (this.worker === worker) this.worker = undefined
-      // 待機中のジョブは結果を受け取れないので、理由を伝えて解放する。
-      for (const [, waiting] of this.pending) {
-        waiting.reject(
-          new Error('処理プロセスが終了しました。詳細画面から失敗したステップを再実行してください。')
-        )
-      }
-      const hadPending = this.pending.size > 0
-      this.pending.clear()
-      if (hadPending) this.notifyBusy(false)
+      // 終わらせたのが自分なら、ジョブは既に片付いている。
+      if (this.worker !== worker) return
+
+      // 失われるのは実行中のジョブだけ。待っていたジョブは新しいワーカーで続ける。
+      this.current?.job.reject(
+        new Error('処理プロセスが終了しました。詳細画面から失敗したステップを再実行してください。')
+      )
+      this.finish(worker)
     })
 
     this.worker = worker
     return worker
   }
 
-  private notifyBusy(busy: boolean): void {
-    for (const listener of this.busyListeners) listener(busy)
-  }
-
-  /** 依頼が全て片付いていればワーカーを終了させ、確保したメモリを OS に返す。 */
-  private recycle(worker: PipelineWorker): void {
-    if (this.pending.size > 0) return
-    if (this.worker !== worker) return
-
+  /** ワーカーを終了させて確保したメモリを OS に返し、次のジョブへ進む。 */
+  private finish(worker: PipelineWorker): void {
+    this.current = undefined
     this.worker = undefined
     worker.kill()
+
+    this.dispatch()
+    if (!this.isBusy()) this.notifyBusy(false)
+  }
+
+  private notifyBusy(busy: boolean): void {
+    for (const listener of this.busyListeners) listener(busy)
   }
 }
 
