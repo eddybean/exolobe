@@ -203,7 +203,7 @@ export class DualTrackRecorder implements AudioCapturePort {
  * 実効値（RMS）ではなく peak なのは、短い発話でもメーターが振れる方が
  * 「音が録れているか」の確認に向くため。
  */
-const peakOf = (pcm: Buffer): number => {
+export const peakOf = (pcm: Buffer): number => {
   let max = 0
   for (let offset = 0; offset + 1 < pcm.length; offset += 2) {
     const magnitude = Math.abs(pcm.readInt16LE(offset))

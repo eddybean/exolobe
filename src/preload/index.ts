@@ -23,6 +23,7 @@ import {
   type SearchIndexStatusDto,
   type VoiceprintDto,
   type SearchSyncStateDto,
+  type MicPermissionDto,
   type SetupStateDto,
   type SilenceAlertDto,
   type StartAlertDto,
@@ -53,6 +54,11 @@ const api: RendererApi = {
   getSystemAudioLevel: () => ipcRenderer.invoke(IPC.getSystemAudioLevel) as Promise<number>,
   dismissSilenceAlert: () => ipcRenderer.invoke(IPC.dismissSilenceAlert) as Promise<void>,
   dismissStartAlert: () => ipcRenderer.invoke(IPC.dismissStartAlert) as Promise<void>,
+  getMicPermission: () => ipcRenderer.invoke(IPC.getMicPermission) as Promise<MicPermissionDto>,
+  requestMicPermission: () => ipcRenderer.invoke(IPC.requestMicPermission) as Promise<boolean>,
+  openPrivacySettings: (pane) => ipcRenderer.invoke(IPC.openPrivacySettings, pane) as Promise<void>,
+  probeSystemAudio: (durationMs) =>
+    ipcRenderer.invoke(IPC.probeSystemAudio, durationMs) as Promise<number>,
   takeTransportRequest: () =>
     ipcRenderer.invoke(IPC.takeTransportRequest) as Promise<TransportRequestDto | undefined>,
   retryStep: (recordingId, step: PipelineStep) =>

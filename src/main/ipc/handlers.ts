@@ -1,5 +1,5 @@
 import { basename } from 'node:path'
-import { BrowserWindow, dialog, ipcMain, shell, type FileFilter } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell, systemPreferences, type FileFilter } from 'electron'
 import type { PipelineStep } from '@domain/Recording'
 import { ConfigurationError, toMessage } from '@domain/errors'
 import { IMPORTABLE_EXTENSIONS } from '@domain/AudioImport'
@@ -42,6 +42,8 @@ import { createStartMonitor } from '../startMonitor'
 import { notifyMeetingStart } from '../startNotification'
 import { applyRecordingShortcut } from '../recordingShortcut'
 import { createTransportRequests } from '../transportRequests'
+import { privacySettingsUrl } from '../privacySettings'
+import { probeSystemAudio } from '../systemAudioProbe'
 import { PipelineClient } from '../worker/PipelineClient'
 import { ChatClient } from '../worker/ChatClient'
 import { SearchClient } from '../worker/SearchClient'
@@ -85,6 +87,8 @@ export const registerIpcHandlers = (
   let active:
     | { recordingId: string; title: string; startedAtMs: number; silenceDurationMs: number }
     | undefined
+  /** テスト録音でシステム音声を取り込んでいる間。録音の開始と重ねない。 */
+  let probingSystemAudio = false
 
   const send = (channel: string, payload?: unknown): void => {
     const window = getWindow()
@@ -334,6 +338,9 @@ export const registerIpcHandlers = (
 
   const controller: TransportController = {
     async start(title?: string): Promise<RecordingDto> {
+      if (probingSystemAudio) {
+        throw new Error('テスト録音の途中です。数秒待ってから録音を始めてください。')
+      }
       // 録音を始めたら促す必要はない。子プロセスも止めて無駄に動かさない。
       stopStartWatch()
 
@@ -396,6 +403,39 @@ export const registerIpcHandlers = (
   })
 
   handle(IPC.takeTransportRequest, async () => transportRequests.take())
+
+  // 録音に必要な許可。マイクは状態を問い合わせられるが、システム音声（Core Audio Tap）は
+  // 問い合わせる公開 API が無く、許可が無くても無音が流れるだけなので、画面を開く案内に留める。
+  handle(IPC.getMicPermission, async () => systemPreferences.getMediaAccessStatus('microphone'))
+  handle(IPC.requestMicPermission, async () => systemPreferences.askForMediaAccess('microphone'))
+  /**
+   * テスト録音のシステム音声の側。録音と同時に取り込みを 2 本走らせると、同じ音を
+   * 取り合って録音の側が欠けかねないので、録音中とテスト同士の重なりは断る。
+   */
+  handle(IPC.probeSystemAudio, async (durationMs: unknown) => {
+    if (typeof durationMs !== 'number' || durationMs < 500 || durationMs > 10_000) {
+      throw new Error('テスト録音の長さが正しくありません。')
+    }
+    if (active) throw new Error('録音中はテストできません。録音を止めてからお試しください。')
+    if (probingSystemAudio) throw new Error('テスト録音の途中です。')
+
+    probingSystemAudio = true
+    try {
+      return await probeSystemAudio({
+        source: container.createSystemAudioSource(),
+        durationMs,
+        wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+      })
+    } finally {
+      probingSystemAudio = false
+    }
+  })
+
+  handle(IPC.openPrivacySettings, async (pane: unknown) => {
+    const url = privacySettingsUrl(pane)
+    if (url === undefined) throw new Error('開けない設定画面です。')
+    await shell.openExternal(url)
+  })
 
   /** 設定に合わせてショートカットを登録し直す。起動時と設定の変更時に呼ぶ。 */
   const applyShortcut = async (): Promise<void> => {

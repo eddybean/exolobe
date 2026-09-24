@@ -650,24 +650,12 @@ code {
 
 /* ── ライセンス表記 ─────────────────────────── */
 
-/* 一覧と全文（Apache-2.0 だけで 1 万字を超える）を内側でスクロールさせる。
-   モーダルごと伸ばすと画面を突き抜けて「閉じる」に手が届かなくなる。 */
+/* 設定画面の専用のページに出すので、内側ではスクロールさせずページごと流す。
+   スクロールを二重にすると、全文（Apache-2.0 だけで 1 万字を超える）を読みにくい。 */
 .licenses__body {
-  max-height: min(64vh, 480px);
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.licenses__group {
-  margin: 0 0 4px;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 4px;
 }
 
 .licenses__lead {
@@ -727,7 +715,7 @@ code {
 }
 
 /* 全文は整形済みのプレーンテキスト。改行を潰すと条項の区切りが読めなくなる。
-   折り返さないとモーダルの外へ出て横スクロールが生まれる。 */
+   折り返さないと長い行がはみ出して横スクロールが生まれる。 */
 .licenses__text {
   margin: 4px 0 0;
   font-size: 11px;
@@ -1406,23 +1394,196 @@ textarea:focus {
 
 /* ── 設定・初期設定 ─────────────────────────── */
 
-.settings,
 .onboarding {
   padding: 20px 24px 32px;
   overflow-y: auto;
   height: 100%;
 }
 
+/*
+ * 設定画面は左のナビで項目を選び、右にその項目だけを出す。ナビと中身は別々に
+ * スクロールさせる（ページごと流すと、長い項目を下まで見たときにナビが消える）。
+ */
+.settings {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.settings__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 10px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow-y: auto;
+}
+
+.settings__nav-item {
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.settings__nav-item:hover {
+  background: var(--surface-2);
+}
+
+.settings__nav-item--active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 「このアプリについて」は設定ではないので、ほかの項目から離して下に置く。 */
+.settings__nav-item:last-child {
+  margin-top: auto;
+  color: var(--text-muted);
+}
+
+.settings__content {
+  padding: 20px 24px 32px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* 入力欄が画面いっぱいに伸びると読みにくい。項目の中身は読みやすい幅で止める。 */
+.settings__body {
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/*
+ * 関係する設定をまとめる角丸のカード。見出しと下線だけでは、どこからどこまでが
+ * 一つのまとまりか読み取りにくかった。
+ */
+.settings-card {
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.settings-card__title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* 最後の項目の下の余白はカードの padding に任せる。二重に空くと下だけ間延びする。 */
+.settings-card > .field:last-child,
+.settings-card > :last-child {
+  margin-bottom: 0;
+}
+
 .settings__header {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* 見出しは項目名なので、最初の設定と詰めずに区切る。 */
+  margin-bottom: 12px;
 }
 
 .settings__header h2,
 .onboarding h2 {
   font-size: 16px;
   margin: 0 0 4px;
+}
+
+/* 1 行に「何の許可か・状態・直し方」を並べる。状態は色だけでなく文言でも伝える。 */
+.permissions__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.permissions__subject {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.permissions__name {
+  font-weight: 600;
+}
+
+.permissions__purpose {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.permissions__state {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.permissions__state--ok {
+  padding: 2px 10px;
+  border-radius: 999px;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.permissions__state--ng {
+  padding: 2px 10px;
+  border-radius: 999px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+}
+
+.permissions__hint {
+  display: block;
+  margin-top: 8px;
+}
+
+.permissions__test {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.permissions__results {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 結果は行ごとに、取れたか・取れなかった理由・直す場所を縦に並べる。 */
+.permissions__result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.permissions__result-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.permissions__result-message {
+  font-size: 12px;
+  color: var(--text);
 }
 
 .settings__saved {

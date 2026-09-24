@@ -38,7 +38,7 @@ import {
 import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
 import { AudioTeeSource } from '@infrastructure/audio/AudioTeeSource'
 import { resolveAudioTeeBinary } from '@infrastructure/audio/resolveAudioTeeBinary'
-import { DualTrackRecorder } from '@infrastructure/audio/DualTrackRecorder'
+import { DualTrackRecorder, type SystemAudioSource } from '@infrastructure/audio/DualTrackRecorder'
 import { FileFolderRepository } from '@infrastructure/persistence/FileFolderStore'
 import { FileVoiceprintRepository } from '@infrastructure/persistence/FileVoiceprintStore'
 import { WorkerVoiceExtraction } from './voiceLearning'
@@ -66,6 +66,8 @@ import {
 export interface Container {
   readonly settings: JsonSettingsRepository
   readonly recorder: DualTrackRecorder
+  /** テスト録音用に、録音とは別のシステム音声の取り込みを作る。 */
+  readonly createSystemAudioSource: () => SystemAudioSource
   readonly micUsage: MicUsageProbe
   readonly startRecording: StartRecording
   readonly stopRecording: StopRecording
@@ -117,11 +119,11 @@ export const createContainer = (): Container => {
   }
   // audiotee は自分の JS の位置からバイナリを探すため、パッケージ済みアプリでは
   // asar 内のパスを解決してしまい起動できない。実パスを明示的に渡す。
-  const recorder = new DualTrackRecorder(
+  const createSystemAudioSource = (): SystemAudioSource =>
     new AudioTeeSource(
       resolveAudioTeeBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath })
     )
-  )
+  const recorder = new DualTrackRecorder(createSystemAudioSource())
   // 録音していない間だけ動かす見張り。同梱物が無ければ available が false になり、
   // 開始忘れの通知だけが無効になる。
   const micUsage = new MicUsageProbe(
@@ -139,6 +141,7 @@ export const createContainer = (): Container => {
   return {
     settings,
     recorder,
+    createSystemAudioSource,
     micUsage,
     startRecording: new StartRecording({
       settings,

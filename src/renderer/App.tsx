@@ -9,6 +9,7 @@ import type {
 import { LibrarySidebar } from './components/LibrarySidebar'
 import { PaneResizer } from './components/PaneResizer'
 import type { FolderKey } from './library/folders'
+import { initialSettingsSection, type SettingsSectionId } from './settingsSections'
 import { messageOf } from './errorMessage'
 import { importSummary } from './library/fileDrop'
 import { useChat } from './hooks/useChat'
@@ -51,6 +52,7 @@ export const App = (): ReactElement => {
    * サイドバーは画面を切り替えると消えるので、開閉状態はここで持ち越す。
    */
   const [folderKey, setFolderKey] = useState<FolderKey>('all')
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionId>()
   const libraryWidth = useLibraryWidth()
   const [resizingLibrary, setResizingLibrary] = useState(false)
   const libraryStyle: CSSProperties & Record<'--library-width', string> = {
@@ -234,7 +236,15 @@ export const App = (): ReactElement => {
         )}
 
         {screen === 'settings' && (
-          <SettingsView setup={setup} onChanged={() => void refreshSetup()} />
+          <SettingsView
+            setup={setup}
+            section={initialSettingsSection({
+              storageDir: setup.settings.storageDir,
+              previous: settingsSection
+            })}
+            onSectionChange={setSettingsSection}
+            onChanged={() => void refreshSetup()}
+          />
         )}
 
         {screen === 'library' && (
