@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties, type ReactElement } from 'react'
 import type {
   FolderDto,
   ImportProgressDto,
@@ -7,11 +7,13 @@ import type {
   SetupStateDto
 } from '@shared/ipc'
 import { LibrarySidebar } from './components/LibrarySidebar'
+import { PaneResizer } from './components/PaneResizer'
 import type { FolderKey } from './library/folders'
 import { messageOf } from './errorMessage'
 import { importSummary } from './library/fileDrop'
 import { useChat } from './hooks/useChat'
 import { useFileDrop } from './hooks/useFileDrop'
+import { useLibraryWidth } from './hooks/useLibraryWidth'
 import { isSemanticSearchAvailable } from './library/semanticSearch'
 import { TransportBar } from './components/TransportBar'
 import { useTransport } from './hooks/useTransport'
@@ -49,6 +51,11 @@ export const App = (): ReactElement => {
    * サイドバーは画面を切り替えると消えるので、開閉状態はここで持ち越す。
    */
   const [folderKey, setFolderKey] = useState<FolderKey>('all')
+  const libraryWidth = useLibraryWidth()
+  const [resizingLibrary, setResizingLibrary] = useState(false)
+  const libraryStyle: CSSProperties & Record<'--library-width', string> = {
+    '--library-width': `${libraryWidth.width}px`
+  }
   const [semanticAvailable, setSemanticAvailable] = useState(false)
   const [importing, setImporting] = useState<ImportProgressDto>()
   const [importError, setImportError] = useState<string>()
@@ -231,7 +238,16 @@ export const App = (): ReactElement => {
         )}
 
         {screen === 'library' && (
-          <div className={importing || importError ? 'library library--notified' : 'library'}>
+          <div
+            className={[
+              'library',
+              importing || importError ? 'library--notified' : '',
+              resizingLibrary ? 'library--resizing' : ''
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            style={libraryStyle}
+          >
             {drop.active && (
               <div className="drop-overlay" aria-hidden="true">
                 <p className="drop-overlay__label">音声ファイルをドロップすると取り込みます</p>
@@ -292,6 +308,7 @@ export const App = (): ReactElement => {
               folderKey={folderKey}
               onSelectFolder={setFolderKey}
             />
+            <PaneResizer pane={libraryWidth} onDraggingChange={setResizingLibrary} />
             {detail ? (
               <RecordingDetailView
                 detail={detail}

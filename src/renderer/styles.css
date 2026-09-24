@@ -134,9 +134,41 @@ code {
 }
 
 .library {
+  /* 境目のつまみを重ねる基準。つまみは升目を取らせない。 */
+  position: relative;
   display: grid;
-  grid-template-columns: 320px 1fr;
+  /* 1 列目の幅は境目のドラッグで変わる（App が --library-width を渡す）。 */
+  grid-template-columns: var(--library-width, 320px) 1fr;
   height: 100%;
+}
+
+/* ドラッグ中は本文の選択が走らないようにし、どこにいても左右矢印のカーソルを保つ。 */
+.library--resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/*
+ * ライブラリと詳細の境目のつまみ。グリッドの升目を取ると 3 列目ができてしまうので、
+ * 絶対配置で境目の線（.tree の border-right）の上に重ねる。
+ */
+.pane-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--library-width, 320px) - 3px);
+  width: 6px;
+  z-index: 5;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.pane-resizer:hover,
+.pane-resizer:focus-visible,
+.library--resizing .pane-resizer {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  outline: none;
 }
 
 /*

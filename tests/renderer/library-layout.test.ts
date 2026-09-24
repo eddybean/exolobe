@@ -19,7 +19,8 @@ const ruleFor = (selector: string): string => {
 
 describe('ライブラリ画面の構成', () => {
   it('ツリーと詳細の 2 カラムである', () => {
-    expect(ruleFor('.library')).toMatch(/grid-template-columns:\s*\d+px\s+1fr\s*;/)
+    // 1 列目の幅は境目のドラッグで変わるので、変数で受ける（既定は px）。
+    expect(ruleFor('.library')).toMatch(/grid-template-columns:\s*var\(--library-width,\s*\d+px\)\s+1fr\s*;/)
   })
 
   it('録音行の 1 行目はタイトルとステータスを横に並べる', () => {
@@ -49,6 +50,18 @@ describe('ライブラリ画面の構成', () => {
  * 取り込みのオーバーレイは、見た目を確かめる手段が単体テストに無い。
  * 「ドロップを奪わない」「モーダルより下」という壊れると分かりにくい 2 点を宣言で固定する。
  */
+/**
+ * 境目のつまみはグリッドの升目を取らない。升目を取ると 3 列目ができて、
+ * 詳細が折り返されるか、取り込みの知らせの行とずれる。
+ */
+describe('ライブラリと詳細の境目', () => {
+  it('つまみは升目を取らず、境目に重ねる', () => {
+    expect(ruleFor('.library')).toMatch(/position:\s*relative/)
+    expect(ruleFor('.pane-resizer')).toMatch(/position:\s*absolute/)
+    expect(ruleFor('.pane-resizer')).toMatch(/left:\s*calc\(var\(--library-width/)
+  })
+})
+
 /**
  * 長いフォルダ名でボタンが 1 行を占め、段が無駄に増えないよう、幅を決めて省略する。
  * 全文は title 属性（ホバー）で読める。
