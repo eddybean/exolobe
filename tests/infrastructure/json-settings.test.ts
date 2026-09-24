@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -58,6 +58,50 @@ describe('JsonSettingsRepository', () => {
     await writeFile(broken, '{ not json', 'utf8')
 
     expect(await new JsonSettingsRepository(broken).load()).toEqual(defaultSettings())
+  })
+
+  it('壊れた設定ファイルは保存する前に退避する（保存先の指定を黙って失わない）', async () => {
+    const broken = join(dir, 'broken.json')
+    await writeFile(broken, '{ "storageDir": "/Users/me/Meet', 'utf8')
+
+    await new JsonSettingsRepository(broken).save({ audio: { bitrateKbps: 64 } })
+
+    const [quarantined] = (await readdir(dir)).filter((name) =>
+      name.startsWith('broken.json.unreadable-')
+    )
+    expect(await readFile(join(dir, quarantined ?? ''), 'utf8')).toBe(
+      '{ "storageDir": "/Users/me/Meet'
+    )
+  })
+
+  it('object でない JSON も既定値で起動し、保存前に退避する', async () => {
+    const odd = join(dir, 'odd.json')
+    await writeFile(odd, 'null', 'utf8')
+
+    const repository = new JsonSettingsRepository(odd)
+    expect(await repository.load()).toEqual(defaultSettings())
+    await repository.save({ storageDir: '/Users/me/Meetings' })
+
+    expect((await readdir(dir)).some((name) => name.startsWith('odd.json.unreadable-'))).toBe(
+      true
+    )
+  })
+
+  it('知らないキーを保存で消さない（新しい版の設定を古い版で壊さない）', async () => {
+    const newer = join(dir, 'newer.json')
+    await writeFile(
+      newer,
+      JSON.stringify({ storageDir: '/old', futureGroup: { enabled: true }, audio: { futureKey: 1 } }),
+      'utf8'
+    )
+
+    await new JsonSettingsRepository(newer).save({ storageDir: '/new' })
+
+    expect(JSON.parse(await readFile(newer, 'utf8'))).toMatchObject({
+      storageDir: '/new',
+      futureGroup: { enabled: true },
+      audio: { futureKey: 1 }
+    })
   })
 
   it('中断で壊れないよう一時ファイル経由で置換する', async () => {
