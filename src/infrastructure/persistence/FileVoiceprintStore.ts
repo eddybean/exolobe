@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import type { VoiceprintRepositoryPort } from '@application/ports'
 import { isVoiceVector, type VoiceSource, type Voiceprint } from '@domain/Voiceprint'
 import type { StorageLocator } from './FileRecordingStore'
-import { readJson, writeJsonAtomic } from './jsonFile'
+import { readStoredJson, replaceStoredJson, writeJsonAtomic, type StoredJson } from './jsonFile'
 
 export type { StorageLocator } from './FileRecordingStore'
 
@@ -65,6 +65,9 @@ const toVoiceprint = (value: unknown): Voiceprint | undefined => {
   }
 }
 
+const nameOf = (entry: unknown): unknown =>
+  typeof entry === 'object' && entry !== null ? (entry as { name?: unknown }).name : undefined
+
 /**
  * 声紋帳を保存先ルートの voiceprints.json にまとめて保存する。
  *
@@ -76,34 +79,43 @@ export class FileVoiceprintRepository implements VoiceprintRepositoryPort {
   constructor(private readonly locator: StorageLocator) {}
 
   async list(): Promise<Voiceprint[]> {
-    const value = await readJson(join(await this.locator.root(), VOICEPRINTS_FILE))
-    if (!Array.isArray(value)) return []
+    const { stored } = await this.read()
+    if (stored.kind !== 'ok') return []
 
-    return value.flatMap((entry) => {
+    return stored.value.flatMap((entry) => {
       const voiceprint = toVoiceprint(entry)
       return voiceprint ? [voiceprint] : []
     })
   }
 
   async put(voiceprint: Voiceprint): Promise<void> {
-    const entries = await this.list()
-    await this.replaceAll([
-      ...entries.filter((entry) => entry.name !== voiceprint.name),
-      voiceprint
+    await this.rewrite((entries) => [
+      ...entries.filter((entry) => nameOf(entry) !== voiceprint.name),
+      toRecord(voiceprint)
     ])
   }
 
   async remove(name: string): Promise<void> {
-    const entries = await this.list()
-    await this.replaceAll(entries.filter((entry) => entry.name !== name))
+    await this.rewrite((entries) => entries.filter((entry) => nameOf(entry) !== name))
   }
 
   async clear(): Promise<void> {
-    await this.replaceAll([])
+    // 利用者が「全部消す」を選んだのだから、読めなかった要素も含めて消す。
+    // 声紋は生体情報なので、退避して残すこともしない。
+    await writeJsonAtomic(join(await this.locator.root(), VOICEPRINTS_FILE), [])
   }
 
-  private async replaceAll(entries: readonly Voiceprint[]): Promise<void> {
-    const root = await this.locator.root()
-    await writeJsonAtomic(join(root, VOICEPRINTS_FILE), entries.map(toRecord))
+  /**
+   * 読んだ生の要素に対して差し替える。list() を経由すると、読めない要素や
+   * 知らないキー（新しい版が書いたもの）が書き戻しで消える（ADR-035）。
+   */
+  private async rewrite(change: (entries: readonly unknown[]) => unknown[]): Promise<void> {
+    const { path, stored } = await this.read()
+    await replaceStoredJson(path, stored, change(stored.kind === 'ok' ? stored.value : []))
+  }
+
+  private async read(): Promise<{ path: string; stored: StoredJson<unknown[]> }> {
+    const path = join(await this.locator.root(), VOICEPRINTS_FILE)
+    return { path, stored: await readStoredJson(path, Array.isArray) }
   }
 }
