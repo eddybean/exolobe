@@ -18,7 +18,15 @@ import type { Speaker } from '@domain/Speaker'
 import { toMarkdown } from '@domain/Transcript'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 import { isVoiceVector, type RecordingVoices, type SpeakerVector } from '@domain/Voiceprint'
-import { readJson, writeJsonAtomic } from './jsonFile'
+import {
+  isPlainObject,
+  omitKeys,
+  readJson,
+  readStoredJson,
+  replaceVersionedJson,
+  writeJsonAtomic,
+  writeVersionedJson
+} from './jsonFile'
 
 export { StorageError } from './jsonFile'
 
@@ -36,6 +44,11 @@ const NOTE_MD = 'note.md'
 const TRACKS_FILE = 'tracks.json'
 const VOICES_FILE = 'voices.json'
 const VOICES_WAV = 'voices.wav'
+
+// 形式の番号。破壊的に変えたときだけ上げる（ADR-035）。
+const META_SCHEMA_VERSION = 1
+const TRANSCRIPT_SCHEMA_VERSION = 1
+const VOICES_SCHEMA_VERSION = 1
 
 interface RecordingRecord {
   id: string
@@ -58,6 +71,18 @@ const toRecord = (recording: Recording): RecordingRecord => ({
   slug: recording.slug,
   ...(recording.folderId === undefined ? {} : { folderId: recording.folderId })
 })
+
+/** meta.json のうちこの版が解釈するキー。これ以外は新しい版が足したものとして残す。 */
+const RECORD_KEYS: readonly string[] = [
+  'id',
+  'title',
+  'startedAt',
+  'durationMs',
+  'status',
+  'steps',
+  'slug',
+  'folderId'
+]
 
 const isRecord = (value: unknown): value is RecordingRecord => {
   if (typeof value !== 'object' || value === null) return false
@@ -116,7 +141,13 @@ export class FileRecordingRepository implements RecordingRepositoryPort {
     const root = await this.locator.root()
     const record = toRecord(recording)
 
-    await writeJsonAtomic(join(root, recording.slug, META_FILE), record)
+    // meta.json は同じ録音を何度も保存し直すので、読んだ内容に重ねて知らないキーを残す。
+    const metaPath = join(root, recording.slug, META_FILE)
+    const stored = await readStoredJson(metaPath, isPlainObject)
+    await replaceVersionedJson(metaPath, stored, META_SCHEMA_VERSION, {
+      ...record,
+      ...(stored.kind === 'ok' ? omitKeys(stored.value, RECORD_KEYS) : {})
+    })
 
     const others = (await this.list()).filter((other) => other.id !== recording.id)
     await writeJsonAtomic(join(root, INDEX_FILE), [...others.map(toRecord), record])
@@ -276,7 +307,7 @@ export class FileRecordingArtifactStore implements RecordingArtifactPort {
 
   async readTranscript(recording: Recording): Promise<TranscriptFile | undefined> {
     const value = await readJson(join(await this.dir(recording), TRANSCRIPT_JSON))
-    return isTranscriptFile(value) ? value : undefined
+    return isTranscriptFile(value) ? { segments: value.segments, speakers: value.speakers } : undefined
   }
 
   async writeTranscript(
@@ -284,7 +315,8 @@ export class FileRecordingArtifactStore implements RecordingArtifactPort {
     data: { segments: readonly TranscriptSegment[]; speakers: readonly Speaker[] }
   ): Promise<void> {
     const dir = await this.dir(recording)
-    await writeJsonAtomic(join(dir, TRANSCRIPT_JSON), {
+    // 丸ごと作り直すファイルなので、上位の知らないキーは残さない（ADR-035）。
+    await writeVersionedJson(join(dir, TRANSCRIPT_JSON), TRANSCRIPT_SCHEMA_VERSION, {
       segments: data.segments,
       speakers: data.speakers
     })
@@ -297,7 +329,7 @@ export class FileRecordingArtifactStore implements RecordingArtifactPort {
   }
 
   async writeVoices(recording: Recording, voices: RecordingVoices): Promise<void> {
-    await writeJsonAtomic(join(await this.dir(recording), VOICES_FILE), {
+    await writeVersionedJson(join(await this.dir(recording), VOICES_FILE), VOICES_SCHEMA_VERSION, {
       modelKey: voices.modelKey,
       speakers: voices.speakers.map((speaker) => ({
         speakerId: speaker.speakerId,

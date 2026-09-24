@@ -168,6 +168,10 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 - チャットのプロンプト（`src/domain/ChatPrompt.ts`）は**設定で編集可能にしない**。
   「文脈だけを根拠にする」「`[1]` で引用する」という出力の契約を含み、画面の引用表示が
   それに依存する（ADR-032）。
+- 保存データの形を変えるときは ADR-035 に従う。項目の追加は番号を上げずに既定値で補い、
+  意味が変わるときだけ object のファイルの `schemaVersion` を上げる（配列の `voiceprints.json` /
+  `folders.json` はファイル名を変える）。**読めないもの・知らないキーを、理解できた部分だけで
+  上書きしない** — 書き込みは `jsonFile.ts` の `replaceStoredJson` / `replaceVersionedJson` を通す。
 - 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、
   外したときに「自分が言っていない発言」が残る（ADR-030）。変換は取り込み時に `afconvert` で
   16kHz モノラルにし、`--mix` を外さない（片チャンネルを捨てると話者が丸ごと消える）。

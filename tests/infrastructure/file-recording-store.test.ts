@@ -34,6 +34,14 @@ afterEach(async () => {
   await rm(work, { recursive: true, force: true })
 })
 
+const readStored = async (slug: string, name: string): Promise<unknown> =>
+  JSON.parse(await readFile(join(storage, slug, name), 'utf8')) as unknown
+
+const writeStored = async (slug: string, name: string, content: string): Promise<void> => {
+  await mkdir(join(storage, slug), { recursive: true })
+  await writeFile(join(storage, slug, name), content, 'utf8')
+}
+
 describe('FileRecordingRepository', () => {
   it('保存した録音を読み戻せる', async () => {
     await repository.save(recording)
@@ -112,6 +120,34 @@ describe('FileRecordingRepository', () => {
 
     expect((await repository.find('rec-1'))?.folderId).toBe('f1')
   })
+
+  it('meta.json に形式の番号（schemaVersion）を書き込む', async () => {
+    await repository.save(recording)
+
+    expect(await readStored(recording.slug, 'meta.json')).toMatchObject({ schemaVersion: 1 })
+  })
+
+  it('新しい版が書いた meta.json は上書きしない（古い版で壊さない）', async () => {
+    const content = JSON.stringify({ schemaVersion: 2, id: 'rec-1', slug: recording.slug })
+    await writeStored(recording.slug, 'meta.json', content)
+
+    await expect(repository.save(recording)).rejects.toThrow('アプリを更新してください')
+    expect(await readFile(join(storage, recording.slug, 'meta.json'), 'utf8')).toBe(content)
+  })
+
+  it('meta.json の知らないキーを保存で消さず、外したフォルダは外す', async () => {
+    await writeStored(
+      recording.slug,
+      'meta.json',
+      JSON.stringify({ id: 'rec-1', slug: recording.slug, folderId: 'f1', futureField: 'keep' })
+    )
+
+    await repository.save(recording)
+
+    const meta = await readStored(recording.slug, 'meta.json')
+    expect(meta).toMatchObject({ id: 'rec-1', futureField: 'keep' })
+    expect(meta).not.toHaveProperty('folderId')
+  })
 })
 
 describe('FileRecordingArtifactStore', () => {
@@ -126,6 +162,23 @@ describe('FileRecordingArtifactStore', () => {
     expect(await artifacts.readTranscript(recording)).toEqual({ segments, speakers })
     const markdown = await readFile(join(storage, recording.slug, 'transcript.md'), 'utf8')
     expect(markdown).toBe('**[00:00] 自分**\nおはようございます')
+  })
+
+  it('transcript.json に形式の番号を書き込み、読むときは本文だけを返す', async () => {
+    await artifacts.writeTranscript(recording, { segments, speakers })
+
+    expect(await readStored(recording.slug, 'transcript.json')).toMatchObject({ schemaVersion: 1 })
+    expect(await artifacts.readTranscript(recording)).toEqual({ segments, speakers })
+  })
+
+  it('新しい版が書いた transcript.json は上書きしない', async () => {
+    const content = JSON.stringify({ schemaVersion: 2, segments: [], speakers: [] })
+    await writeStored(recording.slug, 'transcript.json', content)
+
+    await expect(artifacts.writeTranscript(recording, { segments, speakers })).rejects.toThrow(
+      'アプリを更新してください'
+    )
+    expect(await readFile(join(storage, recording.slug, 'transcript.json'), 'utf8')).toBe(content)
   })
 
   it('未作成の文字起こしは undefined を返す', async () => {
@@ -307,6 +360,25 @@ describe('FileRecordingArtifactStore — 話者の声紋', () => {
       expect.closeTo(0.6),
       expect.closeTo(0.8)
     ])
+  })
+
+  it('voices.json に形式の番号を書き込む', async () => {
+    await artifacts.writeVoices(recording, {
+      modelKey: 'campplus:192',
+      speakers: [{ speakerId: 'remote:spk0', vector: Float32Array.from([1, 0]) }]
+    })
+
+    expect(await readStored(recording.slug, 'voices.json')).toMatchObject({ schemaVersion: 1 })
+  })
+
+  it('新しい版が書いた voices.json は上書きしない', async () => {
+    const content = JSON.stringify({ schemaVersion: 2, modelKey: 'x', speakers: [] })
+    await writeStored(recording.slug, 'voices.json', content)
+
+    await expect(
+      artifacts.writeVoices(recording, { modelKey: 'campplus:192', speakers: [] })
+    ).rejects.toThrow('アプリを更新してください')
+    expect(await readFile(join(storage, recording.slug, 'voices.json'), 'utf8')).toBe(content)
   })
 
   it('声紋が無ければ undefined を返す', async () => {

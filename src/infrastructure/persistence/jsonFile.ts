@@ -88,9 +88,24 @@ export const replaceVersionedJson = async (
     )
   }
   // 番号は先頭に置く。手で開いたときに最初に目に入るように。
-  const rest = Object.fromEntries(Object.entries(value).filter(([key]) => key !== SCHEMA_VERSION))
-  await replaceStoredJson(path, previous, { [SCHEMA_VERSION]: version, ...rest })
+  await replaceStoredJson(path, previous, {
+    [SCHEMA_VERSION]: version,
+    ...omitKeys(value, [SCHEMA_VERSION])
+  })
 }
+
+/** 丸ごと作り直すファイル向け。直前の内容は番号の確認と退避にだけ使う。 */
+export const writeVersionedJson = async (
+  path: string,
+  version: number,
+  value: Record<string, unknown>
+): Promise<void> => {
+  await replaceVersionedJson(path, await readStoredJson(path, isPlainObject), version, value)
+}
+
+/** 指定したキーを除く。この版が解釈するキーを外し、新しい版が足したものだけを残すのに使う。 */
+export const omitKeys = (value: object, keys: readonly string[]): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)))
 
 export const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)

@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import type { FolderRepositoryPort } from '@application/ports'
 import type { Folder } from '@domain/Folder'
 import type { StorageLocator } from './FileRecordingStore'
-import { readStoredJson, replaceStoredJson } from './jsonFile'
+import { omitKeys, readStoredJson, replaceStoredJson } from './jsonFile'
 
 export type { StorageLocator } from './FileRecordingStore'
 
@@ -16,9 +16,6 @@ const isFolderRecord = (value: unknown): value is Folder => {
 
 /** Folder として解釈するキー。これ以外は新しい版が足したものとして書き戻しで残す。 */
 const FOLDER_KEYS: readonly string[] = ['id', 'name', 'parentId']
-
-const unknownKeysOf = (value: object): Record<string, unknown> =>
-  Object.fromEntries(Object.entries(value).filter(([key]) => !FOLDER_KEYS.includes(key)))
 
 /** フォルダの定義（id/名前/親子関係）を保存先ルートの folders.json にまとめて保存する。 */
 export class FileFolderRepository implements FolderRepositoryPort {
@@ -43,7 +40,7 @@ export class FileFolderRepository implements FolderRepositoryPort {
     await replaceStoredJson(path, stored, [
       ...folders.map((folder) => {
         const saved = known.get(folder.id)
-        return saved ? { ...folder, ...unknownKeysOf(saved) } : folder
+        return saved ? { ...folder, ...omitKeys(saved, FOLDER_KEYS) } : folder
       }),
       ...unreadable
     ])
