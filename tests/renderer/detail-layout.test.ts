@@ -61,43 +61,29 @@ describe('要約ペインの Markdown 表示', () => {
 })
 
 /**
- * ステップバッヂは「どのステップがどうなったか」の一覧。エラー文言を中に描くと
- * バッヂ列が横に伸びて一覧性が壊れ、しかも省略されて全文は読めなかった。
- * 文言はツールチップとコピーへ移したので、バッヂが伸びないことを宣言で固定する。
- */
-describe('ステップバッヂ', () => {
-  it('バッヂの中で折り返して肥大化しない', () => {
-    expect(ruleFor('.steps__item')).toMatch(/white-space:\s*nowrap/)
-  })
-
-  it('エラー文言をバッヂ内に描くルールを持たない', () => {
-    expect(() => ruleFor('.steps__error')).toThrow()
-  })
-})
-
-/**
- * 失敗の全文はバッヂ列の下、通常のフローに出す。
+ * 処理状況はステップを縦に並べ、失敗の全文をそのステップの直下に常に出す。
  *
- * 重ねて出すことはできない —— 親の .detail が overflow: hidden で切るため、
- * ネイティブの title 属性も含めて画面外に消える（実際それで見えていなかった）。
- * ブラウザのレイアウト結果は単体テストで測れないので、宣言そのものを固定する。
+ * 以前は横並びのバッヂにホバーすると全文が出る作りで、マウスを外すと消え、
+ * 読む・コピーする前に見失っていた。重ねて出すこともできない —— 親の .detail が
+ * overflow: hidden で切るため、画面外に消える。レイアウト結果は単体テストで
+ * 測れないので、宣言そのものを固定する。
  */
-describe('ステップの失敗の全文', () => {
-  it('重ねて出さない（親の overflow: hidden に切られるため）', () => {
+describe('処理状況', () => {
+  it('ステップを縦に積む', () => {
+    expect(ruleFor('.pipeline__steps')).toMatch(/flex-direction:\s*column/)
+  })
+
+  it('失敗の全文を重ねて出さない（親の overflow: hidden に切られるため）', () => {
     expect(ruleFor('.detail')).toMatch(/overflow:\s*hidden/)
-    expect(ruleFor('.steps__detail')).not.toMatch(/position:\s*(absolute|fixed)/)
+    expect(ruleFor('.pipeline__failure')).not.toMatch(/position:\s*(absolute|fixed)/)
   })
 
-  it('バッヂ列の下に積む', () => {
-    expect(ruleFor('.steps-block')).toMatch(/flex-direction:\s*column/)
+  it('失敗の全文を折り返して読ませる', () => {
+    expect(ruleFor('.pipeline__failure')).toMatch(/white-space:\s*pre-wrap/)
   })
 
-  it('全文を折り返して読ませる（バッヂの nowrap を持ち込まない）', () => {
-    expect(ruleFor('.steps__detail')).toMatch(/white-space:\s*pre-wrap/)
-  })
-
-  it('文言を選択してコピーできる', () => {
+  it('失敗の文言を選択してコピーできる', () => {
     // ネイティブ由来の英語エラーは検索・報告に持ち出したくなる。
-    expect(ruleFor('.steps__detail')).toMatch(/user-select:\s*text/)
+    expect(ruleFor('.pipeline__failure')).toMatch(/user-select:\s*text/)
   })
 })

@@ -336,13 +336,23 @@ export class ProcessRecording {
     const { language } = settings.transcription
 
     // 直列に回す。whisper を 2 本同時に走らせてもメモリを食うだけで速くならない。
+    const targets = transcriptionTargets(tracks)
     const tracked: TranscriptSegment[][] = []
-    for (const target of transcriptionTargets(tracks)) {
+    for (const [index, target] of targets.entries()) {
       tracked.push(
         await this.deps.transcriber.transcribe({
           wavPath: target.wavPath,
           language,
-          speakerId: target.speakerId
+          speakerId: target.speakerId,
+          // 利用者が知りたいのはステップ全体の進み具合なので、トラック内の割合を
+          // 全体へ換算する。トラックの長さはほぼ揃う（同じ会議の 2 系統）ので等分でよい。
+          onProgress: (fraction) =>
+            this.deps.progress.report({
+              recordingId: recording.id,
+              step: 'transcribe',
+              status: 'running',
+              fraction: (index + fraction) / targets.length
+            })
         })
       )
     }

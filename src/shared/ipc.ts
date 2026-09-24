@@ -119,6 +119,8 @@ export interface ProgressEventDto {
   readonly step: PipelineStep
   readonly status: 'running' | 'done' | 'failed'
   readonly error?: string
+  /** running の途中経過（0〜1）。割合を出せるステップ（いまは文字起こし）だけが付ける。 */
+  readonly fraction?: number
 }
 
 /** 意味検索の 1 件の結果。関連度の高い順に並ぶ。 */

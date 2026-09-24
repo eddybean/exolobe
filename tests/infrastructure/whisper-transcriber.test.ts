@@ -8,6 +8,7 @@ import {
   droppedSegmentLogger,
   formatDroppedSegment,
   parseWhisperJson,
+  whisperProgressReader,
   type DroppedSegment,
   type WhisperRunner
 } from '@infrastructure/transcription/WhisperCppTranscriber'
@@ -297,6 +298,38 @@ describe('describeFailure', () => {
   })
 })
 
+describe('whisperProgressReader', () => {
+  it('whisper-cli の進捗行から割合を読み取る', () => {
+    const seen: number[] = []
+    const read = whisperProgressReader((fraction) => seen.push(fraction))
+
+    read('whisper_print_progress_callback: progress =  21%\n')
+    read('whisper_print_progress_callback: progress = 100%\n')
+
+    expect(seen).toEqual([0.21, 1])
+  })
+
+  it('チャンクの途中で切れた行もつなげて読む', () => {
+    // stderr は行の区切りと無関係に届く。切れ目で読むと「2%」と「1%」に割れる。
+    const seen: number[] = []
+    const read = whisperProgressReader((fraction) => seen.push(fraction))
+
+    read('whisper_print_progress_callback: progress =  2')
+    read('1%\nggml_metal_free: deallocating\n')
+
+    expect(seen).toEqual([0.21])
+  })
+
+  it('進捗ではない行は無視する', () => {
+    const seen: number[] = []
+    const read = whisperProgressReader((fraction) => seen.push(fraction))
+
+    read('load_backend: loaded BLAS backend\nwhisper_init_state: kv self size = 10%\n')
+
+    expect(seen).toEqual([])
+  })
+})
+
 describe('WhisperCppTranscriber', () => {
   let dir: string
   let wavPath: string
@@ -346,6 +379,31 @@ describe('WhisperCppTranscriber', () => {
     expect(argv[argv.indexOf('--model') + 1]).toBe('/models/ggml.bin')
     expect(argv[argv.indexOf('--language') + 1]).toBe('ja')
     expect(argv[argv.indexOf('--file') + 1]).toBe(wavPath)
+  })
+
+  it('進捗を出させ、読み取った割合を呼び出し側へ渡す', async () => {
+    const seen: string[][] = []
+    const fractions: number[] = []
+    const transcriber = new WhisperCppTranscriber(
+      { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin' },
+      async ({ argv, onStderr }) => {
+        seen.push([...argv])
+        onStderr?.('whisper_print_progress_callback: progress =  50%\n')
+        const prefixIndex = argv.indexOf('--output-file')
+        await writeFile(`${argv[prefixIndex + 1]}.json`, whisperJson([]), 'utf8')
+      }
+    )
+
+    await transcriber.transcribe({
+      wavPath,
+      language: 'ja',
+      speakerId: 'self',
+      onProgress: (fraction) => fractions.push(fraction)
+    })
+
+    // --no-prints のままでも進捗は stderr に出る（実物の whisper-cli で確認済み）。
+    expect(seen[0]).toContain('--print-progress')
+    expect(fractions).toEqual([0.5])
   })
 
   it('非発話トークンの抑制を常に有効にする', async () => {

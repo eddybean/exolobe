@@ -79,6 +79,8 @@ export interface TranscriptionPort {
     /** 得られた全セグメントに付与する話者 ID。トラック＝話者なので呼び出し側が決める。 */
     speakerId: string
     signal?: AbortSignal
+    /** そのトラックの進み具合（0〜1）。出せない実装は呼ばなくてよい。 */
+    onProgress?: (fraction: number) => void
   }): Promise<TranscriptSegment[]>
 }
 
@@ -282,6 +284,8 @@ export interface ProgressReporterPort {
     step: PipelineStep
     status: 'running' | 'done' | 'failed'
     error?: string
+    /** running の途中経過（0〜1）。割合を出せるステップだけが付ける。 */
+    fraction?: number
   }): void
 }
 

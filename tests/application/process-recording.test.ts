@@ -175,6 +175,19 @@ describe('ProcessRecording — 正常系', () => {
     ])
   })
 
+  it('文字起こしの進捗を、全トラックを通した割合で通知する', async () => {
+    // トラックは直列に起こすので、1 本目が終わった時点で全体の半分になる。
+    ctx.transcriber.progressByPath.set(tracks.micWavPath, [0.5, 1])
+    ctx.transcriber.progressByPath.set(tracks.systemWavPath, [0.5, 1])
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    const fractions = ctx.progress.events
+      .filter((e) => e.step === 'transcribe' && e.fraction !== undefined)
+      .map((e) => e.fraction)
+    expect(fractions).toEqual([0.25, 0.5, 0.75, 1])
+  })
+
   it('ステップごとに状態を永続化する', async () => {
     await ctx.process.execute({ recordingId: 'rec-1' })
     expect((await ctx.repository.find('rec-1'))?.status).toBe('ready')
