@@ -13,10 +13,52 @@ interface WhisperJson {
   transcription?: {
     offsets?: { from?: number; to?: number }
     text?: string
-    /** `--output-json-full` のときだけ付く。`p` はトークンの確率。 */
-    tokens?: { text?: string; p?: number }[]
+    /**
+     * `--output-json-full` のときだけ付く。`p` はトークンの確率。
+     * `offsets` は VAD で無音を詰めたあとの時間軸のまま（元の時間軸へは戻されない）。
+     */
+    tokens?: WhisperToken[]
   }[]
 }
+
+interface WhisperToken {
+  text?: string
+  p?: number
+  offsets?: { from?: number; to?: number }
+}
+
+/**
+ * VAD が見つけた発話区間 1 つぶんの、元の音声の時刻と無音を詰めたあとの時刻の対応。
+ * whisper-cli はこの表を JSON に書かず、ログ（stderr）にだけ出す。
+ */
+export interface VadSpan {
+  readonly origStartMs: number
+  readonly origEndMs: number
+  readonly vadStartMs: number
+  readonly vadEndMs: number
+}
+
+const VAD_SPAN_LINE =
+  /vad_segment_info:\s*orig_start:\s*([\d.]+),\s*orig_end:\s*([\d.]+),\s*vad_start:\s*([\d.]+),\s*vad_end:\s*([\d.]+)/g
+
+/** 秒の小数（ログは 10ms 単位）をミリ秒の整数にする。浮動小数の端数を残さない。 */
+const secondsToMs = (seconds: string): number => Math.round(Number(seconds) * 1000)
+
+/**
+ * whisper-cli のログから VAD の発話区間の対応表を読む。読めなければ空。
+ *
+ * ログの形式は whisper.cpp の約束事ではなく、版が変われば読めなくなりうる。
+ * 空のときは切り直しをせず、今までどおりの発言を返す（ADR-036）。
+ */
+export const parseVadSpans = (stderr: string): VadSpan[] =>
+  [...stderr.matchAll(VAD_SPAN_LINE)].map(
+    ([, origStart = '', origEnd = '', vadStart = '', vadEnd = '']) => ({
+      origStartMs: secondsToMs(origStart),
+      origEndMs: secondsToMs(origEnd),
+      vadStartMs: secondsToMs(vadStart),
+      vadEndMs: secondsToMs(vadEnd)
+    })
+  )
 
 /**
  * セグメントを捨てる平均対数確率の下限。
@@ -133,7 +175,9 @@ export const droppedSegmentLogger = (
 export const parseWhisperJson = (
   raw: string,
   speakerId: string,
-  onDropped?: DroppedSegmentReporter
+  onDropped?: DroppedSegmentReporter,
+  /** VAD の発話区間の対応表。あれば、区間をまたいだ発言を区間ごとに切り直す。 */
+  vadSpans: readonly VadSpan[] = []
 ): TranscriptSegment[] => {
   let parsed: unknown
   try {
@@ -153,19 +197,97 @@ export const parseWhisperJson = (
     const endMs = entry.offsets?.to
     if (typeof startMs !== 'number' || typeof endMs !== 'number') return []
 
-    const logprob = averageLogprob(entry.tokens)
-    const reason = dropReason(text, logprob)
-    if (reason === undefined) return [{ startMs, endMs, speakerId, text }]
+    const pieces = splitAtVadGaps({ startMs, endMs, text, tokens: entry.tokens ?? [] }, vadSpans)
+    return pieces.flatMap((piece): TranscriptSegment[] => {
+      const logprob = averageLogprob(piece.tokens)
+      const reason = dropReason(piece.text, logprob)
+      const segment = { startMs: piece.startMs, endMs: piece.endMs, speakerId, text: piece.text }
+      if (reason === undefined) return [segment]
 
-    onDropped?.({
-      speakerId,
-      startMs,
-      endMs,
-      text,
-      reason,
-      ...(logprob === undefined ? {} : { avgLogprob: logprob })
+      onDropped?.({ ...segment, reason, ...(logprob === undefined ? {} : { avgLogprob: logprob }) })
+      return []
     })
-    return []
+  })
+}
+
+interface SegmentPiece {
+  readonly startMs: number
+  readonly endMs: number
+  readonly text: string
+  readonly tokens: readonly WhisperToken[]
+}
+
+/**
+ * 無音を詰めたあとの時刻が、どの発話区間のものか。
+ *
+ * 区間どうしの間には詰めたあとでも短い隙間（whisper.cpp が挟む 0.1〜0.2 秒）があり、
+ * 区間の頭のトークンがそこに載ることがある（実測で「了」が 2.12 秒、次の区間は 2.18 秒から）。
+ * 含む区間が無ければ、トークンの中点に最も近い区間に寄せる。
+ */
+const spanIndexOf = (spans: readonly VadSpan[], fromMs: number, toMs: number): number => {
+  const middle = (fromMs + toMs) / 2
+  let nearest = 0
+  let nearestDistance = Infinity
+  for (const [index, span] of spans.entries()) {
+    const distance = Math.max(span.vadStartMs - middle, middle - span.vadEndMs, 0)
+    if (distance < nearestDistance) {
+      nearest = index
+      nearestDistance = distance
+    }
+  }
+  return nearest
+}
+
+/**
+ * VAD の発話区間をまたいだ発言を、区間ごとに切り分ける（ADR-036）。
+ *
+ * whisper.cpp は発言の開始・終了だけを元の時間軸へ戻すため、飛び飛びの発話が
+ * 1 つの発言にまとまると、間の無音ごと何分にも伸びる（ハードウェアでミュートした
+ * マイクの録音で 642 秒の発言に 22 文字、という実例があった）。トークンの時刻は
+ * 詰めたあとの時間軸なので、対応表で区間を引いて振り分ける。
+ *
+ * 切ると本文が崩れうるときは切らない。トークンの文字を繋いで本文に戻らない
+ * （マルチバイト文字がトークンの境目で割れて置き換わった等）ときと、時刻を持たない
+ * トークンがあるときは、whisper の発言をそのまま返す。
+ */
+const splitAtVadGaps = (piece: SegmentPiece, spans: readonly VadSpan[]): SegmentPiece[] => {
+  if (spans.length < 2) return [piece]
+
+  const words = piece.tokens.filter((token) => !SPECIAL_TOKEN.test(token.text ?? ''))
+  const timed = words.flatMap((token) => {
+    const from = token.offsets?.from
+    const to = token.offsets?.to
+    return typeof from === 'number' && typeof to === 'number' ? [{ token, from, to }] : []
+  })
+  if (timed.length === 0 || timed.length !== words.length) return [piece]
+  if (words.map((token) => token.text ?? '').join('').trim() !== piece.text) return [piece]
+
+  const groups: { spanIndex: number; tokens: WhisperToken[] }[] = []
+  for (const { token, from, to } of timed) {
+    const spanIndex = spanIndexOf(spans, from, to)
+    const last = groups[groups.length - 1]
+    if (last?.spanIndex === spanIndex) last.tokens.push(token)
+    else groups.push({ spanIndex, tokens: [token] })
+  }
+  if (groups.length < 2) return [piece]
+
+  return groups.flatMap(({ spanIndex, tokens }): SegmentPiece[] => {
+    const span = spans[spanIndex]
+    const text = tokens
+      .map((token) => token.text ?? '')
+      .join('')
+      .trim()
+    if (!span || text.length === 0) return []
+    return [
+      {
+        // whisper の開始・終了は区間の外へは出さない。区間の内側に収まっている
+        // 端（発言の頭・お尻）は whisper の時刻の方が細かいので、そちらを残す。
+        startMs: Math.max(piece.startMs, span.origStartMs),
+        endMs: Math.min(piece.endMs, span.origEndMs),
+        text,
+        tokens
+      }
+    ]
   })
 }
 
@@ -258,13 +380,22 @@ export type WhisperRunner = (args: {
 
 const defaultRunner: WhisperRunner = ({ binaryPath, argv, onStderr }) =>
   new Promise((resolve, reject) => {
-    const child = execFile(binaryPath, [...argv], (error, _stdout, stderr) => {
-      if (error) {
-        reject(new TranscriptionError(describeFailure(binaryPath, error, stderr), { cause: error }))
-        return
+    const child = execFile(
+      binaryPath,
+      [...argv],
+      // VAD を使うときはログを止めないので、長い会議では発話区間 1 つにつき 3 行ずつ増える。
+      // 既定の 1MB を越えると whisper-cli ごと止められるため、上限を十分に上げておく。
+      { maxBuffer: 64 * 1024 * 1024 },
+      (error, _stdout, stderr) => {
+        if (error) {
+          reject(
+            new TranscriptionError(describeFailure(binaryPath, error, stderr), { cause: error })
+          )
+          return
+        }
+        resolve()
       }
-      resolve()
-    })
+    )
     // execFile は stderr を溜めて失敗時の文言に使うので、その経路は残したまま横から覗く。
     if (onStderr) child.stderr?.on('data', (chunk: Buffer | string) => onStderr(String(chunk)))
   })
@@ -332,6 +463,7 @@ export class WhisperCppTranscriber implements TranscriptionPort {
     const jsonPath = `${outputPrefix}.json`
 
     const prompt = glossaryPrompt(this.config.glossary ?? [])
+    const vadModelPath = this.config.vadModelPath ?? ''
 
     const argv = [
       '--model',
@@ -346,30 +478,38 @@ export class WhisperCppTranscriber implements TranscriptionPort {
       '--output-json-full',
       '--output-file',
       outputPrefix,
-      '--no-prints',
+      // VAD の発話区間の対応表はログにしか出ないので、VAD を使うときはログを止めない
+      // （ADR-036）。使わないときは読むものが無いので止める。
+      ...(vadModelPath ? [] : ['--no-prints']),
       // 進捗は --no-prints を付けたままでも stderr に出る。処理画面の割合表示に使う。
       '--print-progress',
       // 拍手や物音を表すトークンを抑制する。VAD をすり抜けた雑音の分だけ効く。
       '--suppress-nst',
-      ...(this.config.vadModelPath
-        ? ['--vad', '--vad-model', this.config.vadModelPath]
-        : []),
+      ...(vadModelPath ? ['--vad', '--vad-model', vadModelPath] : []),
       // --carry-initial-prompt が無いと用語集は先頭の 1 ウィンドウ（30 秒）にしか
       // 効かない。会議の長さを考えると、付けなければ入れた意味がほぼ無い。
       ...(prompt ? ['--prompt', prompt, '--carry-initial-prompt'] : []),
       ...(this.config.threads ? ['--threads', String(this.config.threads)] : [])
     ]
 
+    // ログは読み終えるまで溜める。対応表の行は、届く単位で割れていることがある。
+    let stderr = ''
+    const readProgress = params.onProgress ? whisperProgressReader(params.onProgress) : undefined
+
     try {
       await this.run({
         binaryPath: this.config.binaryPath,
         argv,
-        ...(params.onProgress ? { onStderr: whisperProgressReader(params.onProgress) } : {})
+        onStderr: (chunk) => {
+          stderr += chunk
+          readProgress?.(chunk)
+        }
       })
       return parseWhisperJson(
         await readFile(jsonPath, 'utf8'),
         params.speakerId,
-        this.config.onDropped
+        this.config.onDropped,
+        vadModelPath ? parseVadSpans(stderr) : []
       )
     } finally {
       // 中間 JSON は保存先を汚さないよう必ず片付ける。
