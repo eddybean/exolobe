@@ -36,6 +36,16 @@ npx vitest run -t "テスト名の一部"
 
 - **macOS 必須**。テストは実際の `/usr/bin/afconvert` を通し、`postinstall` は
   PlistBuddy と codesign を使う。CI も `macos-15` ランナー。
+- `postinstall`（`scripts/patch-dev-electron.sh`）は開発用 Electron.app に
+  `NSAudioCaptureUsageDescription` / `NSMicrophoneUsageDescription` を注入して ad-hoc 再署名する。
+  これが無いと開発中に音声キャプチャの権限を取れない。`npm ci` し直したら再実行される。
+- whisper-cli は「設定のパス（既定値 `whisper-cli` 以外）→ 同梱バイナリ → PATH」の順に解決する。
+  `npm run setup` が入れる Homebrew 版は Core ML 無しなので、Core ML の高速化を開発中に
+  確かめるときは `npm run build:whisper` のビルドを設定でパス指定する（ADR-007 / ADR-026）。
+- リリースは `v*` タグの push で `.github/workflows/release.yml` が .dmg を作る。Secrets に
+  `MAC_CERT_P12_BASE64` / `MAC_CERT_PASSWORD`（署名）と `APPLE_ID` /
+  `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`（公証）が揃えば正式に署名・公証し、
+  無ければ ad-hoc 署名になる。
 - `npm run lint` は **oxlint**（`.oxlintrc.json`）。TypeScript 7 が従来の JS コンパイラ
   API を公開しなくなり typescript-eslint が動かないため、ESLint ではなく oxlint を使う。
   `react/set-state-in-effect` と一部の `jsx-a11y` は既知の未対応として警告に留めてある

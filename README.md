@@ -6,7 +6,7 @@
 Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし・話者識別・要約までを
 この Mac の中だけで**行うデスクトップアプリ。音声もテキストも外部には送信しません。
 
-![録音一覧と詳細画面。左にフォルダ分けされたライブラリ、右に話者付きの文字起こしと議事録要約](docs/images/app-library.png)
+![録音一覧と詳細画面。左にフォルダで絞り込めるライブラリ、右に話者ごとの発言の帯・話者付きの文字起こし・議事録要約](docs/images/app-library.png)
 
 <sub>画面はダミーデータによるものです。</sub>
 
@@ -20,7 +20,7 @@ Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし�
 - 日本語の議事録要約（概要・決定事項・ToDo・議論の流れ）
 - 録音一覧と詳細画面（音声再生・話者名の変更・メモ・コピー）
 - 手元の音声ファイル（mp3 / m4a / wav / flac / ogg など）を取り込んで、同じ後処理にかける
-- フォルダで録音を分類（入れ子可・ドラッグ＆ドロップで移動・タイトルと要約の検索）
+- フォルダで録音を分類（入れ子可・ドラッグ＆ドロップで移動・タイトル・要約・本文の検索）
 - 失敗したステップだけを詳細画面から再実行。話者名を直したあとは要約だけ作り直せる
 - 1 分未満の録音は処理せず中断（押し間違えて即停止した録音に推論を回さない）
 - モデルの追加ダウンロードと削除を設定画面から操作
@@ -36,6 +36,20 @@ Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし�
 | CPU | Apple Silicon 推奨 |
 | メモリ | 16GB 以上 |
 | 空き容量 | 約 10GB（モデル用） |
+
+## インストール方法
+
+[Releases ページ](https://github.com/eddybean/duoscribe/releases/latest) から最新の
+`.dmg` をダウンロードし、`Duoscribe.app` を「アプリケーション」フォルダへドラッグします。
+
+配布版は Apple Developer 証明書による署名・公証をしていない（ad-hoc 署名）ため、
+初回起動の前にターミナルで一度だけ次のコマンドを実行してください。
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Duoscribe.app"
+```
+
+この手順は .dmg に同梱した「はじめにお読みください.txt」と、Release の説明文にも書いてあります。
 
 ## 使い始める
 
@@ -190,40 +204,6 @@ npm run dev
 | [docs/architecture.html](docs/architecture.html) | アーキテクチャ（層構造・プロセス構成・パイプライン） |
 | [docs/decisions.html](docs/decisions.html) | 意思決定記録。採用／不採用の根拠と実測値 |
 
-## アーキテクチャ
-
-依存は常に内向き（`src/domain` が最も安定した中心）。
-
-```
-src/
-├── domain/          エンティティと業務ルール。依存ゼロ
-├── application/
-│   ├── ports/       外界との境界（インターフェース）
-│   └── usecases/    ユースケース。Electron も whisper も llama.cpp も知らない
-├── infrastructure/  ポートの実装（audiotee / whisper-cli / llama.cpp / sherpa-onnx / ファイル）
-├── main/            Electron main。container.ts が唯一の結線場所
-├── preload/         contextBridge で型付き API を公開
-└── renderer/        React の UI
-```
-
-この境界のおかげで、モデルやバックエンドの差し替えは
-[`src/main/worker/pipeline-container.ts`](src/main/worker/pipeline-container.ts) と
-設定値だけで完結します。ユースケースは `whisper` も `llama.cpp` も知りません。
-
-### 停止後のパイプライン
-
-`ミックス → 文字起こし → 話者識別 → 要約 → エンコード` の順に実行します。
-
-- ステップ同士は**成果物ファイル経由でのみ**つながるため、詳細画面から
-  **失敗したステップだけを再実行**できます。成功済みのステップも対象外ではなく、
-  話者名を直したあとに要約パネルの**再要約**で要約だけ作り直せます。
-- **1 分未満の録音はミックスもせずに中断**します。録音ボタンの押し間違いに
-  数分の推論を掛けても得られるものが無いためで、中間 WAV もその場で片付けます。
-- 失敗は**依存するステップだけ**を止めます。要約に失敗しても音声とエンコードは
-  完了するので、最も価値の高い成果物が守られます。
-- パイプラインは `utilityProcess` で動きます。llama.cpp や sherpa-onnx の
-  ネイティブコードが落ちても、アプリ本体と録音済みのファイルは残ります。
-
 ## 開発
 
 ```bash
@@ -246,66 +226,8 @@ git push --follow-tags
 
 証明書を用意しない場合は ad-hoc 署名でビルドされます。Core Audio Process Tap の
 権限は署名済みバイナリでしか有効にならないため、まったく署名しないという選択肢は
-ありません。ただし ad-hoc 署名の配布物は Gatekeeper に隔離されるので、利用者側で
-一度だけ次の操作が必要です（Release の説明文に自動で記載されます）。
-
-```sh
-xattr -dr com.apple.quarantine "/Applications/Duoscribe.app"
-```
-
-この手順は .dmg に同梱した「はじめにお読みください.txt」にも書いてあります。
-
-Apple Developer 証明書がある場合は、リポジトリの Secrets に登録すると
-electron-builder が正式な署名と公証を行い、この手順は不要になります。
-
-| Secret | 内容 |
-| --- | --- |
-| `MAC_CERT_P12_BASE64` | Developer ID Application 証明書（.p12）を base64 化したもの |
-| `MAC_CERT_PASSWORD` | その .p12 のパスワード |
-| `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` | 公証用（3 つ揃うと実行される） |
-
-**アプリ名は ASCII のままにしてください。** `productName` を日本語にすると、
-生成されたアプリが起動直後に SIGTRAP で落ちます（実行ファイル名・ヘルパーアプリ名・
-フレームワーク参照がすべてこの名前から作られるため）。
-
-### whisper-cli の同梱
-
-whisper.cpp は macOS 向けの CLI バイナリを配布していません（リリース資産は
-xcframework と Linux/Windows 版のみ）。配布したアプリの利用者に Homebrew を
-求めないため、`npm run package` の中で `scripts/build-whisper.sh` が
-whisper.cpp を Metal と Core ML を有効にしてビルドし、`resources/bin/whisper-cli`
-として同梱します。Core ML は `WHISPER_COREML_ALLOW_FALLBACK` 付きなので、
-上記のエンコーダを持たない利用者でも Metal だけで問題なく動きます。
-
-なお `npm run setup` が入れる Homebrew の `whisper-cpp` は Core ML 無しでビルド
-されているため、**開発中に高速化を確認したいときは `npm run build:whisper` で
-ビルドしたものを設定でパス指定してください**。
-
-実行時は次の順で解決します。設定でパスを明示すればそれが最優先なので、
-手元でビルドした版を使うこともできます。
-
-1. 設定に書かれたパス（既定値 `whisper-cli` 以外のとき）
-2. 同梱バイナリ（パッケージ済みアプリのとき）
-3. PATH 上の `whisper-cli`（開発時）
-
-`postinstall` で `scripts/patch-dev-electron.sh` が走り、開発用の Electron.app に
-`NSAudioCaptureUsageDescription` と `NSMicrophoneUsageDescription` を注入して
-ad-hoc 再署名します。これが無いと開発中に音声キャプチャの権限を取得できません。
-
-### モジュール形式について
-
-main / preload は electron-vite の既定である **CJS** で出力します。Electron は 28 以降
-ESM の main も扱えますが、ESM 専用の `audiotee` と `node-llama-cpp` は動的 `import()`
-で読み込めばよく（CJS 出力でも `import()` は `require` に変換されません）、既定の
-構成から外れる利点がありません。
-
-なお、シェルに `ELECTRON_RUN_AS_NODE=1` が設定されていると Electron が素の Node と
-して起動し、`require('electron')` が API を返さないため起動に失敗します。起動しない
-ときはこの環境変数を確認してください。
-
-テストは `~/.claude/rules/tdd.md` に従い先に書いています。ユースケースは Fake
-だけで完全に検証でき、サーバーも DB も起動しません。統合テストは実際の
-ファイル I/O と `afconvert` を通します。
+ありません。ad-hoc 署名の配布物は Gatekeeper に隔離されるので、利用者側で
+[インストール方法](#インストール方法)にある `xattr` の操作が一度だけ必要です。
 
 ## ライセンス
 
