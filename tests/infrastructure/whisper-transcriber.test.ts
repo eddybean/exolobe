@@ -473,6 +473,64 @@ describe('WhisperCppTranscriber', () => {
     expect(argv[argv.indexOf('--vad-model') + 1]).toBe('/models/ggml-silero.bin')
   })
 
+  it('VAD を使うときはログを出させ、発話区間をまたいだ発言を区間ごとに切り直す', async () => {
+    // 区間の対応表はログにしか出ない。--no-prints を付けると消える（ADR-036）。
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      {
+        binaryPath: 'whisper-cli',
+        modelPath: '/models/ggml.bin',
+        vadModelPath: '/models/ggml-silero.bin'
+      },
+      async ({ argv, onStderr }) => {
+        seen.push([...argv])
+        // 行の途中で割れて届いても読めること。
+        onStderr?.('whisper_vad: vad_segment_info: orig_start: 0.00, orig_end: 1.98, vad_st')
+        onStderr?.(
+          'art: 0.00, vad_end: 1.98\n' +
+            'whisper_vad: vad_segment_info: orig_start: 62.50, orig_end: 63.33, vad_start: 2.18, vad_end: 3.01\n'
+        )
+        const prefixIndex = argv.indexOf('--output-file')
+        await writeFile(
+          `${argv[prefixIndex + 1]}.json`,
+          JSON.stringify({
+            transcription: [
+              {
+                offsets: { from: 0, to: 63_300 },
+                text: 'では。了解です。',
+                tokens: [
+                  { text: 'では。', offsets: { from: 20, to: 400 }, p: 0.9 },
+                  { text: '了解です。', offsets: { from: 2_200, to: 2_900 }, p: 0.9 }
+                ]
+              }
+            ]
+          }),
+          'utf8'
+        )
+      }
+    )
+
+    const segments = await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    expect(seen[0]).not.toContain('--no-prints')
+    expect(segments).toEqual([
+      { startMs: 0, endMs: 1_980, speakerId: 'self', text: 'では。' },
+      { startMs: 62_500, endMs: 63_300, speakerId: 'self', text: '了解です。' }
+    ])
+  })
+
+  it('VAD を使わないときはログを出させない（読むものが無い）', async () => {
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin' },
+      captureArgv(seen)
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    expect(seen[0]).toContain('--no-prints')
+  })
+
   it('VAD モデルが無ければ VAD を使わずに文字起こしする', async () => {
     const seen: string[][] = []
     const transcriber = new WhisperCppTranscriber(

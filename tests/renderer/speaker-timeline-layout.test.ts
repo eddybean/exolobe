@@ -18,6 +18,17 @@ const ruleFor = (selector: string): string => {
   return match[2]
 }
 
+/**
+ * セレクタがちょうどそれだけのルールを取り出す。前方一致で `.timeline__labels, …` の
+ * 複合ルールを拾わないため。
+ */
+const exactRuleFor = (selector: string): string => {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = css.match(new RegExp(`(^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, 'm'))
+  if (!match?.[2]) throw new Error(`styles.css に ${selector} だけのルールが見つかりません。`)
+  return match[2]
+}
+
 /** 宣言ブロックから `--tone-N` の色を番号順に取り出す。 */
 const tonesIn = (block: string): string[] =>
   Array.from({ length: SPEAKER_TONE_COUNT }, (_, index) => {
@@ -68,11 +79,26 @@ describe.each([
 })
 
 describe('タイムライン', () => {
-  it('音声ができるまでは無効に見せ、押せなくする（再生と同じ扱い）', () => {
-    const rule = ruleFor('.timeline--disabled')
+  it('音声ができるまでは無効に見せ、帯を押せなくする（再生と同じ扱い）', () => {
+    expect(ruleFor('.timeline--disabled')).toMatch(/opacity:\s*0\.\d+/)
+    expect(ruleFor('.timeline--disabled .timeline__track')).toMatch(/pointer-events:\s*none/)
+  })
 
-    expect(rule).toMatch(/opacity:\s*0\.\d+/)
-    expect(rule).toMatch(/pointer-events:\s*none/)
+  it('無効な間もスクロールはできる（音声を待つ間も、隠れた段の話者を見られる）', () => {
+    expect(ruleFor('.timeline--disabled')).not.toMatch(/pointer-events:\s*none/)
+  })
+
+  it('参加者が多くても高さは 4 人分ほどで止め、それ以上は枠の中でスクロールする', () => {
+    // 伸ばし続けると、下の文字起こしと要約の欄が押し下げられて読めなくなる。
+    const rule = ruleFor('.timeline')
+
+    expect(rule).toMatch(/max-height:\s*calc\(var\(--lane-height\)\s*\*\s*4\.5/)
+    expect(rule).toMatch(/overflow-y:\s*auto/)
+  })
+
+  it('話者名と帯は同じ高さの段に並ぶ（スクロールしても名前と帯がずれない）', () => {
+    expect(exactRuleFor('.timeline__label')).toMatch(/height:\s*var\(--lane-height\)/)
+    expect(exactRuleFor('.timeline__track')).toMatch(/height:\s*var\(--lane-height\)/)
   })
 
   it('短い発言の帯も消えない幅を持つ', () => {
