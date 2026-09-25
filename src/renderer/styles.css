@@ -13,6 +13,17 @@
   --success: #30a14e;
   --warning: #d97706;
   --radius: 10px;
+
+  /*
+    話者の色。0 番は自分に固定し、相手は 1 番から振る（library/timeline.ts）。
+    色相だけでなく明度も交互に振り、色の区別が付きにくくても帯と名前を見分けられるようにする。
+  */
+  --tone-0: #2f7cf6;
+  --tone-1: #f0a04b;
+  --tone-2: #5b3fb0;
+  --tone-3: #2fb39e;
+  --tone-4: #a8326a;
+  --tone-5: #d9b440;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +34,14 @@
     --border: #48484a;
     --text: #f2f2f7;
     --text-muted: #a1a1a6;
+
+    /* 暗い面の上で沈まないよう、ライトより一段明るくする。明度の並びは揃える。 */
+    --tone-0: #4796ff;
+    --tone-1: #ffc27a;
+    --tone-2: #7352d6;
+    --tone-3: #4fd8c0;
+    --tone-4: #c2447e;
+    --tone-5: #f2d27a;
   }
 }
 
@@ -898,6 +917,176 @@ code {
   color: var(--text-muted);
 }
 
+/*
+  独自の再生の操作と話者の帯を 1 枚の枠にまとめる。標準のプレーヤーは自前の枠を持つので、
+  文字起こしが無くて標準に戻したときは枠を付けない。
+*/
+.player-slot--custom {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.player-controls__play {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.player-controls__play:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 85%, #000);
+}
+
+.player-controls__play:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.player-controls__time {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.player-controls__rate {
+  min-width: 4em;
+  padding: 1px 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-controls__volume {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.player-controls__mute {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.player-controls__mute:hover:not(:disabled) {
+  color: var(--text);
+  background: transparent;
+}
+
+.player-controls__volume-slider {
+  width: 72px;
+  margin: 0;
+  accent-color: var(--text-muted);
+}
+
+.player-controls__volume-slider:disabled {
+  opacity: 0.4;
+}
+
+/* 話者の色の番号（library/timeline.ts の speakerTones）を、帯と名前の両方が読む --tone に渡す。 */
+.tone-0 { --tone: var(--tone-0); }
+.tone-1 { --tone: var(--tone-1); }
+.tone-2 { --tone: var(--tone-2); }
+.tone-3 { --tone: var(--tone-3); }
+.tone-4 { --tone: var(--tone-4); }
+.tone-5 { --tone: var(--tone-5); }
+
+/*
+  話者ごとの発言の帯。左に話者名の桁、右に段を積む。再生位置の縦線は段の桁だけに
+  重ねたいので、段をまとめた .timeline__tracks を基準に置く。
+*/
+.timeline {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 12px;
+  margin-top: 10px;
+}
+
+.timeline__labels,
+.timeline__tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.timeline__tracks {
+  position: relative;
+}
+
+.timeline__label {
+  height: 14px;
+  line-height: 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  max-width: 8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 段そのものを 1 つのボタンにする。発言ごとにボタンを置くと、長い会議で Tab 移動が千回を越える。 */
+.timeline__track {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.timeline__track:hover {
+  background: var(--border);
+}
+
+.timeline__span {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  min-width: 2px;
+  border-radius: 2px;
+  background: var(--tone);
+  pointer-events: none;
+}
+
+.timeline__playhead {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+  pointer-events: none;
+}
+
+/* エンコード前は再生できない。プレーヤーと同じく、置いたまま無効に見せる。 */
+.timeline--disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 .detail__meta-row {
   display: flex;
   align-items: center;
@@ -1160,6 +1349,13 @@ code {
   box-shadow: 0 0 0 4px var(--surface-2);
 }
 
+/* 再生中の発言。検索の印と同じく背景だけを変え、桁を動かさない。 */
+.segment--playing {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .segment__time,
 .segment__speaker {
   border: none;
@@ -1190,6 +1386,18 @@ code {
   opacity: 0.4;
   cursor: default;
   text-decoration: none;
+}
+
+/* 話者名は帯と同じ色の札にする。文字は本文色に寄せて、明るい色でも読める濃さを保つ。 */
+.segment__speaker.speaker-chip {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tone) 18%, transparent);
+  color: color-mix(in srgb, var(--tone) 55%, var(--text));
+}
+
+.segment__speaker.speaker-chip:hover {
+  background: color-mix(in srgb, var(--tone) 30%, transparent);
 }
 
 /* 編集中も行の見た目が飛び跳ねないよう、ボタンと同じ字送りと行内幅に収める。 */

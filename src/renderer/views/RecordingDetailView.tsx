@@ -7,8 +7,19 @@ import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
 import { EditableSpeaker } from '../components/EditableSpeaker'
 import { EditableSegmentText } from '../components/EditableSegmentText'
+import { PlayerControls } from '../components/PlayerControls'
+import { SpeakerTimeline } from '../components/SpeakerTimeline'
+import { useAudioPosition } from '../hooks/useAudioPosition'
 import { isAudioReady, pendingAudioHint } from '../library/audio'
+import {
+  activeSegmentIndex,
+  followScrollTop,
+  speakerLanes,
+  speakerTones,
+  timelineDurationMs
+} from '../library/timeline'
 import { focusedSegmentIndex } from '../library/transcriptSearch'
+import { isPlaybackToggleKey, nextPlaybackRate, playerMode } from '../library/playback'
 import { voiceLearnedNotice } from '../library/voiceLearning'
 import { resummarizeState, type ResummarizeState } from '../resummarize'
 import { failureTooltip, failuresIn, type StepFailure } from '../stepFailure'
@@ -34,7 +45,8 @@ const RESUMMARIZE_HINT: Readonly<Record<ResummarizeState, string>> = {
 }
 
 /**
- * 詳細画面。上に全幅の再生、下の左に話者付き文字起こし、右に要約とメモを置く。
+ * 詳細画面。上に全幅の再生と話者ごとの発言の帯、下の左に話者付き文字起こし、右に要約とメモを置く。
+ * 再生中は今の発言を文字起こしの中で強調し、見える位置へ送る。
  * 処理中はタイトル下のピルで進み具合を出す。要約・文字起こしはそれぞれコピーでき、メモは編集して自動保存される。
  */
 export const RecordingDetailView = ({
@@ -95,10 +107,114 @@ export const RecordingDetailView = ({
     [detail.speakers]
   )
 
+  // 帯と話者名で同じ色を使う。どちらも同じ番号表を引く。
+  const tones = useMemo(() => speakerTones(detail.speakers), [detail.speakers])
+  const lanes = useMemo(
+    () => speakerLanes(detail.segments, detail.speakers),
+    [detail.segments, detail.speakers]
+  )
+  const timelineMs = timelineDurationMs(detail.recording.durationMs, detail.segments)
+
+  const { positionMs, playing, durationMs: audioMs } = useAudioPosition(audioRef, recordingId)
+  const player = playerMode(detail.segments.length)
+  // 一度も再生していない頭出しの位置では強調しない。開いただけで先頭の発言が光るのは紛らわしい。
+  const playingIndex =
+    audioReady && (playing || positionMs > 0) ? activeSegmentIndex(detail.segments, positionMs) : -1
+  const segmentsRef = useRef<HTMLOListElement>(null)
+
+  /**
+   * 再生中は今の発言を見える位置へ送る。止めている間は送らない（読み返している位置を奪わない）。
+   * 本文や話者名を直している最中も送らない — 編集欄が視界から消える。
+   */
+  useEffect(() => {
+    const list = segmentsRef.current
+    if (!playing || playingIndex < 0 || !list) return
+    if (list.contains(document.activeElement) && document.activeElement?.tagName !== 'BUTTON') return
+
+    const item = list.children[playingIndex]
+    if (!(item instanceof HTMLElement)) return
+    const top = followScrollTop({
+      scrollTop: list.scrollTop,
+      viewHeight: list.clientHeight,
+      itemTop: item.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop,
+      itemHeight: item.offsetHeight
+    })
+    if (top !== undefined) list.scrollTo({ top, behavior: 'smooth' })
+  }, [playing, playingIndex])
+
   const resummarize = useMemo(
     () => resummarizeState(detail.recording.steps, detail.segments.length > 0),
     [detail.recording.steps, detail.segments.length]
   )
+
+  // 速度は録音を切り替えても持ち越す。速めて聞く人は、どの録音でも速めて聞く。
+  // defaultPlaybackRate にも入れるのは、src が変わると playbackRate がそこへ戻されるため。
+  const [rate, setRate] = useState(1)
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.defaultPlaybackRate = rate
+    audio.playbackRate = rate
+  }, [rate, recordingId])
+
+  // 音量も速度と同じく録音をまたいで持ち越す。
+  const [volume, setVolume] = useState(1)
+  const [muted, setMuted] = useState(false)
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.volume = volume
+    audio.muted = muted
+  }, [volume, muted, recordingId])
+
+  const changeVolume = useCallback((next: number): void => {
+    setVolume(next)
+    // ミュート中にスライダーを動かしたら、聞きたいという意思なので解除する。
+    setMuted(false)
+  }, [])
+
+  const toggleMute = useCallback((): void => {
+    // 音量 0 のまま解除しても鳴らない。聞こえる音量まで戻す。
+    if (volume <= 0) {
+      setVolume(0.5)
+      setMuted(false)
+      return
+    }
+    setMuted((current) => !current)
+  }, [volume])
+
+  const togglePlayback = useCallback((): void => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (audio.paused) void audio.play()
+    else audio.pause()
+  }, [])
+
+  // Space で再生・停止する。独自の操作のときだけ — 標準のプレーヤーは自分で Space を扱う。
+  useEffect(() => {
+    if (player !== 'custom' || !audioReady) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      const target = event.target instanceof HTMLElement ? event.target : undefined
+      const toggles = isPlaybackToggleKey({
+        key: event.key,
+        repeat: event.repeat,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        altKey: event.altKey,
+        isComposing: event.isComposing,
+        targetTag: target?.tagName ?? '',
+        targetInputType: target instanceof HTMLInputElement ? target.type : '',
+        targetEditable: target?.isContentEditable ?? false,
+        modalOpen: document.querySelector('[aria-modal="true"]') !== null
+      })
+      if (!toggles || event.defaultPrevented) return
+      // 既定の動き（ページのスクロール）を止める。
+      event.preventDefault()
+      togglePlayback()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [player, audioReady, togglePlayback])
 
   const seek = useCallback((ms: number): void => {
     const audio = audioRef.current
@@ -229,13 +345,46 @@ export const RecordingDetailView = ({
         </p>
       )}
 
-      <div className={audioReady ? 'player-slot' : 'player-slot player-slot--pending'}>
+      <div
+        className={[
+          'player-slot',
+          player === 'custom' && 'player-slot--custom',
+          !audioReady && 'player-slot--pending'
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {player === 'custom' && (
+          <PlayerControls
+            playing={playing}
+            positionMs={positionMs}
+            durationMs={audioMs ?? detail.recording.durationMs}
+            rate={rate}
+            volume={volume}
+            muted={muted}
+            disabled={!audioReady}
+            onToggle={togglePlayback}
+            onChangeRate={() => setRate(nextPlaybackRate)}
+            onChangeVolume={changeVolume}
+            onToggleMute={toggleMute}
+          />
+        )}
         {/* file: スキームで保存先の音声をそのまま再生する。まだ無いなら src を張らない */}
         <audio
           ref={audioRef}
-          controls
+          // 文字起こしが無ければ標準のプレーヤーに戻す（位置を動かす帯が出ないため）。
+          // 独自の操作のときも要素は残す — 再生の本体はこの要素のまま。
+          controls={player === 'native'}
           className="player"
           {...(audioReady ? { src: `file://${detail.audioPath}` } : {})}
+        />
+        <SpeakerTimeline
+          lanes={lanes}
+          tones={tones}
+          durationMs={timelineMs}
+          positionMs={positionMs}
+          disabled={!audioReady}
+          onSeek={seek}
         />
         {audioFailures.length > 0 ? (
           <StepFailures failures={audioFailures} onRetry={retry} />
@@ -260,12 +409,13 @@ export const RecordingDetailView = ({
               <p className="panel__empty">まだ文字起こしがありません。</p>
             )
           ) : (
-          <ol className="segments">
+            <ol className="segments" ref={segmentsRef}>
               {detail.segments.map((segment, index) => (
                 <li
                   key={`${segment.startMs}-${index}`}
                   ref={index === focusedIndex ? focusedSegmentRef : undefined}
-                  className={index === focusedIndex ? 'segment segment--focused' : 'segment'}
+                  className={segmentClassName(index === focusedIndex, index === playingIndex)}
+                  aria-current={index === playingIndex ? 'true' : undefined}
                 >
                   <button
                     type="button"
@@ -281,6 +431,7 @@ export const RecordingDetailView = ({
                   </button>
                   <EditableSpeaker
                     label={labels.get(segment.speakerId) ?? segment.speakerId}
+                    tone={tones.get(segment.speakerId)}
                     onCommit={(label) => renameSpeaker(segment.speakerId, label)}
                   />
                   <EditableSegmentText
@@ -518,6 +669,12 @@ const useProgressSamples = (): { samples: ProgressSamples; receivedAtMs: number 
 
   return progress
 }
+
+/** 検索から飛んできた印と再生中の印は重なりうる。再生中の方を後に置いて見た目で勝たせる。 */
+const segmentClassName = (focused: boolean, playing: boolean): string =>
+  ['segment', focused && 'segment--focused', playing && 'segment--playing']
+    .filter(Boolean)
+    .join(' ')
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)

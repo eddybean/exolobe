@@ -11,9 +11,12 @@ import { useInlineEdit } from '../hooks/useInlineEdit'
  */
 export const EditableSpeaker = ({
   label,
+  tone,
   onCommit
 }: {
   label: string
+  /** タイムラインの帯と同じ色の番号。無ければ色を付けない。 */
+  tone?: number | undefined
   onCommit: (label: string) => Promise<void>
 }): ReactElement => {
   const { editing, draft, saving, inputRef, setDraft, start, commit, onKeyDown } = useInlineEdit(
@@ -25,7 +28,9 @@ export const EditableSpeaker = ({
     return (
       <button
         type="button"
-        className="segment__speaker"
+        className={
+          tone === undefined ? 'segment__speaker' : `segment__speaker speaker-chip tone-${tone}`
+        }
         onClick={start}
         title="クリックして話者名を変更"
       >
