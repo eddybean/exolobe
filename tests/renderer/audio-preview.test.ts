@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { RecordingDto } from '@shared/ipc'
-import { isAudioReady } from '@renderer/library/audio'
+import { isAudioReady, pendingAudioHint } from '@renderer/library/audio'
 
 const dto = (encode: string): RecordingDto => ({
   id: 'rec-1',
@@ -39,6 +39,17 @@ describe('音声プレビューの可否', () => {
   })
 })
 
+/** 再生できない理由は、録音中と録音後で違う。録音中に「処理を待て」と出すと実態と合わない。 */
+describe('再生できない理由', () => {
+  it('録音中は、止めると処理が始まることを伝える', () => {
+    expect(pendingAudioHint('recording')).toMatch(/止める/)
+  })
+
+  it('録音後は、エンコードを待つことを伝える', () => {
+    expect(pendingAudioHint('failed')).toMatch(/エンコード/)
+  })
+})
+
 const css = readFileSync(join(process.cwd(), 'src/renderer/styles.css'), 'utf8')
 const view = readFileSync(join(process.cwd(), 'src/renderer/views/RecordingDetailView.tsx'), 'utf8')
 
@@ -62,7 +73,7 @@ describe('再生できない間の見せ方', () => {
   })
 
   it('再生できない理由を添える', () => {
-    expect(view).toMatch(/エンコード/)
+    expect(view).toMatch(/pendingAudioHint\(/)
   })
 
   it('文字起こしのタイムスタンプも押せなくする', () => {

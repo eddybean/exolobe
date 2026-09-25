@@ -1,24 +1,14 @@
 import type { ProgressEventDto } from '@shared/ipc'
 
-const PIPELINE_STEPS = ['mix', 'transcribe', 'diarize', 'summarize', 'encode'] as const
-
-/** 処理状況の欄に出すステップ。何も出さないなら空。 */
-export const visiblePipelineSteps = (
-  steps: Readonly<Record<string, { status: string } | undefined>>,
-  recordingStatus: string
-): string[] => {
-  // 録音中は全ステップが pending のまま。まだ何も始まっておらず、並べても「待機」が続くだけ。
-  if (recordingStatus === 'recording') return []
-
-  const statusOf = (step: string): string => steps[step]?.status ?? 'pending'
-
-  // 動いている（これから動く）間は、どこまで進んだかが分かるよう全部並べる。
-  if (PIPELINE_STEPS.some((step) => ['running', 'pending'].includes(statusOf(step)))) {
-    return [...PIPELINE_STEPS]
-  }
-  // 終わった後に残す価値があるのは、手を打てる失敗だけ。
-  return PIPELINE_STEPS.filter((step) => statusOf(step) === 'failed')
-}
+/**
+ * 再生（話者帯）の枠に処理状況を出すか。
+ *
+ * 音声は最後のエンコードで初めてできるので、処理中はその枠がどのみち空いている。
+ * そこを借りれば、処理中にしか要らない表示のために本文の欄を押し下げずに済む。
+ * 録音中はまだ何も始まっておらず、止まった後の失敗は各欄に出すので、ここでは出さない。
+ */
+export const showsPipelineProgress = (recordingStatus: string): boolean =>
+  recordingStatus === 'processing'
 
 /** 1 つの録音について、いま動いているステップの割合の標本。 */
 export interface ProgressSample {

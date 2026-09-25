@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
-import { transcriptEditBlocker, type PipelineStep } from '@domain/Recording'
+import { PIPELINE_STEPS, transcriptEditBlocker, type PipelineStep } from '@domain/Recording'
 import type { RecordingDetailDto } from '@shared/ipc'
 import { STEP_LABELS, formatDateTime, formatDuration } from '../format'
 import { CopyButton } from '../components/CopyButton'
@@ -7,16 +7,16 @@ import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
 import { EditableSpeaker } from '../components/EditableSpeaker'
 import { EditableSegmentText } from '../components/EditableSegmentText'
-import { isAudioReady } from '../library/audio'
+import { isAudioReady, pendingAudioHint } from '../library/audio'
 import { focusedSegmentIndex } from '../library/transcriptSearch'
 import { voiceLearnedNotice } from '../library/voiceLearning'
 import { resummarizeState, type ResummarizeState } from '../resummarize'
-import { failureTooltip, stepFailure } from '../stepFailure'
+import { failureTooltip, failuresIn, type StepFailure } from '../stepFailure'
 import {
   applyProgressEvent,
   estimateRemainingMs,
   formatRemaining,
-  visiblePipelineSteps,
+  showsPipelineProgress,
   type ProgressSamples
 } from '../pipelineProgress'
 
@@ -34,8 +34,8 @@ const RESUMMARIZE_HINT: Readonly<Record<ResummarizeState, string>> = {
 }
 
 /**
- * 詳細画面。左に音声プレーヤーと話者付き文字起こし、右に要約とメモを置く。
- * 要約・文字起こしはそれぞれコピーでき、メモは編集して自動保存される。
+ * 詳細画面。上に全幅の舞台（再生。処理中は処理状況）、下の左に話者付き文字起こし、
+ * 右に要約とメモを置く。要約・文字起こしはそれぞれコピーでき、メモは編集して自動保存される。
  */
 export const RecordingDetailView = ({
   detail,
@@ -158,6 +158,11 @@ export const RecordingDetailView = ({
 
   const editBlocker = transcriptEditBlocker(detail.recording.steps)
 
+  // 失敗は、そのステップが作るはずだったものの欄に出す。何が欠けているかがその場で分かる。
+  const transcriptFailures = failuresIn('transcript', detail.recording.steps)
+  const summaryFailures = failuresIn('summary', detail.recording.steps)
+  const audioFailures = failuresIn('audio', detail.recording.steps)
+
   /**
    * タイトルの変更。保存ディレクトリ名は変わらないので、既に書き出した
    * ファイルの場所や外部ツールで開いていたパスは壊れない。
@@ -219,10 +224,14 @@ export const RecordingDetailView = ({
         </p>
       )}
 
-      <PipelineStatus recording={detail.recording} onRetry={retry} />
-
-      <div className="detail__body">
-        <div className="detail__left">
+      {/*
+        音声は最後のエンコードで初めてできるので、処理中は再生の枠がどのみち空いている。
+        処理状況はそこを借り、本文の欄を押し下げない。終われば再生に戻る。
+      */}
+      <div className="detail__stage">
+        {showsPipelineProgress(detail.recording.status) ? (
+          <PipelineProgress recording={detail.recording} />
+        ) : (
           <div className={audioReady ? 'player-slot' : 'player-slot player-slot--pending'}>
             {/* file: スキームで保存先の音声をそのまま再生する。まだ無いなら src を張らない */}
             <audio
@@ -231,114 +240,121 @@ export const RecordingDetailView = ({
               className="player"
               {...(audioReady ? { src: `file://${detail.audioPath}` } : {})}
             />
-            {!audioReady && (
-              <p className="player-slot__hint">
-                エンコードが終わると再生できます。処理が終わるまでお待ちください。
-              </p>
-            )}
-          </div>
-
-          <div className="panel">
-            <div className="panel__header">
-              <h3>文字起こし</h3>
-              <CopyButton text={detail.transcriptText} label="文字起こしをコピー" />
-            </div>
-
-            {detail.segments.length === 0 ? (
-              <p className="panel__empty">まだ文字起こしがありません。</p>
+            {audioFailures.length > 0 ? (
+              <StepFailures failures={audioFailures} onRetry={retry} />
             ) : (
-              <ol className="segments">
-                {detail.segments.map((segment, index) => (
-                  <li
-                    key={`${segment.startMs}-${index}`}
-                    ref={index === focusedIndex ? focusedSegmentRef : undefined}
-                    className={index === focusedIndex ? 'segment segment--focused' : 'segment'}
-                  >
-                    <button
-                      type="button"
-                      className="segment__time"
-                      // 押してもフォーカスを奪わない。本文を直している最中に聞き直すと、
-                      // 編集欄の blur で直しかけの本文が確定されてしまうため。
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => seek(segment.startMs)}
-                      disabled={!audioReady}
-                      title={audioReady ? 'この位置から再生' : 'エンコードが終わると再生できます'}
-                    >
-                      {formatDuration(segment.startMs)}
-                    </button>
-                    <EditableSpeaker
-                      label={labels.get(segment.speakerId) ?? segment.speakerId}
-                      onCommit={(label) => renameSpeaker(segment.speakerId, label)}
-                    />
-                    <EditableSegmentText
-                      text={segment.text}
-                      blocker={editBlocker}
-                      onCommit={(text) => editSegmentText(index, segment.startMs, text)}
-                    />
-                  </li>
-                ))}
-              </ol>
+              !audioReady && (
+                <p className="player-slot__hint">{pendingAudioHint(detail.recording.status)}</p>
+              )
             )}
           </div>
+        )}
+      </div>
+
+      <div className="detail__body">
+        <div className="panel">
+          <div className="panel__header">
+            <h3>文字起こし</h3>
+            <CopyButton text={detail.transcriptText} label="文字起こしをコピー" />
+          </div>
+
+          <StepFailures failures={transcriptFailures} onRetry={retry} />
+
+          {detail.segments.length === 0 ? (
+            transcriptFailures.length === 0 && (
+              <p className="panel__empty">まだ文字起こしがありません。</p>
+            )
+          ) : (
+          <ol className="segments">
+              {detail.segments.map((segment, index) => (
+                <li
+                  key={`${segment.startMs}-${index}`}
+                  ref={index === focusedIndex ? focusedSegmentRef : undefined}
+                  className={index === focusedIndex ? 'segment segment--focused' : 'segment'}
+                >
+                  <button
+                    type="button"
+                    className="segment__time"
+                    // 押してもフォーカスを奪わない。本文を直している最中に聞き直すと、
+                    // 編集欄の blur で直しかけの本文が確定されてしまうため。
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => seek(segment.startMs)}
+                    disabled={!audioReady}
+                    title={audioReady ? 'この位置から再生' : 'エンコードが終わると再生できます'}
+                  >
+                    {formatDuration(segment.startMs)}
+                  </button>
+                  <EditableSpeaker
+                    label={labels.get(segment.speakerId) ?? segment.speakerId}
+                    onCommit={(label) => renameSpeaker(segment.speakerId, label)}
+                  />
+                  <EditableSegmentText
+                    text={segment.text}
+                    blocker={editBlocker}
+                    onCommit={(text) => editSegmentText(index, segment.startMs, text)}
+                  />
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
 
-        <div className="detail__right">
-          <div className="tabs">
-            <button
-              type="button"
-              className={tab === 'summary' ? 'tabs__tab tabs__tab--active' : 'tabs__tab'}
-              onClick={() => setTab('summary')}
-            >
-              要約
-            </button>
-            <button
-              type="button"
-              className={tab === 'note' ? 'tabs__tab tabs__tab--active' : 'tabs__tab'}
-              onClick={() => setTab('note')}
-            >
-              メモ
-            </button>
+        <div className="panel">
+          <div className="panel__header">
+            <div className="tabs">
+              <button
+                type="button"
+                className={tab === 'summary' ? 'tabs__tab tabs__tab--active' : 'tabs__tab'}
+                onClick={() => setTab('summary')}
+              >
+                要約
+              </button>
+              <button
+                type="button"
+                className={tab === 'note' ? 'tabs__tab tabs__tab--active' : 'tabs__tab'}
+                onClick={() => setTab('note')}
+              >
+                メモ
+              </button>
+            </div>
+
+            {tab === 'summary' ? (
+              <div className="panel__tools">
+                {/* 話者名を直しても要約は古いままなので、作り直す手段をここに置く。 */}
+                <button
+                  type="button"
+                  className="copy"
+                  onClick={() => retry('summarize')}
+                  disabled={resummarize !== 'ready'}
+                  title={RESUMMARIZE_HINT[resummarize]}
+                >
+                  {resummarize === 'summarizing' ? '要約中…' : '再要約'}
+                </button>
+                {detail.summary && <CopyButton text={detail.summary} label="要約をコピー" />}
+              </div>
+            ) : (
+              <span className="panel__hint">{noteSaved ? '保存済み' : '保存中…'}</span>
+            )}
           </div>
 
           {tab === 'summary' ? (
-            <div className="panel">
-              <div className="panel__header">
-                <h3>要約</h3>
-                <div className="panel__tools">
-                  {/* 話者名を直しても要約は古いままなので、作り直す手段をここに置く。 */}
-                  <button
-                    type="button"
-                    className="copy"
-                    onClick={() => retry('summarize')}
-                    disabled={resummarize !== 'ready'}
-                    title={RESUMMARIZE_HINT[resummarize]}
-                  >
-                    {resummarize === 'summarizing' ? '要約中…' : '再要約'}
-                  </button>
-                  {detail.summary && <CopyButton text={detail.summary} label="要約をコピー" />}
-                </div>
-              </div>
+            <>
+              <StepFailures failures={summaryFailures} onRetry={retry} />
               {detail.summary ? (
                 <div className="summary">
                   <Markdown source={detail.summary} />
                 </div>
               ) : (
-                <p className="panel__empty">まだ要約がありません。</p>
+                summaryFailures.length === 0 && <p className="panel__empty">まだ要約がありません。</p>
               )}
-            </div>
+            </>
           ) : (
-            <div className="panel">
-              <div className="panel__header">
-                <h3>メモ</h3>
-                <span className="panel__hint">{noteSaved ? '保存済み' : '保存中…'}</span>
-              </div>
-              <textarea
-                className="note"
-                value={note}
-                onChange={(event) => setNote(event.target.value)}
-                placeholder="この会議についてのメモを書けます（自動保存されます）"
-              />
-            </div>
+            <textarea
+              className="note"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="この会議についてのメモを書けます（自動保存されます）"
+            />
           )}
         </div>
       </div>
@@ -355,87 +371,101 @@ const STEP_STATE_LABELS: Readonly<Record<string, string>> = {
 }
 
 /**
- * 処理状況。処理中はステップを縦に並べて進み具合を見せ、終わったら失敗だけを残す。
+ * 処理状況。再生の枠を処理中だけ借りて、左にステップの縦並び、右に残り時間と案内を置く。
+ * 全幅に 1 列で伸ばすと、ラベルと状態が両端に離れて読みにくい。
  *
- * 失敗の全文はそのステップの直下に常に出す。以前はホバーで出していたが、
- * マウスを外すと消えて読む・コピーする前に見失っていた。
+ * 失敗の全文と再実行はここに出さず、各欄に出す（StepFailures）。
  */
-const PipelineStatus = ({
-  recording,
-  onRetry
+const PipelineProgress = ({
+  recording
 }: {
   recording: RecordingDetailDto['recording']
-  onRetry: (step: PipelineStep) => void
-}): ReactElement | null => {
+}): ReactElement => {
   const { samples, receivedAtMs } = useProgressSamples()
-  const visible = visiblePipelineSteps(recording.steps, recording.status)
-  if (visible.length === 0) return null
-
   const sample = samples[recording.id]
-  const processing = recording.status === 'processing'
   const remainingMs = sample ? estimateRemainingMs(sample, receivedAtMs) : undefined
 
   return (
     <section className="pipeline" aria-label="処理状況">
-      <p className="pipeline__summary">
-        {processing ? '処理中' : '一部の処理が失敗しました'}
-        {processing && (
-          <span className="pipeline__hint">
-            {remainingMs !== undefined && `${formatRemaining(remainingMs)} ・ `}
-            ウィンドウを閉じても続きます
-          </span>
-        )}
-      </p>
+      <div>
+        <p className="pipeline__summary">処理中</p>
+        <ol className="pipeline__steps">
+          {PIPELINE_STEPS.map((step) => {
+            const status = recording.steps[step]?.status ?? 'pending'
+            const fraction =
+              status === 'running' && sample?.step === step ? sample.fraction : undefined
 
-      <ol className="pipeline__steps">
-        {visible.map((step) => {
-          const state = recording.steps[step as PipelineStep]
-          const status = state?.status ?? 'pending'
-          const failure = stepFailure(step, state)
-          const fraction = status === 'running' && sample?.step === step ? sample.fraction : undefined
+            return (
+              <li key={step} className={`pipeline__step pipeline__step--${status}`}>
+                <span className="pipeline__mark" aria-hidden="true" />
+                <span className="pipeline__label">{STEP_LABELS[step]}</span>
+                <span className="pipeline__state">
+                  {fraction === undefined
+                    ? STEP_STATE_LABELS[status]
+                    : `${Math.round(fraction * 100)}%`}
+                </span>
 
-          return (
-            <li key={step} className={`pipeline__step pipeline__step--${status}`}>
-              <span className="pipeline__mark" aria-hidden="true" />
-              <span className="pipeline__label">{STEP_LABELS[step]}</span>
-              <span className="pipeline__state">
-                {fraction === undefined
-                  ? STEP_STATE_LABELS[status]
-                  : `${Math.round(fraction * 100)}%`}
-              </span>
-
-              {fraction !== undefined && (
-                <div
-                  className="pipeline__bar"
-                  role="progressbar"
-                  aria-label={`${STEP_LABELS[step]}の進み具合`}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(fraction * 100)}
-                >
-                  <div className="pipeline__bar-fill" style={{ width: `${fraction * 100}%` }} />
-                </div>
-              )}
-
-              {failure && (
-                <div className="pipeline__problem">
-                  <p className="pipeline__failure" role="note">
-                    {failureTooltip(failure)}
-                  </p>
-                  <button
-                    type="button"
-                    className="pipeline__retry"
-                    onClick={() => onRetry(step as PipelineStep)}
+                {fraction !== undefined && (
+                  <div
+                    className="pipeline__bar"
+                    role="progressbar"
+                    aria-label={`${STEP_LABELS[step]}の進み具合`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(fraction * 100)}
                   >
-                    再実行
-                  </button>
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ol>
+                    <div className="pipeline__bar-fill" style={{ width: `${fraction * 100}%` }} />
+                  </div>
+                )}
+              </li>
+            )
+          })}
+        </ol>
+      </div>
+
+      <div className="pipeline__aside">
+        {remainingMs !== undefined && (
+          <p className="pipeline__remaining">{formatRemaining(remainingMs)}</p>
+        )}
+        <p className="pipeline__hint">ウィンドウを閉じても処理は続きます。</p>
+        <p className="pipeline__hint">終わると、ここで再生できるようになります。</p>
+      </div>
     </section>
+  )
+}
+
+/**
+ * ある欄に属する失敗の全文と再実行。
+ *
+ * 全文は常に出す。以前はホバーで出していたが、マウスを外すと消えて
+ * 読む・コピーする前に見失っていた。
+ */
+const StepFailures = ({
+  failures,
+  onRetry
+}: {
+  failures: ReadonlyArray<StepFailure & { readonly step: string }>
+  onRetry: (step: PipelineStep) => void
+}): ReactElement | null => {
+  if (failures.length === 0) return null
+
+  return (
+    <ul className="failures">
+      {failures.map((failure) => (
+        <li key={failure.step} className="failure">
+          <p className="failure__message" role="note">
+            {failureTooltip(failure)}
+          </p>
+          <button
+            type="button"
+            className="failure__retry"
+            onClick={() => onRetry(failure.step as PipelineStep)}
+          >
+            再実行
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }
 

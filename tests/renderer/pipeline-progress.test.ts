@@ -3,55 +3,27 @@ import {
   applyProgressEvent,
   estimateRemainingMs,
   formatRemaining,
-  visiblePipelineSteps,
+  showsPipelineProgress,
   type ProgressSamples
 } from '@renderer/pipelineProgress'
 
-const steps = (
-  overrides: Partial<Record<string, { status: string; error?: string }>> = {}
-): Record<string, { status: string; error?: string }> => ({
-  mix: { status: 'done' },
-  transcribe: { status: 'done' },
-  diarize: { status: 'done' },
-  summarize: { status: 'done' },
-  encode: { status: 'done' },
-  ...overrides
-})
-
 /**
- * 処理状況の欄は、処理中は全ステップを縦に並べ、終わったら場所を空ける。
- * 完了した録音で 5 行を出し続けると、見るたびに本文が押し下げられるだけになる。
+ * 処理状況は、再生（話者帯）の枠を処理中だけ借りて出す。音声は最後のエンコードで
+ * できるので、処理中はその枠がどのみち空いている。失敗は各欄に出すので、
+ * 処理が止まった後は枠を再生に返す。
  */
-describe('visiblePipelineSteps', () => {
-  // 録音中は全ステップが pending のまま。処理はまだ始まっておらず、見せる進み具合も失敗も無い。
-  it('録音中は何も出さない', () => {
-    const allPending = steps({
-      mix: { status: 'pending' },
-      transcribe: { status: 'pending' },
-      diarize: { status: 'pending' },
-      summarize: { status: 'pending' },
-      encode: { status: 'pending' }
-    })
-    expect(visiblePipelineSteps(allPending, 'recording')).toEqual([])
+describe('showsPipelineProgress', () => {
+  it('処理中は出す', () => {
+    expect(showsPipelineProgress('processing')).toBe(true)
   })
 
-  it('すべて完了していれば何も出さない', () => {
-    expect(visiblePipelineSteps(steps(), 'ready')).toEqual([])
+  it('録音中は出さない（処理はまだ始まっていない）', () => {
+    expect(showsPipelineProgress('recording')).toBe(false)
   })
 
-  it('処理中は全ステップを順に出す（どこまで進んだか分かるように）', () => {
-    expect(
-      visiblePipelineSteps(
-        steps({ transcribe: { status: 'running' }, diarize: { status: 'pending' } }),
-        'processing'
-      )
-    ).toEqual(['mix', 'transcribe', 'diarize', 'summarize', 'encode'])
-  })
-
-  it('処理が終わって失敗が残っていれば、失敗したステップだけを出す', () => {
-    expect(
-      visiblePipelineSteps(steps({ summarize: { status: 'failed', error: 'メモリ不足' } }), 'failed')
-    ).toEqual(['summarize'])
+  it('終わった録音には出さない（失敗は各欄に出る）', () => {
+    expect(showsPipelineProgress('ready')).toBe(false)
+    expect(showsPipelineProgress('failed')).toBe(false)
   })
 })
 

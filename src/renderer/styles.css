@@ -863,26 +863,20 @@ code {
 }
 
 /*
- * 1 行目にプレーヤーとタブ、2 行目に左右のパネルを置く。左右を別々の縦並びに
- * すると 1 行目の高さがそれぞれの中身で決まり、パネルの上端がずれてしまうため、
- * 列に subgrid を使って親の行をそのまま共有させる。高さを直接指定しないので、
- * プレーヤーやタブの中身が変わっても揃ったままになる。
+ * 舞台（再生。処理中は処理状況）は上に全幅で置き、ここには左右のパネルだけを並べる。
+ * 左右とも「見出しを持つパネル 1 枚」なので、同じ行に置けば上端は揃う。
  */
 .detail__body {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 10px 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 16px;
   overflow: hidden;
   flex: 1;
 }
 
-.detail__left,
-.detail__right {
-  display: grid;
-  grid-row: 1 / -1;
-  grid-template-rows: subgrid;
-  overflow: hidden;
+.detail__stage {
+  flex-shrink: 0;
 }
 
 .player {
@@ -905,27 +899,41 @@ code {
 }
 
 .pipeline {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 14px;
+  display: grid;
+  /* 全幅に 1 列で伸ばすとラベルと状態が両端に離れる。ステップの列は幅を抑える。 */
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 20px;
+  padding: 12px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
 .pipeline__summary {
-  margin: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+  margin: 0 0 8px;
   font-size: 13px;
   font-weight: 600;
 }
 
+.pipeline__aside {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding-left: 20px;
+  border-left: 1px solid var(--border);
+}
+
+.pipeline__remaining {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .pipeline__hint {
+  margin: 0;
   font-size: 12px;
-  font-weight: 400;
   color: var(--text-muted);
 }
 
@@ -1005,8 +1013,21 @@ code {
   transition: width 0.4s ease;
 }
 
-.pipeline__problem {
-  grid-column: 2 / -1;
+/* 欄の中に出す失敗。そのステップが作るはずだったものの場所に置く。 */
+.failures {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px 0;
+}
+
+.player-slot .failures {
+  padding: 6px 0 0;
+}
+
+.failure {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -1017,7 +1038,7 @@ code {
  * 見失っていたので、常に出す。重ねて出すこともできない —— 親の .detail が
  * overflow: hidden で切るため、画面外に消える。通常のフローに場所を取る。
  */
-.pipeline__failure {
+.failure__message {
   flex: 1;
   margin: 0;
   padding: 6px 10px;
@@ -1031,7 +1052,7 @@ code {
   cursor: text;
 }
 
-.pipeline__retry {
+.failure__retry {
   flex-shrink: 0;
   font-size: 12px;
 }
@@ -1219,8 +1240,7 @@ code {
 
 .tabs {
   display: flex;
-  /* 行の高さは背の高いプレーヤー側で決まる。既定の stretch だとタブの背景が
-     行いっぱいに伸びるので、中央に置く。 */
+  /* パネルの見出しの中で、反対側の操作ボタンと高さを揃える。 */
   align-items: center;
   gap: 4px;
 }

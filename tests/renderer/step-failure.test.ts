@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { failureTooltip, stepFailure } from '@renderer/stepFailure'
+import { failureTooltip, failuresIn, stepFailure } from '@renderer/stepFailure'
 
 /**
  * ステップバッヂはエラー文言を中に描かなくなった（省略されて読めないため）。
@@ -62,5 +62,60 @@ describe('failureTooltip', () => {
       '他のアプリを終了してから再実行してください。設定の「メモリ保護」で判定の厳しさを変えられます。'
 
     expect(failureTooltip({ label: '要約', message })).toContain(message)
+  })
+})
+
+const steps = (
+  overrides: Partial<Record<string, { status: string; error?: string }>> = {}
+): Record<string, { status: string; error?: string }> => ({
+  mix: { status: 'done' },
+  transcribe: { status: 'done' },
+  diarize: { status: 'done' },
+  summarize: { status: 'done' },
+  encode: { status: 'done' },
+  ...overrides
+})
+
+/**
+ * 失敗は、そのステップが作るはずだったものの場所に出す。上部にまとめて出すと、
+ * 何が欠けているのかを本文と見比べて探すことになる。
+ */
+describe('failuresIn', () => {
+  it('失敗が無ければどこにも出さない', () => {
+    expect(failuresIn('transcript', steps())).toEqual([])
+    expect(failuresIn('summary', steps())).toEqual([])
+    expect(failuresIn('audio', steps())).toEqual([])
+  })
+
+  it('要約の失敗は要約の欄に出す', () => {
+    const failed = steps({ summarize: { status: 'failed', error: 'メモリ不足' } })
+
+    expect(failuresIn('summary', failed)).toEqual([
+      { step: 'summarize', label: '要約', message: 'メモリ不足' }
+    ])
+    expect(failuresIn('transcript', failed)).toEqual([])
+    expect(failuresIn('audio', failed)).toEqual([])
+  })
+
+  it('文字起こしと話者識別の失敗は文字起こしの欄に、順に出す', () => {
+    const failed = steps({
+      transcribe: { status: 'failed', error: 'a' },
+      diarize: { status: 'failed', error: 'b' }
+    })
+
+    expect(failuresIn('transcript', failed).map((failure) => failure.step)).toEqual([
+      'transcribe',
+      'diarize'
+    ])
+  })
+
+  it('ミックスとエンコードの失敗は音声の欄に出す（エンコードはミックスに依存する）', () => {
+    const failed = steps({
+      mix: { status: 'failed', error: 'a' },
+      encode: { status: 'failed', error: 'b' }
+    })
+
+    expect(failuresIn('audio', failed).map((failure) => failure.step)).toEqual(['mix', 'encode'])
+    expect(failuresIn('transcript', failed)).toEqual([])
   })
 })
