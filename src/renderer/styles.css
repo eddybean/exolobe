@@ -1016,17 +1016,29 @@ code {
   重ねたいので、段をまとめた .timeline__tracks を基準に置く。
 */
 .timeline {
+  --lane-height: 14px;
+  --lane-gap: 6px;
+
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   column-gap: 12px;
   margin-top: 10px;
+  /*
+    段は 4 人分ほどで止め、それ以上は枠の中でスクロールする。伸ばし続けると下の欄が
+    押し下げられる。半段ぶん余らせ、続きの段が覗いてスクロールできると分かるようにする。
+    上下の余白は、段からはみ出す再生位置の縦線を切らないため。
+  */
+  padding-block: 3px;
+  max-height: calc(var(--lane-height) * 4.5 + var(--lane-gap) * 4 + 6px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .timeline__labels,
 .timeline__tracks {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--lane-gap);
 }
 
 .timeline__tracks {
@@ -1034,8 +1046,9 @@ code {
 }
 
 .timeline__label {
-  height: 14px;
-  line-height: 14px;
+  flex-shrink: 0;
+  height: var(--lane-height);
+  line-height: var(--lane-height);
   font-size: 11px;
   color: var(--text-muted);
   white-space: nowrap;
@@ -1048,8 +1061,9 @@ code {
 .timeline__track {
   position: relative;
   display: block;
+  flex-shrink: 0;
   width: 100%;
-  height: 14px;
+  height: var(--lane-height);
   padding: 0;
   border: none;
   border-radius: 3px;
@@ -1084,6 +1098,10 @@ code {
 /* エンコード前は再生できない。プレーヤーと同じく、置いたまま無効に見せる。 */
 .timeline--disabled {
   opacity: 0.4;
+}
+
+/* 押せなくするのは帯だけにする。枠ごと止めると、隠れた段へのスクロールもできなくなる。 */
+.timeline--disabled .timeline__track {
   pointer-events: none;
 }
 
