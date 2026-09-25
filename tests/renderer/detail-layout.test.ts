@@ -53,18 +53,23 @@ describe('要約ペインの Markdown 表示', () => {
 })
 
 /**
- * 処理状況は舞台の中で、ステップの縦並びと残り時間の 2 列に分ける。
- * 全幅に 1 列で伸ばすと、ラベルと状態が画面の両端に離れて読みにくい。
+ * 処理状況は、タイトル下のピルを押すと重ねて開くカードに出す。本文の欄を
+ * 押し下げないためで、以前の上部の欄は処理中ずっと文字起こしと要約を狭めていた。
  */
 describe('処理状況', () => {
   it('ステップを縦に積む', () => {
     expect(ruleFor('.pipeline__steps')).toMatch(/flex-direction:\s*column/)
   })
 
-  it('ステップの列は幅を抑え、残りを案内の列にする', () => {
-    expect(ruleFor('.pipeline')).toMatch(
-      /grid-template-columns:\s*minmax\(0,\s*\d+px\)\s+minmax\(0,\s*1fr\)/
-    )
+  it('カードは本文の上に重ねて開き、欄を押し下げない', () => {
+    const rule = ruleFor('.pipeline-pop')
+
+    expect(rule).toMatch(/position:\s*absolute/)
+    expect(rule).toMatch(/z-index:\s*\d+/)
+  })
+
+  it('カードは幅を抑える（横に伸ばすとラベルと状態が離れて読みにくい）', () => {
+    expect(ruleFor('.pipeline-pop')).toMatch(/width:\s*\d+px/)
   })
 })
 

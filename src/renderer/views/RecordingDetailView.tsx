@@ -15,7 +15,7 @@ import { failureTooltip, failuresIn, type StepFailure } from '../stepFailure'
 import {
   applyProgressEvent,
   estimateRemainingMs,
-  formatRemaining,
+  pipelinePillLabel,
   showsPipelineProgress,
   type ProgressSamples
 } from '../pipelineProgress'
@@ -34,8 +34,8 @@ const RESUMMARIZE_HINT: Readonly<Record<ResummarizeState, string>> = {
 }
 
 /**
- * 詳細画面。上に全幅の舞台（再生。処理中は処理状況）、下の左に話者付き文字起こし、
- * 右に要約とメモを置く。要約・文字起こしはそれぞれコピーでき、メモは編集して自動保存される。
+ * 詳細画面。上に全幅の再生、下の左に話者付き文字起こし、右に要約とメモを置く。
+ * 処理中はタイトル下のピルで進み具合を出す。要約・文字起こしはそれぞれコピーでき、メモは編集して自動保存される。
  */
 export const RecordingDetailView = ({
   detail,
@@ -196,11 +196,16 @@ export const RecordingDetailView = ({
       <header className="detail__header">
         <div className="detail__heading">
           <EditableTitle value={detail.recording.title} onCommit={renameTitle} />
-          <p className="detail__meta">
-            {formatDateTime(detail.recording.startedAt)}
-            {detail.recording.durationMs > 0 &&
-              ` ・ ${formatDuration(detail.recording.durationMs)}`}
-          </p>
+          <div className="detail__meta-row">
+            <p className="detail__meta">
+              {formatDateTime(detail.recording.startedAt)}
+              {detail.recording.durationMs > 0 &&
+                ` ・ ${formatDuration(detail.recording.durationMs)}`}
+            </p>
+            {showsPipelineProgress(detail.recording.status) && (
+              <PipelinePill recording={detail.recording} />
+            )}
+          </div>
         </div>
         <div className="detail__actions">
           <button type="button" onClick={() => void window.recorder.revealRecording(recordingId)}>
@@ -224,30 +229,20 @@ export const RecordingDetailView = ({
         </p>
       )}
 
-      {/*
-        音声は最後のエンコードで初めてできるので、処理中は再生の枠がどのみち空いている。
-        処理状況はそこを借り、本文の欄を押し下げない。終われば再生に戻る。
-      */}
-      <div className="detail__stage">
-        {showsPipelineProgress(detail.recording.status) ? (
-          <PipelineProgress recording={detail.recording} />
+      <div className={audioReady ? 'player-slot' : 'player-slot player-slot--pending'}>
+        {/* file: スキームで保存先の音声をそのまま再生する。まだ無いなら src を張らない */}
+        <audio
+          ref={audioRef}
+          controls
+          className="player"
+          {...(audioReady ? { src: `file://${detail.audioPath}` } : {})}
+        />
+        {audioFailures.length > 0 ? (
+          <StepFailures failures={audioFailures} onRetry={retry} />
         ) : (
-          <div className={audioReady ? 'player-slot' : 'player-slot player-slot--pending'}>
-            {/* file: スキームで保存先の音声をそのまま再生する。まだ無いなら src を張らない */}
-            <audio
-              ref={audioRef}
-              controls
-              className="player"
-              {...(audioReady ? { src: `file://${detail.audioPath}` } : {})}
-            />
-            {audioFailures.length > 0 ? (
-              <StepFailures failures={audioFailures} onRetry={retry} />
-            ) : (
-              !audioReady && (
-                <p className="player-slot__hint">{pendingAudioHint(detail.recording.status)}</p>
-              )
-            )}
-          </div>
+          !audioReady && (
+            <p className="player-slot__hint">{pendingAudioHint(detail.recording.status)}</p>
+          )
         )}
       </div>
 
@@ -371,66 +366,95 @@ const STEP_STATE_LABELS: Readonly<Record<string, string>> = {
 }
 
 /**
- * 処理状況。再生の枠を処理中だけ借りて、左にステップの縦並び、右に残り時間と案内を置く。
- * 全幅に 1 列で伸ばすと、ラベルと状態が両端に離れて読みにくい。
+ * 処理状況。タイトル下のピルに、いま動いているステップと残り時間を出し、
+ * 押すとステップの一覧を重ねて開く。本文の欄は押し下げない。
  *
  * 失敗の全文と再実行はここに出さず、各欄に出す（StepFailures）。
  */
-const PipelineProgress = ({
+const PipelinePill = ({
   recording
 }: {
   recording: RecordingDetailDto['recording']
 }): ReactElement => {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
   const { samples, receivedAtMs } = useProgressSamples()
   const sample = samples[recording.id]
   const remainingMs = sample ? estimateRemainingMs(sample, receivedAtMs) : undefined
 
+  // 外側を押す・Esc で閉じる。開いたままだと本文の先頭を覆い続ける。
+  useEffect(() => {
+    if (!open) return
+    const closeOnOutside = (event: MouseEvent): void => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', closeOnOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutside)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [open])
+
   return (
-    <section className="pipeline" aria-label="処理状況">
-      <div>
-        <p className="pipeline__summary">処理中</p>
-        <ol className="pipeline__steps">
-          {PIPELINE_STEPS.map((step) => {
-            const status = recording.steps[step]?.status ?? 'pending'
-            const fraction =
-              status === 'running' && sample?.step === step ? sample.fraction : undefined
+    <div className="pipeline-pill" ref={rootRef}>
+      <button
+        type="button"
+        className="pipeline-pill__button"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="pipeline-pill__spinner" aria-hidden="true" />
+        {pipelinePillLabel(recording.steps, sample, remainingMs)}
+        <span className="pipeline-pill__chevron" aria-hidden="true">
+          ▾
+        </span>
+      </button>
 
-            return (
-              <li key={step} className={`pipeline__step pipeline__step--${status}`}>
-                <span className="pipeline__mark" aria-hidden="true" />
-                <span className="pipeline__label">{STEP_LABELS[step]}</span>
-                <span className="pipeline__state">
-                  {fraction === undefined
-                    ? STEP_STATE_LABELS[status]
-                    : `${Math.round(fraction * 100)}%`}
-                </span>
+      {open && (
+        <section className="pipeline-pop" aria-label="処理状況">
+          <p className="pipeline-pop__header">
+            <strong>処理中</strong>
+            <span>ウィンドウを閉じても続きます</span>
+          </p>
+          <ol className="pipeline__steps">
+            {PIPELINE_STEPS.map((step) => {
+              const status = recording.steps[step]?.status ?? 'pending'
+              const fraction =
+                status === 'running' && sample?.step === step ? sample.fraction : undefined
 
-                {fraction !== undefined && (
-                  <div
-                    className="pipeline__bar"
-                    role="progressbar"
-                    aria-label={`${STEP_LABELS[step]}の進み具合`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={Math.round(fraction * 100)}
-                  >
-                    <div className="pipeline__bar-fill" style={{ width: `${fraction * 100}%` }} />
-                  </div>
-                )}
-              </li>
-            )
-          })}
-        </ol>
-      </div>
+              return (
+                <li key={step} className={`pipeline__step pipeline__step--${status}`}>
+                  <span className="pipeline__mark" aria-hidden="true" />
+                  <span className="pipeline__label">{STEP_LABELS[step]}</span>
+                  <span className="pipeline__state">
+                    {fraction === undefined
+                      ? STEP_STATE_LABELS[status]
+                      : `${Math.round(fraction * 100)}%`}
+                  </span>
 
-      <div className="pipeline__aside">
-        {remainingMs !== undefined && (
-          <p className="pipeline__remaining">{formatRemaining(remainingMs)}</p>
-        )}
-        <p className="pipeline__hint">ウィンドウを閉じても処理は続きます。</p>
-        <p className="pipeline__hint">終わると、ここで再生できるようになります。</p>
-      </div>
-    </section>
+                  {fraction !== undefined && (
+                    <div
+                      className="pipeline__bar"
+                      role="progressbar"
+                      aria-label={`${STEP_LABELS[step]}の進み具合`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={Math.round(fraction * 100)}
+                    >
+                      <div className="pipeline__bar-fill" style={{ width: `${fraction * 100}%` }} />
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ol>
+        </section>
+      )}
+    </div>
   )
 }
 

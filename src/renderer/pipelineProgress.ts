@@ -1,11 +1,11 @@
+import { PIPELINE_STEPS } from '@domain/Recording'
 import type { ProgressEventDto } from '@shared/ipc'
+import { STEP_LABELS } from './format'
 
 /**
- * 再生（話者帯）の枠に処理状況を出すか。
+ * 処理状況（タイトル下のピル）を出すか。
  *
- * 音声は最後のエンコードで初めてできるので、処理中はその枠がどのみち空いている。
- * そこを借りれば、処理中にしか要らない表示のために本文の欄を押し下げずに済む。
- * 録音中はまだ何も始まっておらず、止まった後の失敗は各欄に出すので、ここでは出さない。
+ * 録音中はまだ何も始まっておらず、止まった後の失敗は各欄に出すので、処理中だけ出す。
  */
 export const showsPipelineProgress = (recordingStatus: string): boolean =>
   recordingStatus === 'processing'
@@ -63,3 +63,23 @@ export const estimateRemainingMs = (
 /** 見積もりは粗いので、分単位で切り上げて「約」を付ける。 */
 export const formatRemaining = (ms: number): string =>
   ms < 60_000 ? '残り 1 分未満' : `残り約 ${Math.ceil(ms / 60_000)} 分`
+
+/**
+ * ピルの文言。閉じたままでも用が足りるよう、いま動いているステップと残り時間を 1 行にする。
+ *
+ * 割合は同じステップの標本のときだけ添える。切り替わりの通知より先に描画されると、
+ * 前のステップの割合が次のステップに付いて見えるため。
+ */
+export const pipelinePillLabel = (
+  steps: Readonly<Record<string, { status: string } | undefined>>,
+  sample: Pick<ProgressSample, 'step' | 'fraction'> | undefined,
+  remainingMs: number | undefined
+): string => {
+  const running = PIPELINE_STEPS.find((step) => steps[step]?.status === 'running')
+  // ワーカーはジョブを直列に捌くので、他の録音の処理が終わるのを待っている間がある。
+  if (!running) return '処理待ち'
+
+  const fraction = sample?.step === running ? ` ${Math.round(sample.fraction * 100)}%` : ''
+  const remaining = remainingMs === undefined ? '' : ` ・ ${formatRemaining(remainingMs)}`
+  return `${STEP_LABELS[running]}中${fraction}${remaining}`
+}

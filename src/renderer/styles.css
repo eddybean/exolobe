@@ -863,7 +863,7 @@ code {
 }
 
 /*
- * 舞台（再生。処理中は処理状況）は上に全幅で置き、ここには左右のパネルだけを並べる。
+ * 再生は上に全幅で置き、ここには左右のパネルだけを並べる。
  * 左右とも「見出しを持つパネル 1 枚」なので、同じ行に置けば上端は揃う。
  */
 .detail__body {
@@ -875,7 +875,7 @@ code {
   flex: 1;
 }
 
-.detail__stage {
+.player-slot {
   flex-shrink: 0;
 }
 
@@ -898,41 +898,81 @@ code {
   color: var(--text-muted);
 }
 
-.pipeline {
-  display: grid;
-  /* 全幅に 1 列で伸ばすとラベルと状態が両端に離れる。ステップの列は幅を抑える。 */
-  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
-  gap: 20px;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.pipeline__summary {
-  margin: 0 0 8px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.pipeline__aside {
+.detail__meta-row {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  padding-left: 20px;
-  border-left: 1px solid var(--border);
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
 }
 
-.pipeline__remaining {
+.detail__meta-row .detail__meta {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
+}
+
+/* 処理中だけ日時の横に出すピル。押すとステップの一覧を重ねて開く。 */
+.pipeline-pill {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.pipeline-pill__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
 
-.pipeline__hint {
-  margin: 0;
+.pipeline-pill__spinner {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: pipeline-spin 1s linear infinite;
+}
+
+@keyframes pipeline-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pipeline-pill__chevron {
+  font-size: 10px;
+}
+
+/*
+ * 本文の欄を押し下げないよう重ねて開く。親の .detail は overflow: hidden だが、
+ * ピルは詳細の最上部にあり、5 行ぶんのカードは詳細の高さに収まる。
+ */
+.pipeline-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  width: 320px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+}
+
+.pipeline-pop__header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.pipeline-pop__header span {
   font-size: 12px;
   color: var(--text-muted);
 }
