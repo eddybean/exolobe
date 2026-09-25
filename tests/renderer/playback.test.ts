@@ -69,7 +69,7 @@ describe('isPlaybackToggleKey', () => {
     expect(isPlaybackToggleKey({ ...space, targetTag: 'DIV', targetEditable: true })).toBe(false)
   })
 
-  it('シークバーや音量のスライダーでは Space を奪ってよい（スライダーは Space を使わない）', () => {
+  it('音量のスライダーでは Space を奪ってよい（スライダーは Space を使わない）', () => {
     // 動かした直後はフォーカスがスライダーに残る。ここで効かないと、動かすたびに Space が死ぬ。
     expect(isPlaybackToggleKey({ ...space, targetTag: 'INPUT', targetInputType: 'range' })).toBe(
       true

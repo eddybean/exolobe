@@ -40,7 +40,7 @@ export interface PlaybackKeyEvent {
 /**
  * Space を押しても、そのキーが本来の役目を持つ要素（文字の入力・ボタンの押下・標準の
  * プレーヤー自身）には奪わない。奪うと本文に空白が打てない、ボタンと二重に動く、になる。
- * スライダー（シークバー・音量）は Space を使わないので奪う — 動かした直後はフォーカスが
+ * スライダー（音量）は Space を使わないので奪う — 動かした直後はフォーカスが
  * スライダーに残り、ここで効かないと動かすたびに Space が効かなくなる。
  */
 const KEEPS_SPACE = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'AUDIO'])

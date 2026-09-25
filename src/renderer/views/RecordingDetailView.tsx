@@ -183,12 +183,6 @@ export const RecordingDetailView = ({
     setMuted((current) => !current)
   }, [volume])
 
-  /** シークバーからの移動。帯や時刻と違い、再生は始めない（止めたまま位置を合わせたい）。 */
-  const seekTo = useCallback((ms: number): void => {
-    const audio = audioRef.current
-    if (audio) audio.currentTime = ms / 1000
-  }, [])
-
   const togglePlayback = useCallback((): void => {
     const audio = audioRef.current
     if (!audio) return
@@ -370,7 +364,6 @@ export const RecordingDetailView = ({
             muted={muted}
             disabled={!audioReady}
             onToggle={togglePlayback}
-            onSeekTo={seekTo}
             onChangeRate={() => setRate(nextPlaybackRate)}
             onChangeVolume={changeVolume}
             onToggleMute={toggleMute}

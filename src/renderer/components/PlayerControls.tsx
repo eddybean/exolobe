@@ -2,14 +2,11 @@ import type { ReactElement } from 'react'
 import { formatDuration } from '../format'
 import { formatPlaybackRate, volumeLevel } from '../library/playback'
 
-/** シークバーの刻み。1 秒刻みだと短い相づちの頭に合わせられない。 */
-const SEEK_STEP_MS = 100
-
 /**
- * 独自の再生の操作。再生・停止、位置と全長、シークバー、速度、音量を 1 行に並べる。
+ * 独自の再生の操作。再生・停止、位置と全長、速度、音量を 1 行に並べる。
  *
- * 位置は下の話者の帯や発言の時刻でも動かせるが、帯の無い区間（無音・雑談）へ
- * 細かく合わせるにはシークバーの方が向く。
+ * シークバーは置かない。下の話者の帯がどこを押してもその位置へ飛べるので同じ役目を
+ * 果たし、2 本並べると同じ操作の場所が二手に分かれる。
  */
 export const PlayerControls = ({
   playing,
@@ -20,7 +17,6 @@ export const PlayerControls = ({
   muted,
   disabled,
   onToggle,
-  onSeekTo,
   onChangeRate,
   onChangeVolume,
   onToggleMute
@@ -33,7 +29,6 @@ export const PlayerControls = ({
   muted: boolean
   disabled: boolean
   onToggle: () => void
-  onSeekTo: (ms: number) => void
   onChangeRate: () => void
   onChangeVolume: (volume: number) => void
   onToggleMute: () => void
@@ -58,18 +53,6 @@ export const PlayerControls = ({
       <span className="player-controls__time">
         {formatDuration(positionMs)} / {formatDuration(durationMs)}
       </span>
-      <input
-        type="range"
-        className="player-controls__seek"
-        aria-label="再生位置"
-        aria-valuetext={formatDuration(positionMs)}
-        min={0}
-        max={Math.max(durationMs, SEEK_STEP_MS)}
-        step={SEEK_STEP_MS}
-        value={Math.min(positionMs, durationMs)}
-        disabled={disabled}
-        onChange={(event) => onSeekTo(Number(event.target.value))}
-      />
       <button
         type="button"
         className="player-controls__rate"

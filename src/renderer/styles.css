@@ -969,14 +969,8 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
-.player-controls__seek {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  accent-color: var(--accent);
-}
-
 .player-controls__volume {
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1005,7 +999,6 @@ code {
   accent-color: var(--text-muted);
 }
 
-.player-controls__seek:disabled,
 .player-controls__volume-slider:disabled {
   opacity: 0.4;
 }

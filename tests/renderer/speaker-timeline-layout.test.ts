@@ -100,14 +100,11 @@ describe('再生の操作', () => {
     expect(ruleFor('.player-controls__rate')).toMatch(/min-width:\s*[\d.]+(em|px)/)
   })
 
-  it('シークバーは残りの幅を取る（長い会議でも位置を細かく合わせられる）', () => {
-    const rule = ruleFor('.player-controls__seek')
-
-    expect(rule).toMatch(/flex:\s*1/)
-    expect(rule).toMatch(/min-width:\s*0/)
+  it('音量は右端に寄せる（再生・時刻・速度をまとめて左に置き、音量は離して誤操作を避ける）', () => {
+    expect(ruleFor('.player-controls__volume')).toMatch(/margin-left:\s*auto/)
   })
 
-  it('音量のスライダーは幅を抑える（シークバーの幅を奪わない）', () => {
+  it('音量のスライダーは幅を抑える', () => {
     expect(ruleFor('.player-controls__volume-slider')).toMatch(/width:\s*\d+px/)
   })
 })
