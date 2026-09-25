@@ -1347,19 +1347,34 @@ code {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
+/*
+  時刻と話者名を見出しの段に、本文をその下の段に置く。同じ段に並べると
+  話者名の長さで本文の左端が行ごとにずれ、読み進めるたびに視線が揺れる。
+*/
 .segment {
   display: grid;
-  grid-template-columns: auto auto 1fr;
-  gap: 8px;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
   align-items: baseline;
+}
+
+/* 話者名の札を見出しの段いっぱいに伸ばさない。 */
+.segment > .segment__speaker,
+.segment > .segment__speaker-input {
+  justify-self: start;
+}
+
+.segment > .segment__body {
+  grid-column: 1 / -1;
 }
 
 /*
   本文の検索から飛んできた発言の印。背景だけを変え、grid の桁を動かさない
-  （枠線を足すと時刻・話者・本文の縦の線がこの行だけずれる）。
+  （枠線を足すと本文の左端がこの行だけずれる）。
 */
 .segment--focused {
   background: var(--surface-2);
