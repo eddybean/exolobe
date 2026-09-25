@@ -23,19 +23,34 @@ const steps = (
  * 完了した録音で 5 行を出し続けると、見るたびに本文が押し下げられるだけになる。
  */
 describe('visiblePipelineSteps', () => {
+  // 録音中は全ステップが pending のまま。処理はまだ始まっておらず、見せる進み具合も失敗も無い。
+  it('録音中は何も出さない', () => {
+    const allPending = steps({
+      mix: { status: 'pending' },
+      transcribe: { status: 'pending' },
+      diarize: { status: 'pending' },
+      summarize: { status: 'pending' },
+      encode: { status: 'pending' }
+    })
+    expect(visiblePipelineSteps(allPending, 'recording')).toEqual([])
+  })
+
   it('すべて完了していれば何も出さない', () => {
-    expect(visiblePipelineSteps(steps())).toEqual([])
+    expect(visiblePipelineSteps(steps(), 'ready')).toEqual([])
   })
 
   it('処理中は全ステップを順に出す（どこまで進んだか分かるように）', () => {
     expect(
-      visiblePipelineSteps(steps({ transcribe: { status: 'running' }, diarize: { status: 'pending' } }))
+      visiblePipelineSteps(
+        steps({ transcribe: { status: 'running' }, diarize: { status: 'pending' } }),
+        'processing'
+      )
     ).toEqual(['mix', 'transcribe', 'diarize', 'summarize', 'encode'])
   })
 
   it('処理が終わって失敗が残っていれば、失敗したステップだけを出す', () => {
     expect(
-      visiblePipelineSteps(steps({ summarize: { status: 'failed', error: 'メモリ不足' } }))
+      visiblePipelineSteps(steps({ summarize: { status: 'failed', error: 'メモリ不足' } }), 'failed')
     ).toEqual(['summarize'])
   })
 })

@@ -4,8 +4,12 @@ const PIPELINE_STEPS = ['mix', 'transcribe', 'diarize', 'summarize', 'encode'] a
 
 /** 処理状況の欄に出すステップ。何も出さないなら空。 */
 export const visiblePipelineSteps = (
-  steps: Readonly<Record<string, { status: string } | undefined>>
+  steps: Readonly<Record<string, { status: string } | undefined>>,
+  recordingStatus: string
 ): string[] => {
+  // 録音中は全ステップが pending のまま。まだ何も始まっておらず、並べても「待機」が続くだけ。
+  if (recordingStatus === 'recording') return []
+
   const statusOf = (step: string): string => steps[step]?.status ?? 'pending'
 
   // 動いている（これから動く）間は、どこまで進んだかが分かるよう全部並べる。

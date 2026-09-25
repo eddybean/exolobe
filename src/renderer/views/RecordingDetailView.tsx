@@ -368,7 +368,7 @@ const PipelineStatus = ({
   onRetry: (step: PipelineStep) => void
 }): ReactElement | null => {
   const { samples, receivedAtMs } = useProgressSamples()
-  const visible = visiblePipelineSteps(recording.steps)
+  const visible = visiblePipelineSteps(recording.steps, recording.status)
   if (visible.length === 0) return null
 
   const sample = samples[recording.id]
