@@ -35,3 +35,28 @@ export const failureTooltip = (failure: StepFailure): string =>
   failure.message.includes(failure.label)
     ? failure.message
     : `${failure.label}が失敗しました: ${failure.message}`
+
+/** 失敗を出す場所。そのステップが作るはずだったものが本来出る欄。 */
+export type FailureArea = 'transcript' | 'summary' | 'audio'
+
+/**
+ * ステップと欄の対応。ミックスは文字起こしの入力ではなく（トラックごとに起こす）、
+ * エンコードの入力なので音声の欄に置く。
+ */
+const FAILURE_AREAS: ReadonlyArray<readonly [string, FailureArea]> = [
+  ['mix', 'audio'],
+  ['transcribe', 'transcript'],
+  ['diarize', 'transcript'],
+  ['summarize', 'summary'],
+  ['encode', 'audio']
+]
+
+/** その欄に出す失敗を、パイプラインの順に返す。 */
+export const failuresIn = (
+  area: FailureArea,
+  steps: Readonly<Record<string, { status: string; error?: string } | undefined>>
+): Array<StepFailure & { readonly step: string }> =>
+  FAILURE_AREAS.flatMap(([step, stepArea]) => {
+    const failure = stepArea === area ? stepFailure(step, steps[step]) : undefined
+    return failure ? [{ step, ...failure }] : []
+  })

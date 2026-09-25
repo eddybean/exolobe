@@ -9,3 +9,9 @@ import type { RecordingDto } from '@shared/ipc'
  */
 export const isAudioReady = (recording: RecordingDto): boolean =>
   recording.steps.encode?.status === 'done'
+
+/** 再生できない間に添える理由。録音中に「処理を待て」と出すと、まだ何も始まっていないのに待たせることになる。 */
+export const pendingAudioHint = (recordingStatus: string): string =>
+  recordingStatus === 'recording'
+    ? '録音を止めると処理が始まり、終わると再生できます。'
+    : 'エンコードが終わると再生できます。'

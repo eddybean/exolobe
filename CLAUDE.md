@@ -229,3 +229,17 @@ agent-browser screenshot /tmp/ui.png   # 画像を実際に見て確かめる
 - **ネイティブダイアログ（`dialog.showMessageBox`）は操作できない。** 削除の確認などは
   ここまでで、押した先は手動で確かめる。
 - **マイク・システム音声の許可は自動化できない。** 録音を伴う確認は手動。
+- **`agent-browser set viewport` で幅をエミュレートしない。** 撮れる画は実際のウィンドウ
+  （既定 1180×820、最小幅 900）と違う幅になり、利用者が見る姿と食い違う。
+  幅ごとの崩れを見たいときだけ使い、見た目の確認は実ウィンドウのまま撮る。
+- `agent-browser screenshot` はページの描画だけでウィンドウ枠を含まない。アプリの見た目を
+  そのまま撮るなら `screencapture` でウィンドウを指定する（ホストに画面収録の許可が要る）:
+
+  ```bash
+  # Electron のウィンドウ番号を引いて、そのウィンドウだけを撮る（-o で影を落とす）
+  WID=$(swift -e 'import CoreGraphics
+  let l = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String: Any]]
+  for w in l where w[kCGWindowOwnerName as String] as? String == "Electron"
+    && w[kCGWindowLayer as String] as? Int == 0 { print(w[kCGWindowNumber as String]!) }' | head -1)
+  screencapture -x -o -l "$WID" /tmp/window.png
+  ```

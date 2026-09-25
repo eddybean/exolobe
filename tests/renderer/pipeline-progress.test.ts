@@ -3,40 +3,75 @@ import {
   applyProgressEvent,
   estimateRemainingMs,
   formatRemaining,
-  visiblePipelineSteps,
+  pipelinePillLabel,
+  showsPipelineProgress,
   type ProgressSamples
 } from '@renderer/pipelineProgress'
 
-const steps = (
-  overrides: Partial<Record<string, { status: string; error?: string }>> = {}
-): Record<string, { status: string; error?: string }> => ({
+/**
+ * 処理状況は、処理中だけタイトル下のピルとして出す。失敗は各欄に出すので、
+ * 処理が止まった後は出さない。
+ */
+describe('showsPipelineProgress', () => {
+  it('処理中は出す', () => {
+    expect(showsPipelineProgress('processing')).toBe(true)
+  })
+
+  it('録音中は出さない（処理はまだ始まっていない）', () => {
+    expect(showsPipelineProgress('recording')).toBe(false)
+  })
+
+  it('終わった録音には出さない（失敗は各欄に出る）', () => {
+    expect(showsPipelineProgress('ready')).toBe(false)
+    expect(showsPipelineProgress('failed')).toBe(false)
+  })
+})
+
+const running = (step: string): Record<string, { status: string }> => ({
   mix: { status: 'done' },
-  transcribe: { status: 'done' },
-  diarize: { status: 'done' },
-  summarize: { status: 'done' },
-  encode: { status: 'done' },
-  ...overrides
+  transcribe: { status: step === 'transcribe' ? 'running' : 'done' },
+  diarize: { status: step === 'diarize' ? 'running' : 'pending' },
+  summarize: { status: 'pending' },
+  encode: { status: 'pending' }
 })
 
 /**
- * 処理状況の欄は、処理中は全ステップを縦に並べ、終わったら場所を空ける。
- * 完了した録音で 5 行を出し続けると、見るたびに本文が押し下げられるだけになる。
+ * ピルは閉じたままでも用が足りるよう、いま動いているステップと残り時間を 1 行で出す。
+ * 開かないと何も分からないピルでは、処理状況を上部に出していた頃より後退する。
  */
-describe('visiblePipelineSteps', () => {
-  it('すべて完了していれば何も出さない', () => {
-    expect(visiblePipelineSteps(steps())).toEqual([])
+describe('pipelinePillLabel', () => {
+  it('いま動いているステップを出す', () => {
+    expect(pipelinePillLabel(running('diarize'), undefined, undefined)).toBe('話者識別中')
   })
 
-  it('処理中は全ステップを順に出す（どこまで進んだか分かるように）', () => {
-    expect(
-      visiblePipelineSteps(steps({ transcribe: { status: 'running' }, diarize: { status: 'pending' } }))
-    ).toEqual(['mix', 'transcribe', 'diarize', 'summarize', 'encode'])
+  it('割合が届いていれば添える', () => {
+    const sample = { step: 'transcribe', fraction: 0.62, firstFraction: 0.1, firstAtMs: 0 }
+
+    expect(pipelinePillLabel(running('transcribe'), sample, undefined)).toBe('文字起こし中 62%')
   })
 
-  it('処理が終わって失敗が残っていれば、失敗したステップだけを出す', () => {
-    expect(
-      visiblePipelineSteps(steps({ summarize: { status: 'failed', error: 'メモリ不足' } }))
-    ).toEqual(['summarize'])
+  it('別のステップの割合は添えない（切り替わり直後に古い値を見せない）', () => {
+    const sample = { step: 'transcribe', fraction: 0.62, firstFraction: 0.1, firstAtMs: 0 }
+
+    expect(pipelinePillLabel(running('diarize'), sample, undefined)).toBe('話者識別中')
+  })
+
+  it('残り時間を見積もれていれば添える', () => {
+    expect(pipelinePillLabel(running('diarize'), undefined, 4 * 60_000)).toBe(
+      '話者識別中 ・ 残り約 4 分'
+    )
+  })
+
+  it('どのステップも動いていなければ順番待ちと出す', () => {
+    const queued = {
+      mix: { status: 'pending' },
+      transcribe: { status: 'pending' },
+      diarize: { status: 'pending' },
+      summarize: { status: 'pending' },
+      encode: { status: 'pending' }
+    }
+
+    expect(pipelinePillLabel(queued, undefined, undefined)).toBe('処理待ち')
   })
 })
 
