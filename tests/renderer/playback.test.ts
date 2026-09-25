@@ -5,7 +5,8 @@ import {
   formatPlaybackRate,
   isPlaybackToggleKey,
   nextPlaybackRate,
-  playerMode
+  playerMode,
+  volumeLevel
 } from '@renderer/library/playback'
 
 describe('nextPlaybackRate', () => {
@@ -52,6 +53,7 @@ describe('isPlaybackToggleKey', () => {
     altKey: false,
     isComposing: false,
     targetTag: 'BODY',
+    targetInputType: '',
     targetEditable: false,
     modalOpen: false
   }
@@ -65,6 +67,13 @@ describe('isPlaybackToggleKey', () => {
       expect(isPlaybackToggleKey({ ...space, targetTag })).toBe(false)
     }
     expect(isPlaybackToggleKey({ ...space, targetTag: 'DIV', targetEditable: true })).toBe(false)
+  })
+
+  it('シークバーや音量のスライダーでは Space を奪ってよい（スライダーは Space を使わない）', () => {
+    // 動かした直後はフォーカスがスライダーに残る。ここで効かないと、動かすたびに Space が死ぬ。
+    expect(isPlaybackToggleKey({ ...space, targetTag: 'INPUT', targetInputType: 'range' })).toBe(
+      true
+    )
   })
 
   it('ボタンにフォーカスがあるときはボタンを押させる（二重に動かさない）', () => {
@@ -89,5 +98,20 @@ describe('isPlaybackToggleKey', () => {
 
   it('Space 以外のキーは無視する', () => {
     expect(isPlaybackToggleKey({ ...space, key: 'k' })).toBe(false)
+  })
+})
+
+describe('volumeLevel', () => {
+  it('ミュート中は音量によらず muted', () => {
+    expect(volumeLevel(0.8, true)).toBe('muted')
+  })
+
+  it('音量 0 も muted と見せる（鳴らないことに変わりはない）', () => {
+    expect(volumeLevel(0, false)).toBe('muted')
+  })
+
+  it('半分未満は low、それ以上は high', () => {
+    expect(volumeLevel(0.3, false)).toBe('low')
+    expect(volumeLevel(0.5, false)).toBe('high')
   })
 })

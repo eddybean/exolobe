@@ -99,4 +99,15 @@ describe('再生の操作', () => {
   it('速度のボタンは最小幅を持つ（1× と 1.25× で幅が変わらない）', () => {
     expect(ruleFor('.player-controls__rate')).toMatch(/min-width:\s*[\d.]+(em|px)/)
   })
+
+  it('シークバーは残りの幅を取る（長い会議でも位置を細かく合わせられる）', () => {
+    const rule = ruleFor('.player-controls__seek')
+
+    expect(rule).toMatch(/flex:\s*1/)
+    expect(rule).toMatch(/min-width:\s*0/)
+  })
+
+  it('音量のスライダーは幅を抑える（シークバーの幅を奪わない）', () => {
+    expect(ruleFor('.player-controls__volume-slider')).toMatch(/width:\s*\d+px/)
+  })
 })

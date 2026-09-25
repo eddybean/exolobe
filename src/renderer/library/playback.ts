@@ -31,6 +31,8 @@ export interface PlaybackKeyEvent {
   readonly isComposing: boolean
   /** フォーカスのある要素の tagName（大文字）。 */
   readonly targetTag: string
+  /** フォーカスのある要素が input のときの type。それ以外は空文字。 */
+  readonly targetInputType: string
   readonly targetEditable: boolean
   readonly modalOpen: boolean
 }
@@ -38,6 +40,8 @@ export interface PlaybackKeyEvent {
 /**
  * Space を押しても、そのキーが本来の役目を持つ要素（文字の入力・ボタンの押下・標準の
  * プレーヤー自身）には奪わない。奪うと本文に空白が打てない、ボタンと二重に動く、になる。
+ * スライダー（シークバー・音量）は Space を使わないので奪う — 動かした直後はフォーカスが
+ * スライダーに残り、ここで効かないと動かすたびに Space が効かなくなる。
  */
 const KEEPS_SPACE = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'AUDIO'])
 
@@ -51,4 +55,10 @@ export const isPlaybackToggleKey = (event: PlaybackKeyEvent): boolean =>
   !event.isComposing &&
   !event.modalOpen &&
   !event.targetEditable &&
-  !KEEPS_SPACE.has(event.targetTag)
+  (event.targetInputType === 'range' || !KEEPS_SPACE.has(event.targetTag))
+
+/** 音量のアイコンの段階。音量 0 はミュートと同じく鳴らないので同じ見た目にする。 */
+export const volumeLevel = (volume: number, muted: boolean): 'muted' | 'low' | 'high' => {
+  if (muted || volume <= 0) return 'muted'
+  return volume < 0.5 ? 'low' : 'high'
+}

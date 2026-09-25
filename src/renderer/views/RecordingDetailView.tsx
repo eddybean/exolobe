@@ -157,6 +157,38 @@ export const RecordingDetailView = ({
     audio.playbackRate = rate
   }, [rate, recordingId])
 
+  // 音量も速度と同じく録音をまたいで持ち越す。
+  const [volume, setVolume] = useState(1)
+  const [muted, setMuted] = useState(false)
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.volume = volume
+    audio.muted = muted
+  }, [volume, muted, recordingId])
+
+  const changeVolume = useCallback((next: number): void => {
+    setVolume(next)
+    // ミュート中にスライダーを動かしたら、聞きたいという意思なので解除する。
+    setMuted(false)
+  }, [])
+
+  const toggleMute = useCallback((): void => {
+    // 音量 0 のまま解除しても鳴らない。聞こえる音量まで戻す。
+    if (volume <= 0) {
+      setVolume(0.5)
+      setMuted(false)
+      return
+    }
+    setMuted((current) => !current)
+  }, [volume])
+
+  /** シークバーからの移動。帯や時刻と違い、再生は始めない（止めたまま位置を合わせたい）。 */
+  const seekTo = useCallback((ms: number): void => {
+    const audio = audioRef.current
+    if (audio) audio.currentTime = ms / 1000
+  }, [])
+
   const togglePlayback = useCallback((): void => {
     const audio = audioRef.current
     if (!audio) return
@@ -177,6 +209,7 @@ export const RecordingDetailView = ({
         altKey: event.altKey,
         isComposing: event.isComposing,
         targetTag: target?.tagName ?? '',
+        targetInputType: target instanceof HTMLInputElement ? target.type : '',
         targetEditable: target?.isContentEditable ?? false,
         modalOpen: document.querySelector('[aria-modal="true"]') !== null
       })
@@ -333,9 +366,14 @@ export const RecordingDetailView = ({
             positionMs={positionMs}
             durationMs={audioMs ?? detail.recording.durationMs}
             rate={rate}
+            volume={volume}
+            muted={muted}
             disabled={!audioReady}
             onToggle={togglePlayback}
+            onSeekTo={seekTo}
             onChangeRate={() => setRate(nextPlaybackRate)}
+            onChangeVolume={changeVolume}
+            onToggleMute={toggleMute}
           />
         )}
         {/* file: スキームで保存先の音声をそのまま再生する。まだ無いなら src を張らない */}
