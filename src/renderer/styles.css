@@ -917,6 +917,75 @@ code {
   color: var(--text-muted);
 }
 
+/*
+  独自の再生の操作と話者の帯を 1 枚の枠にまとめる。標準のプレーヤーは自前の枠を持つので、
+  文字起こしが無くて標準に戻したときは枠を付けない。
+*/
+.player-slot--custom {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.player-controls__play {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.player-controls__play:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 85%, #000);
+}
+
+.player-controls__play:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.player-controls__time {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.player-controls__rate {
+  min-width: 4em;
+  padding: 1px 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-controls__hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-controls__hint kbd {
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+}
+
 /* 話者の色の番号（library/timeline.ts の speakerTones）を、帯と名前の両方が読む --tone に渡す。 */
 .tone-0 { --tone: var(--tone-0); }
 .tone-1 { --tone: var(--tone-1); }

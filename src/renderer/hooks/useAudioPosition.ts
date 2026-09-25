@@ -4,6 +4,8 @@ export interface AudioPosition {
   /** 再生位置（ミリ秒）。 */
   readonly positionMs: number
   readonly playing: boolean
+  /** 音声の長さ（ミリ秒）。読み込むまでは分からないので undefined。 */
+  readonly durationMs: number | undefined
 }
 
 /**
@@ -17,17 +19,34 @@ export const useAudioPosition = (
   /** 切り替わったら位置を読み直す。前の録音の位置を持ち越さない。 */
   sourceKey: string
 ): AudioPosition => {
-  const [position, setPosition] = useState<AudioPosition>({ positionMs: 0, playing: false })
+  const [position, setPosition] = useState<AudioPosition>({
+    positionMs: 0,
+    playing: false,
+    durationMs: undefined
+  })
 
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
 
     const read = (): void =>
-      setPosition({ positionMs: audio.currentTime * 1000, playing: !audio.paused })
+      setPosition({
+        positionMs: audio.currentTime * 1000,
+        playing: !audio.paused,
+        // src が無い・読み込み前は NaN、ストリームでは Infinity になる。
+        durationMs: Number.isFinite(audio.duration) ? audio.duration * 1000 : undefined
+      })
     read()
 
-    const events = ['timeupdate', 'seeked', 'play', 'pause', 'ended', 'emptied'] as const
+    const events = [
+      'timeupdate',
+      'seeked',
+      'play',
+      'pause',
+      'ended',
+      'emptied',
+      'durationchange'
+    ] as const
     for (const name of events) audio.addEventListener(name, read)
     return () => {
       for (const name of events) audio.removeEventListener(name, read)

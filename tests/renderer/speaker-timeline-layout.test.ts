@@ -89,3 +89,14 @@ describe('再生中の発言', () => {
     expect(rule).not.toMatch(/(^|\s)(border(?!-radius)|padding|margin)(-\w+)?:/)
   })
 })
+
+/** 再生の操作。値が変わるたびに隣の要素が左右に揺れないようにする。 */
+describe('再生の操作', () => {
+  it('再生位置の数字は等幅にする（再生中に「/ 全長」が揺れない）', () => {
+    expect(ruleFor('.player-controls__time')).toMatch(/font-variant-numeric:\s*tabular-nums/)
+  })
+
+  it('速度のボタンは最小幅を持つ（1× と 1.25× で幅が変わらない）', () => {
+    expect(ruleFor('.player-controls__rate')).toMatch(/min-width:\s*[\d.]+(em|px)/)
+  })
+})

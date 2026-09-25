@@ -7,6 +7,7 @@ import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
 import { EditableSpeaker } from '../components/EditableSpeaker'
 import { EditableSegmentText } from '../components/EditableSegmentText'
+import { PlayerControls } from '../components/PlayerControls'
 import { SpeakerTimeline } from '../components/SpeakerTimeline'
 import { useAudioPosition } from '../hooks/useAudioPosition'
 import { isAudioReady, pendingAudioHint } from '../library/audio'
@@ -18,6 +19,7 @@ import {
   timelineDurationMs
 } from '../library/timeline'
 import { focusedSegmentIndex } from '../library/transcriptSearch'
+import { isPlaybackToggleKey, nextPlaybackRate, playerMode } from '../library/playback'
 import { voiceLearnedNotice } from '../library/voiceLearning'
 import { resummarizeState, type ResummarizeState } from '../resummarize'
 import { failureTooltip, failuresIn, type StepFailure } from '../stepFailure'
@@ -113,7 +115,8 @@ export const RecordingDetailView = ({
   )
   const timelineMs = timelineDurationMs(detail.recording.durationMs, detail.segments)
 
-  const { positionMs, playing } = useAudioPosition(audioRef, recordingId)
+  const { positionMs, playing, durationMs: audioMs } = useAudioPosition(audioRef, recordingId)
+  const player = playerMode(detail.segments.length)
   // 一度も再生していない頭出しの位置では強調しない。開いただけで先頭の発言が光るのは紛らわしい。
   const playingIndex =
     audioReady && (playing || positionMs > 0) ? activeSegmentIndex(detail.segments, positionMs) : -1
@@ -143,6 +146,48 @@ export const RecordingDetailView = ({
     () => resummarizeState(detail.recording.steps, detail.segments.length > 0),
     [detail.recording.steps, detail.segments.length]
   )
+
+  // 速度は録音を切り替えても持ち越す。速めて聞く人は、どの録音でも速めて聞く。
+  // defaultPlaybackRate にも入れるのは、src が変わると playbackRate がそこへ戻されるため。
+  const [rate, setRate] = useState(1)
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.defaultPlaybackRate = rate
+    audio.playbackRate = rate
+  }, [rate, recordingId])
+
+  const togglePlayback = useCallback((): void => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (audio.paused) void audio.play()
+    else audio.pause()
+  }, [])
+
+  // Space で再生・停止する。独自の操作のときだけ — 標準のプレーヤーは自分で Space を扱う。
+  useEffect(() => {
+    if (player !== 'custom' || !audioReady) return
+    const onKeyDown = (event: KeyboardEvent): void => {
+      const target = event.target instanceof HTMLElement ? event.target : undefined
+      const toggles = isPlaybackToggleKey({
+        key: event.key,
+        repeat: event.repeat,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        altKey: event.altKey,
+        isComposing: event.isComposing,
+        targetTag: target?.tagName ?? '',
+        targetEditable: target?.isContentEditable ?? false,
+        modalOpen: document.querySelector('[aria-modal="true"]') !== null
+      })
+      if (!toggles || event.defaultPrevented) return
+      // 既定の動き（ページのスクロール）を止める。
+      event.preventDefault()
+      togglePlayback()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [player, audioReady, togglePlayback])
 
   const seek = useCallback((ms: number): void => {
     const audio = audioRef.current
@@ -273,11 +318,32 @@ export const RecordingDetailView = ({
         </p>
       )}
 
-      <div className={audioReady ? 'player-slot' : 'player-slot player-slot--pending'}>
+      <div
+        className={[
+          'player-slot',
+          player === 'custom' && 'player-slot--custom',
+          !audioReady && 'player-slot--pending'
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {player === 'custom' && (
+          <PlayerControls
+            playing={playing}
+            positionMs={positionMs}
+            durationMs={audioMs ?? detail.recording.durationMs}
+            rate={rate}
+            disabled={!audioReady}
+            onToggle={togglePlayback}
+            onChangeRate={() => setRate(nextPlaybackRate)}
+          />
+        )}
         {/* file: スキームで保存先の音声をそのまま再生する。まだ無いなら src を張らない */}
         <audio
           ref={audioRef}
-          controls
+          // 文字起こしが無ければ標準のプレーヤーに戻す（位置を動かす帯が出ないため）。
+          // 独自の操作のときも要素は残す — 再生の本体はこの要素のまま。
+          controls={player === 'native'}
           className="player"
           {...(audioReady ? { src: `file://${detail.audioPath}` } : {})}
         />
