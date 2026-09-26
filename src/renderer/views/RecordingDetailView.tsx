@@ -21,7 +21,7 @@ import {
 import { focusedSegmentIndex } from '../library/transcriptSearch'
 import { isPlaybackToggleKey, nextPlaybackRate, playerMode } from '../library/playback'
 import { voiceLearnedNotice } from '../library/voiceLearning'
-import { resummarizeState, type ResummarizeState } from '../resummarize'
+import { canEditSummary, resummarizeState, type ResummarizeState } from '../resummarize'
 import { failureTooltip, failuresIn, type StepFailure } from '../stepFailure'
 import {
   applyProgressEvent,
@@ -64,6 +64,9 @@ export const RecordingDetailView = ({
   const [tab, setTab] = useState<Tab>('summary')
   const [note, setNote] = useState(detail.note)
   const [noteSaved, setNoteSaved] = useState(true)
+  /** 編集中の要約。undefined なら表示だけ。 */
+  const [summaryDraft, setSummaryDraft] = useState<string>()
+  const [summarySaving, setSummarySaving] = useState(false)
   const [error, setError] = useState<string>()
   const [voiceNotice, setVoiceNotice] = useState<string>()
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -77,6 +80,10 @@ export const RecordingDetailView = ({
     setNote(detail.note)
     setNoteSaved(true)
   }, [recordingId, detail.note])
+
+  useEffect(() => {
+    setSummaryDraft(undefined)
+  }, [recordingId])
 
   // 声紋の登録は名前の反映より遅れて終わる。結果は後から届く。
   useEffect(() => {
@@ -307,6 +314,47 @@ export const RecordingDetailView = ({
     [recordingId, onChanged]
   )
 
+  /**
+   * 再要約は今の要約を置き換える。手で直した跡があるかは持っていないので、
+   * 要約がある限り毎回確かめる。まだ無いなら失うものも無いので聞かない。
+   */
+  const requestResummarize = useCallback(async (): Promise<void> => {
+    try {
+      if (detail.summary && !(await window.recorder.confirmResummarize(recordingId))) return
+    } catch (confirmError: unknown) {
+      setError(messageOf(confirmError))
+      return
+    }
+    retry('summarize')
+  }, [detail.summary, recordingId, retry])
+
+  const retrySummaryStep = useCallback(
+    (step: PipelineStep): void => {
+      if (step === 'summarize') void requestResummarize()
+      else retry(step)
+    },
+    [requestResummarize, retry]
+  )
+
+  const saveSummary = useCallback(async (): Promise<void> => {
+    if (summaryDraft === undefined) return
+    setError(undefined)
+    setSummarySaving(true)
+    try {
+      await window.recorder.updateSummary(recordingId, summaryDraft)
+      setSummaryDraft(undefined)
+      onChanged()
+    } catch (saveError: unknown) {
+      // 書いた内容を捨てないよう、編集欄は開いたままにする。
+      setError(messageOf(saveError))
+    } finally {
+      setSummarySaving(false)
+    }
+  }, [summaryDraft, recordingId, onChanged])
+
+  const summaryEditable = canEditSummary(detail.recording.steps)
+  const editingSummary = summaryDraft !== undefined
+
   return (
     <section className="detail">
       <header className="detail__header">
@@ -464,13 +512,41 @@ export const RecordingDetailView = ({
               </button>
             </div>
 
-            {tab === 'summary' ? (
+            {tab === 'summary' && editingSummary ? (
               <div className="panel__tools">
+                <button
+                  type="button"
+                  className="copy"
+                  onClick={() => setSummaryDraft(undefined)}
+                  disabled={summarySaving}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  className="copy"
+                  onClick={() => void saveSummary()}
+                  disabled={summarySaving}
+                >
+                  {summarySaving ? '保存中…' : '保存'}
+                </button>
+              </div>
+            ) : tab === 'summary' ? (
+              <div className="panel__tools">
+                <button
+                  type="button"
+                  className="copy"
+                  onClick={() => setSummaryDraft(detail.summary ?? '')}
+                  disabled={!summaryEditable}
+                  title={summaryEditable ? '要約を手で直す' : '要約が終わると直せます'}
+                >
+                  編集
+                </button>
                 {/* 話者名を直しても要約は古いままなので、作り直す手段をここに置く。 */}
                 <button
                   type="button"
                   className="copy"
-                  onClick={() => retry('summarize')}
+                  onClick={() => void requestResummarize()}
                   disabled={resummarize !== 'ready'}
                   title={RESUMMARIZE_HINT[resummarize]}
                 >
@@ -483,9 +559,17 @@ export const RecordingDetailView = ({
             )}
           </div>
 
-          {tab === 'summary' ? (
+          {tab === 'summary' && editingSummary ? (
+            <textarea
+              className="note"
+              value={summaryDraft}
+              onChange={(event) => setSummaryDraft(event.target.value)}
+              placeholder="要約を Markdown で書けます"
+              aria-label="要約の編集"
+            />
+          ) : tab === 'summary' ? (
             <>
-              <StepFailures failures={summaryFailures} onRetry={retry} />
+              <StepFailures failures={summaryFailures} onRetry={retrySummaryStep} />
               {detail.summary ? (
                 <div className="summary">
                   <Markdown source={detail.summary} />

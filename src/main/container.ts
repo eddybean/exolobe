@@ -25,6 +25,7 @@ import {
   RenameRecording,
   RenameSpeaker,
   UpdateNote,
+  UpdateSummary,
   UpdateSettings
 } from '@application/usecases/library'
 import { ClearSearchIndex, GetSearchIndexStatus } from '@application/usecases/search'
@@ -76,6 +77,7 @@ export interface Container {
   readonly searchTranscripts: SearchTranscripts
   readonly getRecordingDetail: GetRecordingDetail
   readonly updateNote: UpdateNote
+  readonly updateSummary: UpdateSummary
   readonly renameRecording: RenameRecording
   readonly renameSpeaker: RenameSpeaker
   readonly editSegmentText: EditSegmentText
@@ -166,6 +168,7 @@ export const createContainer = (): Container => {
     searchTranscripts: new SearchTranscripts(library),
     getRecordingDetail: new GetRecordingDetail(library),
     updateNote: new UpdateNote(library),
+    updateSummary: new UpdateSummary(library),
     renameRecording: new RenameRecording(library),
     renameSpeaker: new RenameSpeaker(library),
     editSegmentText: new EditSegmentText(library),

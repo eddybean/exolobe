@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PIPELINE_STEPS } from '@domain/Recording'
-import { resummarizeState } from '@renderer/resummarize'
+import { canEditSummary, resummarizeState } from '@renderer/resummarize'
 
 type Steps = Record<string, { status: string }>
 
@@ -36,5 +36,24 @@ describe('resummarizeState', () => {
 
   it('文字起こしの実行中は、まだ材料が無くても「処理中」として扱う', () => {
     expect(resummarizeState(steps({ transcribe: { status: 'running' } }), false)).toBe('busy')
+  })
+})
+
+describe('canEditSummary', () => {
+  it('要約が済んでいれば手で直せる', () => {
+    expect(canEditSummary(steps())).toBe(true)
+  })
+
+  it('要約に失敗していても、手で書ける', () => {
+    expect(canEditSummary(steps({ summarize: { status: 'failed' } }))).toBe(true)
+  })
+
+  it('要約の実行中は直させない', () => {
+    // 書き終わった直後に生成結果で上書きされ、直した内容が黙って消える。
+    expect(canEditSummary(steps({ summarize: { status: 'running' } }))).toBe(false)
+  })
+
+  it('要約がこれから走る間も直させない', () => {
+    expect(canEditSummary(steps({ summarize: { status: 'pending' } }))).toBe(false)
   })
 })

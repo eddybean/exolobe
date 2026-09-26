@@ -12,6 +12,7 @@ import {
   RememberSpeakerVoice,
   RenameSpeaker,
   UpdateNote,
+  UpdateSummary,
   UpdateSettings
 } from '@application/usecases/library'
 import type { VoiceMemoryResult } from '@application/usecases/library'
@@ -128,6 +129,21 @@ describe('UpdateNote', () => {
     await new UpdateNote(deps).execute({ recordingId: 'rec-1', note: '' })
 
     expect(await artifacts.readNote(recording)).toBe('')
+  })
+})
+
+describe('UpdateSummary', () => {
+  it('手で直した要約を保存する', async () => {
+    await artifacts.writeSummary(recording, '# 要約\n\n- 予算は 2 割減')
+    await new UpdateSummary(deps).execute({ recordingId: 'rec-1', summary: '# 要約\n\n- 予算は 3 割減' })
+
+    expect(await artifacts.readSummary(recording)).toBe('# 要約\n\n- 予算は 3 割減')
+  })
+
+  it('存在しない録音の要約は直せない', async () => {
+    await expect(
+      new UpdateSummary(deps).execute({ recordingId: 'unknown', summary: '要約' })
+    ).rejects.toThrow('録音が見つかりません: unknown')
   })
 })
 

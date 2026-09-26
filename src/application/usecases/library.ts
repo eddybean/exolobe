@@ -103,6 +103,22 @@ export class UpdateNote {
   }
 }
 
+/**
+ * 手で直した要約を保存する。
+ *
+ * 生成した要約と区別して持たない。再要約すれば上書きされるが、それは画面で
+ * 確認を取ってから行う。区別を持つと、要約を読む側（一覧・検索・チャット）が
+ * どちらを見るかを決め直すことになる。
+ */
+export class UpdateSummary {
+  constructor(private readonly deps: LibraryDeps) {}
+
+  async execute(params: { recordingId: string; summary: string }): Promise<void> {
+    const recording = await findOrThrow(this.deps.repository, params.recordingId)
+    await this.deps.artifacts.writeSummary(recording, params.summary)
+  }
+}
+
 export class RenameRecording {
   constructor(private readonly deps: LibraryDeps) {}
 

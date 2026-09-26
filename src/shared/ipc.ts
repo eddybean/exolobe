@@ -340,6 +340,10 @@ export interface RendererApi {
   pathForFile(file: File): string
   onImportProgress(listener: (event: ImportProgressDto) => void): () => void
   updateNote(recordingId: string, note: string): Promise<void>
+  /** 手で直した要約を保存する。再要約すれば上書きされる。 */
+  updateSummary(recordingId: string, summary: string): Promise<void>
+  /** 再要約の前の確認。今の要約が置き換わるので、実行してよければ true を返す。 */
+  confirmResummarize(recordingId: string): Promise<boolean>
   renameRecording(recordingId: string, title: string): Promise<RecordingDto>
   renameSpeaker(recordingId: string, speakerId: string, label: string): Promise<Speaker[]>
   /**
@@ -446,6 +450,8 @@ export const IPC = {
   chooseAudioFilesToImport: 'recordings:chooseImport',
   importProgress: 'recordings:importProgress',
   updateNote: 'recordings:updateNote',
+  updateSummary: 'recordings:updateSummary',
+  confirmResummarize: 'recordings:confirmResummarize',
   renameRecording: 'recordings:rename',
   renameSpeaker: 'recordings:renameSpeaker',
   editSegmentText: 'recordings:editSegmentText',

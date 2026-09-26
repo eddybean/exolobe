@@ -75,6 +75,10 @@ const api: RendererApi = {
 
   updateNote: (recordingId, note) =>
     ipcRenderer.invoke(IPC.updateNote, recordingId, note) as Promise<void>,
+  updateSummary: (recordingId, summary) =>
+    ipcRenderer.invoke(IPC.updateSummary, recordingId, summary) as Promise<void>,
+  confirmResummarize: (recordingId) =>
+    ipcRenderer.invoke(IPC.confirmResummarize, recordingId) as Promise<boolean>,
   renameRecording: (recordingId, title) =>
     ipcRenderer.invoke(IPC.renameRecording, recordingId, title) as Promise<RecordingDto>,
   renameSpeaker: (recordingId, speakerId, label) =>
