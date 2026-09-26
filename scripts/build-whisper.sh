@@ -6,7 +6,7 @@
 # 求めないため、パッケージ作成時にここでビルドして同梱する。
 set -euo pipefail
 
-WHISPER_VERSION="${WHISPER_VERSION:-v1.9.3}"
+WHISPER_VERSION="${WHISPER_VERSION:-v1.9.4}"
 BUILD_DIR="${TMPDIR:-/tmp}/omr-whisper-build"
 OUT_DIR="$(cd "$(dirname "$0")/.." && pwd)/resources/bin"
 
@@ -51,10 +51,10 @@ mkdir -p "$OUT_DIR"
 cp "$BUILD_DIR/build/bin/whisper-cli" "$OUT_DIR/whisper-cli"
 chmod +x "$OUT_DIR/whisper-cli"
 
-# Metal のシェーダは実行時に必要になる場合があるため一緒に置く。
-if [ -f "$BUILD_DIR/build/bin/ggml-metal.metal" ]; then
-  cp "$BUILD_DIR/build/bin/ggml-metal.metal" "$OUT_DIR/"
-fi
+# ggml-metal.metal は運ばない。Metal のシェーダはライブラリへ埋め込まれており、
+# v1.9.4（ggml-org/whisper.cpp#4051）でビルド成果物からも消えた。
+# 古いビルドの残骸が resources/bin にあると同梱物に紛れ込むので消しておく。
+rm -f "$OUT_DIR/ggml-metal.metal"
 
 rm -rf "$BUILD_DIR"
 
