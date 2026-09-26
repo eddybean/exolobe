@@ -542,6 +542,27 @@ export const registerIpcHandlers = (
     searchSync.request()
   })
 
+  handle(IPC.updateSummary, async (id: unknown, summary: unknown): Promise<void> => {
+    await container.updateSummary.execute({
+      recordingId: asString(id, '録音 ID'),
+      summary: typeof summary === 'string' ? summary : ''
+    })
+    // 一覧は要約の 1 行目を出し、意味検索は要約も索引に持つ。どちらも直した内容に揃える。
+    send(IPC.recordingsChanged)
+    searchSync.request()
+  })
+
+  /** 再要約は今の要約を丸ごと置き換える。手で直した内容も戻せない。 */
+  handle(IPC.confirmResummarize, async (id: unknown): Promise<boolean> => {
+    const detail = await container.getRecordingDetail.execute(asString(id, '録音 ID'))
+
+    return confirm({
+      message: `「${detail.recording.title}」を要約し直しますか？`,
+      detail: '今の要約は新しい要約で置き換えられます。手で直した内容も失われ、元に戻せません。',
+      confirmLabel: '再要約'
+    })
+  })
+
   handle(IPC.renameRecording, async (id: unknown, title: unknown): Promise<RecordingDto> => {
     const recording = await container.renameRecording.execute({
       recordingId: asString(id, '録音 ID'),

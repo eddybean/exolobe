@@ -24,3 +24,12 @@ export const resummarizeState = (
 
   return 'ready'
 }
+
+/**
+ * 要約を手で直せるか。要約が走っている間やこれから走る間は、直しても
+ * 生成結果で上書きされて黙って消えるので直させない。
+ * 失敗したときは、生成を諦めて自分で書く道を残す。
+ */
+export const canEditSummary = (
+  steps: Readonly<Record<string, { status: string } | undefined>>
+): boolean => steps.summarize?.status === 'done' || steps.summarize?.status === 'failed'
