@@ -66,7 +66,7 @@ const BUNDLED: readonly ThirdPartyNotice[] = [
     license: 'MIT',
     url: 'https://github.com/ggml-org/whisper.cpp',
     copyright: 'Copyright (c) 2023-2026 The ggml authors',
-    note: 'ビルドした whisper-cli と ggml-metal.metal を同梱しています。'
+    note: 'ビルドした whisper-cli を同梱しています。'
   },
   {
     name: 'llama.cpp',
