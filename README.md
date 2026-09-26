@@ -227,11 +227,20 @@ src/
 ## 開発
 
 ```bash
-npm test         # 465 件（domain / application / infrastructure / 統合）
+npm test         # 1236 件（domain / application / infrastructure / 統合）
 npm run typecheck
 npm run dev
 npm run build
 npm run package  # 配布用の .dmg を作る
+```
+
+`npm test` には含めていない実機確認が [tests/manual/](tests/manual/) にあります。
+システム音声の取得（Core Audio Process Tap）のように、権限と実際に鳴っている音が
+無いと確かめられないものを置いてあり、CI では走りません。audiotee や Electron を
+上げたあとに手元で通してください。
+
+```bash
+npm run test:manual   # 音が鳴るので、会議中は避けてください
 ```
 
 ### リリース
