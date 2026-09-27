@@ -81,6 +81,15 @@ const STEP_DEPENDENCIES: Readonly<Record<PipelineStep, readonly PipelineStep[]>>
  */
 const INTERMEDIATE_CONSUMERS: readonly PipelineStep[] = ['mix', 'transcribe', 'diarize', 'encode']
 
+/**
+ * 素材のトラック（tracks.json と WAV）を読むステップ。
+ *
+ * 要約とエンコードは成果物（transcript.json / mix.wav）しか読まないので含めない。
+ * 要約だけが失敗した録音は中間ファイルを片付け済みで、トラックを前提にすると
+ * 要約のリトライが「録音データが見つかりません」で必ず断られる。
+ */
+const TRACK_CONSUMERS: readonly PipelineStep[] = ['mix', 'transcribe', 'diarize']
+
 const intermediatesDisposable = (steps: StepStates): boolean =>
   INTERMEDIATE_CONSUMERS.every((step) => steps[step].status === 'done')
 
@@ -95,7 +104,8 @@ const STEP_LABELS: Readonly<Record<PipelineStep, string>> = {
 interface StepContext {
   readonly recording: Recording
   readonly settings: Settings
-  readonly tracks: RecordingSource
+  /** トラックを読むステップを含まない実行では undefined（片付け済みでも動けるように）。 */
+  readonly tracks: RecordingSource | undefined
 }
 
 /**
@@ -126,14 +136,13 @@ export class ProcessRecording {
       return this.abort(recording, tooShort)
     }
 
-    const tracks = await this.deps.artifacts.readTracks(recording)
-    if (!tracks) {
-      throw new PipelineStepError('録音データが見つかりません。')
-    }
+    const targets = params.only ?? PIPELINE_STEPS
+    const tracks = targets.some((step) => TRACK_CONSUMERS.includes(step))
+      ? await this.requireTracks(recording)
+      : undefined
 
     const settings = await this.deps.settings.load()
     const context: StepContext = { recording, settings, tracks }
-    const targets = params.only ?? PIPELINE_STEPS
 
     let steps = recording.steps
     for (const step of PIPELINE_STEPS) {
@@ -323,7 +332,7 @@ export class ProcessRecording {
   /** 素材のトラックを時刻整列して 1 本の WAV にまとめる。単一ソースなら 1 本のまま通る。 */
   private async mix({ recording, tracks }: StepContext): Promise<void> {
     await this.deps.mixer.mix({
-      tracks: mixInputs(tracks),
+      tracks: mixInputs(await this.requireTracks(recording, tracks)),
       outputPath: this.mixPath(recording)
     })
   }
@@ -336,7 +345,7 @@ export class ProcessRecording {
     const { language } = settings.transcription
 
     // 直列に回す。whisper を 2 本同時に走らせてもメモリを食うだけで速くならない。
-    const targets = transcriptionTargets(tracks)
+    const targets = transcriptionTargets(await this.requireTracks(recording, tracks))
     const tracked: TranscriptSegment[][] = []
     for (const [index, target] of targets.entries()) {
       tracked.push(
@@ -370,7 +379,7 @@ export class ProcessRecording {
     if (!settings.diarization.enabled) return
 
     const existing = await this.requireTranscript(recording)
-    const wavPath = diarizationTarget(tracks)
+    const wavPath = diarizationTarget(await this.requireTracks(recording, tracks))
     const turns = await this.deps.diarizer.diarize({
       wavPath,
       maxSpeakers: settings.diarization.maxSpeakers
@@ -451,6 +460,18 @@ export class ProcessRecording {
 
   private mixPath(recording: Recording): string {
     return `${this.deps.artifacts.workDir(recording)}/mix.wav`
+  }
+
+  /** 読み込み済みならそれを使い、無ければ読む。どちらでも無ければ断る。 */
+  private async requireTracks(
+    recording: Recording,
+    loaded?: RecordingSource
+  ): Promise<RecordingSource> {
+    const tracks = loaded ?? (await this.deps.artifacts.readTracks(recording))
+    if (!tracks) {
+      throw new PipelineStepError('録音データが見つかりません。')
+    }
+    return tracks
   }
 
   private async requireTranscript(
