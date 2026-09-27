@@ -248,6 +248,17 @@ const CUT_SEARCH_MS = 1_000
  */
 const LONG_GAP_MS = 3_000
 
+/**
+ * 発言の端が区間に掛かる長さがこれに満たなければ、その区間はまたいでいないものとして扱う（元の時間軸）。
+ *
+ * whisper の発言の開始・終了も、トークンと同じく区間の境目からずれる。実測（公開コーパスの発話を
+ * 4〜40 秒の雑音で挟んだ長尺音声）では、発言の頭やお尻が隣の区間に 10〜140ms だけ掛かり、
+ * その区間との境目が長い無音なので語の途中で切られていた（「病|院の」「主張|しました。」
+ * 「ジャ|ンカルド」）。掛かった分には実際の発話が載っていないので、境目ごと無かったことにする。
+ * 本物の発話が 0.3 秒に満たないまま区間の端に残るのは相槌 1 つ程度で、外しても文字は隣の発言に残る。
+ */
+const EDGE_OVERLAP_MS = 300
+
 const SENTENCE_END = /[。．.？?！!]$/
 const CLAUSE_END = /[、，,]$/
 const PUNCTUATION_ONLY = /^[\s。．.？?！!、，,…]+$/
@@ -309,7 +320,27 @@ const splitAtVadGaps = (piece: SegmentPiece, spans: readonly VadSpan[]): Segment
   const covered = spans.filter(
     (span) => span.origStartMs < piece.endMs && span.origEndMs > piece.startMs
   )
-  if (covered.length < 2) return [piece]
+  const grazes = (span: VadSpan | undefined): boolean =>
+    covered.length >= 2 &&
+    span !== undefined &&
+    Math.min(span.origEndMs, piece.endMs) - Math.max(span.origStartMs, piece.startMs) <
+      EDGE_OVERLAP_MS
+  const grazedHead = grazes(covered[0])
+  if (grazedHead) covered.shift()
+  const grazedTail = grazes(covered[covered.length - 1])
+  if (grazedTail) covered.pop()
+  if (covered.length < 2) {
+    const only = covered[0]
+    if (!only) return [piece]
+    // 外した区間の側の端だけを、残った区間に収める。外していない側は whisper の時刻の方が細かい。
+    return [
+      {
+        ...piece,
+        startMs: grazedHead ? Math.max(piece.startMs, only.origStartMs) : piece.startMs,
+        endMs: grazedTail ? Math.min(piece.endMs, only.origEndMs) : piece.endMs
+      }
+    ]
+  }
 
   const words = piece.tokens.filter((token) => !SPECIAL_TOKEN.test(token.text ?? ''))
   const timed = words.flatMap((token): TimedToken[] => {

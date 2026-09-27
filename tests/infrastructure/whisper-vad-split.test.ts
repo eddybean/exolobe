@@ -255,6 +255,102 @@ describe('parseWhisperJson（トークンの時刻のずれ）', () => {
     ])
   })
 
+  /**
+   * ReazonSpeech / FLEURS のクリップを 4〜40 秒の雑音の間で並べた長尺音声の実測。whisper の発言の頭が、
+   * 12 秒前に終わった区間のお尻に数十 ms だけ掛かっていた。区間の境目 51900 に最も近いトークンの
+   * 切れ目は「ジャ|ン」で、「ジャ」だけが 206070-206110 の発言になっていた。
+   */
+  it('発言の頭が前の区間に数十 ms だけ掛かっても、語の途中で切って頭を前の区間に残さない', () => {
+    const spans = [
+      { origStartMs: 198_630, origEndMs: 206_110, vadStartMs: 44_320, vadEndMs: 51_800 },
+      { origStartMs: 218_820, origEndMs: 225_050, vadStartMs: 52_000, vadEndMs: 58_230 }
+    ]
+    const raw = JSON.stringify({
+      transcription: [
+        {
+          offsets: { from: 206_070, to: 224_900 },
+          text: 'ジャンカルド・フィジケラが優勝した。',
+          tokens: [
+            token('[_BEG_]', 51_760, 51_760),
+            token('ジャ', 51_790, 51_850),
+            token('ン', 51_890, 52_000),
+            token('カルド', 52_000, 52_400),
+            token('・', 52_400, 52_500),
+            token('フィジケラ', 52_500, 53_600),
+            token('が', 53_600, 53_800),
+            token('優勝した', 53_800, 57_600),
+            token('。', 57_600, 58_100)
+          ]
+        }
+      ]
+    })
+
+    expect(parseWhisperJson(raw, 'r', undefined, spans)).toEqual([
+      {
+        startMs: 218_820,
+        endMs: 224_900,
+        speakerId: 'r',
+        text: 'ジャンカルド・フィジケラが優勝した。'
+      }
+    ])
+  })
+
+  it('発言のお尻が次の区間に数十 ms だけ掛かっても、文末を次の区間へ送らない', () => {
+    // 実測では「…無罪を主張」が 206880-215840、「しました。」が 36 秒後ろの 252350-252360 になった
+    const spans = [
+      { origStartMs: 205_700, origEndMs: 215_840, vadStartMs: 80_000, vadEndMs: 90_140 },
+      { origStartMs: 252_350, origEndMs: 258_000, vadStartMs: 90_340, vadEndMs: 95_990 }
+    ]
+    const raw = JSON.stringify({
+      transcription: [
+        {
+          offsets: { from: 206_880, to: 252_360 },
+          text: '被告は無罪を主張しました。',
+          tokens: [
+            token('被告', 81_180, 81_900),
+            token('は', 81_900, 82_100),
+            token('無罪', 82_100, 84_000),
+            token('を', 84_000, 84_300),
+            token('主張', 84_300, 90_150),
+            token('しました', 90_190, 90_330),
+            token('。', 90_330, 90_350)
+          ]
+        }
+      ]
+    })
+
+    expect(parseWhisperJson(raw, 'r', undefined, spans)).toEqual([
+      { startMs: 206_880, endMs: 215_840, speakerId: 'r', text: '被告は無罪を主張しました。' }
+    ])
+  })
+
+  it('発言の頭とお尻が前後の区間に掛かっても、1 つの区間の発言に収める', () => {
+    // 実測では「これ」「でいき」「ましょう。」の 3 つに割れ、「ましょう。」は 12 秒後ろへ送られた
+    const spans = [
+      { origStartMs: 370_000, origEndMs: 376_160, vadStartMs: 10_000, vadEndMs: 16_160 },
+      { origStartMs: 406_590, origEndMs: 413_340, vadStartMs: 16_360, vadEndMs: 23_110 },
+      { origStartMs: 418_590, origEndMs: 425_000, vadStartMs: 23_310, vadEndMs: 29_720 }
+    ]
+    const raw = JSON.stringify({
+      transcription: [
+        {
+          offsets: { from: 376_020, to: 418_600 },
+          text: 'これでいきましょう。',
+          tokens: [
+            token('これ', 16_020, 16_300),
+            token('でいき', 16_300, 21_000),
+            token('ましょう', 21_000, 23_300),
+            token('。', 23_300, 23_320)
+          ]
+        }
+      ]
+    })
+
+    expect(parseWhisperJson(raw, 'r', undefined, spans)).toEqual([
+      { startMs: 406_590, endMs: 413_340, speakerId: 'r', text: 'これでいきましょう。' }
+    ])
+  })
+
   it('短い間で割れた区間の境目は、読点では切らない（文の途中の息継ぎ）', () => {
     // 同じ音声の並びを変えた実測で、0.22 秒の間が「検索は、」と「インデックスの…」を割った
     const spans = [
