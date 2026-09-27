@@ -56,6 +56,17 @@ export const dismissStartWatch = (state: StartWatchState): StartWatchState => ({
 })
 
 /**
+ * 黙っている状態を解き、使い続けていた時間はそのままに判定し直せるようにする。
+ *
+ * 会議の予定が新たに現れたときに使う（ADR-041）。会議前の音声入力などで一度知らせて
+ * 黙っていても、それは会議についての判断ではない。予定という新しい根拠が出たら改めて判定する。
+ */
+export const reopenStartWatch = (state: StartWatchState): StartWatchState => ({
+  ...state,
+  silenced: false
+})
+
+/**
  * マイクの使用状態を 1 つ観測し、知らせるべきかを返す。
  *
  * 知らせた後は自動的に silenced になり、マイクが空いたところで計測をやり直す。

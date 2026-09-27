@@ -38,6 +38,14 @@ describe('defaultSettings', () => {
     expect(settings.search.enabled).toBe(false)
     expect(settings.search.modelPath).toBe('')
   })
+
+  it('カレンダー連携と録音の自動開始は既定で切にする', () => {
+    const { recording } = defaultSettings()
+
+    // 自動開始は ADR-025 / ADR-027 の「勝手に始めない」を外す選択なので、利用者が選んだときだけ（ADR-041）。
+    expect(recording.calendarEnabled).toBe(false)
+    expect(recording.autoStartEnabled).toBe(false)
+  })
 })
 
 describe('isConfigured', () => {

@@ -101,7 +101,7 @@ export const SettingsView = ({
 
           <Field
             label="マイクが使われていたら録音を促す"
-            hint="他のアプリがマイクを使い続けているとき、録音の開始忘れを知らせます。自動では開始しません。"
+            hint="他のアプリがマイクを使い続けているとき、録音の開始忘れを知らせます。自動では開始しません（会議の予定での自動開始は、下のカレンダー連携で選べます）。"
           >
             <input
               type="checkbox"
@@ -125,7 +125,9 @@ export const SettingsView = ({
 
         <CalendarSettings
           enabled={settings.recording.calendarEnabled}
+          autoStartEnabled={settings.recording.autoStartEnabled}
           onChange={(calendarEnabled) => update({ recording: { calendarEnabled } })}
+          onAutoStartChange={(autoStartEnabled) => update({ recording: { autoStartEnabled } })}
         />
       </>
     ),

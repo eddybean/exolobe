@@ -7,7 +7,7 @@ import { createTransportRequests } from '../../src/main/transportRequests'
  * 相手の声だけが録れ、自分の声が抜ける。
  */
 const setup = (options: { renderer?: boolean; active?: boolean } = {}) => {
-  const calls = { notified: 0, opened: 0, stoppedDirectly: 0 }
+  const calls = { notified: 0, opened: 0, stoppedDirectly: 0, discardedDirectly: 0 }
   let nowMs = 0
   let active = options.active ?? false
   const requests = createTransportRequests({
@@ -15,6 +15,7 @@ const setup = (options: { renderer?: boolean; active?: boolean } = {}) => {
     notifyRenderer: () => void calls.notified++,
     openWindow: () => void calls.opened++,
     stopWithoutRenderer: async () => void calls.stoppedDirectly++,
+    discardWithoutRenderer: async () => void calls.discardedDirectly++,
     isActive: () => active,
     now: () => nowMs
   })
@@ -83,5 +84,23 @@ describe('createTransportRequests', () => {
     advance(60_000)
 
     expect(requests.take()).toBeUndefined()
+  })
+
+  it('破棄も停止と同じく renderer に回す（マイクを離させてから消す、ADR-041）', () => {
+    const { requests, calls } = setup({ active: true })
+
+    requests.request('discard')
+
+    expect(calls.notified).toBe(1)
+    expect(requests.take()).toBe('discard')
+  })
+
+  it('renderer が無いときの破棄は main で済ませる', () => {
+    const { requests, calls } = setup({ renderer: false, active: true })
+
+    requests.request('discard')
+
+    expect(calls.discardedDirectly).toBe(1)
+    expect(calls.opened).toBe(0)
   })
 })

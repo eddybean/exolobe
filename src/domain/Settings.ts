@@ -92,6 +92,12 @@ export interface RecordingSettings {
    * カレンダーの権限を求めることになるので、利用者が選んだときだけ使う（ADR-040）。
    */
   readonly calendarEnabled: boolean
+  /**
+   * 会議の URL を含む予定の時間帯にマイクが使われたら、録音を自動で始めるかどうか（ADR-041）。
+   * カレンダー連携が切なら効かない。ADR-025 / ADR-027 の「勝手に始めない」を利用者が
+   * 自分で外す選択なので、既定は切。
+   */
+  readonly autoStartEnabled: boolean
 }
 
 export interface DiarizationSettings {
@@ -195,7 +201,8 @@ export const defaultSettings = (): Settings => ({
     // 1 分半。短い音声入力や着信の確認では届かず、会議の冒頭を取り逃さない長さ。
     startAlertDelayMs: 90_000,
     globalShortcutEnabled: true,
-    calendarEnabled: false
+    calendarEnabled: false,
+    autoStartEnabled: false
   },
   transcription: {
     provider: 'whisper-cpp',

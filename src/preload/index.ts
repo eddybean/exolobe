@@ -28,6 +28,7 @@ import {
   type SetupStateDto,
   type SilenceAlertDto,
   type StartAlertDto,
+  type AutoStartedDto,
   type TransportRequestDto,
   type TransportStateDto
 } from '@shared/ipc'
@@ -50,6 +51,7 @@ const api: RendererApi = {
   startRecording: (title) =>
     ipcRenderer.invoke(IPC.startRecording, title) as Promise<RecordingDto>,
   stopRecording: () => ipcRenderer.invoke(IPC.stopRecording) as Promise<RecordingDto>,
+  discardRecording: () => ipcRenderer.invoke(IPC.discardRecording) as Promise<void>,
   getTransportState: () =>
     ipcRenderer.invoke(IPC.getTransportState) as Promise<TransportStateDto>,
   getSystemAudioLevel: () => ipcRenderer.invoke(IPC.getSystemAudioLevel) as Promise<number>,
@@ -133,6 +135,7 @@ const api: RendererApi = {
   onTransportChanged: (listener) => subscribe<TransportStateDto>(IPC.transportChanged, listener),
   onSilenceAlert: (listener) => subscribe<SilenceAlertDto>(IPC.silenceAlert, listener),
   onStartAlert: (listener) => subscribe<StartAlertDto>(IPC.startAlert, listener),
+  onAutoStarted: (listener) => subscribe<AutoStartedDto>(IPC.autoStarted, listener),
   onTransportRequested: (listener) => subscribe(IPC.transportRequested, () => listener()),
   onModelProgress: (listener) => subscribe<ModelProgressDto>(IPC.modelProgress, listener),
   onVoiceLearned: (listener) => subscribe<VoiceLearnedDto>(IPC.voiceLearned, listener),

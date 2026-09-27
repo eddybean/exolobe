@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { SilenceAlertDto, StartAlertDto, TransportStateDto } from '@shared/ipc'
+import type { AutoStartedDto, SilenceAlertDto, StartAlertDto, TransportStateDto } from '@shared/ipc'
 import { startMicCapture, type MicCapture } from '../audio/micCapture'
 import { messageOf } from '../errorMessage'
 import { readInputLevel } from '../session/readInputLevel'
@@ -22,8 +22,14 @@ export interface Transport {
   readonly startAlert: StartAlertDto | undefined
   /** 録音を促す知らせに対して「今はしない」を選ぶ。 */
   skipRecording(): void
+  /** 会議の予定を見て録音を自動で始めたことの知らせ（ADR-041）。録音中だけ出す。 */
+  readonly autoStarted: AutoStartedDto | undefined
+  /** 自動で始めた知らせに対して「続ける」を選ぶ。 */
+  keepAutoStarted(): void
   start(title?: string): Promise<void>
   stop(): Promise<void>
+  /** 録音を止め、何も残さずに消す（「停止して破棄」）。 */
+  discard(): Promise<void>
   dismissError(): void
 }
 
@@ -43,6 +49,7 @@ export const useTransport = (sampleRate: number): Transport => {
   const [warning, setWarning] = useState<string>()
   const [silenceAlert, setSilenceAlert] = useState<SilenceAlertDto>()
   const [startAlert, setStartAlert] = useState<StartAlertDto>()
+  const [autoStarted, setAutoStarted] = useState<AutoStartedDto>()
 
   const mic = useRef<MicCapture | undefined>(undefined)
 
@@ -53,10 +60,14 @@ export const useTransport = (sampleRate: number): Transport => {
 
   useEffect(() => window.recorder.onSilenceAlert(setSilenceAlert), [])
   useEffect(() => window.recorder.onStartAlert(setStartAlert), [])
+  useEffect(() => window.recorder.onAutoStarted(setAutoStarted), [])
 
   // 録音が終われば知らせる相手がいない。次の録音へ持ち越さない。
   useEffect(() => {
-    if (!state.active) setSilenceAlert(undefined)
+    if (!state.active) {
+      setSilenceAlert(undefined)
+      setAutoStarted(undefined)
+    }
   }, [state.active])
 
   // 録音が始まれば促す理由が無くなる。バーを残さない。
@@ -164,13 +175,28 @@ export const useTransport = (sampleRate: number): Transport => {
     }
   }, [busy, releaseMic])
 
+  const discard = useCallback(async (): Promise<void> => {
+    if (busy) return
+    setBusy(true)
+
+    try {
+      await releaseMic()
+      await window.recorder.discardRecording()
+      setWarning(undefined)
+    } catch (discardError: unknown) {
+      setError(messageOf(discardError))
+    } finally {
+      setBusy(false)
+    }
+  }, [busy, releaseMic])
+
   // main から回ってきた開始・停止（メニュー・トレイ・通知・ショートカット）は、
   // マイクの取得・解放を含むこの手順で行う。main が直接始めると自分の声が録れない。
   // 購読し直さずに最新の start/stop を呼べるよう、参照を通す。
-  const actions = useRef({ start, stop })
+  const actions = useRef({ start, stop, discard })
   useEffect(() => {
-    actions.current = { start, stop }
-  }, [start, stop])
+    actions.current = { start, stop, discard }
+  }, [start, stop, discard])
 
   useEffect(() => {
     const handle = (): void => {
@@ -179,6 +205,7 @@ export const useTransport = (sampleRate: number): Transport => {
         .then((action) => {
           if (action === 'start') return actions.current.start()
           if (action === 'stop') return actions.current.stop()
+          if (action === 'discard') return actions.current.discard()
           return undefined
         })
         .catch((requestError: unknown) => setError(messageOf(requestError)))
@@ -200,8 +227,11 @@ export const useTransport = (sampleRate: number): Transport => {
     warning,
     silenceAlert,
     startAlert,
+    autoStarted,
+    keepAutoStarted: () => setAutoStarted(undefined),
     start,
     stop,
+    discard,
     keepRecording,
     skipRecording,
     dismissError: () => setError(undefined)

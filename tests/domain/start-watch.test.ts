@@ -4,6 +4,7 @@ import {
   dismissStartWatch,
   initialStartWatch,
   observeMicUsage,
+  reopenStartWatch,
   type StartWatchState
 } from '../../src/domain/StartWatch'
 
@@ -99,5 +100,19 @@ describe('observeMicUsage', () => {
 
     const after = feed(dismissed, busyFor(95_000, 60))
     expect(after.alerts).toBe(0)
+  })
+
+  it('黙っている間に会議が始まったら、使い続けていた時間ごと判定し直せる（ADR-041）', () => {
+    // 会議の前の音声入力などで一度知らせ、黙っている。
+    const alerted = feed(initialStartWatch(), [...busyFor(0, 18), { inUse: true, atMs: 90_000 }])
+
+    const reopened = feed(reopenStartWatch(alerted.state), [{ inUse: true, atMs: 95_000 }])
+
+    // 使用は 0ms から続いているので、数え直さずにすぐ判定が届く。
+    expect(reopened.alerts).toBe(1)
+  })
+
+  it('計測していない状態を開き直しても何も起きない', () => {
+    expect(reopenStartWatch(initialStartWatch())).toEqual(initialStartWatch())
   })
 })

@@ -71,7 +71,7 @@ export type CalendarPermissionDto =
   | 'unknown'
 
 /** main から renderer へ回す録音の操作。 */
-export type TransportRequestDto = 'start' | 'stop'
+export type TransportRequestDto = 'start' | 'stop' | 'discard'
 
 /** 録音中に UI が表示する状態。 */
 export interface TransportStateDto {
@@ -95,8 +95,16 @@ export interface SilenceAlertDto {
  * 勝手には始めず、UI に確認を出させる。
  */
 export interface StartAlertDto {
-  /** マイクが使われているとみなした継続時間（設定値）。 */
+  /** マイクが使われているとみなした継続時間。 */
   readonly micBusyDurationMs: number
+  /** 根拠にした会議の予定の名前（ADR-041）。予定が無ければ無い。 */
+  readonly eventTitle?: string
+}
+
+/** 会議の予定とマイクの使用が揃ったので、録音を自動で始めた（ADR-041）。 */
+export interface AutoStartedDto {
+  readonly recordingId: string
+  readonly eventTitle: string
 }
 
 /** モデル取得の進捗。UI はこれで各行のバーを描く。 */
@@ -318,6 +326,8 @@ export interface RendererApi {
   getRecording(id: string): Promise<RecordingDetailDto>
   startRecording(title?: string): Promise<RecordingDto>
   stopRecording(): Promise<RecordingDto>
+  /** 録音を止め、パイプラインにかけずに消す（「停止して破棄」、ADR-041）。 */
+  discardRecording(): Promise<void>
   getTransportState(): Promise<TransportStateDto>
   /**
    * デスクトップ音声の入力レベル（0〜1）。録音中に UI が定期的に取りに来る。
@@ -411,6 +421,7 @@ export interface RendererApi {
   onTransportChanged(listener: (state: TransportStateDto) => void): () => void
   onSilenceAlert(listener: (event: SilenceAlertDto) => void): () => void
   onStartAlert(listener: (event: StartAlertDto) => void): () => void
+  onAutoStarted(listener: (event: AutoStartedDto) => void): () => void
   /** 録音の開始・停止の依頼が置かれた。中身は takeTransportRequest で受け取る。 */
   onTransportRequested(listener: () => void): () => void
   onModelProgress(listener: (event: ModelProgressDto) => void): () => void
@@ -457,6 +468,8 @@ export const IPC = {
   getRecording: 'recordings:get',
   startRecording: 'transport:start',
   stopRecording: 'transport:stop',
+  discardRecording: 'transport:discard',
+  autoStarted: 'transport:autoStarted',
   getTransportState: 'transport:state',
   getSystemAudioLevel: 'transport:systemLevel',
   silenceAlert: 'transport:silenceAlert',

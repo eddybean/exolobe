@@ -81,13 +81,20 @@ func attendeeJSON(_ participant: EKParticipant) -> [String: Any] {
 }
 
 func eventJSON(_ event: EKEvent) -> [String: Any] {
-  [
+  var json: [String: Any] = [
     "title": event.title ?? "",
     "startMs": Int64(event.startDate.timeIntervalSince1970 * 1000),
     "endMs": Int64(event.endDate.timeIntervalSince1970 * 1000),
     "allDay": event.isAllDay,
     "attendees": (event.attendees ?? []).map(attendeeJSON),
   ]
+  // 会議の URL がどこに入るかはサービスによって違う（Google は本文、Outlook は場所や URL 欄）。
+  // 判定はアプリ側（MeetingStart）で行い、ここでは素のまま渡す（ADR-041）。
+  if let id = event.eventIdentifier { json["id"] = id }
+  if let url = event.url { json["url"] = url.absoluteString }
+  if let location = event.location { json["location"] = location }
+  if let notes = event.notes { json["notes"] = notes }
+  return json
 }
 
 func printEvents(fromMs: Double, toMs: Double) {

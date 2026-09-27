@@ -31,6 +31,34 @@ describe('parseCalendarEvents', () => {
     ])
   })
 
+  it('会議の URL を探すための識別子・URL・場所・本文も読む', () => {
+    const [event] = parseCalendarEvents(
+      JSON.stringify([
+        {
+          ...helperEvent,
+          id: 'EK-1',
+          url: 'https://meet.google.com/abc-defg-hij',
+          location: '会議室 A',
+          notes: '議題は前回の続き'
+        }
+      ])
+    )
+
+    expect(event).toMatchObject({
+      id: 'EK-1',
+      url: 'https://meet.google.com/abc-defg-hij',
+      location: '会議室 A',
+      notes: '議題は前回の続き'
+    })
+  })
+
+  it('識別子や URL が文字列でなければ、無いものとして読む', () => {
+    const [event] = parseCalendarEvents(JSON.stringify([{ ...helperEvent, id: 1, notes: null }]))
+
+    expect(event).not.toHaveProperty('id')
+    expect(event).not.toHaveProperty('notes')
+  })
+
   it('名前もメールも無い参加者は、欠けたまま読む', () => {
     const [event] = parseCalendarEvents(
       JSON.stringify([{ ...helperEvent, attendees: [{ isSelf: true, status: 'accepted', kind: 'person' }] }])

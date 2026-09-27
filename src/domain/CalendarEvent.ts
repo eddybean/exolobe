@@ -21,11 +21,20 @@ export interface CalendarAttendee {
 }
 
 export interface CalendarEvent {
+  /**
+   * カレンダー側の識別子。繰り返しの予定では回ごとに同じ値になり得るので、
+   * 予定を区別するときは開始時刻と組にする（MeetingStart の meetingEventKey）。
+   */
+  readonly id?: string | undefined
   readonly title: string
   readonly startsAt: Date
   readonly endsAt: Date
   readonly allDay: boolean
   readonly attendees: readonly CalendarAttendee[]
+  /** 会議の URL を探す場所（ADR-041）。どこに入るかはカレンダーのサービスによって違う。 */
+  readonly url?: string | undefined
+  readonly location?: string | undefined
+  readonly notes?: string | undefined
 }
 
 /**
