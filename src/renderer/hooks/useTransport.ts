@@ -2,13 +2,22 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AutoStartedDto, SilenceAlertDto, StartAlertDto, TransportStateDto } from '@shared/ipc'
 import { startMicCapture, type MicCapture } from '../audio/micCapture'
 import { messageOf } from '../errorMessage'
-import { readInputLevel } from '../session/readInputLevel'
+import { combinedLevel, readTrackLevels } from '../session/readInputLevel'
 import { startRecordingSession } from '../session/startRecordingSession'
+
+export interface TrackLevels {
+  readonly mic: number | undefined
+  readonly system: number
+}
+
+const SILENT: TrackLevels = { mic: undefined, system: 0 }
 
 export interface Transport {
   readonly state: TransportStateDto
   readonly elapsedMs: number
   readonly level: number
+  /** 録音中の画面で 2 トラックを分けて出すためのレベル。マイクが取れていなければ mic は undefined。 */
+  readonly levels: TrackLevels
   readonly busy: boolean
   /** 録音を開始できなかった、あるいは停止に失敗した。 */
   readonly error: string | undefined
@@ -43,7 +52,7 @@ export interface Transport {
 export const useTransport = (sampleRate: number): Transport => {
   const [state, setState] = useState<TransportStateDto>({ active: false })
   const [elapsedMs, setElapsedMs] = useState(0)
-  const [level, setLevel] = useState(0)
+  const [levels, setLevels] = useState<TrackLevels>(SILENT)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [warning, setWarning] = useState<string>()
@@ -79,7 +88,7 @@ export const useTransport = (sampleRate: number): Transport => {
   useEffect(() => {
     if (!state.active || state.startedAtMs === undefined) {
       setElapsedMs(0)
-      setLevel(0)
+      setLevels(SILENT)
       return
     }
 
@@ -94,13 +103,13 @@ export const useTransport = (sampleRate: number): Transport => {
       if (reading) return
 
       reading = true
-      void readInputLevel({
+      void readTrackLevels({
         micLevel: mic.current?.level,
         systemLevel: window.recorder.getSystemAudioLevel
       }).then((next) => {
         reading = false
         // 取得は非同期なので、録音が終わった後の結果でメーターを戻さない。
-        if (!stopped) setLevel(next)
+        if (!stopped) setLevels(next)
       })
     }, 200)
 
@@ -221,7 +230,8 @@ export const useTransport = (sampleRate: number): Transport => {
   return {
     state,
     elapsedMs,
-    level,
+    level: combinedLevel(levels),
+    levels,
     busy,
     error,
     warning,

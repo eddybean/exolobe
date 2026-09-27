@@ -16,11 +16,13 @@ import { useChat } from './hooks/useChat'
 import { useFileDrop } from './hooks/useFileDrop'
 import { useLibraryWidth } from './hooks/useLibraryWidth'
 import { isSemanticSearchAvailable } from './library/semanticSearch'
+import { showsLiveView } from './library/liveNotes'
 import { TransportBar } from './components/TransportBar'
 import { useTransport } from './hooks/useTransport'
 import { ChatView } from './views/ChatView'
 import { OnboardingView } from './views/OnboardingView'
 import { RecordingDetailView } from './views/RecordingDetailView'
+import { RecordingLiveView } from './views/RecordingLiveView'
 import { SettingsView } from './views/SettingsView'
 
 type Screen = 'library' | 'chat' | 'settings' | 'onboarding'
@@ -319,7 +321,14 @@ export const App = (): ReactElement => {
               onSelectFolder={setFolderKey}
             />
             <PaneResizer pane={libraryWidth} onDraggingChange={setResizingLibrary} />
-            {detail ? (
+            {detail && showsLiveView(detail.recording, transport.state) ? (
+              <RecordingLiveView
+                key={detail.recording.id}
+                detail={detail}
+                transport={transport}
+                onChanged={() => void refreshDetail()}
+              />
+            ) : detail ? (
               <RecordingDetailView
                 detail={detail}
                 focus={focus?.recordingId === detail.recording.id ? focus : undefined}
