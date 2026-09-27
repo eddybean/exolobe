@@ -1,7 +1,7 @@
 # Exolobe
 
-[![CI](https://github.com/eddybean/duoscribe/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eddybean/duoscribe/actions/workflows/ci.yml)
-[![Release](https://github.com/eddybean/duoscribe/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/eddybean/duoscribe/actions/workflows/release.yml)
+[![CI](https://github.com/eddybean/exolobe/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eddybean/exolobe/actions/workflows/ci.yml)
+[![Release](https://github.com/eddybean/exolobe/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/eddybean/exolobe/actions/workflows/release.yml)
 
 Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし・話者識別・要約までを
 この Mac の中だけで**行うデスクトップアプリ。音声もテキストも外部には送信しません。
@@ -46,7 +46,7 @@ Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし�
 
 ## インストール方法
 
-[Releases ページ](https://github.com/eddybean/duoscribe/releases/latest) から最新の
+[Releases ページ](https://github.com/eddybean/exolobe/releases/latest) から最新の
 `.dmg` をダウンロードし、`Exolobe.app` を「アプリケーション」フォルダへドラッグします。
 
 配布版は Apple Developer 証明書による署名・公証をしていない（ad-hoc 署名）ため、
