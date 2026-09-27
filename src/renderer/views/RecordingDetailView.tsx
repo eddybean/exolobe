@@ -557,18 +557,18 @@ export const RecordingDetailView = ({
                   >
                     {formatDuration(segment.startMs)}
                   </button>
-                  {bookmarked.has(index) && (
-                    <span className="segment__bookmark" title="録音中に印をつけた発言">
-                      <FlagIcon />
-                      録音中に印
-                    </span>
-                  )}
                   <EditableSpeaker
                     label={labels.get(segment.speakerId) ?? segment.speakerId}
                     tone={tones.get(segment.speakerId)}
                     suggestions={suggestions.get(segment.speakerId)}
                     onCommit={(label) => renameSpeaker(segment.speakerId, label)}
                   />
+                  {bookmarked.has(index) && (
+                    <span className="segment__bookmark" title="録音中に印をつけた発言">
+                      <FlagIcon />
+                      録音中に印
+                    </span>
+                  )}
                   <EditableSegmentText
                     text={segment.text}
                     blocker={editBlocker}

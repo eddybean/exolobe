@@ -1929,6 +1929,11 @@ code {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 10%, transparent);
 }
 
+/* 印の札は話者名の後ろに置く。桁を 1 つ増やして、話者名と同じ段に収める。 */
+.segment:has(> .segment__bookmark) {
+  grid-template-columns: auto auto 1fr;
+}
+
 .segment__bookmark {
   display: inline-flex;
   align-items: center;

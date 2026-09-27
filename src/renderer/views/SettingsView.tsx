@@ -303,7 +303,7 @@ export const SettingsView = ({
     summarization: (
       <>
         <SettingsCard title="要約の作り方">
-          <Field label="要約プロンプト" hint="{{transcript}} の位置に文字起こしが差し込まれます。">
+          <Field label="要約プロンプト" hint="{{transcript}} の位置に文字起こしが、{{notes}} の位置に録音中のメモと印が差し込まれます（{{notes}} が無ければ末尾に付きます）。">
             <textarea
               className="settings__prompt"
               defaultValue={settings.summarization.promptTemplate}

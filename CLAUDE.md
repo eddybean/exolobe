@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Exolobe** — macOS 向けの Web 会議録音アプリ（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜039）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜042）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -134,7 +134,7 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 
 - 録音の成果物 → 設定の保存先ルート配下、1 録音 = 1 ディレクトリ
   （`meta.json` / `audio.m4a` / `transcript.json` / `transcript.md` / `summary.md` / `note.md` /
-  `voices.json` = 話者ごとの声紋）。
+  `voices.json` = 話者ごとの声紋 / `bookmarks.json` = 録音中の印）。
   一覧キャッシュは `index.json`、フォルダ定義は `folders.json`、声紋帳は `voiceprints.json`。
   `index.json` は各 `meta.json` から再構築できるキャッシュに過ぎない（ADR-015）。
   `voiceprints.json` は**再生成できない**ので、キャッシュとして扱わない（ADR-031）。
@@ -197,6 +197,9 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 - 録音の自動開始（ADR-041）は**会議 URL 付きの予定があるときだけ**。予定の無いマイク使用で自動開始させない
   （ADR-027 が避けた誤録音が戻る）。自動で始めた・止めた・破棄した会議は `meetingLookup` が扱い終えとして覚え、
   同じ会議で始め直さない。破棄は `DiscardRecording` を通し、停止 → 削除の 2 手にしない（間にパイプラインが走る）。
+- 録音中のメモの時刻は **note.md の本文に `[hh:mm:ss]` で埋める**（ADR-042）。別ファイルに行と対応づけて持たない
+  （録音後の編集で対応が崩れる）。印は `bookmarks.json`。要約には `{{notes}}` で渡すが必須にはしない
+  （足す前に保存したプロンプトがあるため、無ければ末尾に付ける）。
 - 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、
   外したときに「自分が言っていない発言」が残る（ADR-030）。変換は取り込み時に `afconvert` で
   16kHz モノラルにし、`--mix` を外さない（片チャンネルを捨てると話者が丸ごと消える）。
