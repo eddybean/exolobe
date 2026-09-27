@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { failureTooltip, failuresIn, stepFailure } from '@renderer/stepFailure'
+import { failureTooltip, failuresIn, queuedIn, stepFailure } from '@renderer/stepFailure'
 
 /**
  * ステップバッヂはエラー文言を中に描かなくなった（省略されて読めないため）。
@@ -117,5 +117,19 @@ describe('failuresIn', () => {
 
     expect(failuresIn('audio', failed).map((failure) => failure.step)).toEqual(['mix', 'encode'])
     expect(failuresIn('transcript', failed)).toEqual([])
+  })
+})
+
+describe('queuedIn', () => {
+  it('再実行を受け付けたステップを、失敗を出していた欄に出す', () => {
+    const queued = steps({ summarize: { status: 'queued' } })
+
+    expect(queuedIn('summary', queued)).toEqual([{ step: 'summarize', label: '要約' }])
+    expect(queuedIn('transcript', queued)).toEqual([])
+    expect(failuresIn('summary', queued)).toEqual([])
+  })
+
+  it('順番待ちが無ければ何も出さない', () => {
+    expect(queuedIn('audio', steps({ encode: { status: 'running' } }))).toEqual([])
   })
 })

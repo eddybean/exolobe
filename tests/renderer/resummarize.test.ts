@@ -37,6 +37,14 @@ describe('resummarizeState', () => {
   it('文字起こしの実行中は、まだ材料が無くても「処理中」として扱う', () => {
     expect(resummarizeState(steps({ transcribe: { status: 'running' } }), false)).toBe('busy')
   })
+
+  it('要約が順番を待っている間は、受け付けたことが分かるようにして押させない', () => {
+    expect(resummarizeState(steps({ summarize: { status: 'queued' } }), true)).toBe('queued')
+  })
+
+  it('他のステップが順番を待っている間も押させない', () => {
+    expect(resummarizeState(steps({ diarize: { status: 'queued' } }), true)).toBe('busy')
+  })
 })
 
 describe('canEditSummary', () => {
@@ -51,6 +59,10 @@ describe('canEditSummary', () => {
   it('要約の実行中は直させない', () => {
     // 書き終わった直後に生成結果で上書きされ、直した内容が黙って消える。
     expect(canEditSummary(steps({ summarize: { status: 'running' } }))).toBe(false)
+  })
+
+  it('要約が順番を待っている間も直させない', () => {
+    expect(canEditSummary(steps({ summarize: { status: 'queued' } }))).toBe(false)
   })
 
   it('要約がこれから走る間も直させない', () => {

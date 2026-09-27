@@ -60,3 +60,17 @@ export const failuresIn = (
     const failure = stepArea === area ? stepFailure(step, steps[step]) : undefined
     return failure ? [{ step, ...failure }] : []
   })
+
+/**
+ * その欄で順番を待っているステップ。再実行を押すと失敗の表示が消えてここに移るので、
+ * 押したことが受け付けられたと、ワーカーが動き出す前から分かる。
+ */
+export const queuedIn = (
+  area: FailureArea,
+  steps: Readonly<Record<string, { status: string } | undefined>>
+): Array<{ readonly step: string; readonly label: string }> =>
+  FAILURE_AREAS.flatMap(([step, stepArea]) =>
+    stepArea === area && steps[step]?.status === 'queued'
+      ? [{ step, label: STEP_LABELS[step] ?? step }]
+      : []
+  )
