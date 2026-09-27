@@ -100,12 +100,12 @@ describe('resolveCalendarBinary', () => {
   it('配布版は Resources/bin の同梱物を使う', () => {
     const path = resolveCalendarBinary({
       packaged: true,
-      resourcesPath: '/Apps/Duoscribe.app/Contents/Resources',
+      resourcesPath: '/Apps/Exolobe.app/Contents/Resources',
       cwd: '/repo',
       exists: () => true
     })
 
-    expect(path).toBe('/Apps/Duoscribe.app/Contents/Resources/bin/calendarevents')
+    expect(path).toBe('/Apps/Exolobe.app/Contents/Resources/bin/calendarevents')
   })
 
   it('開発時はリポジトリの resources/bin を使う', () => {

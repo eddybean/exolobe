@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## このリポジトリについて
 
-**Duoscribe** — macOS 向けの Web 会議録音アプリ（Electron + React + TypeScript）。録音・文字起こし・
+**Exolobe** — macOS 向けの Web 会議録音アプリ（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
 `decisions.html` = ADR-001〜039）にある。**設計の「なぜ」を変える変更をする前に
@@ -164,7 +164,7 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 - **renderer を変えたら、可能な範囲で実際にアプリを起動して確かめる**（下記）。
 - コード中のコメントは日本語で、「何を」ではなく「なぜ」を書く既存のスタイルに合わせる。
 - `electron-builder.yml` の `productName` は **ASCII のまま**にする。日本語にすると
-  生成アプリが起動直後に SIGTRAP で落ちる（ADR-013）。`Duoscribe` は ASCII なので
+  生成アプリが起動直後に SIGTRAP で落ちる（ADR-013）。`Exolobe` は ASCII なので
   `CFBundleDisplayName` による別名は持たせていない。
 - 話者識別は **`sherpa-onnx-node`（ネイティブアドオン）** を使う。npm の `sherpa-onnx` は
   WASM ビルドで、線形メモリの上限 2GB を拡張できず 40 分を超える録音が必ず失敗する
@@ -251,6 +251,8 @@ agent-browser screenshot /tmp/ui.png   # 画像を実際に見て確かめる
   録音の保存先は、一時ディレクトリに `meta.json` / `transcript.json` を書いた
   合成データを使い、利用者の実データは開かない。
 - `ELECTRON_RUN_AS_NODE` が環境にあると起動に失敗する（`env -u` で外す）。
+- README のスクリーンショット（`docs/images/app-library.png`）は `node scripts/screenshot-fixtures.mjs <出力先>`
+  の架空データで撮る。`<出力先>/userData` を `--user-data-dir` に渡せば保存先もそこを指す。
 - **ネイティブダイアログ（`dialog.showMessageBox`）は操作できない。** 削除の確認などは
   ここまでで、押した先は手動で確かめる。
 - **マイク・システム音声の許可は自動化できない。** 録音を伴う確認は手動。

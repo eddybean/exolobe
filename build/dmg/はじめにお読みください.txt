@@ -1,13 +1,13 @@
-Duoscribe — はじめにお読みください
+Exolobe — はじめにお読みください
 ========================================
 
-1. 左の「Duoscribe」を右の Applications フォルダへドラッグしてください。
+1. 左の「Exolobe」を右の Applications フォルダへドラッグしてください。
 
 2. このビルドは Apple Developer 証明書で署名されていないため、そのままでは
    macOS の Gatekeeper に隔離され起動できません。ターミナル（アプリケーション →
    ユーティリティ → ターミナル）を開き、次のコマンドを一度だけ実行してください。
 
-       xattr -dr com.apple.quarantine "/Applications/Duoscribe.app"
+       xattr -dr com.apple.quarantine "/Applications/Exolobe.app"
 
 3. 初回起動時にマイクとシステム音声の使用許可を求められます。
    マイクは自分の発言、システム音声は相手の発言の録音に使います。

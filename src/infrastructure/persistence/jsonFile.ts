@@ -84,7 +84,7 @@ export const replaceVersionedJson = async (
 ): Promise<void> => {
   if (previous.kind === 'ok' && schemaVersionOf(previous.value) > version) {
     throw new StorageError(
-      `${basename(path)} は新しい版の Duoscribe で保存されています。アプリを更新してください。`
+      `${basename(path)} は新しい版の Exolobe で保存されています。アプリを更新してください。`
     )
   }
   // 番号は先頭に置く。手で開いたときに最初に目に入るように。
