@@ -223,6 +223,17 @@ npm run package  # 配布用の .dmg を作る
 npm run test:manual   # 音が鳴るので、会議中は避けてください
 ```
 
+文字起こしの施策（whisper の引数やハルシネーションの除去）で良くなったか悪くなったかは、
+[tests/eval/transcription/](tests/eval/transcription/) の評価で確かめます。`say` で読み上げた
+会議風の音声（雑音・相づち・声の重なり・BGM）をアプリと同じ経路で起こし、CER・無音区間に出た
+文字数・取りこぼした発話・同じ文の連続を、基準（`baseline.json`）と並べて出します。
+モデルと whisper-cli が要り、数値が macOS の版で揺れるので CI では走りません。
+
+```bash
+npm run eval:transcription                             # 基準との差を表で出す
+OMR_EVAL_UPDATE_BASELINE=1 npm run eval:transcription  # 施策を採ったら基準を取り直す
+```
+
 ### リリース
 
 `v` から始まるタグを push すると [GitHub Actions](.github/workflows/release.yml) が

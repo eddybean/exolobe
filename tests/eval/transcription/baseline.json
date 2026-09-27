@@ -1,0 +1,165 @@
+{
+  "environment": {
+    "macos": "26.6.2",
+    "whisper": "1.9.4-dev",
+    "model": "ggml-large-v3-turbo-q5_0.bin",
+    "voices": [
+      "Kyoko",
+      "Eddy (日本語（日本）)",
+      "Flo (日本語（日本）)",
+      "Reed (日本語（日本）)"
+    ]
+  },
+  "results": [
+    {
+      "scenario": "meeting",
+      "config": "vad",
+      "cer": 0.0456140350877193,
+      "hallucinatedChars": 0,
+      "missedUtterances": 0,
+      "utterances": 10,
+      "longestRepeatRun": 1,
+      "dropped": {
+        "non-speech": 0,
+        "boilerplate": 0,
+        "low-confidence": 0,
+        "repetition": 0
+      }
+    },
+    {
+      "scenario": "meeting",
+      "config": "no-vad",
+      "cer": 0.03859649122807018,
+      "hallucinatedChars": 0,
+      "missedUtterances": 0,
+      "utterances": 10,
+      "longestRepeatRun": 1,
+      "dropped": {
+        "non-speech": 0,
+        "boilerplate": 2,
+        "low-confidence": 0,
+        "repetition": 0
+      }
+    },
+    {
+      "scenario": "backchannel",
+      "config": "vad",
+      "cer": 0.10192837465564739,
+      "hallucinatedChars": 0,
+      "missedUtterances": 1,
+      "utterances": 24,
+      "longestRepeatRun": 2,
+      "dropped": {
+        "non-speech": 0,
+        "boilerplate": 0,
+        "low-confidence": 0,
+        "repetition": 0
+      }
+    },
+    {
+      "scenario": "backchannel",
+      "config": "no-vad",
+      "cer": 0.2865013774104683,
+      "hallucinatedChars": 0,
+      "missedUtterances": 7,
+      "utterances": 24,
+      "longestRepeatRun": 3,
+      "dropped": {
+        "non-speech": 0,
+        "boilerplate": 2,
+        "low-confidence": 0,
+        "repetition": 0
+      }
+    },
+    {
+      "scenario": "crosstalk",
+      "config": "vad",
+      "cer": 0.41228070175438597,
+      "hallucinatedChars": 0,
+      "missedUtterances": 7,
+      "utterances": 20,
+      "longestRepeatRun": 1,
+      "dropped": {
+        "non-speech": 0,
+        "boilerplate": 0,
+        "low-confidence": 1,
+        "repetition": 0
+      }
+    },
+    {
+      "scenario": "crosstalk",
+      "config": "no-vad",
+      "cer": 0.3456140350877193,
+      "hallucinatedChars": 0,
+      "missedUtterances": 6,
+      "utterances": 20,
+      "longestRepeatRun": 1,
+      "dropped": {
+        "non-speech": 0,
+        "boilerplate": 2,
+        "low-confidence": 2,
+        "repetition": 0
+      }
+    },
+    {
+      "scenario": "noisy",
+      "config": "vad",
+      "cer": 0.09473684210526316,
+      "hallucinatedChars": 0,
+      "missedUtterances": 0,
+      "utterances": 10,
+      "longestRepeatRun": 1,
+      "dropped": {
+        "non-speech": 0,
+        "boilerplate": 0,
+        "low-confidence": 0,
+        "repetition": 0
+      }
+    },
+    {
+      "scenario": "noisy",
+      "config": "no-vad",
+      "cer": 0.04912280701754386,
+      "hallucinatedChars": 0,
+      "missedUtterances": 0,
+      "utterances": 10,
+      "longestRepeatRun": 1,
+      "dropped": {
+        "non-speech": 0,
+        "boilerplate": 1,
+        "low-confidence": 0,
+        "repetition": 0
+      }
+    },
+    {
+      "scenario": "music",
+      "config": "vad",
+      "cer": 0.03859649122807018,
+      "hallucinatedChars": 0,
+      "missedUtterances": 0,
+      "utterances": 10,
+      "longestRepeatRun": 1,
+      "dropped": {
+        "non-speech": 0,
+        "boilerplate": 0,
+        "low-confidence": 0,
+        "repetition": 0
+      }
+    },
+    {
+      "scenario": "music",
+      "config": "no-vad",
+      "cer": 0.031578947368421054,
+      "hallucinatedChars": 0,
+      "missedUtterances": 0,
+      "utterances": 10,
+      "longestRepeatRun": 1,
+      "dropped": {
+        "non-speech": 0,
+        "boilerplate": 0,
+        "low-confidence": 0,
+        "repetition": 0
+      }
+    }
+  ]
+}

@@ -9,3 +9,6 @@ resources/bin/
 release/
 
 .playwright-mcp
+
+# 文字起こしの評価（npm run eval:transcription）が作る音声と結果
+tests/eval/transcription/.cache/
