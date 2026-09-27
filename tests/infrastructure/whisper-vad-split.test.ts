@@ -351,6 +351,63 @@ describe('parseWhisperJson（トークンの時刻のずれ）', () => {
     ])
   })
 
+  it('区間を外したときも、反対側の端を無音の中に残さない', () => {
+    // ReazonSpeech の長尺音声の実測。発言の頭 297600 は区間 300260〜 の手前の無音にあり、
+    // お尻が次の区間に 10ms だけ掛かっていた。お尻の側だけを収めると、頭が無音へ 2.7 秒はみ出す
+    const spans = [
+      { origStartMs: 300_260, origEndMs: 304_060, vadStartMs: 58_030, vadEndMs: 61_830 },
+      { origStartMs: 314_400, origEndMs: 314_810, vadStartMs: 62_030, vadEndMs: 62_440 }
+    ]
+    const raw = JSON.stringify({
+      transcription: [
+        {
+          offsets: { from: 297_600, to: 314_410 },
+          text: '全10曲のほかに夢のコラボ曲も実現。',
+          tokens: [
+            token('全', 58_020, 58_210),
+            token('10曲のほかに夢のコラボ曲も', 58_210, 61_630),
+            token('実', 61_630, 61_810),
+            token('現', 61_820, 61_980),
+            token('。', 62_040, 62_040)
+          ]
+        }
+      ]
+    })
+
+    expect(parseWhisperJson(raw, 'r', undefined, spans)).toEqual([
+      { startMs: 300_260, endMs: 304_060, speakerId: 'r', text: '全10曲のほかに夢のコラボ曲も実現。' }
+    ])
+  })
+
+  it('区間を外したあと短い間の境目しか残らなくても、発言を無音ごと伸ばさない', () => {
+    // ReazonSpeech の長尺音声の実測。頭が 25 秒前の区間に 80ms 掛かり、残る 2 区間の間は 0.29 秒。
+    // 切る所が無いからと whisper の時刻（14000-46750）のまま返すと、前後の無音ごと 33 秒に伸びる
+    const spans = [
+      { origStartMs: 12_990, origEndMs: 14_080, vadStartMs: 550, vadEndMs: 1_640 },
+      { origStartMs: 39_430, origEndMs: 39_900, vadStartMs: 1_840, vadEndMs: 2_310 },
+      { origStartMs: 40_190, origEndMs: 45_950, vadStartMs: 2_510, vadEndMs: 8_270 }
+    ]
+    const raw = JSON.stringify({
+      transcription: [
+        {
+          offsets: { from: 14_000, to: 46_750 },
+          text: '病院の敷地内で事故がありました。',
+          tokens: [
+            token('病', 1_560, 1_700),
+            token('院', 1_700, 2_000),
+            token('の', 2_000, 2_300),
+            token('敷地内で事故がありました', 2_300, 8_000),
+            token('。', 8_000, 8_400)
+          ]
+        }
+      ]
+    })
+
+    expect(parseWhisperJson(raw, 'r', undefined, spans)).toEqual([
+      { startMs: 39_430, endMs: 45_950, speakerId: 'r', text: '病院の敷地内で事故がありました。' }
+    ])
+  })
+
   it('短い間で割れた区間の境目は、読点では切らない（文の途中の息継ぎ）', () => {
     // 同じ音声の並びを変えた実測で、0.22 秒の間が「検索は、」と「インデックスの…」を割った
     const spans = [

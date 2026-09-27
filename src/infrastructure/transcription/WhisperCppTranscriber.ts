@@ -329,18 +329,18 @@ const splitAtVadGaps = (piece: SegmentPiece, spans: readonly VadSpan[]): Segment
   if (grazedHead) covered.shift()
   const grazedTail = grazes(covered[covered.length - 1])
   if (grazedTail) covered.pop()
-  if (covered.length < 2) {
-    const only = covered[0]
-    if (!only) return [piece]
-    // 外した区間の側の端だけを、残った区間に収める。外していない側は whisper の時刻の方が細かい。
-    return [
-      {
-        ...piece,
-        startMs: grazedHead ? Math.max(piece.startMs, only.origStartMs) : piece.startMs,
-        endMs: grazedTail ? Math.min(piece.endMs, only.origEndMs) : piece.endMs
-      }
-    ]
+  const firstSpan = covered[0]
+  const lastSpan = covered[covered.length - 1]
+  if (!firstSpan || !lastSpan || (covered.length < 2 && !grazedHead && !grazedTail)) return [piece]
+  // 区間をまたいでいた発言は、切る所が無くても両端を区間に収める。whisper の開始・終了は
+  // 区間の外の無音にあることがあり（詰めたあとの時刻が区間の頭の直前に来ると、無音の中へ戻される）、
+  // そのまま返すと前後の無音ごと伸びる。
+  const within: SegmentPiece = {
+    ...piece,
+    startMs: Math.max(piece.startMs, firstSpan.origStartMs),
+    endMs: Math.min(piece.endMs, lastSpan.origEndMs)
   }
+  if (covered.length < 2) return [within]
 
   const words = piece.tokens.filter((token) => !SPECIAL_TOKEN.test(token.text ?? ''))
   const timed = words.flatMap((token): TimedToken[] => {
@@ -366,7 +366,7 @@ const splitAtVadGaps = (piece: SegmentPiece, spans: readonly VadSpan[]): Segment
     )
     if (index !== undefined) cuts.push({ index, lastSpan: spanIndex })
   }
-  if (cuts.length === 0) return [piece]
+  if (cuts.length === 0) return [within]
 
   const bounds = [...cuts, { index: timed.length, lastSpan: covered.length - 1 }]
   return bounds.flatMap(({ index, lastSpan }, order): SegmentPiece[] => {
