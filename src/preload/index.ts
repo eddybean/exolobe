@@ -108,6 +108,7 @@ const api: RendererApi = {
   getModelStatus: () =>
     ipcRenderer.invoke(IPC.getModelStatus) as Promise<ManagedAssetStatusDto[]>,
   downloadModel: (id) => ipcRenderer.invoke(IPC.downloadModel, id) as Promise<Settings>,
+  updateModel: (id) => ipcRenderer.invoke(IPC.updateModel, id) as Promise<Settings>,
   cancelModelDownload: (id) =>
     ipcRenderer.invoke(IPC.cancelModelDownload, id) as Promise<void>,
   deleteModel: (id) => ipcRenderer.invoke(IPC.deleteModel, id) as Promise<Settings>,
