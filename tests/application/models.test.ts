@@ -4,6 +4,7 @@ import {
   DeleteModel,
   DownloadModel,
   GetModelStatus,
+  UpdateModel,
   type ModelStorePort
 } from '@application/usecases/models'
 import { MANAGED_ASSETS, findAsset, formatBytes, requiredAssets } from '@domain/ModelCatalog'
@@ -24,6 +25,8 @@ class FakeModelStore implements ModelStorePort {
   fetched: string[] = []
   cancelled: string[] = []
   removed: string[] = []
+  /** 記録済みのチェックサム（パスごと）。無いパスは「分からない」。 */
+  digests = new Map<string, string>()
   failWith?: Error
 
   pathFor(asset: ManagedAsset): string {
@@ -31,6 +34,9 @@ class FakeModelStore implements ModelStorePort {
   }
   async exists(path: string): Promise<boolean> {
     return this.present.has(path)
+  }
+  async installedDigest(_asset: ManagedAsset, path: string): Promise<string | undefined> {
+    return this.digests.get(path)
   }
   async fetch(
     asset: ManagedAsset,
@@ -185,6 +191,77 @@ describe('GetModelStatus', () => {
     ).execute()
 
     expect(status.find((s) => s.id === 'transcription-model')?.installed).toBe(true)
+  })
+})
+
+describe('GetModelStatus（更新の有無）', () => {
+  const summarization = findAsset('summarization-model')
+  const statusOf = async (store: FakeModelStore, settings = defaultSettings()) =>
+    (await new GetModelStatus(new FakeSettingsRepository(settings), store).execute()).find(
+      (s) => s.id === 'summarization-model'
+    )
+
+  it('手元のファイルがカタログと違えば更新ありとする', async () => {
+    const store = new FakeModelStore()
+    store.present.add('/models/gemma-4-E4B_q4_0-it.gguf')
+    store.digests.set('/models/gemma-4-E4B_q4_0-it.gguf', 'old-digest')
+
+    expect((await statusOf(store))?.updateAvailable).toBe(true)
+  })
+
+  it('カタログと一致していれば更新なしとする', async () => {
+    const store = new FakeModelStore()
+    store.present.add('/models/gemma-4-E4B_q4_0-it.gguf')
+    store.digests.set('/models/gemma-4-E4B_q4_0-it.gguf', summarization?.sha256 ?? '')
+
+    expect((await statusOf(store))?.updateAvailable).toBe(false)
+  })
+
+  it('中身が分からないファイルは更新ありにしない', async () => {
+    // 利用者が自分で選んだ外部ファイルや、確かめようのないものを古いと決めつけない。
+    const store = new FakeModelStore()
+    store.present.add('/models/gemma-4-E4B_q4_0-it.gguf')
+
+    expect((await statusOf(store))?.updateAvailable).toBe(false)
+  })
+
+  it('設定が指す古い名前のファイルも比べる', async () => {
+    // 保存名が変わったカタログでは、既定の場所ではなく設定が指すファイルが使われている。
+    const store = new FakeModelStore()
+    store.present.add('/models/gemma-old.gguf')
+    store.digests.set('/models/gemma-old.gguf', 'old-digest')
+    const settings = {
+      ...defaultSettings(),
+      summarization: { ...defaultSettings().summarization, modelPath: '/models/gemma-old.gguf' }
+    }
+
+    expect((await statusOf(store, settings))?.updateAvailable).toBe(true)
+  })
+
+  it('更新を確かめないときはファイルの中身に触れない', async () => {
+    // 取得済みかだけを知りたい呼び出し（チャットの可否など）に、初回のハッシュ計算を待たせない。
+    const store = new FakeModelStore()
+    store.present.add('/models/gemma-4-E4B_q4_0-it.gguf')
+    let asked = false
+    store.installedDigest = async () => {
+      asked = true
+      return 'old-digest'
+    }
+
+    const status = await new GetModelStatus(
+      new FakeSettingsRepository(defaultSettings()),
+      store
+    ).execute({ checkUpdates: false })
+
+    expect(asked).toBe(false)
+    expect(status.find((s) => s.id === 'summarization-model')?.updateAvailable).toBe(false)
+  })
+
+  it('未取得のモデルは更新ありにしない', async () => {
+    const store = new FakeModelStore()
+    store.digests.set('/models/gemma-4-E4B_q4_0-it.gguf', 'old-digest')
+
+    expect((await statusOf(store))?.updateAvailable).toBe(false)
   })
 })
 
@@ -403,6 +480,65 @@ describe('DeleteModel', () => {
   it('未知の ID は拒否する', async () => {
     await expect(
       deleter(new FakeSettingsRepository(), new FakeModelStore()).execute('nope')
+    ).rejects.toThrow('不明なモデルです: nope')
+  })
+})
+
+describe('UpdateModel', () => {
+  const updater = (
+    settings: FakeSettingsRepository,
+    store: FakeModelStore,
+    recordings = new FakeRecordingRepository()
+  ): UpdateModel => new UpdateModel(settings, store, recordings)
+
+  it('取り直したファイルを設定に書き込み、古い名前の参照を置き換える', async () => {
+    const store = new FakeModelStore()
+    store.present.add('/models/gemma-old.gguf')
+    const settings = new FakeSettingsRepository({
+      ...defaultSettings(),
+      summarization: { ...defaultSettings().summarization, modelPath: '/models/gemma-old.gguf' }
+    })
+
+    const saved = await updater(settings, store).execute({ id: 'summarization-model' })
+
+    expect(store.fetched).toEqual(['summarization-model'])
+    expect(saved.summarization.modelPath).toBe('/models/gemma-4-E4B_q4_0-it.gguf')
+  })
+
+  it('録音中は更新しない', async () => {
+    const store = new FakeModelStore()
+    const recordings = new FakeRecordingRepository()
+    await recordings.save(recordingWith({ status: 'recording' }))
+
+    await expect(
+      updater(new FakeSettingsRepository(defaultSettings()), store, recordings).execute({
+        id: 'summarization-model'
+      })
+    ).rejects.toThrow('録音中はモデルを更新できません')
+    expect(store.fetched).toEqual([])
+  })
+
+  it('パイプラインの実行中は更新しない', async () => {
+    const store = new FakeModelStore()
+    const recordings = new FakeRecordingRepository()
+    await recordings.save(
+      recordingWith({
+        status: 'processing',
+        steps: startStep(initialStepStates(), 'transcribe')
+      })
+    )
+
+    await expect(
+      updater(new FakeSettingsRepository(defaultSettings()), store, recordings).execute({
+        id: 'transcription-model'
+      })
+    ).rejects.toThrow('処理中の録音があるためモデルを更新できません')
+    expect(store.fetched).toEqual([])
+  })
+
+  it('未知の ID は拒否する', async () => {
+    await expect(
+      updater(new FakeSettingsRepository(), new FakeModelStore()).execute({ id: 'nope' })
     ).rejects.toThrow('不明なモデルです: nope')
   })
 })

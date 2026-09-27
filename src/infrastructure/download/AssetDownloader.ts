@@ -163,7 +163,8 @@ const totalBytesOf = (headers: Headers, alreadyHave: number): number | undefined
   return Number.isFinite(length) ? length + alreadyHave : undefined
 }
 
-const hashOf = async (path: string): Promise<string> => {
+/** 数 GB のモデルでもメモリに載せないよう、ストリームで読む。 */
+export const hashOf = async (path: string): Promise<string> => {
   const handle = await open(path, 'r')
   try {
     const hash = createHash('sha256')

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Duoscribe** — macOS 向けの Web 会議録音アプリ（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜038）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜039）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -136,7 +136,10 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   一覧キャッシュは `index.json`、フォルダ定義は `folders.json`、声紋帳は `voiceprints.json`。
   `index.json` は各 `meta.json` から再構築できるキャッシュに過ぎない（ADR-015）。
   `voiceprints.json` は**再生成できない**ので、キャッシュとして扱わない（ADR-031）。
-- モデル → `~/Library/Application Support/<app>/models/`（保存先ではない。再取得可能なため）
+- モデル → `~/Library/Application Support/<app>/models/`（保存先ではない。再取得可能なため）。
+  どの配布物を置いたかは同じ場所の `installed.json`（sha256 の記録。ファイルから求め直せるキャッシュ）。
+  カタログ（`ModelCatalog.ts`）のモデルを差し替えるときは、Hugging Face の URL をコミットで固定し
+  `sha256` と一緒に書き換える。既存の利用者には一覧に「更新あり」が出る（ADR-039）
 - 意味検索の索引 → `userData/search/<録音ID>.json`（再生成できるキャッシュ。本文は持たず、
   チャンクの位置と 8 ビット量子化したベクトルだけ。削除済み録音の分は同期時に消える）
 - 設定 → `userData/settings.json`、録音中の中間 WAV と `tracks.json` → `userData/work/`

@@ -14,6 +14,11 @@ export interface ModelStorePort {
   /** 展開後・保存後に実際に使われるファイルの絶対パス。 */
   pathFor(asset: ManagedAsset): string
   exists(path: string): Promise<boolean>
+  /**
+   * 手元のファイルがどの配布物から来たか（配布物の sha256）。アプリが取得したと
+   * 確かめられないもの（利用者が選んだ外部ファイルなど）は undefined。
+   */
+  installedDigest(asset: ManagedAsset, path: string): Promise<string | undefined>
   /** ダウンロードして（必要なら展開して）、使えるファイルのパスを返す。 */
   fetch(
     asset: ManagedAsset,
@@ -32,6 +37,8 @@ export interface ManagedAssetStatus {
   readonly bytes: number
   readonly optional: boolean
   readonly installed: boolean
+  /** 手元のファイルが、このアプリの版が想定する配布物と違う。 */
+  readonly updateAvailable: boolean
   /** 設定が指しているパス。未設定なら undefined。 */
   readonly path: string | undefined
 }
@@ -49,13 +56,20 @@ export class GetModelStatus {
     private readonly store: ModelStorePort
   ) {}
 
-  async execute(): Promise<ManagedAssetStatus[]> {
+  /**
+   * checkUpdates を切るのは、取得済みかだけを知りたい呼び出しのため。更新の確認は
+   * 初回に数 GB のハッシュ計算を伴うので、モデル一覧の画面以外には待たせない。
+   */
+  async execute(
+    options: { checkUpdates: boolean } = { checkUpdates: true }
+  ): Promise<ManagedAssetStatus[]> {
     const settings = await this.settings.load()
 
     return Promise.all(
       MANAGED_ASSETS.map(async (asset) => {
         const configured = configuredPath(settings, asset.id)
         const path = configured || this.store.pathFor(asset)
+        const installed = await this.store.exists(path)
 
         return {
           id: asset.id,
@@ -63,11 +77,24 @@ export class GetModelStatus {
           description: asset.description,
           bytes: asset.bytes,
           optional: asset.optional,
-          installed: await this.store.exists(path),
+          installed,
+          updateAvailable:
+            options.checkUpdates && installed && (await this.isOutdated(asset, path)),
           path: configured || undefined
         }
       })
     )
+  }
+
+  /**
+   * 比べる相手は上流ではなくカタログ。上流の差し替えをそのまま採ると、評価を
+   * 経ていないモデルで文字起こしや要約の質が変わるため。中身が分からないものは
+   * 古いと決めつけない。
+   */
+  private async isOutdated(asset: ManagedAsset, path: string): Promise<boolean> {
+    if (asset.sha256 === undefined) return false
+    const digest = await this.store.installedDigest(asset, path)
+    return digest !== undefined && digest !== asset.sha256
   }
 }
 
@@ -124,7 +151,7 @@ export class DeleteModel {
       throw new ConfigurationError(`不明なモデルです: ${id}`)
     }
 
-    await this.ensureIdle()
+    await ensureModelsIdle(this.recordings, '削除')
 
     await this.store.remove(asset)
 
@@ -134,24 +161,55 @@ export class DeleteModel {
 
     return this.settings.save(asset.applyTo(''))
   }
+}
 
-  /**
-   * 読み込み中のモデルを消すとジョブが途中で失敗するため、動いている間は断る。
-   * pending が残るだけの録音（リトライ待ち）は動いていないので妨げない。
-   */
-  private async ensureIdle(): Promise<void> {
-    const recordings = await this.recordings.list()
+/**
+ * カタログと違うファイルを、今の版が想定する配布物に取り替える。
+ *
+ * 取得そのものは DownloadModel と同じで、差し替えと古いファイルの片付けは
+ * ストアが受け持つ。違いは動いている間に断ること。ワーカーが読み込み中の
+ * ファイルを入れ替えると、同じジョブの途中でモデルが変わりうるため。
+ */
+export class UpdateModel {
+  constructor(
+    private readonly settings: SettingsRepositoryPort,
+    private readonly store: ModelStorePort,
+    private readonly recordings: RecordingRepositoryPort
+  ) {}
 
-    if (recordings.some((recording) => recording.status === 'recording')) {
-      throw new ModelInUseError(
-        '録音中はモデルを削除できません。録音を停止してから操作してください。'
-      )
+  async execute(params: {
+    id: string
+    onProgress?: (received: number, total: number | undefined) => void
+  }): Promise<Settings> {
+    if (!findAsset(params.id)) {
+      throw new ConfigurationError(`不明なモデルです: ${params.id}`)
     }
-    if (recordings.some((recording) => isProcessing(recording.steps))) {
-      throw new ModelInUseError(
-        '処理中の録音があるためモデルを削除できません。完了してから操作してください。'
-      )
-    }
+
+    await ensureModelsIdle(this.recordings, '更新')
+
+    return new DownloadModel(this.settings, this.store).execute(params)
+  }
+}
+
+/**
+ * 読み込み中のモデルを消したり入れ替えたりするとジョブが途中で失敗するため、
+ * 動いている間は断る。pending が残るだけの録音（リトライ待ち）は動いていないので妨げない。
+ */
+const ensureModelsIdle = async (
+  recordings: RecordingRepositoryPort,
+  action: '削除' | '更新'
+): Promise<void> => {
+  const list = await recordings.list()
+
+  if (list.some((recording) => recording.status === 'recording')) {
+    throw new ModelInUseError(
+      `録音中はモデルを${action}できません。録音を停止してから操作してください。`
+    )
+  }
+  if (list.some((recording) => isProcessing(recording.steps))) {
+    throw new ModelInUseError(
+      `処理中の録音があるためモデルを${action}できません。完了してから操作してください。`
+    )
   }
 }
 

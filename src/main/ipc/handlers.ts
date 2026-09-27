@@ -672,13 +672,17 @@ export const registerIpcHandlers = (
 
   handle(IPC.getModelStatus, async () => container.getModelStatus.execute())
 
-  handle(IPC.downloadModel, async (id: unknown) => {
-    const modelId = asString(id, 'モデル ID')
-
+  /**
+   * 取得と更新で共通の流れ。数 GB になるので進捗を逐次 UI へ流し、終わったら
+   * モデルを握っているワーカーに読み直させる。
+   */
+  const acquireModel = async (
+    modelId: string,
+    usecase: { execute: typeof container.downloadModel.execute }
+  ): Promise<Settings> => {
     try {
-      const settings = await container.downloadModel.execute({
+      const settings = await usecase.execute({
         id: modelId,
-        // 数 GB のダウンロードになるので、進捗を逐次 UI へ流す。
         onProgress: (receivedBytes, totalBytes) =>
           send(IPC.modelProgress, {
             id: modelId,
@@ -711,6 +715,18 @@ export const registerIpcHandlers = (
       } satisfies ModelProgressDto)
       throw error
     }
+  }
+
+  handle(IPC.downloadModel, async (id: unknown) =>
+    acquireModel(asString(id, 'モデル ID'), container.downloadModel)
+  )
+
+  handle(IPC.updateModel, async (id: unknown) => {
+    const modelId = asString(id, 'モデル ID')
+    // 読み込み中のモデルファイルを入れ替えないよう、先にワーカーを終わらせる。
+    if (modelId === 'search-model') await search.shutdown()
+    if (modelId === 'summarization-model') await chat.shutdown()
+    return acquireModel(modelId, container.updateModel)
   })
 
   handle(IPC.cancelModelDownload, async (id: unknown) => {
@@ -822,7 +838,7 @@ export const registerIpcHandlers = (
   const chatAvailability = async (): Promise<ChatAvailabilityDto> => {
     const settings = await container.settings.load()
     // 設定だけが残ってファイルが消えている場合を「取得済み」と見せない。
-    const models = await container.getModelStatus.execute()
+    const models = await container.getModelStatus.execute({ checkUpdates: false })
     const modelInstalled =
       models.find((model) => model.id === 'summarization-model')?.installed ?? false
 

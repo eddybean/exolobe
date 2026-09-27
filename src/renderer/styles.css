@@ -765,6 +765,11 @@ code {
   color: var(--warning);
 }
 
+.badge--update {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+
 .badge--ready {
   background: color-mix(in srgb, var(--success) 18%, transparent);
   color: var(--success);

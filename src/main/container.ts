@@ -34,7 +34,8 @@ import {
   CancelModelDownload,
   DeleteModel,
   DownloadModel,
-  GetModelStatus
+  GetModelStatus,
+  UpdateModel
 } from '@application/usecases/models'
 import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
 import { AudioTeeSource } from '@infrastructure/audio/AudioTeeSource'
@@ -95,6 +96,7 @@ export interface Container {
   readonly getSetupState: GetSetupState
   readonly getModelStatus: GetModelStatus
   readonly downloadModel: DownloadModel
+  readonly updateModel: UpdateModel
   readonly cancelModelDownload: CancelModelDownload
   readonly deleteModel: DeleteModel
   readonly getSearchIndexStatus: GetSearchIndexStatus
@@ -190,6 +192,7 @@ export const createContainer = (): Container => {
     getSetupState: new GetSetupState(settings),
     getModelStatus: new GetModelStatus(settings, models),
     downloadModel: new DownloadModel(settings, models),
+    updateModel: new UpdateModel(settings, models, repository),
     cancelModelDownload: new CancelModelDownload(models),
     deleteModel: new DeleteModel(settings, models, repository),
     getSearchIndexStatus: new GetSearchIndexStatus({

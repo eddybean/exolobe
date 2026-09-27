@@ -100,6 +100,8 @@ export interface ManagedAssetStatusDto {
   readonly bytes: number
   readonly optional: boolean
   readonly installed: boolean
+  /** 手元のファイルが、このアプリの版が想定する配布物と違う。 */
+  readonly updateAvailable: boolean
   readonly path?: string
 }
 
@@ -370,6 +372,8 @@ export interface RendererApi {
   getSetupState(): Promise<SetupStateDto>
   getModelStatus(): Promise<ManagedAssetStatusDto[]>
   downloadModel(id: string): Promise<Settings>
+  /** 進捗と結果は downloadModel と同じく modelProgress で届く。 */
+  updateModel(id: string): Promise<Settings>
   cancelModelDownload(id: string): Promise<void>
   deleteModel(id: string): Promise<Settings>
   /** 削除前の確認。ネイティブダイアログを出し、実行してよければ true を返す。 */
@@ -469,6 +473,7 @@ export const IPC = {
   getSetupState: 'settings:setupState',
   getModelStatus: 'models:status',
   downloadModel: 'models:download',
+  updateModel: 'models:update',
   cancelModelDownload: 'models:cancel',
   deleteModel: 'models:delete',
   confirmDeleteModel: 'models:confirmDelete',

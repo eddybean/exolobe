@@ -15,6 +15,9 @@ type ErrorMap = Record<string, string | undefined>
  *
  * 削除を置くのは、モデルが合計 6GB 近くになり、使わないものを残す理由が薄いため。
  * 再取得できるので、消しても失われるのはダウンロードの時間だけ。
+ *
+ * 更新を出すのは、アプリの更新でモデルが差し替わったとき、手元の古いファイルが
+ * 黙って使われ続けないようにするため。比べる相手は上流ではなくアプリが想定する版。
  */
 export const ModelManager = ({
   onChanged,
@@ -44,14 +47,16 @@ export const ModelManager = ({
     })
   }, [refresh, onChanged])
 
-  const download = useCallback((id: string): void => {
+  const acquire = useCallback((id: string, mode: 'download' | 'update'): void => {
     setErrors((current) => ({ ...current, [id]: undefined }))
     setProgress((current) => ({
       ...current,
       [id]: { id, receivedBytes: 0, status: 'downloading' }
     }))
+    const request =
+      mode === 'update' ? window.recorder.updateModel(id) : window.recorder.downloadModel(id)
     // 完了・失敗は進捗イベントで反映されるので、ここでは結果を待たない。
-    void window.recorder.downloadModel(id).catch(() => undefined)
+    void request.catch(() => undefined)
   }, [])
 
   const remove = useCallback(
@@ -86,7 +91,8 @@ export const ModelManager = ({
           progress={progress[asset.id]}
           error={errors[asset.id]}
           deleting={deleting === asset.id}
-          onDownload={() => download(asset.id)}
+          onDownload={() => acquire(asset.id, 'download')}
+          onUpdate={() => acquire(asset.id, 'update')}
           onCancel={() => void window.recorder.cancelModelDownload(asset.id)}
           onDelete={() => void remove(asset.id)}
         />
@@ -101,6 +107,7 @@ const ModelRow = ({
   error,
   deleting,
   onDownload,
+  onUpdate,
   onCancel,
   onDelete
 }: {
@@ -109,6 +116,7 @@ const ModelRow = ({
   error: string | undefined
   deleting: boolean
   onDownload: () => void
+  onUpdate: () => void
   onCancel: () => void
   onDelete: () => void
 }): ReactElement => {
@@ -123,9 +131,20 @@ const ModelRow = ({
         <div className="models__row">
           <strong>{asset.label}</strong>
           <span className="models__size">{formatBytes(asset.bytes)}</span>
-          {asset.installed && <span className="badge badge--ready">取得済み</span>}
+          {asset.installed &&
+            (asset.updateAvailable ? (
+              <span className="badge badge--update">更新あり</span>
+            ) : (
+              <span className="badge badge--ready">取得済み</span>
+            ))}
         </div>
         <p className="models__description">{asset.description}</p>
+        {asset.installed && asset.updateAvailable && !downloading && (
+          <p className="models__hint">
+            このバージョンのアプリは新しい版のモデルを使います。更新すると{' '}
+            {formatBytes(asset.bytes)} をダウンロードし、古いファイルと置き換えます。
+          </p>
+        )}
 
         {downloading && (
           <div className="models__progress">
@@ -157,6 +176,11 @@ const ModelRow = ({
         {!downloading && !asset.installed && (
           <button type="button" onClick={onDownload}>
             ダウンロード
+          </button>
+        )}
+        {!downloading && asset.installed && asset.updateAvailable && (
+          <button type="button" onClick={onUpdate} disabled={deleting}>
+            更新
           </button>
         )}
         {!downloading && asset.installed && (

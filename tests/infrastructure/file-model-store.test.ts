@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -141,5 +142,153 @@ describe('FileModelStore.fetch（zip アーカイブ）', () => {
     } finally {
       await rm(work, { recursive: true, force: true })
     }
+  })
+})
+
+describe('FileModelStore（配布物の版）', () => {
+  const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex')
+
+  /** 渡した本文を返す fetch。呼ばれた回数も数える。 */
+  const serving = (text: string | Error): FetchLike & { calls: number } => {
+    const fake = Object.assign(
+      async () => {
+        fake.calls += 1
+        if (text instanceof Error) throw text
+        const bytes = new TextEncoder().encode(text)
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-length': String(bytes.length) }),
+          body: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(bytes)
+              controller.close()
+            }
+          })
+        }
+      },
+      { calls: 0 }
+    )
+    return fake
+  }
+
+  /** 中身の sha256 と保存名だけを差し替えた、単一ファイルのモデル。 */
+  const release = (content: string, fileName = 'model.gguf'): ManagedAsset => ({
+    ...asset('summarization-model'),
+    fileName,
+    sha256: sha256(content)
+  })
+
+  it('取得したファイルは配布物の sha256 を返す', async () => {
+    const target = release('v1')
+    const store = new FileModelStore(modelsDir, new AssetDownloader(serving('v1')))
+
+    const path = await store.fetch(target, {})
+
+    expect(await store.installedDigest(target, path)).toBe(sha256('v1'))
+  })
+
+  it('記録の無い既存のファイルは中身から求め、記録に残す', async () => {
+    // この仕組みより前に取得したファイルにも、次のカタログ更新で気付けるようにする。
+    const target = release('v1')
+    const path = store.pathFor(target)
+    await writeFile(path, 'v0')
+
+    expect(await store.installedDigest(target, path)).toBe(sha256('v0'))
+    const manifest = JSON.parse(await readFile(join(modelsDir, 'installed.json'), 'utf8'))
+    expect(manifest.assets['summarization-model'].sha256).toBe(sha256('v0'))
+  })
+
+  it('記録の後で書き換わったファイルは求め直す', async () => {
+    const target = release('v1')
+    const path = store.pathFor(target)
+    await writeFile(path, 'v0')
+    await store.installedDigest(target, path)
+
+    await writeFile(path, 'v0-edited')
+
+    expect(await store.installedDigest(target, path)).toBe(sha256('v0-edited'))
+  })
+
+  it('models ディレクトリの外のファイルは確かめない', async () => {
+    // 利用者が自分で選んだファイルを古いと決めつけないため。
+    const outside = await mkdtemp(join(tmpdir(), 'omr-outside-'))
+    try {
+      const path = join(outside, 'mine.gguf')
+      await writeFile(path, 'v0')
+
+      expect(await store.installedDigest(release('v1'), path)).toBeUndefined()
+    } finally {
+      await rm(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('記録の無いアーカイブ由来のファイルは確かめようがない', async () => {
+    // 展開後にアーカイブは消しているため、配布物の sha256 と比べる材料が無い。
+    const target = asset('diarization-segmentation')
+    const path = store.pathFor(target)
+    await mkdir(join(modelsDir, 'sherpa-onnx-pyannote-segmentation-3-0'), { recursive: true })
+    await writeFile(path, 'x')
+
+    expect(await store.installedDigest(target, path)).toBeUndefined()
+  })
+
+  it('カタログと違うファイルは同じ場所で取り替える', async () => {
+    const path = store.pathFor(release('v1'))
+    await writeFile(path, 'v0')
+    const fetchLike = serving('v1')
+    const store2 = new FileModelStore(modelsDir, new AssetDownloader(fetchLike))
+
+    expect(await store2.fetch(release('v1'), {})).toBe(path)
+    expect(await readFile(path, 'utf8')).toBe('v1')
+    expect(await store2.installedDigest(release('v1'), path)).toBe(sha256('v1'))
+  })
+
+  it('カタログと一致していれば取り直さない', async () => {
+    const path = store.pathFor(release('v1'))
+    await writeFile(path, 'v1')
+    const fetchLike = serving('v1')
+
+    await new FileModelStore(modelsDir, new AssetDownloader(fetchLike)).fetch(release('v1'), {})
+
+    expect(fetchLike.calls).toBe(0)
+  })
+
+  it('取り替えに失敗しても古いファイルは残す', async () => {
+    const path = store.pathFor(release('v1'))
+    await writeFile(path, 'v0')
+    const failing = new FileModelStore(
+      modelsDir,
+      new AssetDownloader(serving(new Error('offline')))
+    )
+
+    await expect(failing.fetch(release('v1'), {})).rejects.toThrow()
+    expect(await readFile(path, 'utf8')).toBe('v0')
+  })
+
+  it('保存名が変わったら古い名前のファイルを消す', async () => {
+    const old = release('v0', 'old.gguf')
+    await new FileModelStore(modelsDir, new AssetDownloader(serving('v0'))).fetch(old, {})
+
+    const renamed = release('v1', 'new.gguf')
+    await new FileModelStore(modelsDir, new AssetDownloader(serving('v1'))).fetch(renamed, {})
+
+    expect(existsSync(join(modelsDir, 'old.gguf'))).toBe(false)
+    expect(await readFile(join(modelsDir, 'new.gguf'), 'utf8')).toBe('v1')
+  })
+
+  it('削除したモデルの記録も消す', async () => {
+    const target = release('v1')
+    const path = await new FileModelStore(modelsDir, new AssetDownloader(serving('v1'))).fetch(
+      target,
+      {}
+    )
+
+    await store.remove(target)
+
+    const manifest = JSON.parse(await readFile(join(modelsDir, 'installed.json'), 'utf8'))
+    expect(manifest.assets['summarization-model']).toBeUndefined()
+    expect(existsSync(path)).toBe(false)
   })
 })
