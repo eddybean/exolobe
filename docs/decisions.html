@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>意思決定記録 — Duoscribe</title>
+    <title>意思決定記録 — Exolobe</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <nav class="topbar">
       <div class="topbar__inner">
-        <span class="topbar__brand">Duoscribe</span>
+        <span class="topbar__brand">Exolobe</span>
         <a href="index.html">概要</a>
         <a href="specification.html">仕様</a>
         <a href="architecture.html">アーキテクチャ</a>
@@ -725,9 +725,9 @@
           実行ファイル名・ヘルパーアプリ名・フレームワーク参照がすべてこの名前から生成されるためです。
           <code>productName</code> を ASCII に戻し、利用者に見える名前は当時
           <code>CFBundleDisplayName</code> で日本語（会議レコーダー）にしていました。
-          その後アプリ名を <code>Duoscribe</code> に統一したため、表示名を別に持つ必要がなくなり、
-          <code>CFBundleDisplayName</code> は削除しました。Finder もメニューバーも
-          <code>productName</code> の <code>Duoscribe</code> をそのまま表示します。
+          その後アプリ名を ASCII の <code>Duoscribe</code>（現在は <code>Exolobe</code>）に統一したため、
+          表示名を別に持つ必要がなくなり、<code>CFBundleDisplayName</code> は削除しました。
+          Finder もメニューバーも <code>productName</code> の <code>Exolobe</code> をそのまま表示します。
           <strong>ASCII の制約自体は今も有効です</strong> — productName を日本語に変えれば
           同じ SIGTRAP が再発します。
         </div>
@@ -777,7 +777,7 @@
         </div>
 
         <p>ad-hoc 署名で配布した場合、利用者側で一度だけ次の操作が必要です。</p>
-        <pre><code>xattr -dr com.apple.quarantine "/Applications/Duoscribe.app"</code></pre>
+        <pre><code>xattr -dr com.apple.quarantine "/Applications/Exolobe.app"</code></pre>
         <p>この手順は Release の説明文に自動で記載されるほか、.dmg 内の「はじめにお読みください.txt」にも同梱しています（Release ページを経由せず.dmg だけを受け取った人にも届くようにするため）。</p>
 
         <h4>開発時の注意</h4>

@@ -3,7 +3,7 @@ import { describeStaleness, findStaleDependencies } from '../../scripts/check-no
 
 const lock = {
   packages: {
-    '': { name: 'duoscribe', version: '0.1.1' },
+    '': { name: 'exolobe', version: '0.1.1' },
     'node_modules/electron': { version: '44.2.0' },
     'node_modules/@electron/get/node_modules/semver': { version: '7.7.2' },
     // 別 OS 向けのネイティブなど。この Mac では入らないのが正しい。

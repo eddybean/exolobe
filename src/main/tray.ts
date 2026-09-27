@@ -25,7 +25,7 @@ export const createTray = (controller: TransportController, showWindow: () => vo
   const icons = { idle: iconFor(false), recording: iconFor(true) }
 
   const tray = new Tray(icons.idle)
-  tray.setToolTip('Duoscribe')
+  tray.setToolTip('Exolobe')
 
   const refresh = (): void => {
     const state = controller.state()

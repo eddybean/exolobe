@@ -1,4 +1,4 @@
-# Duoscribe
+# Exolobe
 
 [![CI](https://github.com/eddybean/duoscribe/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eddybean/duoscribe/actions/workflows/ci.yml)
 [![Release](https://github.com/eddybean/duoscribe/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/eddybean/duoscribe/actions/workflows/release.yml)
@@ -9,6 +9,17 @@ Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし�
 ![録音一覧と詳細画面。左にフォルダで絞り込めるライブラリ、右に話者ごとの発言の帯・話者付きの文字起こし・議事録要約](docs/images/app-library.png)
 
 <sub>画面はダミーデータによるものです。</sub>
+
+## 名前の由来
+
+**Exolobe**（エクソローブ）は、*exo-*（外の）と *lobe*（脳葉）を合わせた造語です。
+会議で聞いたこと・話したことを、自分の頭の外にもう一つ増えた脳葉に預けておき、
+あとから検索やチャットで引き出せる — 「ミーティングにおける脳の外部記憶装置」という
+このアプリの役割をそのまま名前にしています。その脳葉は Mac の中にあり、外部には出ていきません。
+
+旧名は Duoscribe です。旧名の版を使っていた場合は、設定・モデル・覚えた声を引き継ぐため、
+アプリを終了した状態で `bash scripts/migrate-from-duoscribe.sh` を一度実行してください
+（`~/Library/Application Support/Duoscribe` を `Exolobe` へ移します）。
 
 ## できること
 
@@ -40,13 +51,13 @@ Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし�
 ## インストール方法
 
 [Releases ページ](https://github.com/eddybean/duoscribe/releases/latest) から最新の
-`.dmg` をダウンロードし、`Duoscribe.app` を「アプリケーション」フォルダへドラッグします。
+`.dmg` をダウンロードし、`Exolobe.app` を「アプリケーション」フォルダへドラッグします。
 
 配布版は Apple Developer 証明書による署名・公証をしていない（ad-hoc 署名）ため、
 初回起動の前にターミナルで一度だけ次のコマンドを実行してください。
 
 ```sh
-xattr -dr com.apple.quarantine "/Applications/Duoscribe.app"
+xattr -dr com.apple.quarantine "/Applications/Exolobe.app"
 ```
 
 この手順は .dmg に同梱した「はじめにお読みください.txt」と、Release の説明文にも書いてあります。

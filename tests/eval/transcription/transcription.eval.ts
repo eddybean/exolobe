@@ -50,7 +50,7 @@ const BASELINE = join(HERE, 'baseline.json')
 
 const modelDir =
   process.env.OMR_EVAL_MODEL_DIR ??
-  join(homedir(), 'Library', 'Application Support', 'Duoscribe', 'models')
+  join(homedir(), 'Library', 'Application Support', 'Exolobe', 'models')
 const modelFile = findAsset('transcription-model')?.fileName ?? ''
 const vadFile = findAsset('vad-model')?.fileName ?? ''
 const bundledCli = resolve('resources/bin/whisper-cli')

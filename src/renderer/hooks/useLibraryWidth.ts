@@ -5,7 +5,7 @@ import { LIBRARY_WIDTH, clampLibraryWidth, parseStoredWidth } from '../library/p
  * 幅の保存先。見た目の好みでしかなく、消えても既定の幅に戻るだけなので
  * 設定ファイル（ADR-035 の管理下）には載せず、レンダラーの localStorage に置く。
  */
-const STORAGE_KEY = 'duoscribe.libraryWidth'
+const STORAGE_KEY = 'exolobe.libraryWidth'
 
 const readStored = (): string | null => {
   try {

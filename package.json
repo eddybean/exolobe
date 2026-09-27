@@ -1,5 +1,5 @@
 {
-  "name": "duoscribe",
+  "name": "exolobe",
   "version": "0.1.3",
   "description": "Web 会議の録音・文字起こし・話者識別・要約を Mac の中だけで実行するデスクトップアプリ",
   "main": "./out/main/index.js",
