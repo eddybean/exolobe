@@ -3,7 +3,7 @@ import { BrowserWindow, dialog, ipcMain, shell, systemPreferences, type FileFilt
 import type { PipelineStep } from '@domain/Recording'
 import { ConfigurationError, toMessage } from '@domain/errors'
 import { IMPORTABLE_EXTENSIONS } from '@domain/AudioImport'
-import { findAsset, formatBytes } from '@domain/ModelCatalog'
+import { findPackage, formatBytes } from '@domain/ModelCatalog'
 import { DEFAULT_SEARCH_LIMIT, searchIndexTransition } from '@domain/SemanticSearch'
 import type { Settings, SettingsPatch } from '@domain/Settings'
 import { DEFAULT_QUIET_RATIO, DEFAULT_SILENCE_LEVEL } from '@domain/SilenceWatch'
@@ -826,12 +826,12 @@ export const registerIpcHandlers = (
    */
   handle(IPC.confirmDeleteModel, async (id: unknown): Promise<boolean> => {
     const modelId = asString(id, 'モデル ID')
-    const asset = findAsset(modelId)
-    if (!asset) throw new ConfigurationError(`不明なモデルです: ${modelId}`)
+    const model = findPackage(modelId)
+    if (!model) throw new ConfigurationError(`不明なモデルです: ${modelId}`)
 
     return confirm({
-      message: `「${asset.label}」を削除しますか？`,
-      detail: `もう一度使うには ${formatBytes(asset.bytes)} のダウンロードが必要になります。`
+      message: `「${model.label}」を削除しますか？`,
+      detail: `もう一度使うには ${formatBytes(model.bytes)} のダウンロードが必要になります。`
     })
   })
 
