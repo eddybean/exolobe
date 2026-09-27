@@ -5,6 +5,10 @@ import type { SettingsPatch } from './Settings'
  *
  * 配布版を使う利用者に Homebrew も手動ダウンロードも求めないための仕組み。
  * URL・サイズ・チェックサムはここに集約し、差し替えはこのファイルだけで済むようにする。
+ *
+ * Hugging Face の URL は resolve/main ではなくコミットで固定する。上流がファイルを
+ * 差し替えるとチェックサムが合わなくなり、新しく入れる利用者のダウンロードが失敗するため。
+ * モデルを更新するときは評価で前後を比べてから、コミットと sha256 を一緒に書き換える。
  */
 
 export type ManagedAssetId =
@@ -47,7 +51,7 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     id: 'transcription-model',
     label: '文字起こしモデル',
     description: 'whisper large-v3-turbo（q5_0）。日本語を含む多言語に対応します。',
-    url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin',
+    url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin',
     fileName: 'ggml-large-v3-turbo-q5_0.bin',
     bytes: 574_041_195,
     sha256: '394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2',
@@ -70,7 +74,7 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     label: '文字起こし高速化（任意）',
     description:
       'whisper のエンコーダを Neural Engine で動かします。文字起こしが約 1.4 倍速くなります（メモリ使用量は変わりません）。',
-    url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-encoder.mlmodelc.zip',
+    url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-encoder.mlmodelc.zip',
     fileName: 'ggml-large-v3-turbo-encoder.mlmodelc.zip',
     bytes: 1_173_393_014,
     sha256: '84bedfe895bd7b5de6e8e89a0803dfc5addf8c0c5bc4c937451716bf7cf7988a',
@@ -85,7 +89,7 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     label: '無音検出モデル',
     description:
       'Silero VAD。喋っていない区間を文字起こしから除き、無音から生まれる誤った文章を防ぎます。',
-    url: 'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin',
+    url: 'https://huggingface.co/ggml-org/whisper-vad/resolve/9ffd54a1e1ee413ddf265af9913beaf518d1639b/ggml-silero-v5.1.2.bin',
     fileName: 'ggml-silero-v5.1.2.bin',
     bytes: 885_098,
     sha256: '29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf',
@@ -99,7 +103,7 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     label: '要約モデル',
     description:
       'Gemma 4 E4B（QAT q4_0）。128K のコンテキストがあり、長い会議も分割せず要約できます。',
-    url: 'https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf/resolve/main/gemma-4-E4B_q4_0-it.gguf',
+    url: 'https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf/resolve/4b4a2c1d584be7264f87aac328a1bc739ce81b6c/gemma-4-E4B_q4_0-it.gguf',
     fileName: 'gemma-4-E4B_q4_0-it.gguf',
     bytes: 5_154_941_280,
     sha256: '676c35070db6dbe52f93e9c864ee0fba4eddea94b9c875d9cb10daff453fbaee',
@@ -112,7 +116,8 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     description: '参加者が複数人いるとき、相手側を話者ごとに分けるために使います。',
     url: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2',
     fileName: 'sherpa-onnx-pyannote-segmentation-3-0.tar.bz2',
-    bytes: 7_000_000,
+    bytes: 6_958_444,
+    sha256: '24615ee884c897d9d2ba09bb4d30da6bb1b15e685065962db5b02e76e4996488',
     archive: 'tar.bz2',
     entryPath: 'sherpa-onnx-pyannote-segmentation-3-0/model.onnx',
     optional: true,
@@ -124,7 +129,8 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     description: '話者分割モデルと組み合わせて、同じ人の発話をまとめます。',
     url: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx',
     fileName: '3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx',
-    bytes: 28_300_000,
+    bytes: 28_281_164,
+    sha256: 'aa3cfc16963a10586a9393f5035d6d6b57e98d358b347f80c2a30bf4f00ceba2',
     optional: true,
     applyTo: (path) => ({ diarization: { embeddingModelPath: path } })
   },
@@ -139,7 +145,7 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     label: '意味検索モデル（任意）',
     description:
       'bge-m3（Q8_0）。「天気の話をした会議」のような自然な文章で録音を探せるようにします。',
-    url: 'https://huggingface.co/ggml-org/bge-m3-Q8_0-GGUF/resolve/main/bge-m3-q8_0.gguf',
+    url: 'https://huggingface.co/ggml-org/bge-m3-Q8_0-GGUF/resolve/9eba04c5d75ba5a1595e45de734d36bef4e5cb98/bge-m3-q8_0.gguf',
     fileName: 'bge-m3-q8_0.gguf',
     bytes: 634_553_760,
     sha256: 'aa473d51f451a22f0fcf39ba3330c14bed38a385712b1113440f69df4047a173',
