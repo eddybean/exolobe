@@ -11,6 +11,8 @@
  * メニューバー側は 32x32 のテンプレート画像（RGB は黒、アルファだけで形を作る）。
  * OS がライト／ダークに合わせて塗るため色は乗せられず、上下の非対称な形だけが
  * 2 トラックを運ぶ。整数画素に合わせて描き、16pt @2x で滲まないようにする。
+ * 録音中だけは同じ形を赤で塗った色付きの画像に切り替え、待機中と見分けられるようにする
+ * （赤はライト／ダークどちらのメニューバーでも読めるので、背景ごとの塗り分けは要らない）。
  */
 import { deflateSync } from 'node:zlib'
 import { execFileSync } from 'node:child_process'
@@ -42,6 +44,9 @@ const SIMPLE = {
 }
 
 const AXIS_GAP = 12
+
+// 録音中のメニューバーのアイコンの色。macOS の systemRed（画面収録などの録音表示と揃える）。
+const RECORDING = [0xff, 0x3b, 0x30]
 
 const crcTable = Array.from({ length: 256 }, (_, n) => {
   let c = n
@@ -154,8 +159,9 @@ const appIcon = (size) => {
 /**
  * メニューバー用の 32x32。整数画素に合わせて描く。
  * 棒は幅 3・間隔 2 の 6 本、中心に 2 行の溝を空けて上下を分ける。
+ * 待機中はテンプレート画像にするので黒、録音中は赤で塗る。
  */
-const trayIcon = () => {
+const trayIcon = (color) => {
   const size = 32
   const rgba = Buffer.alloc(size * size * 4)
   const up = [7, 11, 5, 13, 8, 4]
@@ -163,6 +169,9 @@ const trayIcon = () => {
 
   const paint = (x, y) => {
     const index = (y * size + x) * 4
+    rgba[index] = color[0]
+    rgba[index + 1] = color[1]
+    rgba[index + 2] = color[2]
     rgba[index + 3] = 255
   }
 
@@ -200,4 +209,5 @@ execFileSync('iconutil', ['-c', 'icns', iconset, '-o', join(root, 'build/icon.ic
 rmSync(iconset, { recursive: true, force: true })
 
 writeFileSync(join(root, 'build/icon.png'), appIcon(1024))
-process.stdout.write(`${trayIcon().toString('base64')}\n`)
+process.stdout.write(`idle:      ${trayIcon([0, 0, 0]).toString('base64')}\n`)
+process.stdout.write(`recording: ${trayIcon(RECORDING).toString('base64')}\n`)
