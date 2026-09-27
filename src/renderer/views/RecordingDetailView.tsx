@@ -23,7 +23,7 @@ import { isPlaybackToggleKey, nextPlaybackRate, playerMode } from '../library/pl
 import { voiceLearnedNotice } from '../library/voiceLearning'
 import { canEditSummary, resummarizeState, type ResummarizeState } from '../resummarize'
 import { speakerNameSuggestions } from '../speakerSuggestions'
-import { failureTooltip, failuresIn, type StepFailure } from '../stepFailure'
+import { failureTooltip, failuresIn, queuedIn, type StepFailure } from '../stepFailure'
 import {
   applyProgressEvent,
   estimateRemainingMs,
@@ -41,8 +41,18 @@ type Tab = 'summary' | 'note'
 const RESUMMARIZE_HINT: Readonly<Record<ResummarizeState, string>> = {
   ready: '話者名や本文を直したあとなど、要約を作り直す',
   summarizing: '要約を作り直しています',
+  queued: '順番が来ると要約し直します',
   busy: '他の処理が終わると要約し直せます',
   unavailable: '文字起こしができると要約し直せます'
+}
+
+/** 再要約ボタンの文言。受け付けた後は、押せないことより「待っている」ことを見せる。 */
+const RESUMMARIZE_LABELS: Readonly<Record<ResummarizeState, string>> = {
+  ready: '再要約',
+  summarizing: '要約中…',
+  queued: '要約待ち…',
+  busy: '再要約',
+  unavailable: '再要約'
 }
 
 /**
@@ -309,6 +319,10 @@ export const RecordingDetailView = ({
   const transcriptFailures = failuresIn('transcript', detail.recording.steps)
   const summaryFailures = failuresIn('summary', detail.recording.steps)
   const audioFailures = failuresIn('audio', detail.recording.steps)
+  // 再実行を押すと失敗は消え、同じ場所に順番待ちが出る。押したことがその場で分かる。
+  const transcriptQueued = queuedIn('transcript', detail.recording.steps)
+  const summaryQueued = queuedIn('summary', detail.recording.steps)
+  const audioQueued = queuedIn('audio', detail.recording.steps)
 
   /**
    * タイトルの変更。保存ディレクトリ名は変わらないので、既に書き出した
@@ -458,8 +472,8 @@ export const RecordingDetailView = ({
           disabled={!audioReady}
           onSeek={seek}
         />
-        {audioFailures.length > 0 ? (
-          <StepFailures failures={audioFailures} onRetry={retry} />
+        {audioFailures.length > 0 || audioQueued.length > 0 ? (
+          <StepFailures failures={audioFailures} queued={audioQueued} onRetry={retry} />
         ) : (
           !audioReady && (
             <p className="player-slot__hint">{pendingAudioHint(detail.recording.status)}</p>
@@ -474,10 +488,15 @@ export const RecordingDetailView = ({
             <CopyButton text={detail.transcriptText} label="文字起こしをコピー" />
           </div>
 
-          <StepFailures failures={transcriptFailures} onRetry={retry} />
+          <StepFailures
+            failures={transcriptFailures}
+            queued={transcriptQueued}
+            onRetry={retry}
+          />
 
           {detail.segments.length === 0 ? (
-            transcriptFailures.length === 0 && (
+            transcriptFailures.length === 0 &&
+            transcriptQueued.length === 0 && (
               <p className="panel__empty">まだ文字起こしがありません。</p>
             )
           ) : (
@@ -575,7 +594,7 @@ export const RecordingDetailView = ({
                   disabled={resummarize !== 'ready'}
                   title={RESUMMARIZE_HINT[resummarize]}
                 >
-                  {resummarize === 'summarizing' ? '要約中…' : '再要約'}
+                  {RESUMMARIZE_LABELS[resummarize]}
                 </button>
                 {detail.summary && <CopyButton text={detail.summary} label="要約をコピー" />}
               </div>
@@ -594,13 +613,18 @@ export const RecordingDetailView = ({
             />
           ) : tab === 'summary' ? (
             <>
-              <StepFailures failures={summaryFailures} onRetry={retrySummaryStep} />
+              <StepFailures
+                failures={summaryFailures}
+                queued={summaryQueued}
+                onRetry={retrySummaryStep}
+              />
               {detail.summary ? (
                 <div className="summary">
                   <Markdown source={detail.summary} />
                 </div>
               ) : (
-                summaryFailures.length === 0 && <p className="panel__empty">まだ要約がありません。</p>
+                summaryFailures.length === 0 &&
+                summaryQueued.length === 0 && <p className="panel__empty">まだ要約がありません。</p>
               )}
             </>
           ) : (
@@ -620,6 +644,7 @@ export const RecordingDetailView = ({
 /** 状態ごとの短い表記。色だけに頼らず文字でも読めるようにする。 */
 const STEP_STATE_LABELS: Readonly<Record<string, string>> = {
   pending: '待機',
+  queued: '順番待ち',
   running: '処理中',
   done: '完了',
   failed: '失敗'
@@ -719,22 +744,31 @@ const PipelinePill = ({
 }
 
 /**
- * ある欄に属する失敗の全文と再実行。
+ * ある欄に属する失敗の全文と再実行、および順番待ち。
  *
  * 全文は常に出す。以前はホバーで出していたが、マウスを外すと消えて
  * 読む・コピーする前に見失っていた。
  */
 const StepFailures = ({
   failures,
+  queued,
   onRetry
 }: {
   failures: ReadonlyArray<StepFailure & { readonly step: string }>
+  queued: ReadonlyArray<{ readonly label: string }>
   onRetry: (step: PipelineStep) => void
 }): ReactElement | null => {
-  if (failures.length === 0) return null
+  if (failures.length === 0 && queued.length === 0) return null
 
   return (
     <ul className="failures">
+      {queued.length > 0 && (
+        <li className="failure failure--queued">
+          <p className="failure__message" role="status">
+            {queued.map((step) => step.label).join('・')}の順番を待っています
+          </p>
+        </li>
+      )}
       {failures.map((failure) => (
         <li key={failure.step} className="failure">
           <p className="failure__message" role="note">

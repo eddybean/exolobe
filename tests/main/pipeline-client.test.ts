@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ProgressEventDto } from '@shared/ipc'
 import { PipelineClient, type PipelineWorker } from '../../src/main/worker/PipelineClient'
 
 /** utilityProcess の代役。ジョブの完了・終了を手で起こせるようにする。 */
@@ -37,17 +38,22 @@ class FakeWorker implements PipelineWorker {
   }
 }
 
-const setup = (): { client: PipelineClient; workers: FakeWorker[] } => {
+const setup = (): {
+  client: PipelineClient
+  workers: FakeWorker[]
+  events: ProgressEventDto[]
+} => {
   const workers: FakeWorker[] = []
+  const events: ProgressEventDto[] = []
   const client = new PipelineClient(
-    () => undefined,
+    (event) => events.push(event),
     () => {
       const worker = new FakeWorker()
       workers.push(worker)
       return worker
     }
   )
-  return { client, workers }
+  return { client, workers, events }
 }
 
 describe('PipelineClient', () => {
@@ -163,5 +169,120 @@ describe('PipelineClient', () => {
 
     await expect(job).rejects.toThrow()
     expect(changes).toEqual([true, false])
+  })
+
+  describe('順番待ちのステップ', () => {
+    it('積んだ時点で queued を知らせる（押した直後に受け付けたと分かるように）', () => {
+      const { client, events } = setup()
+
+      void client.run({ recordingId: 'r1', only: ['summarize'] })
+
+      expect(events).toEqual([{ recordingId: 'r1', step: 'summarize', status: 'queued' }])
+      expect(client.queuedSteps('r1')).toEqual(['summarize'])
+    })
+
+    it('ステップを指定しない依頼は全ステップを順番待ちにする', () => {
+      const { client } = setup()
+
+      void client.run({ recordingId: 'r1' })
+
+      expect(client.queuedSteps('r1')).toEqual([
+        'mix',
+        'transcribe',
+        'diarize',
+        'summarize',
+        'encode'
+      ])
+    })
+
+    it('前のジョブを待っている間も順番待ちのまま', () => {
+      const { client } = setup()
+
+      void client.run({ recordingId: 'r1' })
+      void client.run({ recordingId: 'r2', only: ['summarize'] })
+
+      expect(client.queuedSteps('r2')).toEqual(['summarize'])
+    })
+
+    it('ワーカーがそのステップの進捗を報せたら順番待ちから外す', () => {
+      const { client, workers, events } = setup()
+
+      void client.run({ recordingId: 'r1', only: ['diarize', 'summarize'] })
+      const running = { recordingId: 'r1', step: 'diarize', status: 'running' } as const
+      workers[0]?.emit('message', { type: 'progress', event: running })
+
+      expect(client.queuedSteps('r1')).toEqual(['summarize'])
+      expect(events).toContainEqual(running)
+    })
+
+    it('ジョブが終われば、進捗を報せずに終わったステップも順番待ちから外す', async () => {
+      // 前のステップの失敗で実行しなかったステップは進捗を報せない。
+      const { client, workers } = setup()
+
+      const job = client.run({ recordingId: 'r1', only: ['summarize'] })
+      workers[0]?.complete(workers[0].sent[0]?.jobId ?? '')
+      await job
+
+      expect(client.queuedSteps('r1')).toEqual([])
+    })
+
+    it('ワーカーが落ちたら実行中のジョブの分だけ外し、待っていた分は残す', async () => {
+      const { client, workers } = setup()
+
+      const first = client.run({ recordingId: 'r1', only: ['summarize'] })
+      void client.run({ recordingId: 'r2', only: ['summarize'] })
+      workers[0]?.emit('exit', 1)
+      await expect(first).rejects.toThrow()
+
+      expect(client.queuedSteps('r1')).toEqual([])
+      expect(client.queuedSteps('r2')).toEqual(['summarize'])
+    })
+
+    it('ジョブが失敗で終わって順番待ちが消えたことも知らせる（画面に残り続けないように）', async () => {
+      const { client, workers } = setup()
+      const cleared: string[] = []
+      client.onQueueCleared((recordingId) => cleared.push(recordingId))
+
+      const job = client.run({ recordingId: 'r1', only: ['summarize'] })
+      workers[0]?.fail(workers[0].sent[0]?.jobId ?? '')
+      await expect(job).rejects.toThrow()
+
+      expect(cleared).toEqual(['r1'])
+    })
+
+    it('ワーカーが落ちたときも、実行中だったジョブの順番待ちが消えたことを知らせる', async () => {
+      const { client, workers } = setup()
+      const cleared: string[] = []
+      client.onQueueCleared((recordingId) => cleared.push(recordingId))
+
+      const job = client.run({ recordingId: 'r1', only: ['summarize'] })
+      workers[0]?.emit('exit', 1)
+      await expect(job).rejects.toThrow()
+
+      expect(cleared).toEqual(['r1'])
+    })
+
+    it('全ステップが進捗を報せ終えていれば、改めては知らせない', async () => {
+      const { client, workers } = setup()
+      const cleared: string[] = []
+      client.onQueueCleared((recordingId) => cleared.push(recordingId))
+
+      const job = client.run({ recordingId: 'r1', only: ['summarize'] })
+      const done = { recordingId: 'r1', step: 'summarize', status: 'done' }
+      workers[0]?.emit('message', { type: 'progress', event: done })
+      workers[0]?.complete(workers[0].sent[0]?.jobId ?? '')
+      await job
+
+      expect(cleared).toEqual([])
+    })
+
+    it('声紋の取り直しはステップではないので順番待ちに出さない', () => {
+      const { client, events } = setup()
+
+      void client.extractVoices('r1')
+
+      expect(client.queuedSteps('r1')).toEqual([])
+      expect(events).toEqual([])
+    })
   })
 })

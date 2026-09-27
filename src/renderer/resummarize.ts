@@ -3,11 +3,12 @@
  *
  * - `unavailable`: 文字起こしがまだ無い。要約する材料が無い。
  * - `summarizing`: 要約が走っている最中。
+ * - `queued`: 要約が順番を待っている。押した直後から、受け付けたことを見せる。
  * - `busy`: 他のステップが走っている。ワーカーはジョブを直列に捌くので、
  *   ここで押せても待たされるだけで、押した手応えだけが嘘になる。
  * - `ready`: 押せる。
  */
-export type ResummarizeState = 'ready' | 'summarizing' | 'busy' | 'unavailable'
+export type ResummarizeState = 'ready' | 'summarizing' | 'queued' | 'busy' | 'unavailable'
 
 /**
  * ステップの再実行そのものは失敗していなくても許されている（ProcessRecording は
@@ -19,7 +20,12 @@ export const resummarizeState = (
   hasTranscript: boolean
 ): ResummarizeState => {
   if (steps.summarize?.status === 'running') return 'summarizing'
-  if (Object.values(steps).some((state) => state?.status === 'running')) return 'busy'
+  if (steps.summarize?.status === 'queued') return 'queued'
+  if (
+    Object.values(steps).some((state) => state?.status === 'running' || state?.status === 'queued')
+  ) {
+    return 'busy'
+  }
   if (!hasTranscript) return 'unavailable'
 
   return 'ready'

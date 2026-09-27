@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { app, utilityProcess } from 'electron'
+import { PIPELINE_STEPS, type PipelineStep } from '@domain/Recording'
 import type { ProgressEventDto, RecordingDto } from '@shared/ipc'
 import { isWorkerResponse } from './protocol'
 
@@ -14,6 +15,8 @@ export interface PipelineWorker {
 
 interface Job {
   readonly build: (jobId: string) => Record<string, unknown>
+  /** まだ始まっていないステップ。パイプラインのジョブだけが持つ。 */
+  readonly queued?: { readonly recordingId: string; readonly steps: Set<PipelineStep> }
   readonly resolve: (recording: RecordingDto | undefined) => void
   readonly reject: (error: Error) => void
 }
@@ -37,6 +40,7 @@ export class PipelineClient {
   private current: { readonly jobId: string; readonly job: Job } | undefined
   private readonly queue: Job[] = []
   private readonly busyListeners: ((busy: boolean) => void)[] = []
+  private readonly queueClearedListeners: ((recordingId: string) => void)[] = []
 
   constructor(
     private readonly onProgress: (event: ProgressEventDto) => void,
@@ -44,15 +48,33 @@ export class PipelineClient {
   ) {}
 
   async run(params: { recordingId: string; only?: readonly string[] }): Promise<RecordingDto> {
-    const recording = await this.request((jobId) => ({
-      type: 'run',
-      jobId,
-      recordingId: params.recordingId,
-      ...(params.only === undefined ? {} : { only: params.only })
-    }))
+    const steps = PIPELINE_STEPS.filter((step) => params.only?.includes(step) ?? true)
+    const recording = await this.request(
+      (jobId) => ({
+        type: 'run',
+        jobId,
+        recordingId: params.recordingId,
+        ...(params.only === undefined ? {} : { only: params.only })
+      }),
+      { recordingId: params.recordingId, steps: new Set(steps) }
+    )
 
     if (!recording) throw new Error('処理の結果を受け取れませんでした。')
     return recording
+  }
+
+  /**
+   * 列に積まれて、まだワーカーが手を付けていないステップ（パイプラインの順）。
+   *
+   * 保存された状態には載らない一過性の値なので、画面に渡す DTO へここから重ねる。
+   * 保存しないのは、アプリが落ちると列ごと消えるため ―― 「順番待ち」が残ると
+   * 二度と始まらない処理を待たせることになる。
+   */
+  queuedSteps(recordingId: string): PipelineStep[] {
+    const jobs = [...(this.current ? [this.current.job] : []), ...this.queue]
+    return PIPELINE_STEPS.filter((step) =>
+      jobs.some((job) => job.queued?.recordingId === recordingId && job.queued.steps.has(step))
+    )
   }
 
   /**
@@ -66,12 +88,18 @@ export class PipelineClient {
   }
 
   private request(
-    build: (jobId: string) => Record<string, unknown>
+    build: (jobId: string) => Record<string, unknown>,
+    queued?: Job['queued']
   ): Promise<RecordingDto | undefined> {
     return new Promise<RecordingDto | undefined>((resolve, reject) => {
       const wasBusy = this.isBusy()
-      this.queue.push({ build, resolve, reject })
+      this.queue.push({ build, resolve, reject, ...(queued === undefined ? {} : { queued }) })
       if (!wasBusy) this.notifyBusy(true)
+      if (queued) {
+        for (const step of queued.steps) {
+          this.onProgress({ recordingId: queued.recordingId, step, status: 'queued' })
+        }
+      }
       this.dispatch()
     })
   }
@@ -87,6 +115,15 @@ export class PipelineClient {
 
   onBusyChange(listener: (busy: boolean) => void): void {
     this.busyListeners.push(listener)
+  }
+
+  /**
+   * ジョブが終わり、進捗を報せないまま順番待ちが消えたとき。前のステップの失敗で
+   * 実行しなかった・ワーカーが途中で落ちた、などの場合で、画面はこれを受けて
+   * 読み直さないと「順番待ち」を出し続ける。
+   */
+  onQueueCleared(listener: (recordingId: string) => void): void {
+    this.queueClearedListeners.push(listener)
   }
 
   dispose(): void {
@@ -114,6 +151,11 @@ export class PipelineClient {
       if (!isWorkerResponse(message)) return
 
       if (message.type === 'progress') {
+        // 進捗が届いたステップは保存された状態の方が実態を表すので、順番待ちから外す。
+        const queued = this.current?.job.queued
+        if (queued?.recordingId === message.event.recordingId) {
+          queued.steps.delete(message.event.step)
+        }
         this.onProgress(message.event)
         return
       }
@@ -145,9 +187,14 @@ export class PipelineClient {
 
   /** ワーカーを終了させて確保したメモリを OS に返し、次のジョブへ進む。 */
   private finish(worker: PipelineWorker): void {
+    const queued = this.current?.job.queued
     this.current = undefined
     this.worker = undefined
     worker.kill()
+
+    if (queued && queued.steps.size > 0) {
+      for (const listener of this.queueClearedListeners) listener(queued.recordingId)
+    }
 
     this.dispatch()
     if (!this.isBusy()) this.notifyBusy(false)

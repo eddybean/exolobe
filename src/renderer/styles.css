@@ -1230,8 +1230,14 @@ code {
   background: var(--danger);
 }
 
-.pipeline__step--pending {
+.pipeline__step--pending,
+.pipeline__step--queued {
   color: var(--text-muted);
+}
+
+.pipeline__step--queued .pipeline__mark {
+  border-style: dashed;
+  border-color: var(--accent);
 }
 
 .pipeline__step--running .pipeline__label {
@@ -1302,6 +1308,12 @@ code {
   /* ネイティブ由来の英語エラーは検索・報告に持ち出したくなる。選択させる。 */
   user-select: text;
   cursor: text;
+}
+
+/* 順番待ちは失敗ではない。赤みを残すと、押した再実行がまた失敗したように読める。 */
+.failure--queued .failure__message {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--text-muted);
 }
 
 .failure__retry {

@@ -1,6 +1,6 @@
 import { basename } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell, systemPreferences, type FileFilter } from 'electron'
-import type { PipelineStep } from '@domain/Recording'
+import type { PipelineStep, Recording } from '@domain/Recording'
 import { ConfigurationError, toMessage } from '@domain/errors'
 import { IMPORTABLE_EXTENSIONS } from '@domain/AudioImport'
 import { findPackage, formatBytes } from '@domain/ModelCatalog'
@@ -11,6 +11,7 @@ import {
   IPC,
   toFolderDto,
   toRecordingDto,
+  withQueuedSteps,
   type FolderDto,
   type ImportAudioResultDto,
   type ImportFailureDto,
@@ -158,6 +159,15 @@ export const registerIpcHandlers = (
     // 割合だけの通知では保存された状態は変わらない。一覧を読み直させる理由が無い。
     if (event.fraction === undefined) send(IPC.recordingsChanged)
   })
+
+  pipeline.onQueueCleared(() => send(IPC.recordingsChanged))
+
+  // 画面に渡す録音には、列で順番を待っているステップを重ねる（保存された状態には無い）。
+  const recordingDto = (recording: Recording, summaryPreview?: string): RecordingDto =>
+    withQueuedSteps(
+      toRecordingDto(recording, summaryPreview),
+      pipeline.queuedSteps(recording.id)
+    )
 
   /**
    * 意味検索。埋め込みモデルは検索専用のワーカーに載せる。
@@ -433,7 +443,7 @@ export const registerIpcHandlers = (
         })
       }
 
-      return toRecordingDto(recording)
+      return recordingDto(recording)
     },
 
     async stop(): Promise<RecordingDto> {
@@ -449,7 +459,7 @@ export const registerIpcHandlers = (
       void runPipeline(recording.id)
       void resumeStartWatch()
 
-      return toRecordingDto(recording)
+      return recordingDto(recording)
     },
 
     async discard(): Promise<void> {
@@ -537,14 +547,14 @@ export const registerIpcHandlers = (
 
   handle(IPC.listRecordings, async (): Promise<RecordingDto[]> => {
     const recordings = await container.listRecordings.execute()
-    return recordings.map((recording) => toRecordingDto(recording, recording.summaryPreview))
+    return recordings.map((recording) => recordingDto(recording, recording.summaryPreview))
   })
 
   handle(IPC.getRecording, async (id: unknown): Promise<RecordingDetailDto> => {
     const detail = await container.getRecordingDetail.execute(asString(id, '録音 ID'))
 
     return {
-      recording: toRecordingDto(detail.recording),
+      recording: recordingDto(detail.recording),
       audioPath: detail.audioPath,
       segments: detail.segments,
       speakers: detail.speakers,
@@ -571,7 +581,7 @@ export const registerIpcHandlers = (
       only: [asStep(step)]
     })
     send(IPC.recordingsChanged)
-    return recording
+    return withQueuedSteps(recording, pipeline.queuedSteps(recording.id))
   })
 
   /**
@@ -594,7 +604,7 @@ export const registerIpcHandlers = (
 
       try {
         const recording = await container.importAudioFile.execute({ filePath })
-        imported.push(toRecordingDto(recording))
+        imported.push(recordingDto(recording))
         send(IPC.recordingsChanged)
         void runPipeline(recording.id)
       } catch (error: unknown) {
@@ -656,7 +666,7 @@ export const registerIpcHandlers = (
       title: asString(title, 'タイトル')
     })
     send(IPC.recordingsChanged)
-    return toRecordingDto(recording)
+    return recordingDto(recording)
   })
 
   handle(IPC.renameSpeaker, async (id: unknown, speakerId: unknown, label: unknown) => {
@@ -751,7 +761,7 @@ export const registerIpcHandlers = (
         folderId: typeof folderId === 'string' ? folderId : undefined
       })
       send(IPC.recordingsChanged)
-      return toRecordingDto(recording)
+      return recordingDto(recording)
     }
   )
 

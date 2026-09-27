@@ -151,7 +151,11 @@ export interface ImportProgressDto {
 export interface ProgressEventDto {
   readonly recordingId: string
   readonly step: PipelineStep
-  readonly status: 'running' | 'done' | 'failed'
+  /**
+   * queued はワーカーに渡る前の順番待ち。main が列に積んだ時点で出す。ワーカーの起動や
+   * 前のジョブの完了を待つ間、押した再実行が受け付けられたのか分からなくなるため。
+   */
+  readonly status: 'queued' | 'running' | 'done' | 'failed'
   readonly error?: string
   /** running の途中経過（0〜1）。割合を出せるステップ（いまは文字起こし）だけが付ける。 */
   readonly fraction?: number
@@ -313,6 +317,24 @@ export const toRecordingDto = (
   ...(recording.folderId === undefined ? {} : { folderId: recording.folderId }),
   ...(recording.participants === undefined ? {} : { participants: [...recording.participants] })
 })
+
+/**
+ * main が列に積んで、まだ始まっていないステップを DTO に重ねる。
+ *
+ * 順番待ちは保存しない（アプリが落ちれば列ごと消える）ので、保存された状態から
+ * 作った DTO にだけ載せる。前回の失敗の理由を落とすのは、再実行を受け付けたのに
+ * 失敗と再実行ボタンが出たままだと、押しても反応が無いように見えるため。
+ */
+export const withQueuedSteps = (
+  dto: RecordingDto,
+  queued: readonly PipelineStep[]
+): RecordingDto => {
+  if (queued.length === 0) return dto
+
+  const steps = { ...dto.steps }
+  for (const step of queued) steps[step] = { status: 'queued' }
+  return { ...dto, status: 'processing', steps }
+}
 
 export const toFolderDto = (folder: Folder): FolderDto => ({
   id: folder.id,
