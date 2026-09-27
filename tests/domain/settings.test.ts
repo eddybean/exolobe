@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_CLUSTERING_THRESHOLD,
+  DEFAULT_SUMMARY_PROMPT,
   defaultSettings,
   isConfigured,
   mergeSettings,
+  NOTES_PLACEHOLDER,
   validateSettings
 } from '@domain/Settings'
 import { VOICEPRINT_MATCH_THRESHOLD } from '@domain/Voiceprint'
@@ -132,6 +134,19 @@ describe('validateSettings', () => {
     expect(validateSettings(settings)).toContain(
       '要約プロンプトには文字起こしの差し込み位置 {{transcript}} を含めてください。'
     )
+  })
+})
+
+describe('DEFAULT_SUMMARY_PROMPT', () => {
+  it('会議中のメモと印の差し込み位置を持つ', () => {
+    expect(DEFAULT_SUMMARY_PROMPT).toContain(NOTES_PLACEHOLDER)
+  })
+
+  it('メモは必須にしない（{{notes}} を消したプロンプトも保存できる）', () => {
+    const settings = mergeSettings(defaultSettings(), {
+      summarization: { promptTemplate: '要約してください。{{transcript}}' }
+    })
+    expect(validateSettings(settings)).toEqual([])
   })
 })
 

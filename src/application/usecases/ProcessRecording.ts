@@ -44,6 +44,7 @@ import {
   type Speaker
 } from '@domain/Speaker'
 import { applyDiarization, mergeTracks, toMarkdown } from '@domain/Transcript'
+import { summaryNotes } from '@domain/MeetingNotes'
 import type { SpeakerTurn, TranscriptSegment } from '@domain/TranscriptSegment'
 import { matchVoiceprints, type SpeakerVector } from '@domain/Voiceprint'
 
@@ -441,8 +442,16 @@ export class ProcessRecording {
 
   private async summarize({ recording, settings }: StepContext): Promise<void> {
     const { segments, speakers } = await this.requireTranscript(recording)
+    // メモは録音後にも書き足せる。再要約でも毎回読み直す（ADR-042）。
+    const notes = summaryNotes({
+      note: await this.deps.artifacts.readNote(recording),
+      marks: await this.deps.artifacts.readBookmarks(recording),
+      segments,
+      speakers
+    })
     const summary = await this.deps.summarizer.summarize({
       transcript: toMarkdown(segments, speakers),
+      notes,
       promptTemplate: settings.summarization.promptTemplate
     })
 

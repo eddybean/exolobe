@@ -1,7 +1,7 @@
 import type { SummarizationPort } from '@application/ports'
 import { AppError } from '@domain/errors'
 import type { MemoryProtection } from '@domain/MemoryGuard'
-import { TRANSCRIPT_PLACEHOLDER } from '@domain/Settings'
+import { NOTES_PLACEHOLDER, TRANSCRIPT_PLACEHOLDER } from '@domain/Settings'
 
 export class SummarizationError extends AppError {}
 
@@ -59,11 +59,20 @@ export const splitTranscript = (transcript: string, maxChars: number): string[] 
 /** 組み立て終わったプロンプトへ、利用者が外せない防御の指示を前置きする。 */
 const guarded = (prompt: string): string => `${HALLUCINATION_GUARD}\n\n${prompt}`
 
-/** プロンプトの差し込み位置に本文を入れる。位置指定が無い場合は末尾に付ける。 */
-export const renderPrompt = (template: string, transcript: string): string =>
-  template.includes(TRANSCRIPT_PLACEHOLDER)
+/**
+ * プロンプトの差し込み位置に文字起こしとメモを入れる。位置指定が無い場合は末尾に付ける。
+ * メモは空なら差し込み位置ごと消す — 見出しだけ残るとモデルが中身を補おうとする。
+ */
+export const renderPrompt = (template: string, transcript: string, notes = ''): string => {
+  const withTranscript = template.includes(TRANSCRIPT_PLACEHOLDER)
     ? template.split(TRANSCRIPT_PLACEHOLDER).join(transcript)
     : `${template}\n\n${transcript}`
+
+  if (withTranscript.includes(NOTES_PLACEHOLDER)) {
+    return withTranscript.split(NOTES_PLACEHOLDER).join(notes)
+  }
+  return notes ? `${withTranscript}\n\n${notes}` : withTranscript
+}
 
 /**
  * 文字起こしに混じるハルシネーションを要約へ持ち込ませないための前置き。
@@ -114,7 +123,11 @@ export class LlamaCppSummarizer implements SummarizationPort {
     private readonly factory: LlmSessionFactory
   ) {}
 
-  async summarize(params: { transcript: string; promptTemplate: string }): Promise<string> {
+  async summarize(params: {
+    transcript: string
+    notes?: string
+    promptTemplate: string
+  }): Promise<string> {
     if (!this.config.modelPath) {
       throw new SummarizationError(
         '要約モデルが設定されていません。設定画面でモデルを選んでください。'
@@ -138,7 +151,12 @@ export class LlamaCppSummarizer implements SummarizationPort {
               )
             ).join('\n\n')
 
-      return (await session.prompt(guarded(renderPrompt(params.promptTemplate, material)))).trim()
+      // メモは統合の段でだけ渡す。部分要約にも混ぜると、どの範囲の要約にも同じ論点が現れる。
+      return (
+        await session.prompt(
+          guarded(renderPrompt(params.promptTemplate, material, params.notes ?? ''))
+        )
+      ).trim()
     } finally {
       // whisper など他の重い処理にメモリを譲るため、使い終わったら必ず解放する。
       await session.dispose()

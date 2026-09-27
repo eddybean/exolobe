@@ -14,6 +14,7 @@ import {
   type StepStates
 } from '@domain/Recording'
 import { ConfigurationError } from '@domain/errors'
+import type { Bookmark } from '@domain/MeetingNotes'
 import type { Speaker } from '@domain/Speaker'
 import { toMarkdown } from '@domain/Transcript'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
@@ -44,11 +45,13 @@ const NOTE_MD = 'note.md'
 const TRACKS_FILE = 'tracks.json'
 const VOICES_FILE = 'voices.json'
 const VOICES_WAV = 'voices.wav'
+const BOOKMARKS_FILE = 'bookmarks.json'
 
 // 形式の番号。破壊的に変えたときだけ上げる（ADR-035）。
 const META_SCHEMA_VERSION = 1
 const TRANSCRIPT_SCHEMA_VERSION = 1
 const VOICES_SCHEMA_VERSION = 1
+const BOOKMARKS_SCHEMA_VERSION = 1
 
 interface RecordingRecord {
   id: string
@@ -248,6 +251,17 @@ const toVoices = (value: unknown): RecordingVoices | undefined => {
   return { modelKey: candidate.modelKey, speakers }
 }
 
+/** bookmarks.json の要素のうち、読み解けるものだけ。 */
+const storedBookmarks = (value: Record<string, unknown>): Array<Record<string, unknown>> => {
+  const entries = value['bookmarks']
+  return Array.isArray(entries)
+    ? entries.filter(
+        (entry): entry is Record<string, unknown> =>
+          isPlainObject(entry) && typeof entry['atMs'] === 'number' && Number.isFinite(entry['atMs'])
+      )
+    : []
+}
+
 /**
  * tracks.json を音の素材として読む。
  *
@@ -358,6 +372,31 @@ export class FileRecordingArtifactStore implements RecordingArtifactPort {
 
   async writeNote(recording: Recording, markdown: string): Promise<void> {
     await this.writeText(join(await this.dir(recording), NOTE_MD), markdown)
+  }
+
+  async readBookmarks(recording: Recording): Promise<Bookmark[]> {
+    const stored = await readStoredJson(join(await this.dir(recording), BOOKMARKS_FILE), isPlainObject)
+    if (stored.kind !== 'ok') return []
+    return storedBookmarks(stored.value).map((entry) => ({ atMs: Number(entry['atMs']) }))
+  }
+
+  /**
+   * 印は再生成できない正本なので、知らないキーを落とさない（ADR-035）。
+   * 新しい版が要素に足した項目（名前など）も、同じ時刻の要素から引き継ぐ。
+   */
+  async writeBookmarks(recording: Recording, bookmarks: readonly Bookmark[]): Promise<void> {
+    const path = join(await this.dir(recording), BOOKMARKS_FILE)
+    const previous = await readStoredJson(path, isPlainObject)
+    const known = previous.kind === 'ok' ? storedBookmarks(previous.value) : []
+    const rest = previous.kind === 'ok' ? omitKeys(previous.value, ['bookmarks']) : {}
+
+    await replaceVersionedJson(path, previous, BOOKMARKS_SCHEMA_VERSION, {
+      ...rest,
+      bookmarks: bookmarks.map((bookmark) => ({
+        ...known.find((entry) => entry['atMs'] === bookmark.atMs),
+        atMs: bookmark.atMs
+      }))
+    })
   }
 
   /**

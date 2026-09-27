@@ -560,7 +560,8 @@ export const registerIpcHandlers = (
       speakers: detail.speakers,
       transcriptText: detail.transcriptMarkdown,
       ...(detail.summary === undefined ? {} : { summary: detail.summary }),
-      note: detail.note
+      note: detail.note,
+      bookmarks: detail.bookmarks
     }
   })
 
@@ -637,6 +638,13 @@ export const registerIpcHandlers = (
       note: typeof note === 'string' ? note : ''
     })
     searchSync.request()
+  })
+
+  handle(IPC.addBookmark, async (id: unknown, atMs: unknown): Promise<void> => {
+    if (typeof atMs !== 'number' || !Number.isFinite(atMs)) {
+      throw new Error('印の時刻が不正です。')
+    }
+    await container.addBookmark.execute({ recordingId: asString(id, '録音 ID'), atMs })
   })
 
   handle(IPC.updateSummary, async (id: unknown, summary: unknown): Promise<void> => {

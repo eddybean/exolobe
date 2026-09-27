@@ -33,6 +33,7 @@ import type {
 } from '@application/ports'
 import type { CalendarEvent } from '@domain/CalendarEvent'
 import type { Folder } from '@domain/Folder'
+import type { Bookmark } from '@domain/MeetingNotes'
 import { normalize } from '@domain/vector'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { PipelineStep, Recording } from '@domain/Recording'
@@ -146,6 +147,7 @@ export class FakeArtifactStore implements RecordingArtifactPort {
   transcripts = new Map<string, { segments: TranscriptSegment[]; speakers: Speaker[] }>()
   summaries = new Map<string, string>()
   notes = new Map<string, string>()
+  bookmarks = new Map<string, Bookmark[]>()
   voices = new Map<string, RecordingVoices>()
   cleanedUp: string[] = []
   removed: string[] = []
@@ -198,6 +200,12 @@ export class FakeArtifactStore implements RecordingArtifactPort {
   async writeNote(recording: Recording, markdown: string): Promise<void> {
     this.notes.set(recording.id, markdown)
   }
+  async readBookmarks(recording: Recording): Promise<Bookmark[]> {
+    return [...(this.bookmarks.get(recording.id) ?? [])]
+  }
+  async writeBookmarks(recording: Recording, bookmarks: readonly Bookmark[]): Promise<void> {
+    this.bookmarks.set(recording.id, [...bookmarks])
+  }
   async withVoicesWav<T>(recording: Recording, run: (wavPath: string) => Promise<T>): Promise<T> {
     this.voicesWavLeft += 1
     try {
@@ -218,6 +226,7 @@ export class FakeArtifactStore implements RecordingArtifactPort {
     this.voices.delete(recording.id)
     this.summaries.delete(recording.id)
     this.notes.delete(recording.id)
+    this.bookmarks.delete(recording.id)
   }
 }
 
@@ -336,15 +345,21 @@ export class FakeVoiceprintRepository implements VoiceprintRepositoryPort {
 export class FakeSummarizer implements SummarizationPort {
   result = '## 概要\nテスト要約'
   receivedTranscript?: string
+  receivedNotes: string | undefined
   error?: Error
 
   clearError(): void {
     delete this.error
   }
 
-  async summarize(params: { transcript: string; promptTemplate: string }): Promise<string> {
+  async summarize(params: {
+    transcript: string
+    notes?: string
+    promptTemplate: string
+  }): Promise<string> {
     if (this.error) throw this.error
     this.receivedTranscript = params.transcript
+    this.receivedNotes = params.notes
     return this.result
   }
 }

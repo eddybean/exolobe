@@ -9,6 +9,12 @@ export const SUPPORTED_SAMPLE_RATES: readonly number[] = [
 /** 要約プロンプト内で文字起こし本文に置き換えられるプレースホルダ。 */
 export const TRANSCRIPT_PLACEHOLDER = '{{transcript}}'
 
+/**
+ * 要約プロンプト内で、録音中に書いたメモと印（ADR-042）に置き換えられるプレースホルダ。
+ * 必須にはしない。これを足す前にプロンプトを保存した利用者もいるので、無ければ末尾に付ける。
+ */
+export const NOTES_PLACEHOLDER = '{{notes}}'
+
 export const DEFAULT_SUMMARY_PROMPT = [
   'あなたは会議の議事録作成者です。以下の文字起こしから日本語で議事録を作成してください。',
   '',
@@ -19,6 +25,8 @@ export const DEFAULT_SUMMARY_PROMPT = [
   '## 議論の流れ',
   '',
   '文字起こしに書かれていないことは推測せず、不明な点は「不明」と記載してください。',
+  '',
+  NOTES_PLACEHOLDER,
   '',
   '---',
   TRANSCRIPT_PLACEHOLDER
