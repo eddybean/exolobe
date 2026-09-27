@@ -1,6 +1,6 @@
-import { Menu, Tray, nativeImage } from 'electron'
+import { Menu, Tray, nativeImage, type NativeImage } from 'electron'
 import type { TransportController } from './ipc/handlers'
-import { TRAY_ICON_PNG_BASE64 } from './trayIcon'
+import { trayIconFor } from './trayIcon'
 
 /**
  * メニューバーからの録音操作。
@@ -8,21 +8,29 @@ import { TRAY_ICON_PNG_BASE64 } from './trayIcon'
  * 会議中はウィンドウを閉じている（あるいは他アプリの背後にある）ことが多いため、
  * 開始・停止だけはウィンドウ無しでも常に届く場所に置く。
  */
-export const createTray = (controller: TransportController, showWindow: () => void): Tray => {
+const iconFor = (recording: boolean): NativeImage => {
+  const choice = trayIconFor(recording)
   // 32x32 を scaleFactor 2 として渡すと、16pt のアイコンとして扱われ Retina で滲まない。
-  const icon = nativeImage.createFromBuffer(Buffer.from(TRAY_ICON_PNG_BASE64, 'base64'), {
+  const icon = nativeImage.createFromBuffer(Buffer.from(choice.pngBase64, 'base64'), {
     width: 32,
     height: 32,
     scaleFactor: 2
   })
-  // テンプレート画像にしておくとライト／ダークの両方で自動的に色が合う。
-  icon.setTemplateImage(true)
+  // 待機中はテンプレート画像にしてライト／ダークに自動で色を合わせ、録音中は赤をそのまま見せる。
+  icon.setTemplateImage(choice.template)
+  return icon
+}
 
-  const tray = new Tray(icon)
+export const createTray = (controller: TransportController, showWindow: () => void): Tray => {
+  const icons = { idle: iconFor(false), recording: iconFor(true) }
+
+  const tray = new Tray(icons.idle)
   tray.setToolTip('Duoscribe')
 
   const refresh = (): void => {
     const state = controller.state()
+
+    tray.setImage(state.active ? icons.recording : icons.idle)
 
     tray.setContextMenu(
       Menu.buildFromTemplate([
