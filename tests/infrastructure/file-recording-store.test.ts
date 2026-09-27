@@ -440,3 +440,52 @@ describe('FileRecordingArtifactStore — 話者の声紋', () => {
     expect(await artifacts.readVoices(recording)).toBeUndefined()
   })
 })
+
+describe('FileRecordingArtifactStore — 録音中の印（ADR-042）', () => {
+  it('書いた印を読み戻せる', async () => {
+    await artifacts.writeBookmarks(recording, [{ atMs: 1_000 }, { atMs: 5_000 }])
+
+    expect(await artifacts.readBookmarks(recording)).toEqual([{ atMs: 1_000 }, { atMs: 5_000 }])
+    expect(await readStored(recording.slug, 'bookmarks.json')).toMatchObject({ schemaVersion: 1 })
+  })
+
+  it('印が無ければ空を返す', async () => {
+    expect(await artifacts.readBookmarks(recording)).toEqual([])
+  })
+
+  it('時刻の読めない要素は読み飛ばす', async () => {
+    await writeStored(
+      recording.slug,
+      'bookmarks.json',
+      JSON.stringify({ schemaVersion: 1, bookmarks: [{ atMs: 'x' }, null, { atMs: 3_000 }] })
+    )
+
+    expect(await artifacts.readBookmarks(recording)).toEqual([{ atMs: 3_000 }])
+  })
+
+  it('新しい版が書いた bookmarks.json は上書きしない', async () => {
+    const content = JSON.stringify({ schemaVersion: 2, bookmarks: [] })
+    await writeStored(recording.slug, 'bookmarks.json', content)
+
+    await expect(artifacts.writeBookmarks(recording, [{ atMs: 0 }])).rejects.toThrow(
+      'アプリを更新してください'
+    )
+    expect(await readFile(join(storage, recording.slug, 'bookmarks.json'), 'utf8')).toBe(content)
+  })
+
+  it('知らないキーは、ファイルにも印の要素にも残す', async () => {
+    await writeStored(
+      recording.slug,
+      'bookmarks.json',
+      JSON.stringify({ schemaVersion: 1, owner: 'x', bookmarks: [{ atMs: 1_000, label: '予算' }] })
+    )
+
+    await artifacts.writeBookmarks(recording, [{ atMs: 1_000 }, { atMs: 2_000 }])
+
+    expect(await readStored(recording.slug, 'bookmarks.json')).toEqual({
+      schemaVersion: 1,
+      owner: 'x',
+      bookmarks: [{ atMs: 1_000, label: '予算' }, { atMs: 2_000 }]
+    })
+  })
+})

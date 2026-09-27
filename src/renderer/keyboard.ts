@@ -17,3 +17,29 @@ export interface CommitKeyEvent {
 
 export const isCommitEnter = (event: CommitKeyEvent): boolean =>
   event.key === 'Enter' && !event.nativeEvent?.isComposing && event.keyCode !== 229
+
+/** 録音中の「今の発言に印をつける」。アプリ内だけで効く（グローバルには登録しない）。 */
+export const BOOKMARK_SHORTCUT_LABEL = '⌘⇧H'
+
+export interface ShortcutKeyEvent {
+  readonly key: string
+  readonly metaKey: boolean
+  readonly shiftKey: boolean
+  readonly ctrlKey: boolean
+  readonly altKey: boolean
+  readonly repeat: boolean
+  readonly isComposing: boolean
+}
+
+/**
+ * ⌘⇧H を印の操作として受ける。メモの入力欄にいても効かせるため、入力先は見ない。
+ * 押しっぱなしの自動反復は落とす — 1 回押しただけで印が並ぶ。
+ */
+export const isBookmarkKey = (event: ShortcutKeyEvent): boolean =>
+  event.key.toLowerCase() === 'h' &&
+  event.metaKey &&
+  event.shiftKey &&
+  !event.ctrlKey &&
+  !event.altKey &&
+  !event.repeat &&
+  !event.isComposing

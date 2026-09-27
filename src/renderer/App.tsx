@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties, type ReactElement } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react'
 import type {
   FolderDto,
   ImportProgressDto,
@@ -16,11 +16,13 @@ import { useChat } from './hooks/useChat'
 import { useFileDrop } from './hooks/useFileDrop'
 import { useLibraryWidth } from './hooks/useLibraryWidth'
 import { isSemanticSearchAvailable } from './library/semanticSearch'
+import { recordingToOpen, showsLiveView } from './library/liveNotes'
 import { TransportBar } from './components/TransportBar'
 import { useTransport } from './hooks/useTransport'
 import { ChatView } from './views/ChatView'
 import { OnboardingView } from './views/OnboardingView'
 import { RecordingDetailView } from './views/RecordingDetailView'
+import { RecordingLiveView } from './views/RecordingLiveView'
 import { SettingsView } from './views/SettingsView'
 
 type Screen = 'library' | 'chat' | 'settings' | 'onboarding'
@@ -178,6 +180,19 @@ export const App = (): ReactElement => {
     void refreshDetail()
   }, [refreshDetail])
 
+  // 録音を始めたら、その録音の録音中の画面（メモと印）を開く。始めた瞬間だけで、
+  // 録音中に利用者が別の録音を開き直したときは奪わない（recordingToOpen）。
+  const previousTransport = useRef(transport.state)
+  useEffect(() => {
+    const started = recordingToOpen(previousTransport.current, transport.state)
+    previousTransport.current = transport.state
+    if (started === undefined) return
+    setSelectedId(started)
+    setFocus(undefined)
+    // 初期設定の途中では動かさない（保存先が無いまま一覧へ出すことになる）。
+    setScreen((current) => (current === 'onboarding' ? current : 'library'))
+  }, [transport.state])
+
   useEffect(() => {
     void refreshFolders()
     return window.recorder.onFoldersChanged(() => void refreshFolders())
@@ -319,7 +334,14 @@ export const App = (): ReactElement => {
               onSelectFolder={setFolderKey}
             />
             <PaneResizer pane={libraryWidth} onDraggingChange={setResizingLibrary} />
-            {detail ? (
+            {detail && showsLiveView(detail.recording, transport.state) ? (
+              <RecordingLiveView
+                key={detail.recording.id}
+                detail={detail}
+                transport={transport}
+                onChanged={() => void refreshDetail()}
+              />
+            ) : detail ? (
               <RecordingDetailView
                 detail={detail}
                 focus={focus?.recordingId === detail.recording.id ? focus : undefined}

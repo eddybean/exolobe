@@ -1,4 +1,5 @@
 import type { Folder } from '@domain/Folder'
+import type { Bookmark } from '@domain/MeetingNotes'
 import type { PipelineStep, Recording, RecordingStatus } from '@domain/Recording'
 import type { Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
@@ -42,6 +43,8 @@ export interface RecordingDetailDto {
   readonly transcriptText: string
   readonly summary?: string
   readonly note: string
+  /** 録音中に「今の発言に印をつける」を押した時点（録音開始からの経過ミリ秒、ADR-042）。 */
+  readonly bookmarks: readonly Bookmark[]
 }
 
 export interface SetupStateDto {
@@ -394,6 +397,8 @@ export interface RendererApi {
   pathForFile(file: File): string
   onImportProgress(listener: (event: ImportProgressDto) => void): () => void
   updateNote(recordingId: string, note: string): Promise<void>
+  /** 録音中に印をつける。`atMs` は録音開始からの経過ミリ秒。 */
+  addBookmark(recordingId: string, atMs: number): Promise<void>
   /** 手で直した要約を保存する。再要約すれば上書きされる。 */
   updateSummary(recordingId: string, summary: string): Promise<void>
   /** 再要約の前の確認。今の要約が置き換わるので、実行してよければ true を返す。 */
@@ -511,6 +516,7 @@ export const IPC = {
   chooseAudioFilesToImport: 'recordings:chooseImport',
   importProgress: 'recordings:importProgress',
   updateNote: 'recordings:updateNote',
+  addBookmark: 'recordings:addBookmark',
   updateSummary: 'recordings:updateSummary',
   confirmResummarize: 'recordings:confirmResummarize',
   renameRecording: 'recordings:rename',

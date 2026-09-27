@@ -1,6 +1,7 @@
 import type { CalendarEvent } from '@domain/CalendarEvent'
 import type { Folder } from '@domain/Folder'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
+import type { Bookmark } from '@domain/MeetingNotes'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import type { DualTrackSource, RecordingSource } from '@domain/RecordingSource'
 import type { ChunkLocator, SearchSource } from '@domain/SemanticSearch'
@@ -173,6 +174,8 @@ export interface RecordingFinderPort {
 export interface SummarizationPort {
   summarize(params: {
     transcript: string
+    /** 録音中に書いたメモと印（ADR-042）。無ければ空文字。 */
+    notes?: string
     promptTemplate: string
     signal?: AbortSignal
   }): Promise<string>
@@ -272,6 +275,10 @@ export interface RecordingArtifactPort {
 
   readNote(recording: Recording): Promise<string>
   writeNote(recording: Recording, markdown: string): Promise<void>
+
+  /** 録音中に「今の発言に印をつける」を押した時点（ADR-042）。無ければ空。 */
+  readBookmarks(recording: Recording): Promise<Bookmark[]>
+  writeBookmarks(recording: Recording, bookmarks: readonly Bookmark[]): Promise<void>
 
   /** エンコード後に不要になる中間 WAV を片付ける。 */
   cleanupIntermediates(recording: Recording): Promise<void>

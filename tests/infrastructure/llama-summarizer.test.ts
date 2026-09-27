@@ -7,7 +7,11 @@ import {
   type LlmSession,
   type LlmSessionFactory
 } from '@infrastructure/summarization/LlamaCppSummarizer'
-import { DEFAULT_SUMMARY_PROMPT, TRANSCRIPT_PLACEHOLDER } from '@domain/Settings'
+import {
+  DEFAULT_SUMMARY_PROMPT,
+  NOTES_PLACEHOLDER,
+  TRANSCRIPT_PLACEHOLDER
+} from '@domain/Settings'
 
 describe('splitTranscript', () => {
   it('収まるならそのまま 1 件で返す', () => {
@@ -45,6 +49,23 @@ describe('renderPrompt', () => {
 
   it('差し込み位置が無ければ末尾に付ける', () => {
     expect(renderPrompt('要約して', '本文')).toBe('要約して\n\n本文')
+  })
+
+  it('メモの差し込み位置にメモを入れる', () => {
+    expect(
+      renderPrompt(`前${NOTES_PLACEHOLDER}中${TRANSCRIPT_PLACEHOLDER}後`, '本文', 'メモ')
+    ).toBe('前メモ中本文後')
+  })
+
+  it('メモの差し込み位置が無ければ末尾に付ける（{{notes}} を足す前に保存したプロンプト）', () => {
+    expect(renderPrompt(`要約して${TRANSCRIPT_PLACEHOLDER}`, '本文', 'メモ')).toBe(
+      '要約して本文\n\nメモ'
+    )
+  })
+
+  it('メモが無ければ差し込み位置は消し、末尾にも何も付けない', () => {
+    expect(renderPrompt(`前${NOTES_PLACEHOLDER}${TRANSCRIPT_PLACEHOLDER}`, '本文', '')).toBe('前本文')
+    expect(renderPrompt(`前${TRANSCRIPT_PLACEHOLDER}`, '本文', '')).toBe('前本文')
   })
 })
 
@@ -151,6 +172,29 @@ describe('LlamaCppSummarizer', () => {
     expect(llm.prompts.length).toBeGreaterThan(2)
     expect(llm.prompts.at(-1)).toContain('・部分要約')
     expect(summary).toBe('## 概要\n最終要約')
+  })
+
+  it('メモは最後の統合にだけ渡し、部分要約には渡さない', async () => {
+    const llm = new FakeLlm()
+    llm.responder = (prompt) =>
+      prompt.includes('## 決定事項') ? '## 概要\n最終要約' : '・部分要約'
+    const summarizer = new LlamaCppSummarizer(
+      { ...config, contextSize: 1_024 },
+      factoryFor(llm)
+    )
+    const transcript = Array.from(
+      { length: 30 },
+      (_, i) => `**[00:0${i % 10}] 自分**\n${'あ'.repeat(60)}`
+    ).join('\n\n')
+
+    await summarizer.summarize({
+      transcript,
+      notes: '## 会議中のメモ\n価格改定',
+      promptTemplate: DEFAULT_SUMMARY_PROMPT
+    })
+
+    expect(llm.prompts.at(-1)).toContain('価格改定')
+    expect(llm.prompts.slice(0, -1).some((p) => p.includes('価格改定'))).toBe(false)
   })
 
   it('要約が終わったら必ずモデルを解放する', async () => {

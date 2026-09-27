@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  AddBookmark,
   DeleteRecording,
   EditSegmentText,
   GetRecordingDetail,
@@ -89,6 +90,15 @@ describe('GetRecordingDetail', () => {
     expect(detail.summary).toBe('## 概要\n定例会')
     expect(detail.note).toBe('自分用メモ')
     expect(detail.audioPath).toContain('audio.m4a')
+    expect(detail.bookmarks).toEqual([])
+  })
+
+  it('録音中につけた印を返す', async () => {
+    await artifacts.writeBookmarks(recording, [{ atMs: 2_000 }])
+
+    const detail = await new GetRecordingDetail(deps).execute('rec-1')
+
+    expect(detail.bookmarks).toEqual([{ atMs: 2_000 }])
   })
 
   it('コピー用に話者ラベルを解決したテキストを作る', async () => {
@@ -129,6 +139,28 @@ describe('UpdateNote', () => {
     await new UpdateNote(deps).execute({ recordingId: 'rec-1', note: '' })
 
     expect(await artifacts.readNote(recording)).toBe('')
+  })
+})
+
+describe('AddBookmark', () => {
+  it('印を時刻順に足していく', async () => {
+    await new AddBookmark(deps).execute({ recordingId: 'rec-1', atMs: 90_000 })
+    await new AddBookmark(deps).execute({ recordingId: 'rec-1', atMs: 30_000 })
+
+    expect(await artifacts.readBookmarks(recording)).toEqual([{ atMs: 30_000 }, { atMs: 90_000 }])
+  })
+
+  it('時刻は整数のミリ秒に丸め、負にしない', async () => {
+    await new AddBookmark(deps).execute({ recordingId: 'rec-1', atMs: -5.4 })
+    await new AddBookmark(deps).execute({ recordingId: 'rec-1', atMs: 1_234.6 })
+
+    expect(await artifacts.readBookmarks(recording)).toEqual([{ atMs: 0 }, { atMs: 1_235 }])
+  })
+
+  it('存在しない録音には付けられない', async () => {
+    await expect(
+      new AddBookmark(deps).execute({ recordingId: 'unknown', atMs: 0 })
+    ).rejects.toThrow('録音が見つかりません: unknown')
   })
 })
 

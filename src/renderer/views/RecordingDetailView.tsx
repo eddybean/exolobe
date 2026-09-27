@@ -19,6 +19,9 @@ import {
   timelineDurationMs
 } from '../library/timeline'
 import { focusedSegmentIndex } from '../library/transcriptSearch'
+import { bookmarkedSegmentIndexes, detailMoments } from '../library/liveNotes'
+import { formatNoteStamp } from '@domain/MeetingNotes'
+import { FlagIcon } from '../components/FlagIcon'
 import { isPlaybackToggleKey, nextPlaybackRate, playerMode } from '../library/playback'
 import { voiceLearnedNotice } from '../library/voiceLearning'
 import { canEditSummary, resummarizeState, type ResummarizeState } from '../resummarize'
@@ -265,16 +268,46 @@ export const RecordingDetailView = ({
   }, [])
 
   /**
+   * メモや印の時刻から飛んだ先（ADR-042）。検索から飛んできたときは、そちらを優先して消す。
+   * nonce は検索側の連番と混ざらないよう時計から取る。
+   */
+  const [jump, setJump] = useState<{ startMs: number; nonce: number }>()
+  const searchNonce = focus?.nonce
+  useEffect(() => {
+    setJump(undefined)
+  }, [recordingId, searchNonce])
+
+  /**
    * 本文の検索から飛んできた発言。ここでは印を付けてスクロールするだけで、
    * 再生までは始めない（探している最中に音が鳴り出すのは求められていない）。
    */
-  const focusedIndex = focus === undefined ? -1 : focusedSegmentIndex(detail.segments, focus.startMs)
+  const target = jump ?? focus
+  const focusedIndex = target === undefined ? -1 : focusedSegmentIndex(detail.segments, target.startMs)
   const focusedSegmentRef = useRef<HTMLLIElement | null>(null)
-  const focusNonce = focus?.nonce
+  const focusNonce = target?.nonce
   useEffect(() => {
     if (focusNonce === undefined) return
     focusedSegmentRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [focusNonce, recordingId])
+
+  /**
+   * メモの行や印の時刻から、その発言へ飛んで再生する。メモの時刻は書き始めた時点なので、
+   * 指しているのはその時点で話されていた発言（検索と同じ寄せ方）。
+   * 押して開いたのは聞き直すためなので、検索と違って再生も始める。
+   */
+  const jumpTo = useCallback(
+    (ms: number): void => {
+      setJump({ startMs: ms, nonce: Date.now() })
+      if (audioReady) seek(ms)
+    },
+    [audioReady, seek]
+  )
+
+  const moments = useMemo(() => detailMoments(note, detail.bookmarks), [note, detail.bookmarks])
+  const bookmarked = useMemo(
+    () => bookmarkedSegmentIndexes(detail.segments, detail.bookmarks),
+    [detail.segments, detail.bookmarks]
+  )
 
   /**
    * 話者名の変更。要約は作り直さない（数分かかるので、名前を直すたびに走らせない）。
@@ -505,7 +538,11 @@ export const RecordingDetailView = ({
                 <li
                   key={`${segment.startMs}-${index}`}
                   ref={index === focusedIndex ? focusedSegmentRef : undefined}
-                  className={segmentClassName(index === focusedIndex, index === playingIndex)}
+                  className={segmentClassName(
+                    index === focusedIndex,
+                    index === playingIndex,
+                    bookmarked.has(index)
+                  )}
                   aria-current={index === playingIndex ? 'true' : undefined}
                 >
                   <button
@@ -526,6 +563,12 @@ export const RecordingDetailView = ({
                     suggestions={suggestions.get(segment.speakerId)}
                     onCommit={(label) => renameSpeaker(segment.speakerId, label)}
                   />
+                  {bookmarked.has(index) && (
+                    <span className="segment__bookmark" title="録音中に印をつけた発言">
+                      <FlagIcon />
+                      録音中に印
+                    </span>
+                  )}
                   <EditableSegmentText
                     text={segment.text}
                     blocker={editBlocker}
@@ -628,12 +671,34 @@ export const RecordingDetailView = ({
               )}
             </>
           ) : (
-            <textarea
-              className="note"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="この会議についてのメモを書けます（自動保存されます）"
-            />
+            <>
+              {moments.length > 0 && (
+                <ul className="moments" aria-label="メモと印の時刻">
+                  {moments.map((moment, index) => (
+                    <li key={`${moment.kind}-${moment.atMs}-${index}`}>
+                      <button
+                        type="button"
+                        className="moments__item"
+                        onClick={() => jumpTo(moment.atMs)}
+                        title={audioReady ? 'この位置の発言へ移動して再生' : 'この位置の発言へ移動'}
+                      >
+                        <span className="moments__time">{formatNoteStamp(moment.atMs)}</span>
+                        {moment.kind === 'bookmark' && <FlagIcon />}
+                        <span className="moments__text">
+                          {moment.kind === 'bookmark' ? '印' : moment.text}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <textarea
+                className="note"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="この会議についてのメモを書けます（自動保存されます）"
+              />
+            </>
           )}
         </div>
       </div>
@@ -814,8 +879,13 @@ const useProgressSamples = (): { samples: ProgressSamples; receivedAtMs: number 
 }
 
 /** 検索から飛んできた印と再生中の印は重なりうる。再生中の方を後に置いて見た目で勝たせる。 */
-const segmentClassName = (focused: boolean, playing: boolean): string =>
-  ['segment', focused && 'segment--focused', playing && 'segment--playing']
+const segmentClassName = (focused: boolean, playing: boolean, bookmarked: boolean): string =>
+  [
+    'segment',
+    bookmarked && 'segment--bookmarked',
+    focused && 'segment--focused',
+    playing && 'segment--playing'
+  ]
     .filter(Boolean)
     .join(' ')
 

@@ -8,6 +8,7 @@ import type {
 } from '@application/ports'
 import { transcriptEditBlocker, type Recording } from '@domain/Recording'
 import { ConfigurationError, RecordingNotFoundError } from '@domain/errors'
+import type { Bookmark } from '@domain/MeetingNotes'
 import {
   isConfigured,
   mergeSettings,
@@ -38,6 +39,7 @@ export interface RecordingDetail {
   readonly transcriptMarkdown: string
   readonly summary: string | undefined
   readonly note: string
+  readonly bookmarks: readonly Bookmark[]
 }
 
 const firstLine = (markdown: string | undefined): string | undefined => {
@@ -77,7 +79,8 @@ export class GetRecordingDetail {
       speakers: transcript?.speakers ?? [],
       transcriptMarkdown: toPlainTranscript(transcript),
       summary: await this.deps.artifacts.readSummary(recording),
-      note: await this.deps.artifacts.readNote(recording)
+      note: await this.deps.artifacts.readNote(recording),
+      bookmarks: await this.deps.artifacts.readBookmarks(recording)
     }
   }
 }
@@ -100,6 +103,27 @@ export class UpdateNote {
   async execute(params: { recordingId: string; note: string }): Promise<void> {
     const recording = await findOrThrow(this.deps.repository, params.recordingId)
     await this.deps.artifacts.writeNote(recording, params.note)
+  }
+}
+
+/**
+ * 録音中に「今の発言に印をつける」を押した時点を残す（ADR-042）。
+ *
+ * 時刻は録音開始からの経過ミリ秒で、画面側が数える。押した瞬間の値を残すだけで、
+ * 録音中に推論はしない（ADR-009）。
+ */
+export class AddBookmark {
+  constructor(private readonly deps: LibraryDeps) {}
+
+  async execute(params: { recordingId: string; atMs: number }): Promise<void> {
+    const recording = await findOrThrow(this.deps.repository, params.recordingId)
+    const bookmarks = await this.deps.artifacts.readBookmarks(recording)
+    const atMs = Math.max(0, Math.round(params.atMs))
+
+    await this.deps.artifacts.writeBookmarks(
+      recording,
+      [...bookmarks, { atMs }].sort((a, b) => a.atMs - b.atMs)
+    )
   }
 }
 

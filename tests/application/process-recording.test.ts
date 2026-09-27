@@ -194,6 +194,37 @@ describe('ProcessRecording — 正常系', () => {
   })
 })
 
+describe('ProcessRecording — 会議中のメモと印（ADR-042）', () => {
+  it('メモと、印を押した時点の発言を要約に渡す', async () => {
+    const ctx = await build()
+    await ctx.artifacts.writeNote(ctx.recording, '- [00:00:01] 挨拶の確認')
+    await ctx.artifacts.writeBookmarks(ctx.recording, [{ atMs: 2_000 }])
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.summarizer.receivedNotes).toContain('- [00:00:01] 挨拶の確認')
+    expect(ctx.summarizer.receivedNotes).toContain('参加者「よろしくお願いします」')
+  })
+
+  it('メモも印も無ければ空のメモを渡す', async () => {
+    const ctx = await build()
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.summarizer.receivedNotes).toBe('')
+  })
+
+  it('再要約では、録音後に書き足したメモも読み直す', async () => {
+    const ctx = await build()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    await ctx.artifacts.writeNote(ctx.recording, '後から書いた論点')
+
+    await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
+
+    expect(ctx.summarizer.receivedNotes).toContain('後から書いた論点')
+  })
+})
+
 describe('ProcessRecording — 話者クラスタリング無効', () => {
   it('diarize をスキップして done 扱いにする', async () => {
     const ctx = await build({ diarization: { enabled: false } })
