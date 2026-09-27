@@ -205,7 +205,6 @@ export const App = (): ReactElement => {
   return (
     <div className="app">
       <nav className="nav">
-        <h1 className="nav__brand">Exolobe</h1>
         <div className="nav__links">
           <button
             type="button"
