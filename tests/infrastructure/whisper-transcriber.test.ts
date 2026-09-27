@@ -212,6 +212,28 @@ describe('parseWhisperJson', () => {
     expect(dropped.map((d) => d.reason)).toEqual(['non-speech', 'boilerplate'])
   })
 
+  it('繰り返しのループを縮め、続くループのセグメントを落として理由つきで報告する', () => {
+    // 確信度が高いままループするので、確信度の関門では落ちない（ADR-038）。
+    const dropped: DroppedSegment[] = []
+    const loop = '検索機能の回収を上げてください。'
+    const raw = whisperJson([
+      { from: 0, to: 3000, text: `木曜に共有します。${'はい、'.repeat(10)}` },
+      ...Array.from({ length: 5 }, (_, i) => ({
+        from: 3000 + i * 2000,
+        to: 5000 + i * 2000,
+        text: loop
+      }))
+    ])
+
+    const segments = parseWhisperJson(raw, 'remote', (d) => dropped.push(d))
+
+    expect(segments.map((s) => s.text)).toEqual(['木曜に共有します。はい、', loop])
+    expect(dropped.map((d) => [d.reason, d.text])).toEqual([
+      ['repetition', 'はい、'.repeat(9)],
+      ...Array.from({ length: 4 }, () => ['repetition', loop])
+    ])
+  })
+
   it('確率 0 のトークンがあっても他のセグメントを巻き込まない', () => {
     // ln(0) = -Infinity を平均へ持ち込むと NaN 汚染で全滅しかねない。
     const raw = whisperJsonWithTokens([

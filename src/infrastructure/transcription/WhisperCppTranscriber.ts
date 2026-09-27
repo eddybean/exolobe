@@ -5,6 +5,7 @@ import { AppError, toMessage } from '@domain/errors'
 import { glossaryPrompt } from '@domain/Glossary'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 import { wavDurationMs } from '@infrastructure/audio/wav'
+import { collapseRepeats, dropRepeatedSegments } from './repetition'
 
 export class TranscriptionError extends AppError {}
 
@@ -98,7 +99,7 @@ export const averageLogprob = (
 }
 
 /** セグメントを落とした関門。閾値を見直すには、どこで落ちたかが要る。 */
-export type DropReason = 'non-speech' | 'boilerplate' | 'low-confidence'
+export type DropReason = 'non-speech' | 'boilerplate' | 'low-confidence' | 'repetition'
 
 /** 落としたセグメントの記録。計測モードでのみ作られる。 */
 export interface DroppedSegment {
@@ -171,6 +172,8 @@ export const droppedSegmentLogger = (
  * 加えて、平均対数確率が低いセグメントも落とす。雑音や複数人の声が重なった区間で
  * whisper が作り出す文は、決まり文句の一覧では捕まえられない一方、トークンの確信度が
  * 揃って低い。要約はこの後の工程なので、ここで落としておかないと嘘が下流へ伝播する。
+ *
+ * 繰り返しのループは確信度が高いまま続くので、繰り返しという形で取り除く（ADR-038）。
  */
 export const parseWhisperJson = (
   raw: string,
@@ -189,7 +192,7 @@ export const parseWhisperJson = (
   const entries = (parsed as WhisperJson).transcription
   if (!Array.isArray(entries)) return []
 
-  return entries.flatMap((entry): TranscriptSegment[] => {
+  const segments = entries.flatMap((entry): TranscriptSegment[] => {
     const text = (entry.text ?? '').trim()
     if (text.length === 0) return []
 
@@ -199,15 +202,25 @@ export const parseWhisperJson = (
 
     const pieces = splitAtVadGaps({ startMs, endMs, text, tokens: entry.tokens ?? [] }, vadSpans)
     return pieces.flatMap((piece): TranscriptSegment[] => {
+      // ループを縮めてから他の関門に掛ける。「ご視聴ありがとうございました」が
+      // 繰り返されていても、縮めれば定型句として落とせる。
+      const { text, removed } = collapseRepeats(piece.text)
+      const segment = { startMs: piece.startMs, endMs: piece.endMs, speakerId, text }
+      if (removed) onDropped?.({ ...segment, text: removed, reason: 'repetition' })
+
       const logprob = averageLogprob(piece.tokens)
-      const reason = dropReason(piece.text, logprob)
-      const segment = { startMs: piece.startMs, endMs: piece.endMs, speakerId, text: piece.text }
+      const reason = dropReason(text, logprob)
       if (reason === undefined) return [segment]
 
       onDropped?.({ ...segment, reason, ...(logprob === undefined ? {} : { avgLogprob: logprob }) })
       return []
     })
   })
+
+  // 他の関門を通ったものだけで比べる。落とした定型句を挟んでもループは続いている。
+  const { kept, dropped } = dropRepeatedSegments(segments)
+  for (const segment of dropped) onDropped?.({ ...segment, reason: 'repetition' })
+  return kept
 }
 
 interface SegmentPiece {
