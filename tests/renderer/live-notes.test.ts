@@ -4,6 +4,7 @@ import {
   bookmarkedSegmentIndexes,
   detailMoments,
   litSegments,
+  recordingToOpen,
   showsLiveView
 } from '@renderer/library/liveNotes'
 import { readTrackLevels } from '@renderer/session/readInputLevel'
@@ -129,5 +130,33 @@ describe('litSegments', () => {
 
   it('振り切れても段数を超えない', () => {
     expect(litSegments(1.5, 12)).toBe(12)
+  })
+})
+
+describe('recordingToOpen', () => {
+  it('録音が始まったら、その録音を開く', () => {
+    expect(recordingToOpen({ active: false }, { active: true, recordingId: 'rec-1' })).toBe('rec-1')
+  })
+
+  it('録音中の状態の更新（タイトルの変更など）では開き直さない — 利用者が他の録音を見ていても奪わない', () => {
+    expect(
+      recordingToOpen(
+        { active: true, recordingId: 'rec-1' },
+        { active: true, recordingId: 'rec-1' }
+      )
+    ).toBeUndefined()
+  })
+
+  it('止めたときは何も開かない', () => {
+    expect(recordingToOpen({ active: true, recordingId: 'rec-1' }, { active: false })).toBeUndefined()
+  })
+
+  it('続けて別の録音を始めたら、そちらを開く', () => {
+    expect(
+      recordingToOpen(
+        { active: true, recordingId: 'rec-1' },
+        { active: true, recordingId: 'rec-2' }
+      )
+    ).toBe('rec-2')
   })
 })

@@ -17,6 +17,19 @@ export const showsLiveView = (
 ): boolean =>
   recording.status === 'recording' && transport.active && transport.recordingId === recording.id
 
+/**
+ * 録音が始まったときに開く録音。始まった瞬間だけ返し、録音中の状態の更新では返さない。
+ * 録音中に利用者が別の録音を開いて読み返していても、それを奪わないため。
+ */
+export const recordingToOpen = (
+  previous: Pick<TransportStateDto, 'active' | 'recordingId'>,
+  next: Pick<TransportStateDto, 'active' | 'recordingId'>
+): string | undefined => {
+  if (!next.active || next.recordingId === undefined) return undefined
+  const started = !previous.active || previous.recordingId !== next.recordingId
+  return started ? next.recordingId : undefined
+}
+
 export interface DetailMoment {
   readonly kind: 'note' | 'bookmark'
   readonly atMs: number
