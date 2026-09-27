@@ -11,7 +11,7 @@ import { toMessage } from '@domain/errors'
  * 知らせる（send）だけでなく置いておく（take で受け取る）のは、ウィンドウが無い・
  * 読み込み中のときに知らせが届かず、依頼ごと失われるため。
  */
-export type TransportAction = 'start' | 'stop'
+export type TransportAction = 'start' | 'stop' | 'discard'
 
 /** 受け取られないまま残った依頼を捨てるまでの時間。ウィンドウの起動を待てる長さ。 */
 const PENDING_TTL_MS = 30_000
@@ -28,6 +28,8 @@ export const createTransportRequests = (deps: {
   openWindow(): void
   /** renderer が無いときの停止。離すマイクも無いので main だけで済む。 */
   stopWithoutRenderer(): Promise<unknown>
+  /** renderer が無いときの「停止して破棄」（ADR-041）。停止と同じく main だけで済む。 */
+  discardWithoutRenderer(): Promise<unknown>
   isActive(): boolean
   now(): number
 }): TransportRequests => {
@@ -38,8 +40,9 @@ export const createTransportRequests = (deps: {
       const action = requested === 'toggle' ? (deps.isActive() ? 'stop' : 'start') : requested
 
       if (!deps.hasRenderer()) {
-        if (action === 'stop') {
-          void deps.stopWithoutRenderer().catch((error: unknown) => console.error('[transport]', toMessage(error)))
+        if (action === 'stop' || action === 'discard') {
+          const run = action === 'stop' ? deps.stopWithoutRenderer : deps.discardWithoutRenderer
+          void run().catch((error: unknown) => console.error('[transport]', toMessage(error)))
           return
         }
         // 開始にはマイクを取る renderer が要る。ウィンドウを開き、読み込みを終えたら受け取らせる。

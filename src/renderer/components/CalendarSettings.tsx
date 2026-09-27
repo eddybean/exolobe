@@ -8,13 +8,20 @@ import { calendarPermissionView } from '../permissions'
  *
  * 入れた時点でまだ聞かれていなければ、その場で許可を求める。許可が無いまま入れておいても
  * 予定が引けないだけで録音には響かないので、入り切りと許可は別々に持つ。
+ *
+ * 会議の予定での自動開始（ADR-041）はカレンダー連携の下に別の項目として置く。
+ * タイトルを埋めたくて連携を入れた人が、知らないうちに自動で録音される状態にしない。
  */
 export const CalendarSettings = ({
   enabled,
-  onChange
+  autoStartEnabled,
+  onChange,
+  onAutoStartChange
 }: {
   enabled: boolean
+  autoStartEnabled: boolean
   onChange: (enabled: boolean) => void
+  onAutoStartChange: (enabled: boolean) => void
 }): ReactElement => {
   const [permission, setPermission] = useState<CalendarPermissionDto>()
   const [error, setError] = useState<string>()
@@ -71,9 +78,25 @@ export const CalendarSettings = ({
         <input type="checkbox" checked={enabled} onChange={(event) => toggle(event.target.checked)} />
         <span className="field__hint">
           {'録音を始めた時刻に重なる予定のタイトルを録音の名前にし、参加者を話者名の候補に出します。'}
-          {'macOS のカレンダーを読むだけで、どこにも送信しません。録音を自動で始めることはありません。'}
+          {'会議の URL を含む予定の時間帯にマイクが使われたら、録音を早めに促します。'}
+          {'macOS のカレンダーを読むだけで、どこにも送信しません。'}
         </span>
       </label>
+
+      {enabled && (
+        <label className="field">
+          <span className="field__label">会議の予定の時間帯にマイクが使われたら、録音を自動で始める</span>
+          <input
+            type="checkbox"
+            checked={autoStartEnabled}
+            onChange={(event) => onAutoStartChange(event.target.checked)}
+          />
+          <span className="field__hint">
+            {'Google Meet・Zoom・Teams の URL を含む予定があり、他のアプリがマイクを 30 秒使い続けたときだけ始めます。'}
+            {'始めたら通知で知らせ、「停止して破棄」で何も残さずに取り消せます。止めた会議では再び自動で始めません。'}
+          </span>
+        </label>
+      )}
 
       {enabled && (
         <div className="permissions__row">

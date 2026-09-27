@@ -194,6 +194,9 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   意味が変わるときだけ object のファイルの `schemaVersion` を上げる（配列の `voiceprints.json` /
   `folders.json` はファイル名を変える）。**読めないもの・知らないキーを、理解できた部分だけで
   上書きしない** — 書き込みは `jsonFile.ts` の `replaceStoredJson` / `replaceVersionedJson` を通す。
+- 録音の自動開始（ADR-041）は**会議 URL 付きの予定があるときだけ**。予定の無いマイク使用で自動開始させない
+  （ADR-027 が避けた誤録音が戻る）。自動で始めた・止めた・破棄した会議は `meetingLookup` が扱い終えとして覚え、
+  同じ会議で始め直さない。破棄は `DiscardRecording` を通し、停止 → 削除の 2 手にしない（間にパイプラインが走る）。
 - 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、
   外したときに「自分が言っていない発言」が残る（ADR-030）。変換は取り込み時に `afconvert` で
   16kHz モノラルにし、`--mix` を外さない（片チャンネルを捨てると話者が丸ごと消える）。

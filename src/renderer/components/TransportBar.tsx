@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { RECORDING_SHORTCUT } from '@shared/shortcuts'
+import { autoStartedMessage, startAlertMessage } from '@shared/startAlert'
 import type { Transport } from '../hooks/useTransport'
 import { formatDuration } from '../format'
 
@@ -15,7 +16,7 @@ export const TransportBar = ({
   /** グローバルショートカットが有効なら、ボタンの横にキーを添えて存在を知らせる。 */
   shortcutEnabled: boolean
 }): ReactElement => {
-  const { state, elapsedMs, level, busy, warning, silenceAlert, startAlert } = transport
+  const { state, elapsedMs, level, busy, warning, silenceAlert, startAlert, autoStarted } = transport
   const active = state.active
 
   return (
@@ -74,14 +75,24 @@ export const TransportBar = ({
         </div>
       )}
 
+      {/* 自動で始めた録音の取り消し口（ADR-041）。通知を見逃しても、録音中はここから破棄できる。 */}
+      {active && autoStarted && autoStarted.recordingId === state.recordingId && (
+        <div className="transport__start-alert" role="alert">
+          <span>{autoStartedMessage(autoStarted.eventTitle)}</span>
+          <button type="button" onClick={() => void transport.discard()} disabled={busy}>
+            停止して破棄
+          </button>
+          <button type="button" onClick={transport.keepAutoStarted}>
+            続ける
+          </button>
+        </div>
+      )}
+
       {/* 開始忘れの確認。通知を見逃してウィンドウへ戻ってきた場合でも
           ここで気づけるよう、応答するまで出し続ける。 */}
       {!active && startAlert && (
         <div className="transport__start-alert" role="alert">
-          <span>
-            {Math.round(startAlert.micBusyDurationMs / 60_000)} 分以上、他のアプリがマイクを
-            使っています。録音を開始しますか？
-          </span>
+          <span>{`${startAlertMessage(startAlert)}録音を開始しますか？`}</span>
           <button type="button" onClick={() => void transport.start()} disabled={busy}>
             録音する
           </button>

@@ -7,7 +7,6 @@ import { findAsset, formatBytes } from '@domain/ModelCatalog'
 import { DEFAULT_SEARCH_LIMIT, searchIndexTransition } from '@domain/SemanticSearch'
 import type { Settings, SettingsPatch } from '@domain/Settings'
 import { DEFAULT_QUIET_RATIO, DEFAULT_SILENCE_LEVEL } from '@domain/SilenceWatch'
-import { DEFAULT_BUSY_RATIO } from '@domain/StartWatch'
 import {
   IPC,
   toFolderDto,
@@ -30,16 +29,19 @@ import {
   type VoiceprintDto,
   type SilenceAlertDto,
   type StartAlertDto,
+  type AutoStartedDto,
   type TransportStateDto
 } from '@shared/ipc'
 import { RECORDING_SHORTCUT } from '@shared/shortcuts'
+import { startAlertMessage } from '@shared/startAlert'
 import type { Container } from '../container'
 import { createVoiceLearning } from '../voiceLearning'
 import { createSearchSyncScheduler } from '../searchSyncScheduler'
 import { createSilenceMonitor } from '../silenceMonitor'
 import { notifySilence } from '../silenceNotification'
+import { createMeetingLookup } from '../meetingLookup'
 import { createStartMonitor } from '../startMonitor'
-import { notifyMeetingStart } from '../startNotification'
+import { notifyAutoStarted, notifyMeetingStart } from '../startNotification'
 import { applyRecordingShortcut } from '../recordingShortcut'
 import { createTransportRequests } from '../transportRequests'
 import { privacySettingsUrl } from '../privacySettings'
@@ -58,17 +60,26 @@ const SILENCE_SAMPLE_INTERVAL_MS = 1_000
  * 既定の 1 分半に対して十分な標本数（18）が取れる 5 秒にする。
  */
 const START_SAMPLE_INTERVAL_MS = 5_000
+/**
+ * 会議の予定を引き直す間隔（ADR-041）。引く範囲は「いま〜5 分後」なので、
+ * 1 分おきなら始まったばかりの会議も取りこぼさない。
+ */
+const MEETING_REFRESH_INTERVAL_MS = 60_000
+/** 自動開始を依頼してから、始まった録音をそれと結び付ける猶予。ウィンドウの起動を待てる長さ。 */
+const AUTO_START_TTL_MS = 30_000
 
 /** トレイからも呼べるよう、録音の開始・停止を切り出したもの。 */
 export interface TransportController {
   start(title?: string): Promise<RecordingDto>
   stop(): Promise<RecordingDto>
+  /** 録音を止め、パイプラインにかけずに消す（ADR-041 の「停止して破棄」）。 */
+  discard(): Promise<void>
   state(): TransportStateDto
   /**
    * main で受けた開始・停止（メニュー・トレイ・通知・ショートカット）を renderer に回す。
    * start/stop を直接呼ぶと renderer のマイク取得を通らず、自分の声が録れない。
    */
-  request(action: 'start' | 'stop' | 'toggle'): void
+  request(action: 'start' | 'stop' | 'discard' | 'toggle'): void
   /** 録音状態の変化を購読する。メニューやトレイの表示を追従させるために使う。 */
   onStateChanged(listener: () => void): void
 }
@@ -275,18 +286,45 @@ export const registerIpcHandlers = (
    * 録音中は自分自身がマイクを使うため、見張っても意味がない。
    */
   let startTimer: NodeJS.Timeout | undefined
-  let startAlertDelayMs = 0
+  /**
+   * 自動開始を依頼した会議。開始は renderer を経由するので、始まった録音が
+   * 自動開始によるものかは、ここに残しておいて開始の側で突き合わせる。
+   */
+  let pendingAutoStart: { eventTitle: string; atMs: number } | undefined
+
+  // 開始忘れの見張りに、いま行われている会議の予定を渡す（ADR-041）。
+  const meetings = createMeetingLookup({
+    calendar: container.calendar,
+    refreshIntervalMs: MEETING_REFRESH_INTERVAL_MS
+  })
 
   const startWatch = createStartMonitor({
     onChange: (listener) => container.micUsage.onChange(listener),
-    onMeetingStarted: () => {
+    meetings: {
+      refresh: (atMs) => void meetings.refresh(atMs),
+      current: (atMs) => meetings.current(atMs)
+    },
+    onMeetingStarted: (plan) => {
       // 促している間に録音が始まっていたら、もう用は無い。
       if (active) return
 
-      send(IPC.startAlert, { micBusyDurationMs: startAlertDelayMs } satisfies StartAlertDto)
+      const event = 'event' in plan ? plan.event : undefined
+      if (plan.action === 'auto-start' && event) {
+        // 同じ会議で二度は始めない。利用者が止めても、次の tick で始め直さないように。
+        meetings.markHandled(event)
+        pendingAutoStart = { eventTitle: event.title, atMs: Date.now() }
+        controller.request('start')
+        return
+      }
+
+      const alert: StartAlertDto = {
+        micBusyDurationMs: plan.durationMs,
+        ...(event === undefined ? {} : { eventTitle: event.title })
+      }
+      send(IPC.startAlert, alert)
 
       notifyMeetingStart({
-        minutes: Math.round(startAlertDelayMs / 60_000),
+        message: startAlertMessage(alert),
         onStart: () => controller.request('start'),
         onShowWindow: focusWindow
       })
@@ -295,17 +333,34 @@ export const registerIpcHandlers = (
 
   const startStartWatch = async (): Promise<void> => {
     const { recording } = await container.settings.load()
-    const enabled = recording.startAlertEnabled && container.micUsage.available
-    startAlertDelayMs = recording.startAlertDelayMs
+    // 促す設定が切でも、会議の予定での自動開始を選んでいれば見張る。
+    const wanted =
+      recording.startAlertEnabled || (recording.calendarEnabled && recording.autoStartEnabled)
 
-    if (!enabled) {
+    if (!wanted || !container.micUsage.available) {
       stopStartWatch()
       return
     }
 
     container.micUsage.start()
-    startWatch.start({ durationMs: recording.startAlertDelayMs, busyRatio: DEFAULT_BUSY_RATIO })
+    startWatch.start({
+      startAlertEnabled: recording.startAlertEnabled,
+      startAlertDelayMs: recording.startAlertDelayMs,
+      calendarEnabled: recording.calendarEnabled,
+      autoStartEnabled: recording.autoStartEnabled
+    })
     startTimer ??= setInterval(() => startWatch.tick(Date.now()), START_SAMPLE_INTERVAL_MS)
+  }
+
+  /**
+   * 録音を終えたあと、見張りを戻す。止めた時点の会議は扱い終えにしてから戻す。
+   * 利用者が会議の途中で止めたのは「この会議はもう録らない」という判断で、
+   * マイクが使われ続けているからといって自動で始め直してはいけない。
+   */
+  const resumeStartWatch = async (): Promise<void> => {
+    const { recording } = await container.settings.load()
+    if (recording.calendarEnabled) await meetings.markCurrentHandled(Date.now())
+    await startStartWatch()
   }
 
   const stopStartWatch = (): void => {
@@ -364,6 +419,20 @@ export const registerIpcHandlers = (
       notifyTransport()
       send(IPC.recordingsChanged)
 
+      const autoStart = pendingAutoStart
+      pendingAutoStart = undefined
+      if (autoStart && Date.now() - autoStart.atMs <= AUTO_START_TTL_MS) {
+        send(IPC.autoStarted, {
+          recordingId: recording.id,
+          eventTitle: autoStart.eventTitle
+        } satisfies AutoStartedDto)
+        notifyAutoStarted({
+          eventTitle: autoStart.eventTitle,
+          onDiscard: () => controller.request('discard'),
+          onShowWindow: focusWindow
+        })
+      }
+
       return toRecordingDto(recording)
     },
 
@@ -378,9 +447,22 @@ export const registerIpcHandlers = (
       send(IPC.recordingsChanged)
 
       void runPipeline(recording.id)
-      void startStartWatch()
+      void resumeStartWatch()
 
       return toRecordingDto(recording)
+    },
+
+    async discard(): Promise<void> {
+      const activeId = active?.recordingId
+      if (!activeId) throw new Error('録音中ではありません。')
+
+      stopSilenceWatch()
+      // パイプラインにはかけない。処理中の録音を消すと、処理側の書き戻しで一覧に戻りうる。
+      await container.discardRecording.execute(activeId)
+      active = undefined
+      notifyTransport()
+      send(IPC.recordingsChanged)
+      void resumeStartWatch()
     },
 
     state: transportState,
@@ -398,6 +480,7 @@ export const registerIpcHandlers = (
     notifyRenderer: () => send(IPC.transportRequested),
     openWindow: showWindow,
     stopWithoutRenderer: () => controller.stop(),
+    discardWithoutRenderer: () => controller.discard(),
     isActive: () => active !== undefined,
     now: () => Date.now()
   })
@@ -475,6 +558,7 @@ export const registerIpcHandlers = (
     controller.start(typeof title === 'string' && title.trim() ? title : undefined)
   )
   handle(IPC.stopRecording, async () => controller.stop())
+  handle(IPC.discardRecording, async () => controller.discard())
   handle(IPC.getTransportState, async () => transportState())
   handle(IPC.getSystemAudioLevel, async () => container.recorder.systemLevel())
   handle(IPC.dismissSilenceAlert, async () => silence.dismiss(Date.now()))

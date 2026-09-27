@@ -56,19 +56,23 @@ const toAttendee = (value: unknown): CalendarAttendee | undefined => {
 
 const toEvent = (value: unknown): CalendarEvent | undefined => {
   if (!isObject(value)) return undefined
-  const { title, startMs, endMs, allDay, attendees } = value
+  const { id, title, startMs, endMs, allDay, attendees, url, location, notes } = value
   if (typeof title !== 'string' || typeof startMs !== 'number' || typeof endMs !== 'number') {
     return undefined
   }
 
   return {
+    ...optionalString('id', id),
     title,
     startsAt: new Date(startMs),
     endsAt: new Date(endMs),
     allDay: allDay === true,
     attendees: Array.isArray(attendees)
       ? attendees.map(toAttendee).filter((attendee) => attendee !== undefined)
-      : []
+      : [],
+    ...optionalString('url', url),
+    ...optionalString('location', location),
+    ...optionalString('notes', notes)
   }
 }
 

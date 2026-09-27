@@ -4,6 +4,7 @@ import { app } from 'electron'
 import { ImportAudioFile } from '@application/usecases/ImportAudioFile'
 import { StartRecording } from '@application/usecases/StartRecording'
 import { StopRecording } from '@application/usecases/StopRecording'
+import { DiscardRecording } from '@application/usecases/DiscardRecording'
 import {
   CreateFolder,
   DeleteFolder,
@@ -90,6 +91,8 @@ export interface Container {
   /** 声紋の取り直しの窓。ワーカーを持つ側（IPC 登録時）が実体を差し込む。 */
   readonly voiceExtraction: WorkerVoiceExtraction
   readonly deleteRecording: DeleteRecording
+  /** 自動で始めた録音を、パイプラインにかけずに消す（ADR-041）。 */
+  readonly discardRecording: DiscardRecording
   readonly listFolders: ListFolders
   readonly createFolder: CreateFolder
   readonly renameFolder: RenameFolder
@@ -166,6 +169,7 @@ export const createContainer = (): Container => {
       ids: { next: () => randomUUID() }
     }),
     stopRecording: new StopRecording(capture),
+    discardRecording: new DiscardRecording(capture),
     // 変換は取り込み時に済ませるので、パイプライン側の結線は増えない（ADR-030）。
     importAudioFile: new ImportAudioFile({
       settings,
