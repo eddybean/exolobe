@@ -59,6 +59,7 @@ interface RecordingRecord {
   steps: Record<string, StepState>
   slug: string
   folderId?: string
+  participants?: unknown
 }
 
 const toRecord = (recording: Recording): RecordingRecord => ({
@@ -69,7 +70,8 @@ const toRecord = (recording: Recording): RecordingRecord => ({
   status: recording.status,
   steps: recording.steps,
   slug: recording.slug,
-  ...(recording.folderId === undefined ? {} : { folderId: recording.folderId })
+  ...(recording.folderId === undefined ? {} : { folderId: recording.folderId }),
+  ...(recording.participants === undefined ? {} : { participants: recording.participants })
 })
 
 /** meta.json のうちこの版が解釈するキー。これ以外は新しい版が足したものとして残す。 */
@@ -81,7 +83,8 @@ const RECORD_KEYS: readonly string[] = [
   'status',
   'steps',
   'slug',
-  'folderId'
+  'folderId',
+  'participants'
 ]
 
 const isRecord = (value: unknown): value is RecordingRecord => {
@@ -106,7 +109,10 @@ const toDomain = (record: RecordingRecord): Recording => {
     status: record.status,
     steps: steps as StepStates,
     slug: record.slug,
-    ...(record.folderId === undefined ? {} : { folderId: record.folderId })
+    ...(record.folderId === undefined ? {} : { folderId: record.folderId }),
+    ...(Array.isArray(record.participants)
+      ? { participants: record.participants.filter((name) => typeof name === 'string') }
+      : {})
   }
 }
 

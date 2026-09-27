@@ -1,3 +1,4 @@
+import type { CalendarEvent } from '@domain/CalendarEvent'
 import type { Folder } from '@domain/Folder'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { PipelineStep, Recording } from '@domain/Recording'
@@ -199,6 +200,17 @@ export interface SystemResourcePort {
 export interface FileInfoPort {
   /** 存在しない・読めない場合は undefined。 */
   stat(path: string): Promise<{ readonly sizeBytes: number; readonly modifiedAt: Date } | undefined>
+}
+
+/**
+ * 端末のカレンダー（macOS では EventKit）。読むだけで、外へは何も送らない（ADR-040）。
+ *
+ * 権限が無い・カレンダーが使えない場合は空配列を返せばよい。ユースケースは
+ * 予定が無いときと同じく従来の振る舞いに戻る。
+ */
+export interface CalendarPort {
+  /** from〜to の区間に少しでも重なる予定。 */
+  eventsBetween(params: { from: Date; to: Date }): Promise<CalendarEvent[]>
 }
 
 /** 録音のメタデータ一覧。保存先ルート配下の index.json が実体。 */

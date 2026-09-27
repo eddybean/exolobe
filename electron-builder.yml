@@ -51,6 +51,9 @@ mac:
     # Core Audio Process Tap の権限。署名済みバイナリでのみ有効になる。
     NSAudioCaptureUsageDescription: 会議相手の音声を録音するためにシステム音声を取得します。
     NSMicrophoneUsageDescription: 会議中のあなたの発言を録音するためにマイクを使用します。
+    # カレンダー連携（ADR-040）。同梱の calendarevents の問い合わせもアプリに帰属する。
+    # macOS 14 以降は FullAccess のキーを見る（旧 NSCalendarsUsageDescription は 14 未満向けで不要）。
+    NSCalendarsFullAccessUsageDescription: 録音の開始時刻に重なる予定から、タイトルと参加者名を埋めるためにカレンダーを読みます。
     LSMinimumSystemVersion: '14.2'
 
 dmg:

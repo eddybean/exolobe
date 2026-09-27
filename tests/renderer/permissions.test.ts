@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inputCheckView, micPermissionView } from '@renderer/permissions'
+import { calendarPermissionView, inputCheckView, micPermissionView } from '@renderer/permissions'
 
 /**
  * 設定画面の「録音に必要な許可」のうちマイクの行。macOS に問い合わせた状態を、
@@ -35,6 +35,39 @@ describe('micPermissionView', () => {
       label: '確認できません',
       ok: false,
       action: 'open-settings'
+    })
+  })
+})
+
+/** カレンダー連携の許可の行（ADR-040）。考え方はマイクと同じで、状態が 2 つ多い。 */
+describe('calendarPermissionView', () => {
+  it('許可済みなら何もしなくてよい', () => {
+    expect(calendarPermissionView('granted')).toEqual({ label: '許可済み', ok: true, action: undefined })
+  })
+
+  it('まだ聞かれていなければ、その場で許可を求められる', () => {
+    expect(calendarPermissionView('not-determined').action).toBe('request')
+  })
+
+  it('予定の追加だけが許可されていても読めないので、システム設定へ案内する', () => {
+    expect(calendarPermissionView('write-only')).toEqual({
+      label: '予定の追加だけが許可されています',
+      ok: false,
+      action: 'open-settings'
+    })
+  })
+
+  it('拒否・制限・不明はシステム設定へ案内する', () => {
+    expect(calendarPermissionView('denied').action).toBe('open-settings')
+    expect(calendarPermissionView('restricted').action).toBe('open-settings')
+    expect(calendarPermissionView('unknown').action).toBe('open-settings')
+  })
+
+  it('同梱物が無ければ、許可ではどうにもならないのでボタンを出さない', () => {
+    expect(calendarPermissionView('unavailable')).toEqual({
+      label: 'この環境では使えません',
+      ok: false,
+      action: undefined
     })
   })
 })

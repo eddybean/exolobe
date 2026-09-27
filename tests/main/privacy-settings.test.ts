@@ -18,6 +18,12 @@ describe('privacySettingsUrl', () => {
     )
   })
 
+  it('カレンダーはプライバシーとセキュリティのカレンダーの画面', () => {
+    expect(privacySettingsUrl('calendars')).toBe(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars'
+    )
+  })
+
   it('知らない種類には URL を返さない', () => {
     expect(privacySettingsUrl('https://example.com')).toBeUndefined()
   })

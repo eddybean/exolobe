@@ -4,6 +4,7 @@ import { type MemoryProtection } from '@domain/MemoryGuard'
 import { SUPPORTED_SAMPLE_RATES, type Settings, type SettingsPatch } from '@domain/Settings'
 import type { SetupStateDto } from '@shared/ipc'
 import { RECORDING_SHORTCUT } from '@shared/shortcuts'
+import { CalendarSettings } from '../components/CalendarSettings'
 import { LicenseNotices } from '../components/LicenseNotices'
 import { ModelManager } from '../components/ModelManager'
 import { RecordingPermissions } from '../components/RecordingPermissions'
@@ -121,6 +122,11 @@ export const SettingsView = ({
             />
           </Field>
         </SettingsCard>
+
+        <CalendarSettings
+          enabled={settings.recording.calendarEnabled}
+          onChange={(calendarEnabled) => update({ recording: { calendarEnabled } })}
+        />
       </>
     ),
     transcription: (

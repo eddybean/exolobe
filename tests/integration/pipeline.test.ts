@@ -26,7 +26,7 @@ import {
   FileRecordingRepository
 } from '@infrastructure/persistence/FileRecordingStore'
 import { JsonSettingsRepository } from '@infrastructure/settings/JsonSettingsRepository'
-import { FakeProgressReporter, FakeSummarizer, FakeTranscriber } from '../application/fakes'
+import { FakeCalendar, FakeProgressReporter, FakeSummarizer, FakeTranscriber } from '../application/fakes'
 
 /**
  * 録音開始から保存までを、実際のファイル I/O・WAV 処理・afconvert を通して確認する。
@@ -93,6 +93,7 @@ const build = async (options: { summarizerError?: Error } = {}) => {
       repository,
       capture: recorder,
       artifacts,
+      calendar: new FakeCalendar(),
       clock: { now: () => new Date('2026-09-06T14:30:00+09:00') },
       ids: { next: () => 'rec-1' }
     }),

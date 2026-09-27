@@ -25,9 +25,11 @@ set_string() {
 
 set_string NSMicrophoneUsageDescription "会議中のあなたの発言を録音するためにマイクを使用します。"
 set_string NSAudioCaptureUsageDescription "会議相手の音声を録音するためにシステム音声を取得します。"
+# カレンダー連携（ADR-040）。説明文が無いまま EventKit の許可を求めると、TCC がプロセスを落とす。
+set_string NSCalendarsFullAccessUsageDescription "録音の開始時刻に重なる予定から、タイトルと参加者名を埋めるためにカレンダーを読みます。"
 
 # TCC は署名の identifier ごとに権限を記録するため、Info.plist 変更後は必ず再署名する。
 codesign --force --sign - --timestamp=none "$APP" >/dev/null 2>&1 \
   || echo "[patch-dev-electron] 再署名に失敗しました（権限プロンプトが出ない場合は手動で codesign してください）"
 
-echo "[patch-dev-electron] Electron.app に音声キャプチャ用の Info.plist キーを適用しました。"
+echo "[patch-dev-electron] Electron.app に権限の説明文（音声キャプチャ・カレンダー）を適用しました。"

@@ -30,7 +30,8 @@
     "build:icon": "node scripts/build-icon.mjs",
     "build:whisper": "bash scripts/build-whisper.sh",
     "build:micwatch": "bash scripts/build-micwatch.sh",
-    "package": "npm run build && npm run build:whisper && npm run build:micwatch && electron-builder --config electron-builder.yml"
+    "build:calendarevents": "bash scripts/build-calendarevents.sh",
+    "package": "npm run build && npm run build:whisper && npm run build:micwatch && npm run build:calendarevents && electron-builder --config electron-builder.yml"
   },
   "dependencies": {
     "audiotee": "^0.0.7",

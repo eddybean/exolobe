@@ -23,6 +23,7 @@ import {
   type SearchIndexStatusDto,
   type VoiceprintDto,
   type SearchSyncStateDto,
+  type CalendarPermissionDto,
   type MicPermissionDto,
   type SetupStateDto,
   type SilenceAlertDto,
@@ -57,6 +58,10 @@ const api: RendererApi = {
   getMicPermission: () => ipcRenderer.invoke(IPC.getMicPermission) as Promise<MicPermissionDto>,
   requestMicPermission: () => ipcRenderer.invoke(IPC.requestMicPermission) as Promise<boolean>,
   openPrivacySettings: (pane) => ipcRenderer.invoke(IPC.openPrivacySettings, pane) as Promise<void>,
+  getCalendarPermission: () =>
+    ipcRenderer.invoke(IPC.getCalendarPermission) as Promise<CalendarPermissionDto>,
+  requestCalendarPermission: () =>
+    ipcRenderer.invoke(IPC.requestCalendarPermission) as Promise<CalendarPermissionDto>,
   probeSystemAudio: (durationMs) =>
     ipcRenderer.invoke(IPC.probeSystemAudio, durationMs) as Promise<number>,
   takeTransportRequest: () =>
