@@ -7,7 +7,14 @@ import {
   UpdateModel,
   type ModelStorePort
 } from '@application/usecases/models'
-import { MANAGED_ASSETS, findAsset, formatBytes, requiredAssets } from '@domain/ModelCatalog'
+import {
+  MANAGED_ASSETS,
+  MODEL_PACKAGES,
+  findAsset,
+  findPackage,
+  formatBytes,
+  requiredAssets
+} from '@domain/ModelCatalog'
 import type { ManagedAsset, ManagedAssetId } from '@domain/ModelCatalog'
 import {
   initialStepStates,
@@ -117,6 +124,25 @@ describe('ModelCatalog', () => {
   it('Core ML エンコーダは任意にする。無くても文字起こしは動く', () => {
     expect(findAsset('transcription-coreml-encoder')?.optional).toBe(true)
   })
+
+  it('どのファイルもちょうど 1 つのパッケージに属する', () => {
+    const ids = MODEL_PACKAGES.flatMap((pkg) => pkg.assets.map((asset) => asset.id))
+
+    expect([...ids].sort()).toEqual(MANAGED_ASSETS.map((asset) => asset.id).sort())
+  })
+
+  it('話者識別は分割と埋め込みの 2 ファイルを 1 つのモデルとして扱う', () => {
+    // どちらか片方だけでは話者識別も声紋の取り出しも動かない。
+    const diarization = findPackage('diarization')
+
+    expect(diarization?.assets.map((asset) => asset.id)).toEqual([
+      'diarization-segmentation',
+      'diarization-embedding'
+    ])
+    expect(diarization?.optional).toBe(true)
+    expect(diarization?.bytes).toBe(6_958_444 + 28_281_164)
+    expect(findPackage('diarization-embedding')).toBeUndefined()
+  })
 })
 
 describe('formatBytes', () => {
@@ -135,7 +161,7 @@ describe('GetModelStatus', () => {
       store
     ).execute()
 
-    expect(status).toHaveLength(MANAGED_ASSETS.length)
+    expect(status).toHaveLength(MODEL_PACKAGES.length)
     expect(status.every((s) => !s.installed)).toBe(true)
     expect(status[0]?.path).toBeUndefined()
   })
@@ -191,6 +217,37 @@ describe('GetModelStatus', () => {
     ).execute()
 
     expect(status.find((s) => s.id === 'transcription-model')?.installed).toBe(true)
+  })
+
+  it('話者識別は 2 ファイルが揃って初めて取得済みとする', async () => {
+    const store = new FakeModelStore()
+    store.present.add('/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx')
+    const statusOf = async () =>
+      (
+        await new GetModelStatus(new FakeSettingsRepository(defaultSettings()), store).execute()
+      ).find((s) => s.id === 'diarization')
+
+    expect((await statusOf())?.installed).toBe(false)
+
+    store.present.add('/models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx')
+    const status = await statusOf()
+    expect(status?.installed).toBe(true)
+    expect(status?.bytes).toBe(6_958_444 + 28_281_164)
+  })
+
+  it('話者識別はどちらか片方が古ければ更新ありとする', async () => {
+    const store = new FakeModelStore()
+    const embedding = '/models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx'
+    store.present.add('/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx')
+    store.present.add(embedding)
+    store.digests.set(embedding, 'old-digest')
+
+    const status = await new GetModelStatus(
+      new FakeSettingsRepository(defaultSettings()),
+      store
+    ).execute()
+
+    expect(status.find((s) => s.id === 'diarization')?.updateAvailable).toBe(true)
   })
 })
 
@@ -278,14 +335,48 @@ describe('DownloadModel', () => {
     expect(updated.summarization.modelPath).toBe('/models/gemma-4-E4B_q4_0-it.gguf')
   })
 
-  it('話者識別モデルは diarization の設定へ入る', async () => {
+  it('話者識別は 2 ファイルとも取得し、diarization の設定へ両方を書き込む', async () => {
     const settings = new FakeSettingsRepository(defaultSettings())
+    const store = new FakeModelStore()
 
-    const updated = await new DownloadModel(settings, new FakeModelStore()).execute({
-      id: 'diarization-embedding'
+    const updated = await new DownloadModel(settings, store).execute({ id: 'diarization' })
+
+    expect(store.fetched).toEqual(['diarization-segmentation', 'diarization-embedding'])
+    expect(updated.diarization.segmentationModelPath).toBe(
+      '/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx'
+    )
+    expect(updated.diarization.embeddingModelPath).toContain('3dspeaker')
+  })
+
+  it('複数ファイルの進捗はまとめて 1 本のバーになるよう積み上げる', async () => {
+    const progress: [number, number | undefined][] = []
+
+    await new DownloadModel(new FakeSettingsRepository(defaultSettings()), new FakeModelStore()).execute({
+      id: 'diarization',
+      onProgress: (received, total) => progress.push([received, total])
     })
 
-    expect(updated.diarization.embeddingModelPath).toContain('3dspeaker')
+    const total = 6_958_444 + 28_281_164
+    expect(progress).toEqual([
+      [6_958_444, total],
+      [total, total]
+    ])
+  })
+
+  it('2 つ目の取得に失敗したら設定を書き換えない', async () => {
+    // 片方だけ設定に入っても使えないので、揃うまでは書き込まない。
+    const settings = new FakeSettingsRepository(defaultSettings())
+    const store = new FakeModelStore()
+    const fetch = store.fetch.bind(store)
+    store.fetch = async (asset, options) => {
+      if (asset.id === 'diarization-embedding') throw new Error('通信に失敗しました')
+      return fetch(asset, options)
+    }
+
+    await expect(
+      new DownloadModel(settings, store).execute({ id: 'diarization' })
+    ).rejects.toThrow('通信に失敗しました')
+    expect((await settings.load()).diarization.segmentationModelPath).toBe('')
   })
 
   it('意味検索モデルは search の設定へ入る', async () => {
@@ -333,6 +424,13 @@ describe('CancelModelDownload', () => {
     new CancelModelDownload(store).execute('summarization-model')
 
     expect(store.cancelled).toEqual(['summarization-model'])
+  })
+
+  it('話者識別は 2 ファイルとも止める', () => {
+    const store = new FakeModelStore()
+    new CancelModelDownload(store).execute('diarization')
+
+    expect(store.cancelled).toEqual(['diarization-segmentation', 'diarization-embedding'])
   })
 
   it('未知の ID は無視する', () => {
@@ -400,6 +498,25 @@ describe('DeleteModel', () => {
 
     expect(store.removed).toEqual(['search-model'])
     expect(updated.search.modelPath).toBe('')
+  })
+
+  it('話者識別は 2 ファイルとも消し、両方の参照を外す', async () => {
+    const store = new FakeModelStore()
+    const base = defaultSettings()
+    const settings = new FakeSettingsRepository({
+      ...base,
+      diarization: {
+        ...base.diarization,
+        segmentationModelPath: '/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx',
+        embeddingModelPath: '/models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx'
+      }
+    })
+
+    const updated = await deleter(settings, store).execute('diarization')
+
+    expect(store.removed).toEqual(['diarization-segmentation', 'diarization-embedding'])
+    expect(updated.diarization.segmentationModelPath).toBe('')
+    expect(updated.diarization.embeddingModelPath).toBe('')
   })
 
   it('自分で選んだ外部ファイルは消さず、参照だけ外す', async () => {

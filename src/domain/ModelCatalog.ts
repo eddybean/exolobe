@@ -157,6 +157,66 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
 export const findAsset = (id: string): ManagedAsset | undefined =>
   MANAGED_ASSETS.find((asset) => asset.id === id)
 
+/**
+ * 利用者が取得・更新・削除する単位。たいていは 1 ファイルで 1 つだが、
+ * 片方だけでは役に立たないファイルは 1 つにまとめる。
+ *
+ * ファイル単位の ManagedAsset を残したままにしているのは、installed.json の記録と
+ * 手元のファイルの置き場所を変えずに済ませるため（既存の利用者に取り直しを求めない）。
+ */
+export interface ModelPackage {
+  readonly id: string
+  readonly label: string
+  readonly description: string
+  readonly optional: boolean
+  readonly bytes: number
+  readonly assets: readonly ManagedAsset[]
+}
+
+const single = (asset: ManagedAsset): ModelPackage => ({
+  id: asset.id,
+  label: asset.label,
+  description: asset.description,
+  optional: asset.optional,
+  bytes: asset.bytes,
+  assets: [asset]
+})
+
+const assetOf = (id: ManagedAssetId): ManagedAsset => {
+  const asset = findAsset(id)
+  if (!asset) throw new Error(`カタログに無いファイルです: ${id}`)
+  return asset
+}
+
+/**
+ * 話者識別の 2 ファイルをまとめる理由:
+ * sherpa-onnx の話者識別は分割（pyannote）と埋め込み（3D-Speaker）の両方を要し、
+ * 声紋の取り出しも両方が揃ったときだけ有効にしている。片方だけ取得・削除できても
+ * 何も動かず、どちらが欠けているのかを利用者に考えさせるだけになる。
+ */
+const diarization = [assetOf('diarization-segmentation'), assetOf('diarization-embedding')]
+
+export const MODEL_PACKAGES: readonly ModelPackage[] = MANAGED_ASSETS.flatMap(
+  (asset): ModelPackage[] => {
+    if (asset.id === 'diarization-embedding') return []
+    if (asset.id !== 'diarization-segmentation') return [single(asset)]
+    return [
+      {
+        id: 'diarization',
+        label: '話者識別モデル（任意）',
+        description:
+          '参加者が複数人いるとき、相手側を話者ごとに分けます。話者分割と話者埋め込みの 2 つのファイルをまとめて取得します。',
+        optional: true,
+        bytes: diarization.reduce((sum, file) => sum + file.bytes, 0),
+        assets: diarization
+      }
+    ]
+  }
+)
+
+export const findPackage = (id: string): ModelPackage | undefined =>
+  MODEL_PACKAGES.find((pkg) => pkg.id === id)
+
 /** 録音を文字起こし・要約まで通すのに欠かせないもの。 */
 export const requiredAssets = (): ManagedAsset[] =>
   MANAGED_ASSETS.filter((asset) => !asset.optional)

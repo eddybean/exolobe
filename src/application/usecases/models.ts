@@ -1,9 +1,10 @@
 import type { RecordingRepositoryPort, SettingsRepositoryPort } from '@application/ports'
 import {
-  MANAGED_ASSETS,
-  findAsset,
+  MODEL_PACKAGES,
+  findPackage,
   type ManagedAsset,
-  type ManagedAssetId
+  type ManagedAssetId,
+  type ModelPackage
 } from '@domain/ModelCatalog'
 import { ConfigurationError, ModelInUseError } from '@domain/errors'
 import { isProcessing } from '@domain/Recording'
@@ -31,7 +32,8 @@ export interface ModelStorePort {
 }
 
 export interface ManagedAssetStatus {
-  readonly id: ManagedAssetId
+  /** ModelPackage の ID。取得・削除などの操作はこの単位で行う。 */
+  readonly id: string
   readonly label: string
   readonly description: string
   readonly bytes: number
@@ -39,7 +41,7 @@ export interface ManagedAssetStatus {
   readonly installed: boolean
   /** 手元のファイルが、このアプリの版が想定する配布物と違う。 */
   readonly updateAvailable: boolean
-  /** 設定が指しているパス。未設定なら undefined。 */
+  /** 設定が指しているパス。未設定、または複数ファイルから成るものは undefined。 */
   readonly path: string | undefined
 }
 
@@ -66,21 +68,31 @@ export class GetModelStatus {
     const settings = await this.settings.load()
 
     return Promise.all(
-      MANAGED_ASSETS.map(async (asset) => {
-        const configured = configuredPath(settings, asset.id)
-        const path = configured || this.store.pathFor(asset)
-        const installed = await this.store.exists(path)
+      MODEL_PACKAGES.map(async (pkg) => {
+        const files = pkg.assets.map((asset) => {
+          const configured = configuredPath(settings, asset.id)
+          return { asset, configured, path: configured || this.store.pathFor(asset) }
+        })
+        // 1 つでも欠けていれば使えないので、全部揃って初めて取得済みとする。
+        const installed = (
+          await Promise.all(files.map((file) => this.store.exists(file.path)))
+        ).every(Boolean)
+        const outdated =
+          options.checkUpdates &&
+          installed &&
+          (await Promise.all(files.map((file) => this.isOutdated(file.asset, file.path)))).some(
+            Boolean
+          )
 
         return {
-          id: asset.id,
-          label: asset.label,
-          description: asset.description,
-          bytes: asset.bytes,
-          optional: asset.optional,
+          id: pkg.id,
+          label: pkg.label,
+          description: pkg.description,
+          bytes: pkg.bytes,
+          optional: pkg.optional,
           installed,
-          updateAvailable:
-            options.checkUpdates && installed && (await this.isOutdated(asset, path)),
-          path: configured || undefined
+          updateAvailable: outdated,
+          path: files.length === 1 ? files[0]?.configured || undefined : undefined
         }
       })
     )
@@ -103,6 +115,10 @@ export class GetModelStatus {
  *
  * ダウンロードが終わった時点で設定へ書き込むので、利用者がパスを手入力する
  * 必要がない。すでに手元にあるファイルは再取得しない。
+ *
+ * 複数ファイルから成るものは、全部揃ってから設定へ書く。片方だけ設定に入っても
+ * 使えず、取得済みのように見えるだけになるため（取れたファイルは手元に残るので、
+ * やり直しでは取り直さない）。
  */
 export class DownloadModel {
   constructor(
@@ -114,16 +130,34 @@ export class DownloadModel {
     id: string
     onProgress?: (received: number, total: number | undefined) => void
   }): Promise<Settings> {
-    const asset = findAsset(params.id)
-    if (!asset) {
-      throw new ConfigurationError(`不明なモデルです: ${params.id}`)
+    const pkg = packageOf(params.id)
+    const { onProgress } = params
+
+    const fetched: { asset: ManagedAsset; path: string }[] = []
+    // 画面には 1 本のバーで見せるので、先に済んだファイルの分を積み上げて渡す。
+    let done = 0
+    for (const asset of pkg.assets) {
+      const offset = done
+      const path = await this.store.fetch(asset, {
+        ...(onProgress === undefined
+          ? {}
+          : {
+              onProgress: (received: number, total: number | undefined) =>
+                onProgress(
+                  offset + received,
+                  pkg.assets.length === 1 ? total : pkg.bytes
+                )
+            })
+      })
+      fetched.push({ asset, path })
+      done += asset.bytes
     }
 
-    const path = await this.store.fetch(asset, {
-      ...(params.onProgress === undefined ? {} : { onProgress: params.onProgress })
-    })
-
-    return this.settings.save(asset.applyTo(path))
+    let saved = await this.settings.load()
+    for (const { asset, path } of fetched) {
+      saved = await this.settings.save(asset.applyTo(path))
+    }
+    return saved
   }
 }
 
@@ -146,20 +180,21 @@ export class DeleteModel {
   ) {}
 
   async execute(id: string): Promise<Settings> {
-    const asset = findAsset(id)
-    if (!asset) {
-      throw new ConfigurationError(`不明なモデルです: ${id}`)
-    }
+    const pkg = packageOf(id)
 
     await ensureModelsIdle(this.recordings, '削除')
 
-    await this.store.remove(asset)
+    for (const asset of pkg.assets) {
+      await this.store.remove(asset)
+    }
 
-    const settings = await this.settings.load()
-    // 参照が既に空なら書き込まない。無用な settings.json の更新を避ける。
-    if (!configuredPath(settings, asset.id)) return settings
-
-    return this.settings.save(asset.applyTo(''))
+    let settings = await this.settings.load()
+    for (const asset of pkg.assets) {
+      // 参照が既に空なら書き込まない。無用な settings.json の更新を避ける。
+      if (!configuredPath(settings, asset.id)) continue
+      settings = await this.settings.save(asset.applyTo(''))
+    }
+    return settings
   }
 }
 
@@ -181,9 +216,7 @@ export class UpdateModel {
     id: string
     onProgress?: (received: number, total: number | undefined) => void
   }): Promise<Settings> {
-    if (!findAsset(params.id)) {
-      throw new ConfigurationError(`不明なモデルです: ${params.id}`)
-    }
+    packageOf(params.id)
 
     await ensureModelsIdle(this.recordings, '更新')
 
@@ -217,9 +250,16 @@ export class CancelModelDownload {
   constructor(private readonly store: ModelStorePort) {}
 
   execute(id: string): void {
-    const asset = findAsset(id)
-    if (asset) this.store.cancel(asset.id)
+    for (const asset of findPackage(id)?.assets ?? []) {
+      this.store.cancel(asset.id)
+    }
   }
+}
+
+const packageOf = (id: string): ModelPackage => {
+  const pkg = findPackage(id)
+  if (!pkg) throw new ConfigurationError(`不明なモデルです: ${id}`)
+  return pkg
 }
 
 const configuredPath = (settings: Settings, id: ManagedAssetId): string => {
