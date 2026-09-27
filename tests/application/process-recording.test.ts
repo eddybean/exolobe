@@ -314,6 +314,28 @@ describe('ProcessRecording — 個別リトライ', () => {
     expect(result.status).toBe('ready')
   })
 
+  it('中間ファイルを片付けた後でも要約は再実行できる（要約はトラックを読まない）', async () => {
+    const ctx = await build()
+    ctx.summarizer.error = new Error('要約モデルが読み込めません')
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    expect(ctx.artifacts.tracks.has('rec-1')).toBe(false)
+    ctx.summarizer.clearError()
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
+
+    expect(result.steps.summarize.status).toBe('done')
+    expect(result.status).toBe('ready')
+  })
+
+  it('中間ファイルを片付けた後にトラックを読むステップを再実行すると、録音データが無いと断る', async () => {
+    const ctx = await build()
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    await expect(
+      ctx.process.execute({ recordingId: 'rec-1', only: ['transcribe'] })
+    ).rejects.toThrow('録音データが見つかりません。')
+  })
+
   it('リトライで中間ファイルを使うステップが揃えば片付ける', async () => {
     const ctx = await build()
     ctx.transcriber.error = new Error('whisper-cli が見つかりません')
@@ -410,6 +432,8 @@ describe('ProcessRecording — 利用者が付けた話者名', () => {
     await ctx.process.execute({ recordingId: 'rec-1' })
     await rename(ctx, 'remote:spk0', '田中さん')
 
+    // 中間 WAV が残っている（どこかのステップが失敗した）状況での再実行。
+    await ctx.artifacts.writeTracks(ctx.recording, tracks)
     await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
 
     expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers).toEqual([
@@ -424,6 +448,8 @@ describe('ProcessRecording — 利用者が付けた話者名', () => {
     await ctx.process.execute({ recordingId: 'rec-1' })
     await rename(ctx, SELF_SPEAKER_ID, '私')
 
+    // 中間 WAV が残っている（どこかのステップが失敗した）状況での再実行。
+    await ctx.artifacts.writeTracks(ctx.recording, tracks)
     await ctx.process.execute({ recordingId: 'rec-1', only: ['transcribe'] })
 
     expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers).toContainEqual({
@@ -735,6 +761,8 @@ describe('ProcessRecording — 声紋による話者名の自動適用', () => {
     })
     register(ctx, '田中さん', 2)
 
+    // 中間 WAV が残っている（どこかのステップが失敗した）状況での再実行。
+    await ctx.artifacts.writeTracks(ctx.recording, tracks)
     await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
 
     expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers[1]?.label).toBe('佐藤さん')
@@ -755,6 +783,8 @@ describe('ProcessRecording — 声紋による話者名の自動適用', () => {
     register(ctx, '田中さん', 2)
     register(ctx, '鈴木さん', 88)
 
+    // 中間 WAV が残っている（どこかのステップが失敗した）状況での再実行。
+    await ctx.artifacts.writeTracks(ctx.recording, tracks)
     await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
 
     expect(
@@ -788,6 +818,8 @@ describe('ProcessRecording — 声紋による話者名の自動適用', () => {
     // クラスタ番号は実行のたびに振り直される。古い声紋が残ると、次に名前を
     // 付けたときに別人のベクトルをその名前で覚えてしまう。
     ctx.embedder.error = new Error('モデルを読めません')
+    // 中間 WAV が残っている（どこかのステップが失敗した）状況での再実行。
+    await ctx.artifacts.writeTracks(ctx.recording, tracks)
     await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
 
     expect((await ctx.artifacts.readVoices(ctx.recording))?.speakers).toEqual([])

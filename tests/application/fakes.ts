@@ -208,6 +208,9 @@ export class FakeArtifactStore implements RecordingArtifactPort {
   }
   async cleanupIntermediates(recording: Recording): Promise<void> {
     this.cleanedUp.push(recording.id)
+    // 実装と同じく tracks.json も消す。残すと、片付け後のリトライがトラックを
+    // 読めてしまい、実機でだけ起きる失敗を見逃す。
+    this.tracks.delete(recording.id)
   }
   async removeAll(recording: Recording): Promise<void> {
     this.removed.push(recording.id)
