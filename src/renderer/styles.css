@@ -122,12 +122,6 @@ code {
   -webkit-app-region: drag;
 }
 
-.nav__brand {
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0;
-}
-
 .nav__links {
   display: flex;
   gap: 4px;
