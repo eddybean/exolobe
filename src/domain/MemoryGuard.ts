@@ -37,13 +37,17 @@ const GB = 1_024 ** 3
  *
  * 総量比だけで決めると 8GB 機で余白が小さくなりすぎ、比を使わないと 64GB 機で
  * 過剰に厳しくなる。下限と比率の大きい方を採る。
+ *
+ * 標準は OS の揺れを吸う程度に留める。以前の 1GB / 10% では 16GB 機で 1.6GB を上乗せし、
+ * 「オフ」なら問題なく要約できる状況まで拒んでいた。OS を守る余白は node-llama-cpp が
+ * 内蔵で別に確保しており（RAM の 25%）、事前チェックがそれを二重に持つ必要はない。
  */
 export const headroomBytes = (protection: MemoryProtection, totalBytes: number): number => {
   switch (protection) {
     case 'off':
       return 0
     case 'standard':
-      return Math.max(1 * GB, totalBytes * 0.1)
+      return Math.max(0.5 * GB, totalBytes * 0.05)
     case 'conservative':
       return Math.max(3 * GB, totalBytes * 0.2)
   }
