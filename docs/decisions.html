@@ -69,6 +69,7 @@
             <tr><td><a href="#adr-034">ADR-034</a></td><td>過去の録音からの声紋の取り直し</td><td>audio.m4a から取り直し、話者識別はやり直さず、名前付けの裏で 1 回だけ走らせる</td></tr>
             <tr><td><a href="#adr-035">ADR-035</a></td><td>保存データの形式の変更に備える</td><td>アプリのバージョンではなくファイルごとのスキーマ番号を持ち、理解できないものは上書きしない</td></tr>
             <tr><td><a href="#adr-036">ADR-036</a></td><td>VAD の区間をまたぐ発言</td><td>whisper-cli のログから区間の対応表を読み、トークンの時刻で発言を区間ごとに切り直す</td></tr>
+            <tr><td><a href="#adr-037">ADR-037</a></td><td>文字起こしの文脈の引き継ぎ</td><td>VAD を使わず用語集も空のときだけ <code>--max-context 0</code> で直前の出力を引き継がせない</td></tr>
           </tbody>
         </table>
       </div>
@@ -3055,6 +3056,124 @@
         </p>
       </div>
 
+      <h2 id="adr-037">ADR-037 文字起こしの文脈の引き継ぎ（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-037</span>
+          <p class="adr__title">VAD を使わず用語集も空のときだけ <code>--max-context 0</code> を付け、直前の出力を次のウィンドウへ引き継がせない</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          whisper は 30 秒のウィンドウごとに文字起こしし、直前の出力をプロンプトとして次のウィンドウへ渡す。
+          文脈がつながる利点がある一方、一度起きた繰り返しやハルシネーションも次のウィンドウへ持ち越される。
+          OpenAI の実装でいう <code>condition_on_previous_text=False</code> に当たる設定は、
+          ハルシネーション対策として広く使われている。
+        </p>
+
+        <h4>whisper.cpp での扱い（v1.9.4 のソースで確認）</h4>
+        <ul>
+          <li>
+            プロンプトは、用語集（<code>prompt_past0</code>）と直前の出力（<code>prompt_past1</code>）を
+            <strong>同じ条件</strong> <code>n_max_text_ctx &gt; 0</code> の中で組み立てる。
+            <code>--max-context 0</code> にすると<strong>用語集も入らなくなる</strong>。
+          </li>
+          <li>
+            <code>--carry-initial-prompt</code> のときは、<code>prompt_past1</code> がウィンドウごとに空にされ、
+            直前 1 ウィンドウの出力だけが積まれる。付けないときは最大 223 トークンまで溜まる。
+          </li>
+          <li>
+            <code>--max-context</code> を小さな値にすると、用語集は<strong>先頭から</strong>切られる。
+            安全な値を決めるには用語集のトークン数が要るが、アプリ側にトークナイザは無い。
+          </li>
+          <li>
+            温度フォールバックで温度が 0.5 以上になったときと、音声の終わりに短い残りがあるときは、
+            whisper.cpp がもともと履歴を捨てている。
+          </li>
+        </ul>
+
+        <h4>合成音声での比較</h4>
+        <p>
+          <code>say</code> の日本語読み上げに雑音を混ぜた 4〜5 分の音声 3 本（発言の間に雑音だけの長い間がある会議、
+          相づちの連続、声の重なりと小声）を、同梱の whisper-cli 1.9.4 と turbo q5_0 に
+          アプリと同じ引数で通した。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>構成</th><th>引き継ぐ（既定）</th><th><code>--max-context 0</code></th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>VAD 無し</td>
+                <td>
+                  3 本中 2 本で、途中から<strong>録音の最後まで同じ文を繰り返し</strong>（84 回など）、
+                  後ろの本物の発言がすべて消えた。残る 1 本も実在しない相づちが約 10 件
+                </td>
+                <td>ループは起きない。無音区間の定型句は出るが既存のブロックリストで落ちる。小声の区間で作り話が 1 件</td>
+              </tr>
+              <tr>
+                <td>VAD 有り（既定）</td>
+                <td>3 本ともハルシネーション無し</td>
+                <td>
+                  得るものが無く、<strong>後半の句読点が消え</strong>、重なった小さな声（本物の発話）を 2 件取りこぼした
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          ループしたセグメントの平均対数確率は -0.03 前後と高く、確信度による除外（-1.0）では落とせない。
+        </p>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>方式</th><th>判定</th><th>理由</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>常に <code>--max-context 0</code></td>
+                <td>不採用</td>
+                <td>用語集が黙って効かなくなる。VAD 有りでは精度が下がるだけ</td>
+              </tr>
+              <tr>
+                <td>用語集が空なら <code>--max-context 0</code></td>
+                <td>不採用</td>
+                <td>既定の VAD 有りの構成で、句読点と小さな声を失うだけになる（上の比較）</td>
+              </tr>
+              <tr>
+                <td>用語集があるときは小さな <code>--max-context</code> にする</td>
+                <td>不採用</td>
+                <td>用語集のトークン数が分からず、値が足りないと用語集の先頭が黙って切られる</td>
+              </tr>
+              <tr>
+                <td>VAD を使わず用語集も空のときだけ <code>--max-context 0</code></td>
+                <td>採用</td>
+                <td>
+                  ループで発言が丸ごと消える被害が出るのは VAD 無しのときで、そこだけ止める。
+                  VAD モデルが未取得・削除済み、または設定で無効にしたときがこれに当たる
+                  （<a href="#adr-020">ADR-020</a> の逃げ道）
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>残した判断</h4>
+        <ul>
+          <li>
+            VAD 有りでも実際の会議では繰り返しが起きうる（<a href="#adr-022">ADR-022</a> の比較で観測されている）。
+            合成音声では再現できなかったので、ここでは扱わず、出力側で繰り返しを検出して落とす仕組みで拾う。
+            用語集があるときの繰り返しも同じ扱い。
+          </li>
+          <li>
+            比較は合成音声で、実際の会議より綺麗。実録音で差が出たら見直す。
+          </li>
+        </ul>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -3151,6 +3270,10 @@
             <tr>
               <td><a href="#adr-036">ADR-036</a> VAD の区間の対応表をログから読む</td>
               <td>whisper.cpp が対応表を JSON に載せるようになったとき、またはログの形式が変わって読めなくなったとき。読めないと黙って切り直しが止まるので、更新時は再現用の音声で確かめる</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-037">ADR-037</a> VAD 有りでは直前の出力を引き継ぐ</td>
+              <td>VAD 有りの実録音でも繰り返しのループが観測されたとき。また、whisper.cpp が用語集と直前の出力の上限を別々に指定できるようになったとき</td>
             </tr>
             <tr>
               <td>arm64 のみのビルド</td>

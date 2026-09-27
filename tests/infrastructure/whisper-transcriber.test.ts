@@ -575,6 +575,48 @@ describe('WhisperCppTranscriber', () => {
     expect(seen[0]).not.toContain('--carry-initial-prompt')
   })
 
+  it('VAD を使わず用語集も空なら、直前の出力を次のウィンドウへ引き継がせない', async () => {
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin', glossary: [] },
+      captureArgv(seen)
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    const argv = seen[0] ?? []
+    expect(argv[argv.indexOf('--max-context') + 1]).toBe('0')
+  })
+
+  it('VAD を使うなら文脈の上限を変えない（句読点や小さな声を落とすだけになるため）', async () => {
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      {
+        binaryPath: 'whisper-cli',
+        modelPath: '/models/ggml.bin',
+        vadModelPath: '/models/ggml-silero.bin',
+        glossary: []
+      },
+      captureArgv(seen)
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    expect(seen[0]).not.toContain('--max-context')
+  })
+
+  it('用語集があれば文脈の上限を変えない（用語集ごと消えるため）', async () => {
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin', glossary: ['Anthropic'] },
+      captureArgv(seen)
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    expect(seen[0]).not.toContain('--max-context')
+  })
+
   it('書き出された JSON を読んでセグメントを返す', async () => {
     const transcriber = new WhisperCppTranscriber(
       { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin' },

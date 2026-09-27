@@ -489,6 +489,11 @@ export class WhisperCppTranscriber implements TranscriptionPort {
       // --carry-initial-prompt が無いと用語集は先頭の 1 ウィンドウ（30 秒）にしか
       // 効かない。会議の長さを考えると、付けなければ入れた意味がほぼ無い。
       ...(prompt ? ['--prompt', prompt, '--carry-initial-prompt'] : []),
+      // VAD を使わないと、雑音の区間で起きた繰り返しが直前の出力として次のウィンドウへ
+      // 引き継がれ、録音の最後まで同じ文が続いて本物の発言を呑み込む（ADR-037）。
+      // VAD を使うときは付けない。ループは起きず、句読点や重なった小さな声を落とすだけになる。
+      // 用語集があるときも付けない。whisper.cpp は文脈の上限 0 で用語集まで入れなくなる。
+      ...(vadModelPath || prompt ? [] : ['--max-context', '0']),
       ...(this.config.threads ? ['--threads', String(this.config.threads)] : [])
     ]
 
