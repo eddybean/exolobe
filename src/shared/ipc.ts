@@ -24,6 +24,8 @@ export interface RecordingDto {
   readonly summaryPreview?: string
   /** 分類先フォルダの id。未設定なら未分類。 */
   readonly folderId?: string
+  /** 開始時刻に重なっていた予定の参加者名。話者リネームの候補にする。 */
+  readonly participants?: readonly string[]
 }
 
 export interface FolderDto {
@@ -53,7 +55,20 @@ export interface SetupStateDto {
 export type MicPermissionDto = 'granted' | 'denied' | 'restricted' | 'not-determined' | 'unknown'
 
 /** 「システム設定を開く」で開く画面の種類。 */
-export type PrivacyPaneDto = 'microphone' | 'system-audio'
+export type PrivacyPaneDto = 'microphone' | 'system-audio' | 'calendars'
+
+/**
+ * カレンダーの許可の状態（ADR-040）。EventKit の値に、同梱物が無く問い合わせられない
+ * `unavailable` を足したもの。`write-only` は予定を読めないので、許可が無いのと同じに扱う。
+ */
+export type CalendarPermissionDto =
+  | 'granted'
+  | 'denied'
+  | 'restricted'
+  | 'not-determined'
+  | 'write-only'
+  | 'unavailable'
+  | 'unknown'
 
 /** main から renderer へ回す録音の操作。 */
 export type TransportRequestDto = 'start' | 'stop'
@@ -287,7 +302,8 @@ export const toRecordingDto = (
   steps: recording.steps as RecordingDto['steps'],
   slug: recording.slug,
   ...(summaryPreview === undefined ? {} : { summaryPreview }),
-  ...(recording.folderId === undefined ? {} : { folderId: recording.folderId })
+  ...(recording.folderId === undefined ? {} : { folderId: recording.folderId }),
+  ...(recording.participants === undefined ? {} : { participants: [...recording.participants] })
 })
 
 export const toFolderDto = (folder: Folder): FolderDto => ({
@@ -324,6 +340,10 @@ export interface RendererApi {
   requestMicPermission(): Promise<boolean>
   /** プライバシーとセキュリティの該当する画面を開く。 */
   openPrivacySettings(pane: PrivacyPaneDto): Promise<void>
+  /** カレンダーの許可の状態。システム設定から戻ってきたときにも読み直す。 */
+  getCalendarPermission(): Promise<CalendarPermissionDto>
+  /** まだ聞かれていなければ、カレンダーの許可を求める。求めた後の状態を返す。 */
+  requestCalendarPermission(): Promise<CalendarPermissionDto>
   /**
    * テスト録音のうちシステム音声の側。録音とは別に短い間だけ取り込み、届いた音の
    * 最大の大きさ（0〜1）を返す。録音中は断る。
@@ -447,6 +467,8 @@ export const IPC = {
   getMicPermission: 'permissions:mic',
   requestMicPermission: 'permissions:requestMic',
   openPrivacySettings: 'permissions:openSettings',
+  getCalendarPermission: 'permissions:calendar',
+  requestCalendarPermission: 'permissions:requestCalendar',
   probeSystemAudio: 'permissions:probeSystemAudio',
   transportRequested: 'transport:requested',
   retryStep: 'pipeline:retry',

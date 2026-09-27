@@ -19,10 +19,11 @@ npm run lint         # oxlint
 npm test             # vitest run
 npm run test:watch
 npm run build        # typecheck + electron-vite build
-npm run package      # build + whisper-cli / micwatch のビルド + electron-builder
-npm run setup        # 開発用に whisper-cli を Homebrew で導入し、micwatch をビルド
+npm run package      # build + whisper-cli / micwatch / calendarevents のビルド + electron-builder
+npm run setup        # 開発用に whisper-cli を Homebrew で導入し、micwatch / calendarevents をビルド
 npm run build:whisper  # whisper.cpp を Core ML 有効でビルド（配布版はこちら）
 npm run build:micwatch # micwatch（Swift）をビルド
+npm run build:calendarevents # calendarevents（Swift、カレンダー連携）をビルド
 npm run eval:transcription  # 文字起こしの評価（合成音声、数分。CI では走らない）
 ```
 
@@ -99,6 +100,7 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 | utilityProcess（`search-worker`） | 意味検索（bge-m3 の埋め込み・索引の同期）。依頼は並行に受け、3 分使われなければ終了 |
 | utilityProcess（`chat-worker`） | ライブラリ全体へのチャット（要約と同じ Gemma を使う）。生成は 1 件ずつ、2 分使われなければ終了（ADR-033） |
 | 子プロセス（`micwatch`） | 他アプリのマイク使用を見張り、録音の開始忘れを知らせる（録音中は動かさない、ADR-027） |
+| 子プロセス（`calendarevents`） | 録音開始時に EventKit で重なる予定を引く。呼ぶたびに起動して終わる（ADR-040） |
 
 パイプラインのワーカーは `PipelineClient` が必要時に fork し、ジョブが片付いたら終了させて次の依頼で
 作り直す。要約も話者識別も数 GB を使うネイティブコードで、プロセスごと終わらせるのが
@@ -144,8 +146,8 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   チャンクの位置と 8 ビット量子化したベクトルだけ。削除済み録音の分は同期時に消える）
 - 設定 → `userData/settings.json`、録音中の中間 WAV と `tracks.json` → `userData/work/`
   （パイプライン完了時に消える）
-- 同梱バイナリ → `resources/bin/`（`whisper-cli` / `micwatch` / `ggml-metal.metal`）。
-  ソースは `native/micwatch/`、配置は `scripts/build-*.sh` が行う。パスの解決は
+- 同梱バイナリ → `resources/bin/`（`whisper-cli` / `micwatch` / `calendarevents` / `ggml-metal.metal`）。
+  ソースは `native/micwatch/` と `native/calendarevents/`、配置は `scripts/build-*.sh` が行う。パスの解決は
   `resolve*Binary.ts` が開発時とパッケージ時で切り替える（ADR-016）
 
 ディレクトリ名は `slugForRecording()` が `YYYY-MM-DD_HHmm-<id先頭8桁>` で作る。

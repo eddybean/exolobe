@@ -41,6 +41,9 @@ install_whisper
 # 無くてもアプリは動くが、開発中に機能を確認できなくなる。
 bash "$(dirname "$0")/build-micwatch.sh"
 
+# カレンダー連携に使う calendarevents。micwatch と同じく同梱物で、無ければ連携だけ無効になる。
+bash "$(dirname "$0")/build-calendarevents.sh"
+
 echo
 echo "[setup] 完了しました。'npm run dev' でアプリを起動できます。"
 echo "[setup] モデル（文字起こし・要約）はアプリの初期設定画面からダウンロードできます。"

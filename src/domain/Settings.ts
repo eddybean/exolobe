@@ -87,6 +87,11 @@ export interface RecordingSettings {
    * 他のアプリから同じキーを奪うので、ぶつかる人が切れるようにしておく。
    */
   readonly globalShortcutEnabled: boolean
+  /**
+   * 録音開始時にカレンダーの予定を引き、タイトルと参加者名を埋めるかどうか。
+   * カレンダーの権限を求めることになるので、利用者が選んだときだけ使う（ADR-040）。
+   */
+  readonly calendarEnabled: boolean
 }
 
 export interface DiarizationSettings {
@@ -189,7 +194,8 @@ export const defaultSettings = (): Settings => ({
     startAlertEnabled: true,
     // 1 分半。短い音声入力や着信の確認では届かず、会議の冒頭を取り逃さない長さ。
     startAlertDelayMs: 90_000,
-    globalShortcutEnabled: true
+    globalShortcutEnabled: true,
+    calendarEnabled: false
   },
   transcription: {
     provider: 'whisper-cpp',

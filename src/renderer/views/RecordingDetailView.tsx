@@ -22,6 +22,7 @@ import { focusedSegmentIndex } from '../library/transcriptSearch'
 import { isPlaybackToggleKey, nextPlaybackRate, playerMode } from '../library/playback'
 import { voiceLearnedNotice } from '../library/voiceLearning'
 import { canEditSummary, resummarizeState, type ResummarizeState } from '../resummarize'
+import { speakerNameSuggestions } from '../speakerSuggestions'
 import { failureTooltip, failuresIn, type StepFailure } from '../stepFailure'
 import {
   applyProgressEvent,
@@ -69,6 +70,7 @@ export const RecordingDetailView = ({
   const [summarySaving, setSummarySaving] = useState(false)
   const [error, setError] = useState<string>()
   const [voiceNotice, setVoiceNotice] = useState<string>()
+  const [voiceprintNames, setVoiceprintNames] = useState<readonly string[]>([])
   const audioRef = useRef<HTMLAudioElement>(null)
 
   const recordingId = detail.recording.id
@@ -94,6 +96,14 @@ export const RecordingDetailView = ({
     })
   }, [recordingId])
 
+  // 話者名の候補に使う。読めなくても候補が減るだけなので、失敗は見せない。
+  useEffect(() => {
+    window.recorder
+      .listVoiceprints()
+      .then((entries) => setVoiceprintNames(entries.map((entry) => entry.name)))
+      .catch(() => setVoiceprintNames([]))
+  }, [recordingId])
+
   // 入力が止まってから保存する。
   useEffect(() => {
     if (note === detail.note) return
@@ -116,6 +126,20 @@ export const RecordingDetailView = ({
 
   // 帯と話者名で同じ色を使う。どちらも同じ番号表を引く。
   const tones = useMemo(() => speakerTones(detail.speakers), [detail.speakers])
+  const suggestions = useMemo(
+    () =>
+      new Map(
+        detail.speakers.map((speaker) => [
+          speaker.id,
+          speakerNameSuggestions({
+            participants: detail.recording.participants,
+            voiceprintNames,
+            currentLabel: speaker.label
+          })
+        ])
+      ),
+    [detail.speakers, detail.recording.participants, voiceprintNames]
+  )
   const lanes = useMemo(
     () => speakerLanes(detail.segments, detail.speakers),
     [detail.segments, detail.speakers]
@@ -480,6 +504,7 @@ export const RecordingDetailView = ({
                   <EditableSpeaker
                     label={labels.get(segment.speakerId) ?? segment.speakerId}
                     tone={tones.get(segment.speakerId)}
+                    suggestions={suggestions.get(segment.speakerId)}
                     onCommit={(label) => renameSpeaker(segment.speakerId, label)}
                   />
                   <EditableSegmentText

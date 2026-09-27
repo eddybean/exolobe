@@ -50,6 +50,8 @@ import {
 } from '@infrastructure/persistence/FileRecordingStore'
 import { MicUsageProbe } from '@infrastructure/mic/MicUsageProbe'
 import { resolveMicWatchBinary } from '@infrastructure/mic/resolveMicWatchBinary'
+import { EventKitCalendar } from '@infrastructure/calendar/EventKitCalendar'
+import { resolveCalendarBinary } from '@infrastructure/calendar/resolveCalendarBinary'
 import { FileModelStore } from '@infrastructure/download/FileModelStore'
 import { FileSearchIndex, SEARCH_INDEX_DIR } from '@infrastructure/search/FileSearchIndex'
 import { NodeFileInfoProbe } from '@infrastructure/system/NodeFileInfoProbe'
@@ -71,6 +73,8 @@ export interface Container {
   /** テスト録音用に、録音とは別のシステム音声の取り込みを作る。 */
   readonly createSystemAudioSource: () => SystemAudioSource
   readonly micUsage: MicUsageProbe
+  /** 録音開始時の予定の問い合わせと、設定画面での許可の確認に使う（ADR-040）。 */
+  readonly calendar: EventKitCalendar
   readonly startRecording: StartRecording
   readonly stopRecording: StopRecording
   readonly importAudioFile: ImportAudioFile
@@ -133,6 +137,10 @@ export const createContainer = (): Container => {
   const micUsage = new MicUsageProbe(
     resolveMicWatchBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath })
   )
+  // 同梱物が無ければ予定なしとして振る舞い、カレンダー連携だけが無効になる。
+  const calendar = new EventKitCalendar(
+    resolveCalendarBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath })
+  )
   // モデルは再取得できるキャッシュなので、録音の保存先とは分けて置く。
   const models = new FileModelStore(join(userData, 'models'))
   // 意味検索の索引も再生成できるキャッシュ。書き込みは検索ワーカーが行い、
@@ -147,11 +155,13 @@ export const createContainer = (): Container => {
     recorder,
     createSystemAudioSource,
     micUsage,
+    calendar,
     startRecording: new StartRecording({
       settings,
       repository,
       capture: recorder,
       artifacts,
+      calendar,
       clock: { now: () => new Date() },
       ids: { next: () => randomUUID() }
     }),

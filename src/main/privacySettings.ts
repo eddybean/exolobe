@@ -9,7 +9,8 @@ const PRIVACY_SETTINGS_URLS = {
   // システム音声だけの許可（Core Audio Tap、ADR-001）は「画面収録とシステムオーディオ録音」の
   // 画面の中の「システムオーディオ録音のみ」にある。専用の画面を直接開く URL は
   // macOS の版ごとの動作を確かめられなかったので、確実に開けるこの画面へ案内する。
-  'system-audio': 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+  'system-audio': 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+  calendars: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars'
 } as const
 
 export type PrivacyPane = keyof typeof PRIVACY_SETTINGS_URLS

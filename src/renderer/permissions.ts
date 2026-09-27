@@ -1,4 +1,4 @@
-import type { MicPermissionDto, PrivacyPaneDto } from '@shared/ipc'
+import type { CalendarPermissionDto, MicPermissionDto, PrivacyPaneDto } from '@shared/ipc'
 import type { InputCheckOutcome, InputCheckResult } from './session/runInputCheck'
 
 export interface PermissionView {
@@ -25,6 +25,23 @@ export const micPermissionView = (status: MicPermissionDto): PermissionView => {
       return { label: '許可されていません', ok: false, action: 'open-settings' }
     case 'unknown':
       return { label: '確認できません', ok: false, action: 'open-settings' }
+  }
+}
+
+/**
+ * カレンダーの許可の状態を、次に何をすればよいかの形にする（ADR-040）。
+ *
+ * 考え方はマイクと同じ。「予定の追加だけ」の許可では予定を読めないので、許可が無いのと同じに扱う。
+ * 同梱物が無いときは許可で解決しないので、操作を出さない。
+ */
+export const calendarPermissionView = (status: CalendarPermissionDto): PermissionView => {
+  switch (status) {
+    case 'write-only':
+      return { label: '予定の追加だけが許可されています', ok: false, action: 'open-settings' }
+    case 'unavailable':
+      return { label: 'この環境では使えません', ok: false, action: undefined }
+    default:
+      return micPermissionView(status)
   }
 }
 

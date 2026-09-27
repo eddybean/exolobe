@@ -26,6 +26,11 @@ export interface Recording {
   readonly slug: string
   /** 分類先フォルダの id。未設定なら未分類。 */
   readonly folderId?: string | undefined
+  /**
+   * 開始時刻に重なっていた予定の参加者名。話者リネームの候補にする（ADR-040）。
+   * 予定が無かった録音や、連携前の録音には無い。
+   */
+  readonly participants?: readonly string[] | undefined
 }
 
 const pad = (value: number): string => String(value).padStart(2, '0')

@@ -1,5 +1,6 @@
 import type {
   AudioCapturePort,
+  CalendarPort,
   ChatCompletion,
   AudioDecoderPort,
   AudioEncoderPort,
@@ -30,6 +31,7 @@ import type {
   VoiceExtractionPort,
   VoiceprintRepositoryPort
 } from '@application/ports'
+import type { CalendarEvent } from '@domain/CalendarEvent'
 import type { Folder } from '@domain/Folder'
 import { normalize } from '@domain/vector'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
@@ -53,6 +55,21 @@ export class FakeClock implements ClockPort {
   }
   advance(ms: number): void {
     this.current = new Date(this.current.getTime() + ms)
+  }
+}
+
+export class FakeCalendar implements CalendarPort {
+  events: CalendarEvent[] = []
+  calls: { from: Date; to: Date }[] = []
+  error?: Error
+  /** 与えると、解決するまで応答を返さない。応答の遅いカレンダーを再現する。 */
+  gate?: Promise<void>
+
+  async eventsBetween(params: { from: Date; to: Date }): Promise<CalendarEvent[]> {
+    this.calls.push(params)
+    if (this.gate) await this.gate
+    if (this.error) throw this.error
+    return this.events
   }
 }
 

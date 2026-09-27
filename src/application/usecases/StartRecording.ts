@@ -1,11 +1,18 @@
 import type {
   AudioCapturePort,
+  CalendarPort,
   ClockPort,
   IdGeneratorPort,
   RecordingArtifactPort,
   RecordingRepositoryPort,
   SettingsRepositoryPort
 } from '@application/ports'
+import {
+  EARLY_START_MARGIN_MS,
+  participantNames,
+  pickEventForRecording,
+  type CalendarEvent
+} from '@domain/CalendarEvent'
 import { createRecording, type Recording } from '@domain/Recording'
 import { ConfigurationError, RecordingStateError } from '@domain/errors'
 import { isConfigured } from '@domain/Settings'
@@ -15,6 +22,7 @@ export interface StartRecordingDeps {
   readonly repository: RecordingRepositoryPort
   readonly capture: AudioCapturePort
   readonly artifacts: RecordingArtifactPort
+  readonly calendar: CalendarPort
   readonly clock: ClockPort
   readonly ids: IdGeneratorPort
 }
@@ -35,19 +43,54 @@ export class StartRecording {
       )
     }
 
-    const recording = createRecording({
-      id: this.deps.ids.next(),
-      startedAt: this.deps.clock.now(),
-      ...(params.title === undefined ? {} : { title: params.title })
-    })
+    const draft = createRecording({ id: this.deps.ids.next(), startedAt: this.deps.clock.now() })
+    // 予定の問い合わせはキャプチャと並べて走らせる。応答を待ってから録り始めると、
+    // その間の会議の冒頭が失われる。
+    const lookup = settings.recording.calendarEnabled
+      ? this.findEvent(draft.startedAt)
+      : Promise.resolve(undefined)
 
     // キャプチャ開始が失敗した場合に空の録音を残さないよう、成功後に永続化する。
     await this.deps.capture.start({
-      workDir: this.deps.artifacts.workDir(recording),
+      workDir: this.deps.artifacts.workDir(draft),
       sampleRate: settings.audio.sampleRate
     })
+
+    const recording = withEvent(draft, params.title, await lookup)
     await this.deps.repository.save(recording)
 
     return recording
+  }
+
+  /** 予定が引けなくても録音は始める。失うのはタイトルの初期値と候補だけ。 */
+  private async findEvent(startedAt: Date): Promise<CalendarEvent | undefined> {
+    try {
+      const events = await this.deps.calendar.eventsBetween({
+        from: startedAt,
+        to: new Date(startedAt.getTime() + EARLY_START_MARGIN_MS)
+      })
+      return pickEventForRecording(events, startedAt)
+    } catch {
+      return undefined
+    }
+  }
+}
+
+/** 指定されたタイトルがあればそれを、無ければ予定のタイトルを使う。 */
+const withEvent = (
+  draft: Recording,
+  title: string | undefined,
+  event: CalendarEvent | undefined
+): Recording => {
+  const chosen = title ?? event?.title
+  const participants = event ? participantNames(event) : []
+
+  return {
+    ...createRecording({
+      id: draft.id,
+      startedAt: draft.startedAt,
+      ...(chosen === undefined ? {} : { title: chosen })
+    }),
+    ...(participants.length > 0 ? { participants } : {})
   }
 }

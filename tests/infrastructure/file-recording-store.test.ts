@@ -121,6 +121,23 @@ describe('FileRecordingRepository', () => {
     expect((await repository.find('rec-1'))?.folderId).toBe('f1')
   })
 
+  it('予定の参加者名を保持して読み戻す', async () => {
+    await repository.save({ ...recording, participants: ['山田 太郎', '佐藤 花子'] })
+
+    expect((await repository.find('rec-1'))?.participants).toEqual(['山田 太郎', '佐藤 花子'])
+  })
+
+  it('手で壊された参加者名は、文字列だけを拾って読む', async () => {
+    await writeStored(
+      recording.slug,
+      'meta.json',
+      JSON.stringify({ ...JSON.parse(JSON.stringify(recording)), participants: ['山田 太郎', 3, null] })
+    )
+
+    const [found] = await repository.list()
+    expect(found?.participants).toEqual(['山田 太郎'])
+  })
+
   it('meta.json に形式の番号（schemaVersion）を書き込む', async () => {
     await repository.save(recording)
 

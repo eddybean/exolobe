@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { StartRecording } from '@application/usecases/StartRecording'
 import { StopRecording } from '@application/usecases/StopRecording'
+import type { CalendarEvent } from '@domain/CalendarEvent'
 import { defaultSettings } from '@domain/Settings'
 import {
   FakeArtifactStore,
   FakeAudioCapture,
+  FakeCalendar,
   FakeClock,
   FakeIdGenerator,
   FakeRecordingRepository,
@@ -18,12 +20,14 @@ const build = (settings = new FakeSettingsRepository()) => {
   const capture = new FakeAudioCapture()
   const artifacts = new FakeArtifactStore()
   const clock = new FakeClock(startedAt)
+  const calendar = new FakeCalendar()
 
   const deps = {
     settings,
     repository,
     capture,
     artifacts,
+    calendar,
     clock,
     ids: new FakeIdGenerator()
   }
@@ -79,6 +83,97 @@ describe('StartRecording', () => {
 
     await expect(ctx.start.execute({})).rejects.toThrow('システム音声の録音が許可されていません。')
     expect(await ctx.repository.list()).toEqual([])
+  })
+})
+
+describe('StartRecording（カレンダー連携）', () => {
+  let ctx: ReturnType<typeof build>
+
+  const meeting: CalendarEvent = {
+    title: '週次定例',
+    startsAt: new Date('2026-09-06T14:30:00+09:00'),
+    endsAt: new Date('2026-09-06T15:00:00+09:00'),
+    allDay: false,
+    attendees: [
+      { name: '自分', isSelf: true, status: 'accepted', kind: 'person' },
+      { name: '山田 太郎', isSelf: false, status: 'accepted', kind: 'person' }
+    ]
+  }
+
+  const withCalendar = (enabled: boolean) =>
+    new FakeSettingsRepository({
+      ...defaultSettings(),
+      storageDir: '/storage',
+      recording: { ...defaultSettings().recording, calendarEnabled: enabled }
+    })
+
+  beforeEach(() => {
+    ctx = build(withCalendar(true))
+    ctx.calendar.events = [meeting]
+  })
+
+  it('重なる予定のタイトルを録音タイトルにし、参加者名を残す', async () => {
+    const recording = await ctx.start.execute({})
+
+    expect(recording.title).toBe('週次定例')
+    expect(recording.participants).toEqual(['山田 太郎'])
+    expect(await ctx.repository.find(recording.id)).toEqual(recording)
+  })
+
+  it('開始時刻から少し先までに重なる予定を問い合わせる', async () => {
+    await ctx.start.execute({})
+
+    expect(ctx.calendar.calls).toEqual([
+      { from: startedAt, to: new Date(startedAt.getTime() + 5 * 60_000) }
+    ])
+  })
+
+  it('タイトルが指定されていればそちらを優先し、参加者名は残す', async () => {
+    const recording = await ctx.start.execute({ title: '手で付けた名前' })
+
+    expect(recording.title).toBe('手で付けた名前')
+    expect(recording.participants).toEqual(['山田 太郎'])
+  })
+
+  it('重なる予定が無ければ従来どおりの既定タイトルになる', async () => {
+    ctx.calendar.events = []
+
+    const recording = await ctx.start.execute({})
+
+    expect(recording.title).toBe('2026-09-06 14:30 の会議')
+    expect(recording.participants).toBeUndefined()
+  })
+
+  it('設定で無効ならカレンダーを問い合わせない', async () => {
+    ctx = build(withCalendar(false))
+
+    const recording = await ctx.start.execute({})
+
+    expect(ctx.calendar.calls).toEqual([])
+    expect(recording.title).toBe('2026-09-06 14:30 の会議')
+  })
+
+  it('カレンダーの問い合わせに失敗しても録音は始まる', async () => {
+    ctx.calendar.error = new Error('EventKit に接続できません')
+
+    const recording = await ctx.start.execute({})
+
+    expect(recording.title).toBe('2026-09-06 14:30 の会議')
+    expect(await ctx.repository.find(recording.id)).toEqual(recording)
+  })
+
+  it('予定の応答を待たずにキャプチャを始める', async () => {
+    let release = (): void => {}
+    ctx.calendar.gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+
+    const pending = ctx.start.execute({})
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(ctx.capture.isActive()).toBe(true)
+
+    release()
+    expect((await pending).title).toBe('週次定例')
   })
 })
 
