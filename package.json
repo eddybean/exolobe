@@ -22,6 +22,8 @@
     "test:watch": "vitest",
     "pretest:manual": "node scripts/check-node-modules.mjs",
     "test:manual": "vitest run --config vitest.manual.config.ts",
+    "preeval:transcription": "node scripts/check-node-modules.mjs",
+    "eval:transcription": "vitest run --config vitest.eval.config.ts",
     "lint": "oxlint",
     "setup": "bash scripts/setup.sh",
     "postinstall": "install-electron && (bash scripts/patch-dev-electron.sh || true)",

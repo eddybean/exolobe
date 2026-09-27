@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Duoscribe** — macOS 向けの Web 会議録音アプリ（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜035）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜038）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -23,6 +23,7 @@ npm run package      # build + whisper-cli / micwatch のビルド + electron-bu
 npm run setup        # 開発用に whisper-cli を Homebrew で導入し、micwatch をビルド
 npm run build:whisper  # whisper.cpp を Core ML 有効でビルド（配布版はこちら）
 npm run build:micwatch # micwatch（Swift）をビルド
+npm run eval:transcription  # 文字起こしの評価（合成音声、数分。CI では走らない）
 ```
 
 単一テストの実行:
@@ -54,10 +55,16 @@ npx vitest run -t "テスト名の一部"
   `node_modules` が `package-lock.json` と食い違っていれば止める。worktree を別ブランチに
   使い回すと lockfile だけが進み、古い依存（例: Electron 33 のまま）が型エラーなど
   コードの不具合に見える形で出るため。止まったら `npm ci` する。
+- 文字起こしに関わる変更（whisper の引数、`parseWhisperJson` の関門）は、
+  `npm run eval:transcription` で前後を比べる。表の差は「今回 − 基準」で、どの列もマイナスが改善。
+  施策を採ったら `OMR_EVAL_UPDATE_BASELINE=1` で `baseline.json` を取り直してコミットする。
+  **worktree には `resources/bin` が無い**ので、そのままだと PATH の Homebrew 版（版が違う）で
+  測ってしまう。`OMR_EVAL_WHISPER_CLI` で配布版のパスを渡す（表の上に版が出るので確かめる）。
+  合成音声の VAD 有り（既定）ではハルシネーションがほぼ出ず、改善より「悪くしていないか」を見る物差しに近い。
 - vitest は `TZ=Asia/Tokyo` を固定している。保存ディレクトリ名がローカル時刻由来のため。
 - シェルに `ELECTRON_RUN_AS_NODE=1` があると `npm run dev` が起動に失敗する。
 - `OMR_LOG_DROPPED_SEGMENTS=1` を付けて起動すると、文字起こしで落としたセグメントを
-  理由（`non-speech` / `boilerplate` / `low-confidence`）と平均対数確率つきで端末へ出す。
+  理由（`non-speech` / `boilerplate` / `low-confidence` / `repetition`）と平均対数確率つきで端末へ出す。
   確信度の閾値を実録音で見直すための計測用。**既定では何も出さない** — 落としたセグメントには
   会議の本文がそのまま載るため、通常の利用でログに残してはいけない。
 

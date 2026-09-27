@@ -212,6 +212,28 @@ describe('parseWhisperJson', () => {
     expect(dropped.map((d) => d.reason)).toEqual(['non-speech', 'boilerplate'])
   })
 
+  it('繰り返しのループを縮め、続くループのセグメントを落として理由つきで報告する', () => {
+    // 確信度が高いままループするので、確信度の関門では落ちない（ADR-038）。
+    const dropped: DroppedSegment[] = []
+    const loop = '検索機能の回収を上げてください。'
+    const raw = whisperJson([
+      { from: 0, to: 3000, text: `木曜に共有します。${'はい、'.repeat(10)}` },
+      ...Array.from({ length: 5 }, (_, i) => ({
+        from: 3000 + i * 2000,
+        to: 5000 + i * 2000,
+        text: loop
+      }))
+    ])
+
+    const segments = parseWhisperJson(raw, 'remote', (d) => dropped.push(d))
+
+    expect(segments.map((s) => s.text)).toEqual(['木曜に共有します。はい、', loop])
+    expect(dropped.map((d) => [d.reason, d.text])).toEqual([
+      ['repetition', 'はい、'.repeat(9)],
+      ...Array.from({ length: 4 }, () => ['repetition', loop])
+    ])
+  })
+
   it('確率 0 のトークンがあっても他のセグメントを巻き込まない', () => {
     // ln(0) = -Infinity を平均へ持ち込むと NaN 汚染で全滅しかねない。
     const raw = whisperJsonWithTokens([
@@ -573,6 +595,48 @@ describe('WhisperCppTranscriber', () => {
 
     expect(seen[0]).not.toContain('--prompt')
     expect(seen[0]).not.toContain('--carry-initial-prompt')
+  })
+
+  it('VAD を使わず用語集も空なら、直前の出力を次のウィンドウへ引き継がせない', async () => {
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin', glossary: [] },
+      captureArgv(seen)
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    const argv = seen[0] ?? []
+    expect(argv[argv.indexOf('--max-context') + 1]).toBe('0')
+  })
+
+  it('VAD を使うなら文脈の上限を変えない（句読点や小さな声を落とすだけになるため）', async () => {
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      {
+        binaryPath: 'whisper-cli',
+        modelPath: '/models/ggml.bin',
+        vadModelPath: '/models/ggml-silero.bin',
+        glossary: []
+      },
+      captureArgv(seen)
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    expect(seen[0]).not.toContain('--max-context')
+  })
+
+  it('用語集があれば文脈の上限を変えない（用語集ごと消えるため）', async () => {
+    const seen: string[][] = []
+    const transcriber = new WhisperCppTranscriber(
+      { binaryPath: 'whisper-cli', modelPath: '/models/ggml.bin', glossary: ['Anthropic'] },
+      captureArgv(seen)
+    )
+
+    await transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
+
+    expect(seen[0]).not.toContain('--max-context')
   })
 
   it('書き出された JSON を読んでセグメントを返す', async () => {
