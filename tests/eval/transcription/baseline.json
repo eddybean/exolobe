@@ -46,9 +46,9 @@
       "config": "vad",
       "cer": 0.10192837465564739,
       "hallucinatedChars": 0,
-      "missedUtterances": 1,
+      "missedUtterances": 0,
       "utterances": 24,
-      "longestRepeatRun": 2,
+      "longestRepeatRun": 1,
       "dropped": {
         "non-speech": 0,
         "boilerplate": 0,
@@ -82,7 +82,7 @@
       "dropped": {
         "non-speech": 0,
         "boilerplate": 0,
-        "low-confidence": 1,
+        "low-confidence": 0,
         "repetition": 0
       }
     },

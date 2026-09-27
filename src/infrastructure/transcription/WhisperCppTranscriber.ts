@@ -231,24 +231,63 @@ interface SegmentPiece {
 }
 
 /**
- * 無音を詰めたあとの時刻が、どの発話区間のものか。
+ * 区間の境目からこの時間より離れた句読点では切らない（詰めたあとの時間軸）。
  *
- * 区間どうしの間には詰めたあとでも短い隙間（whisper.cpp が挟む 0.1〜0.2 秒）があり、
- * 区間の頭のトークンがそこに載ることがある（実測で「了」が 2.12 秒、次の区間は 2.18 秒から）。
- * 含む区間が無ければ、トークンの中点に最も近い区間に寄せる。
+ * トークンの時刻は区間の境目からずれる。実測では最大 0.5 秒ほど後ろにずれ、文末の「。」が
+ * 次の区間の中に載っていた。区間どうしの隙間は 0.1〜0.2 秒しかないので、トークンの時刻だけで
+ * 振り分けると語の途中（「ロ|グイン」）や句読点の前で割れる。余裕を見て倍の 1 秒まで探す。
  */
-const spanIndexOf = (spans: readonly VadSpan[], fromMs: number, toMs: number): number => {
-  const middle = (fromMs + toMs) / 2
-  let nearest = 0
-  let nearestDistance = Infinity
-  for (const [index, span] of spans.entries()) {
-    const distance = Math.max(span.vadStartMs - middle, middle - span.vadEndMs, 0)
-    if (distance < nearestDistance) {
-      nearest = index
-      nearestDistance = distance
+const CUT_SEARCH_MS = 1_000
+
+/**
+ * 元の時間軸でこれ以上空いた区間の境目は、近くに文末の句読点が無くても切る。
+ *
+ * 短い間で割れた区間は、1 つの文の息継ぎを VAD が割ったもの（実測で「インデ|ックス」の間が
+ * 0.23 秒、「検索は、|インデックスの…」の間が 0.22 秒）が多く、切らずに残しても発言が
+ * 数秒伸びるだけで済む。長く空いたものを残すと、無音ごと何分にも伸びるという元の不具合に戻る。
+ */
+const LONG_GAP_MS = 3_000
+
+const SENTENCE_END = /[。．.？?！!]$/
+const CLAUSE_END = /[、，,]$/
+const PUNCTUATION_ONLY = /^[\s。．.？?！!、，,…]+$/
+
+interface TimedToken {
+  readonly token: WhisperToken
+  readonly text: string
+  readonly from: number
+  readonly to: number
+}
+
+/**
+ * 区間の境目 1 つに対し、トークンの列のどこで切るか（その位置から後ろが次の発言）。
+ * 切らないなら undefined。
+ *
+ * 文末の句読点の直後を最優先に選ぶ。長く空いた境目に限り、読点の直後、それも無ければ
+ * 境目に最も近いトークンの切れ目でも切る。どれも同じ種類の中では境目に近い方。
+ * 句読点の直前では切らない — 句読点が次の発言の頭に回ったり、句読点だけの発言になったりする。
+ */
+const cutIndexFor = (
+  tokens: readonly TimedToken[],
+  after: number,
+  boundaryMs: number,
+  longGap: boolean
+): number | undefined => {
+  let best: { index: number; rank: number; distance: number } | undefined
+  for (let index = after + 1; index < tokens.length; index++) {
+    const previous = tokens[index - 1]
+    const next = tokens[index]
+    if (!previous || !next || PUNCTUATION_ONLY.test(next.text)) continue
+
+    const distance = Math.abs((previous.to + next.from) / 2 - boundaryMs)
+    const rank = SENTENCE_END.test(previous.text) ? 0 : CLAUSE_END.test(previous.text) ? 1 : 2
+    if (rank > 0 && !longGap) continue
+    if (rank < 2 && distance > CUT_SEARCH_MS) continue
+    if (!best || rank < best.rank || (rank === best.rank && distance < best.distance)) {
+      best = { index, rank, distance }
     }
   }
-  return nearest
+  return best?.index
 }
 
 /**
@@ -257,46 +296,64 @@ const spanIndexOf = (spans: readonly VadSpan[], fromMs: number, toMs: number): n
  * whisper.cpp は発言の開始・終了だけを元の時間軸へ戻すため、飛び飛びの発話が
  * 1 つの発言にまとまると、間の無音ごと何分にも伸びる（ハードウェアでミュートした
  * マイクの録音で 642 秒の発言に 22 文字、という実例があった）。トークンの時刻は
- * 詰めたあとの時間軸なので、対応表で区間を引いて振り分ける。
+ * 詰めたあとの時間軸なので、区間の境目ごとに近くのトークンの切れ目を探して切る。
+ * トークンの時刻は境目からずれるので、1 つずつ区間へ振り分けることはせず、
+ * 句読点の切れ目に寄せる（`cutIndexFor`）。
  *
  * 切ると本文が崩れうるときは切らない。トークンの文字を繋いで本文に戻らない
  * （マルチバイト文字がトークンの境目で割れて置き換わった等）ときと、時刻を持たない
  * トークンがあるときは、whisper の発言をそのまま返す。
  */
 const splitAtVadGaps = (piece: SegmentPiece, spans: readonly VadSpan[]): SegmentPiece[] => {
-  if (spans.length < 2) return [piece]
+  // 発言の開始・終了は元の時間軸に戻っているので、どの区間にまたがるかはこちらで決まる。
+  const covered = spans.filter(
+    (span) => span.origStartMs < piece.endMs && span.origEndMs > piece.startMs
+  )
+  if (covered.length < 2) return [piece]
 
   const words = piece.tokens.filter((token) => !SPECIAL_TOKEN.test(token.text ?? ''))
-  const timed = words.flatMap((token) => {
+  const timed = words.flatMap((token): TimedToken[] => {
     const from = token.offsets?.from
     const to = token.offsets?.to
-    return typeof from === 'number' && typeof to === 'number' ? [{ token, from, to }] : []
+    const text = (token.text ?? '').trim()
+    return typeof from === 'number' && typeof to === 'number' ? [{ token, text, from, to }] : []
   })
   if (timed.length === 0 || timed.length !== words.length) return [piece]
   if (words.map((token) => token.text ?? '').join('').trim() !== piece.text) return [piece]
 
-  const groups: { spanIndex: number; tokens: WhisperToken[] }[] = []
-  for (const { token, from, to } of timed) {
-    const spanIndex = spanIndexOf(spans, from, to)
-    const last = groups[groups.length - 1]
-    if (last?.spanIndex === spanIndex) last.tokens.push(token)
-    else groups.push({ spanIndex, tokens: [token] })
+  // 切る位置と、その位置の手前の発言が覆う最後の区間。
+  const cuts: { index: number; lastSpan: number }[] = []
+  for (let spanIndex = 0; spanIndex < covered.length - 1; spanIndex++) {
+    const current = covered[spanIndex]
+    const next = covered[spanIndex + 1]
+    if (!current || !next) continue
+    const index = cutIndexFor(
+      timed,
+      cuts[cuts.length - 1]?.index ?? 0,
+      (current.vadEndMs + next.vadStartMs) / 2,
+      next.origStartMs - current.origEndMs >= LONG_GAP_MS
+    )
+    if (index !== undefined) cuts.push({ index, lastSpan: spanIndex })
   }
-  if (groups.length < 2) return [piece]
+  if (cuts.length === 0) return [piece]
 
-  return groups.flatMap(({ spanIndex, tokens }): SegmentPiece[] => {
-    const span = spans[spanIndex]
+  const bounds = [...cuts, { index: timed.length, lastSpan: covered.length - 1 }]
+  return bounds.flatMap(({ index, lastSpan }, order): SegmentPiece[] => {
+    const previous = bounds[order - 1]
+    const first = covered[previous ? previous.lastSpan + 1 : 0]
+    const last = covered[lastSpan]
+    const tokens = timed.slice(previous?.index ?? 0, index).map(({ token }) => token)
     const text = tokens
       .map((token) => token.text ?? '')
       .join('')
       .trim()
-    if (!span || text.length === 0) return []
+    if (!first || !last || text.length === 0) return []
     return [
       {
         // whisper の開始・終了は区間の外へは出さない。区間の内側に収まっている
         // 端（発言の頭・お尻）は whisper の時刻の方が細かいので、そちらを残す。
-        startMs: Math.max(piece.startMs, span.origStartMs),
-        endMs: Math.min(piece.endMs, span.origEndMs),
+        startMs: Math.max(piece.startMs, first.origStartMs),
+        endMs: Math.min(piece.endMs, last.origEndMs),
         text,
         tokens
       }
