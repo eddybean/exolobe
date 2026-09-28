@@ -910,6 +910,16 @@ code {
   color: var(--danger);
 }
 
+/* 選んだ設定の代償（Apple Intelligence の要約は精度が劣る等）。失敗ではないので赤にしない。 */
+.settings__caution {
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+  color: color-mix(in srgb, var(--warning) 55%, var(--text));
+}
+
 /* 失敗ではないが伝えておきたいこと（声紋を覚えられなかった等）。 */
 .detail__notice {
   margin: 0;

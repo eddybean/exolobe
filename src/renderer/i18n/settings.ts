@@ -71,6 +71,13 @@ const ja = {
     contextSizeLabel: 'コンテキスト長',
     contextSizeHint: '長い会議ほど大きい方が有利ですが、メモリを多く使います。',
     modelCardTitle: 'モデルとメモリ',
+    providerLabel: '要約に使うモデル',
+    providerHint:
+      'Gemma はこのアプリの中で動かします。Apple Intelligence は macOS に組み込まれたモデルで、ダウンロードが要らず、数倍速く終わります。',
+    providerLlama: 'Gemma（精度重視・おすすめ）',
+    providerApple: 'Apple Intelligence（速さ重視）',
+    appleWarning:
+      'Apple Intelligence の要約は Gemma より精度が劣ります。数値や ToDo を落としたり、決定事項と ToDo を混ぜたりしやすく、長い会議は細かく分けて要約するため話の流れが途切れがちです。チャットには引き続き Gemma を使います。',
     modelLabel: '要約モデル',
     modelHint: 'GGUF 形式のモデルを指定します（既定: Gemma 4 E4B QAT q4_0）。',
     memoryProtectionLabel: 'メモリ保護',
@@ -189,6 +196,13 @@ const en: typeof ja = {
     contextSizeLabel: 'Context length',
     contextSizeHint: 'Longer meetings benefit from a larger value, but it uses more memory.',
     modelCardTitle: 'Model and memory',
+    providerLabel: 'Model used for summaries',
+    providerHint:
+      'Gemma runs inside this app. Apple Intelligence is the model built into macOS: nothing to download, and it finishes several times faster.',
+    providerLlama: 'Gemma (more accurate, recommended)',
+    providerApple: 'Apple Intelligence (faster)',
+    appleWarning:
+      'Summaries from Apple Intelligence are less accurate than Gemma’s. They tend to drop numbers and to-dos or mix decisions with to-dos, and long meetings are summarized in small pieces, so the thread of the discussion is easily lost. Chat still uses Gemma.',
     modelLabel: 'Summarization model',
     modelHint: 'Specify a model in GGUF format (default: Gemma 4 E4B QAT q4_0).',
     memoryProtectionLabel: 'Memory protection',

@@ -6,6 +6,7 @@ import {
   SUPPORTED_SAMPLE_RATES,
   type Appearance,
   settingsSummaryPrompt,
+  summarizationProviderOf,
   updateCheckIntervalOf,
   type Settings,
   type SettingsPatch
@@ -17,6 +18,7 @@ import { LicenseNotices } from '../components/LicenseNotices'
 import { ModelManager } from '../components/ModelManager'
 import { RecordingPermissions } from '../components/RecordingPermissions'
 import { SemanticSearchSettings } from '../components/SemanticSearchSettings'
+import { SummarizationModelField } from '../components/SummarizationModelField'
 import { UpdateSettings } from '../components/UpdateSettings'
 import { VoiceprintSettings } from '../components/VoiceprintSettings'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../settingsSections'
@@ -51,6 +53,7 @@ export const SettingsView = ({
   const [saved, setSaved] = useState(false)
   const settings = setup.settings
   const t = settingsText()
+  const usesGemma = summarizationProviderOf(settings) === 'llama-cpp'
 
   const update = (patch: SettingsPatch): void => {
     setError(undefined)
@@ -321,31 +324,44 @@ export const SettingsView = ({
             />
           </Field>
 
-          <Field label={t.summarization.contextSizeLabel} hint={t.summarization.contextSizeHint}>
-            <input
-              type="number"
-              min={1024}
-              step={1024}
-              defaultValue={settings.summarization.contextSize}
-              onBlur={(event) =>
-                update({ summarization: { contextSize: Number(event.target.value) } })
-              }
-            />
-          </Field>
+          {/* Apple Intelligence のコンテキスト長は OS のモデルが決めるので、Gemma のときだけ見せる。 */}
+          {usesGemma && (
+            <Field label={t.summarization.contextSizeLabel} hint={t.summarization.contextSizeHint}>
+              <input
+                type="number"
+                min={1024}
+                step={1024}
+                defaultValue={settings.summarization.contextSize}
+                onBlur={(event) =>
+                  update({ summarization: { contextSize: Number(event.target.value) } })
+                }
+              />
+            </Field>
+          )}
         </SettingsCard>
 
         <SettingsCard title={t.summarization.modelCardTitle}>
-          <Field label={t.summarization.modelLabel} hint={t.summarization.modelHint}>
-            <div className="settings__path">
-              <code>{settings.summarization.modelPath || t.common.unset}</code>
-              <button
-                type="button"
-                onClick={() => pickFile('llm-model', (path) => ({ summarization: { modelPath: path } }))}
-              >
-                {t.common.choose}
-              </button>
-            </div>
-          </Field>
+          <SummarizationModelField
+            provider={summarizationProviderOf(settings)}
+            onChange={(provider) => update({ summarization: { provider } })}
+          />
+
+          {/* Gemma に戻したときのためにパスは残すが、使わない間は見せない。 */}
+          {usesGemma && (
+            <Field label={t.summarization.modelLabel} hint={t.summarization.modelHint}>
+              <div className="settings__path">
+                <code>{settings.summarization.modelPath || t.common.unset}</code>
+                <button
+                  type="button"
+                  onClick={() =>
+                    pickFile('llm-model', (path) => ({ summarization: { modelPath: path } }))
+                  }
+                >
+                  {t.common.choose}
+                </button>
+              </div>
+            </Field>
+          )}
 
           <Field label={t.summarization.memoryProtectionLabel} hint={t.summarization.memoryProtectionHint}>
             <select
