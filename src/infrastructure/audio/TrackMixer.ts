@@ -20,7 +20,7 @@ export class TrackMixer implements AudioMixerPort {
     outputPath: string
   }): Promise<{ durationMs: number }> {
     if (params.tracks.length === 0) {
-      throw new MixError('ミックスするトラックがありません。')
+      throw new MixError({ code: 'mixNoTracks' })
     }
 
     const loaded = await Promise.all(
@@ -38,12 +38,13 @@ export class TrackMixer implements AudioMixerPort {
 
     const sampleRate = loaded[0]?.sampleRate
     if (sampleRate === undefined) {
-      throw new MixError('ミックスするトラックがありません。')
+      throw new MixError({ code: 'mixNoTracks' })
     }
     if (loaded.some((track) => track.sampleRate !== sampleRate)) {
-      throw new MixError(
-        `トラックのサンプルレートが一致しません: ${loaded.map((t) => t.sampleRate).join(', ')}`
-      )
+      throw new MixError({
+        code: 'mixSampleRateMismatch',
+        sampleRates: loaded.map((track) => track.sampleRate)
+      })
     }
 
     const totalSamples = loaded.reduce(

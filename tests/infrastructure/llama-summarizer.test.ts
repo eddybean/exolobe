@@ -227,7 +227,7 @@ describe('LlamaCppSummarizer', () => {
 
     await expect(
       summarizer.summarize({ transcript: '本文', promptTemplate: DEFAULT_SUMMARY_PROMPT })
-    ).rejects.toThrow('要約モデルが設定されていません。設定画面でモデルを選んでください。')
+    ).rejects.toThrow('summaryModelNotConfigured')
   })
 
   it('文字起こしが空なら要約せず失敗する', async () => {
@@ -236,7 +236,7 @@ describe('LlamaCppSummarizer', () => {
 
     await expect(
       summarizer.summarize({ transcript: '   \n  ', promptTemplate: DEFAULT_SUMMARY_PROMPT })
-    ).rejects.toThrow('文字起こしが空のため要約できません。')
+    ).rejects.toThrow('summaryTranscriptEmpty')
     expect(llm.prompts).toEqual([])
   })
 

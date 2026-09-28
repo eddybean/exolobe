@@ -284,7 +284,7 @@ describe('ProcessRecording — 失敗時の切り分け', () => {
 
     expect(result.steps.transcribe.status).toBe('failed')
     expect(result.steps.diarize.status).toBe('failed')
-    expect(result.steps.diarize.error).toBe('前のステップ（文字起こし）が失敗したため実行しませんでした。')
+    expect(result.steps.diarize.reason).toEqual({ code: 'stepBlocked', blocker: 'transcribe' })
     expect(result.steps.summarize.status).toBe('failed')
     expect(ctx.diarizer.calls).toBe(0)
   })
@@ -316,16 +316,14 @@ describe('ProcessRecording — 失敗時の切り分け', () => {
     const ctx = await build()
     ctx.artifacts.tracks.clear()
 
-    await expect(ctx.process.execute({ recordingId: 'rec-1' })).rejects.toThrow(
-      '録音データが見つかりません。'
-    )
+    await expect(ctx.process.execute({ recordingId: 'rec-1' })).rejects.toThrow('recordingDataMissing')
   })
 
   it('存在しない録音は処理できない', async () => {
     const ctx = await build()
-    await expect(ctx.process.execute({ recordingId: 'unknown' })).rejects.toThrow(
-      '録音が見つかりません: unknown'
-    )
+    await expect(ctx.process.execute({ recordingId: 'unknown' })).rejects.toMatchObject({
+      reason: { code: 'recordingNotFound', recordingId: 'unknown' }
+    })
   })
 })
 
@@ -386,7 +384,7 @@ describe('ProcessRecording — 個別リトライ', () => {
 
     await expect(
       ctx.process.execute({ recordingId: 'rec-1', only: ['transcribe'] })
-    ).rejects.toThrow('録音データが見つかりません。')
+    ).rejects.toThrow('recordingDataMissing')
   })
 
   it('リトライで中間ファイルを使うステップが揃えば片付ける', async () => {
@@ -405,7 +403,7 @@ describe('ProcessRecording — 個別リトライ', () => {
 })
 
 describe('ProcessRecording — 短すぎる録音', () => {
-  const tooShort = '録音時間が 12 秒しかありません。1 分未満の録音は処理しません。'
+  const tooShort = { code: 'tooShortRecording', seconds: 12 } as const
 
   it('ミックスも文字起こしもせず、全ステップを同じ理由で失敗にする', async () => {
     const ctx = await build({}, { durationMs: 12_000 })
@@ -415,7 +413,7 @@ describe('ProcessRecording — 短すぎる録音', () => {
     expect(ctx.mixer.calls).toHaveLength(0)
     expect(ctx.transcriber.calls).toHaveLength(0)
     expect(result.status).toBe('failed')
-    expect(PIPELINE_STEPS.map((step) => result.steps[step].error)).toEqual(
+    expect(PIPELINE_STEPS.map((step) => result.steps[step].reason)).toEqual(
       PIPELINE_STEPS.map(() => tooShort)
     )
   })
@@ -434,7 +432,7 @@ describe('ProcessRecording — 短すぎる録音', () => {
 
     const retried = await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
 
-    expect(retried.steps.summarize.error).toBe(tooShort)
+    expect(retried.steps.summarize.reason).toEqual(tooShort)
     expect(ctx.summarizer.receivedTranscript).toBeUndefined()
   })
 
@@ -448,7 +446,8 @@ describe('ProcessRecording — 短すぎる録音', () => {
         recordingId: 'rec-1',
         step,
         status: 'failed',
-        error: tooShort
+        error: 'tooShortRecording',
+        reason: tooShort
       }))
     )
   })
@@ -605,7 +604,10 @@ describe('ProcessRecording — メモリガード', () => {
     const result = await ctx.process.execute({ recordingId: 'rec-1' })
 
     expect(result.steps.summarize.status).toBe('failed')
-    expect(result.steps.summarize.error).toContain('メモリが不足')
+    expect(result.steps.summarize.reason).toMatchObject({
+      code: 'insufficientMemory',
+      task: 'summarize'
+    })
     // モデルに触れる前に止めるのが目的。要約自体は呼ばれない。
     expect(ctx.summarizer.receivedTranscript).toBeUndefined()
   })
@@ -649,7 +651,7 @@ describe('ProcessRecording — メモリガード', () => {
     const failed = ctx.progress.events.find(
       (event) => event.step === 'summarize' && event.status === 'failed'
     )
-    expect(failed?.error).toContain('メモリが不足')
+    expect(failed?.reason).toMatchObject({ code: 'insufficientMemory', task: 'summarize' })
   })
 
   it('モデルの実サイズが読めなければカタログ値で見積もる', async () => {

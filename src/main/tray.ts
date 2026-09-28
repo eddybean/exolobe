@@ -1,6 +1,7 @@
 import { Menu, Tray, nativeImage, type NativeImage } from 'electron'
 import type { TransportController } from './ipc/handlers'
 import { trayIconFor } from './trayIcon'
+import { text } from './i18n'
 
 /**
  * メニューバーからの録音操作。
@@ -35,18 +36,18 @@ export const createTray = (controller: TransportController, showWindow: () => vo
     tray.setContextMenu(
       Menu.buildFromTemplate([
         {
-          label: state.active ? `録音中: ${state.title ?? ''}` : '停止中',
+          label: state.active ? text().tray.recording(state.title ?? '') : text().tray.idle,
           enabled: false
         },
         { type: 'separator' },
         {
-          label: state.active ? '録音を停止' : '録音を開始',
+          label: state.active ? text().tray.stop : text().tray.start,
           // 表示は録音状態の変化（onStateChanged）で追従するので、ここで更新しない。
           click: () => controller.request(state.active ? 'stop' : 'start')
         },
-        { label: 'ウィンドウを表示', click: showWindow },
+        { label: text().tray.showWindow, click: showWindow },
         { type: 'separator' },
-        { label: '終了', role: 'quit' }
+        { label: text().tray.quit, role: 'quit' }
       ])
     )
   }

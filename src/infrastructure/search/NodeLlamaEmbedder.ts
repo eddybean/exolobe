@@ -73,9 +73,7 @@ export class NodeLlamaEmbedder<T> implements TextEmbedderPort {
   private ensureSession(): Promise<EmbeddingSession<T>> {
     if (!this.config.modelPath) {
       return Promise.reject(
-        new ConfigurationError(
-          '意味検索のモデルが未取得です。設定画面の「モデル」からダウンロードしてください。'
-        )
+        new ConfigurationError({ code: 'searchModelMissing' })
       )
     }
 
@@ -126,7 +124,7 @@ export class NodeLlamaEmbeddingSessionFactory implements EmbeddingSessionFactory
       }
     } catch (error: unknown) {
       throw new ModelLoadError(
-        `意味検索のモデルを読み込めませんでした（${config.modelPath}）: ${toMessage(error)}`,
+        { code: 'searchModelLoadFailed', path: config.modelPath, detail: toMessage(error) },
         { cause: error }
       )
     }

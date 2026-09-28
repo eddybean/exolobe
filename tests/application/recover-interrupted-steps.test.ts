@@ -31,7 +31,7 @@ describe('RecoverInterruptedSteps', () => {
 
     const saved = await repository.find('r1')
     expect(saved?.steps.summarize.status).toBe('failed')
-    expect(saved?.steps.summarize.error).toMatch(/再実行/)
+    expect(saved?.steps.summarize.reason).toEqual({ code: 'stepInterrupted' })
     expect(saved?.status).toBe('failed')
   })
 

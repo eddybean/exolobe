@@ -1,6 +1,6 @@
 import type { RecordingFinderPort } from '@application/ports'
 import type { ChatAnswer } from '@application/usecases/chat'
-import { toMessage } from '@domain/errors'
+import { errorToWorkerPayload } from './workerError'
 import type { ChatAnswerDto } from '@shared/ipc'
 import { createChat, type ChatServices } from './chat-container'
 import { isChatWorkerRequest, type ChatWorkerResponse } from './chat-protocol'
@@ -95,7 +95,7 @@ port.on('message', (message) => {
           })
           send({ type: 'chat-done', id: request.id, answer: toDto(answer) })
         } catch (error: unknown) {
-          send({ type: 'error', id: request.id, message: toMessage(error) })
+          send({ type: 'error', id: request.id, ...errorToWorkerPayload(error) })
         } finally {
           aborts.delete(request.id)
           candidateWaiters.delete(request.id)

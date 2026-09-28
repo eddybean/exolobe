@@ -34,6 +34,7 @@ import {
   showsPipelineProgress,
   type ProgressSamples
 } from '../pipelineProgress'
+import { reasonText } from '../i18n/failure'
 
 /** メモの自動保存までの待ち時間。打鍵のたびに書かないため。 */
 const NOTE_SAVE_DELAY_MS = 600
@@ -346,7 +347,8 @@ export const RecordingDetailView = ({
     [recordingId, onChanged]
   )
 
-  const editBlocker = transcriptEditBlocker(detail.recording.steps)
+  const blocker = transcriptEditBlocker(detail.recording.steps)
+  const editBlocker = blocker && reasonText(blocker)
 
   // 失敗は、そのステップが作るはずだったものの欄に出す。何が欠けているかがその場で分かる。
   const transcriptFailures = failuresIn('transcript', detail.recording.steps)

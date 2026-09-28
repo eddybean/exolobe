@@ -1,4 +1,5 @@
 import type { CalendarEvent } from '@domain/CalendarEvent'
+import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { Bookmark } from '@domain/MeetingNotes'
@@ -303,6 +304,7 @@ export interface ProgressReporterPort {
     step: PipelineStep
     status: 'running' | 'done' | 'failed'
     error?: string
+    reason?: ErrorReason
     /** running の途中経過（0〜1）。割合を出せるステップだけが付ける。 */
     fraction?: number
   }): void

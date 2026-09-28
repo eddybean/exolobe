@@ -52,6 +52,6 @@ describe('DiscardRecording', () => {
   it('録音中でなければ破棄できない', async () => {
     const ctx = build()
 
-    await expect(ctx.discard.execute('rec-1')).rejects.toThrow('録音中ではありません。')
+    await expect(ctx.discard.execute('rec-1')).rejects.toThrow('notRecording')
   })
 })

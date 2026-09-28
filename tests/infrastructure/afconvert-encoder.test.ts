@@ -90,6 +90,6 @@ describe('AfconvertEncoder', () => {
         codec: 'aac',
         bitrateKbps: 32
       })
-    ).rejects.toThrow('音声のエンコードに失敗しました')
+    ).rejects.toThrow('encodeFailed')
   }, 30_000)
 })

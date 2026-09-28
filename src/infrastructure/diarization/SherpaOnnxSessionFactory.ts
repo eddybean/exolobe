@@ -1,9 +1,10 @@
+import type { SherpaModel } from '@domain/errors'
 import {
   DiarizationError,
   type DiarizationSession,
   type DiarizationSessionFactory
 } from './SherpaOnnxDiarizer'
-import { loadSherpa, missingModelMessage, sherpaThreads } from './sherpaModule'
+import { loadSherpa, missingModel, sherpaThreads } from './sherpaModule'
 
 /**
  * sherpa-onnx（ネイティブアドオン）で話者ダイアライゼーションのセッションを作る。
@@ -19,15 +20,12 @@ export class SherpaOnnxSessionFactory implements DiarizationSessionFactory {
     embeddingModelPath: string
     clusteringThreshold: number
   }): Promise<DiarizationSession> {
-    requireModel('話者分割モデル', config.segmentationModelPath)
-    requireModel('話者埋め込みモデル', config.embeddingModelPath)
+    requireModel('segmentation', config.segmentationModelPath)
+    requireModel('embedding', config.embeddingModelPath)
 
     const sherpa = await loadSherpa(
-      (message, cause) =>
-        new DiarizationError(
-          `${message}話者識別を無効にすると、自分と参加者の 2 話者で処理を続行できます。`,
-          { cause }
-        )
+      (detail, cause) =>
+        new DiarizationError({ code: 'sherpaLoadFailed', detail, forDiarization: true }, { cause })
     )
     const numThreads = sherpaThreads()
 
@@ -51,7 +49,7 @@ export class SherpaOnnxSessionFactory implements DiarizationSessionFactory {
   }
 }
 
-const requireModel = (label: string, path: string): void => {
-  const message = missingModelMessage(label, path)
-  if (message) throw new DiarizationError(message)
+const requireModel = (model: SherpaModel, path: string): void => {
+  const missing = missingModel(model, path)
+  if (missing) throw new DiarizationError(missing)
 }

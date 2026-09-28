@@ -32,6 +32,7 @@ import type {
   VoiceprintRepositoryPort
 } from '@application/ports'
 import type { CalendarEvent } from '@domain/CalendarEvent'
+import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
 import type { Bookmark } from '@domain/MeetingNotes'
 import { normalize } from '@domain/vector'
@@ -462,6 +463,7 @@ export class FakeProgressReporter implements ProgressReporterPort {
     step: PipelineStep
     status: string
     error?: string
+    reason?: ErrorReason
     fraction?: number
   }[] = []
 
@@ -470,6 +472,7 @@ export class FakeProgressReporter implements ProgressReporterPort {
     step: PipelineStep
     status: 'running' | 'done' | 'failed'
     error?: string
+    reason?: ErrorReason
     fraction?: number
   }): void {
     this.events.push(event)

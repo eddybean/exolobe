@@ -43,9 +43,7 @@ export class ImportAudioFile {
   async execute(params: { filePath: string; folderId?: string }): Promise<Recording> {
     const settings = await this.deps.settings.load()
     if (!isConfigured(settings)) {
-      throw new ConfigurationError(
-        '保存先が設定されていません。設定画面から保存先を選んでください。'
-      )
+      throw new ConfigurationError({ code: 'storageNotConfigured' })
     }
 
     // 拡張子で断れるものはディスクに触る前に断る。
@@ -56,7 +54,7 @@ export class ImportAudioFile {
 
     const info = await this.deps.files.stat(params.filePath)
     if (!info) {
-      throw new ConfigurationError(`ファイルを読み取れません: ${params.filePath}`)
+      throw new ConfigurationError({ code: 'fileUnreadable', path: params.filePath })
     }
 
     // 録音はまだ永続化しない。作業ディレクトリの場所は id だけで決まるため、

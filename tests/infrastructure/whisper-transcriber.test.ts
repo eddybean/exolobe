@@ -104,7 +104,7 @@ describe('parseWhisperJson', () => {
 
   it('JSON として壊れていれば利用者向けメッセージで失敗する', () => {
     expect(() => parseWhisperJson('{ broken', 'self')).toThrow(
-      '文字起こし結果を読み取れませんでした。'
+      'transcriptionOutputUnreadable'
     )
   })
 
@@ -309,14 +309,16 @@ describe('describeFailure', () => {
       'error: unknown argument: --vad\n'
     )
 
-    expect(message).toContain('無音区間の除外（VAD）に対応していません')
-    expect(message).toContain('v1.7.6 以降')
+    expect(message).toEqual({
+      code: 'whisperVadUnsupported',
+      binaryPath: '/usr/local/bin/whisper-cli'
+    })
   })
 
   it('バイナリが無ければ setup を案内する', () => {
     const message = describeFailure('whisper-cli', new Error('spawn ENOENT'), '')
 
-    expect(message).toContain("'npm run setup' を実行してください。")
+    expect(message).toEqual({ code: 'whisperNotFound', binaryPath: 'whisper-cli' })
   })
 })
 
@@ -705,6 +707,6 @@ describe('WhisperCppTranscriber', () => {
 
     await expect(
       transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
-    ).rejects.toThrow('文字起こしモデルが設定されていません。設定画面でモデルを選んでください。')
+    ).rejects.toThrow('transcriptionModelNotConfigured')
   })
 })

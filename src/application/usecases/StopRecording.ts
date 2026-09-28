@@ -27,7 +27,7 @@ export class StopRecording {
 
   async execute(recordingId: string): Promise<StopRecordingResult> {
     if (!this.deps.capture.isActive()) {
-      throw new RecordingStateError('録音中ではありません。')
+      throw new RecordingStateError({ code: 'notRecording' })
     }
 
     const recording = await this.deps.repository.find(recordingId)

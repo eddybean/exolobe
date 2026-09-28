@@ -81,7 +81,7 @@ export class DualTrackRecorder implements AudioCapturePort {
   }
 
   async start(params: { workDir: string; sampleRate: number }): Promise<void> {
-    if (this.state) throw new CaptureError('すでに録音中です。')
+    if (this.state) throw new CaptureError({ code: 'alreadyRecording' })
 
     await mkdir(params.workDir, { recursive: true })
     const system = await WavFileWriter.create(join(params.workDir, 'system.wav'), {
@@ -163,7 +163,7 @@ export class DualTrackRecorder implements AudioCapturePort {
 
   async stop(): Promise<DualTrackSource> {
     const state = this.state
-    if (!state) throw new CaptureError('録音中ではありません。')
+    if (!state) throw new CaptureError({ code: 'notRecording' })
 
     // 以降に届く PCM を無視するため、先に状態を落としてから片付ける。
     this.state = undefined

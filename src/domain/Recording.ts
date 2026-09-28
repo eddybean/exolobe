@@ -1,3 +1,5 @@
+import type { ErrorReason } from '@domain/errors'
+
 /** 停止後に順に実行されるパイプラインのステップ。配列の順序が実行順を定義する。 */
 export const PIPELINE_STEPS = ['mix', 'transcribe', 'diarize', 'summarize', 'encode'] as const
 
@@ -7,9 +9,26 @@ export type StepStatus = 'pending' | 'running' | 'done' | 'failed'
 
 export interface StepState {
   readonly status: StepStatus
-  /** 失敗時のみ設定される。詳細画面での個別リトライの判断材料になる。 */
+  /**
+   * 失敗時のみ設定される。詳細画面での個別リトライの判断材料になる。
+   * 理由があるときはそのコード、無いとき（ネイティブ由来など）は元のメッセージ。
+   */
   readonly error?: string
+  /**
+   * 失敗の理由。文言は表示のたびに UI の言語で引く（ADR-043）。OS の言語を変えても
+   * 過去の失敗が元の言語のまま残らないよう、文言ではなく理由を保存する。
+   */
+  readonly reason?: ErrorReason
 }
+
+/** 失敗として残すもの。理由の無い失敗は元のメッセージをそのまま持つ。 */
+export type StepFailure = ErrorReason | string
+
+/** 失敗を StepState と進捗の通知に載せる形にする。 */
+export const failureFields = (
+  failure: StepFailure
+): { readonly error: string; readonly reason?: ErrorReason } =>
+  typeof failure === 'string' ? { error: failure } : { error: failure.code, reason: failure }
 
 export type StepStates = Readonly<Record<PipelineStep, StepState>>
 
@@ -89,18 +108,16 @@ export const createRecording = (params: {
 export const MINIMUM_RECORDING_MS = 60_000
 
 /**
- * 短すぎて処理する意味がない録音なら、利用者向けの理由を返す。
+ * 短すぎて処理する意味がない録音なら、その理由を返す。
  *
  * 測れなかった場合（NaN など）は止めない。見積もれないことを理由に本物の録音を
  * 捨てる方が損害が大きいので、MemoryGuard と同じく安全側＝通す側に倒す。
  */
-export const tooShortRecording = (durationMs: number): string | undefined => {
+export const tooShortRecording = (durationMs: number): ErrorReason | undefined => {
   if (!Number.isFinite(durationMs)) return undefined
   if (durationMs >= MINIMUM_RECORDING_MS) return undefined
 
-  const seconds = Math.max(0, Math.floor(durationMs / 1000))
-
-  return `録音時間が ${seconds} 秒しかありません。1 分未満の録音は処理しません。`
+  return { code: 'tooShortRecording', seconds: Math.max(0, Math.floor(durationMs / 1000)) }
 }
 
 export const finishRecording = (recording: Recording, durationMs: number): Recording => ({
@@ -120,8 +137,11 @@ export const startStep = (steps: StepStates, step: PipelineStep): StepStates =>
 export const succeedStep = (steps: StepStates, step: PipelineStep): StepStates =>
   setStep(steps, step, { status: 'done' })
 
-export const failStep = (steps: StepStates, step: PipelineStep, error: string): StepStates =>
-  setStep(steps, step, { status: 'failed', error })
+export const failStep = (
+  steps: StepStates,
+  step: PipelineStep,
+  failure: StepFailure
+): StepStates => setStep(steps, step, { status: 'failed', ...failureFields(failure) })
 
 /**
  * 実行中のまま残ったステップを失敗にする。
@@ -129,10 +149,12 @@ export const failStep = (steps: StepStates, step: PipelineStep, error: string): 
  * ステップは開始時点で running として保存するので、処理プロセスやアプリが途中で
  * 終わるとそのまま残る。running は再実行の対象にならず overallStatus も processing を
  * 返し続けるため、動いているものが無いと分かった時点で失敗に倒して再実行できるようにする。
+ * 原因までは分からない。要約のメモリ不足で OS に止められた場合も、利用者が終了した場合もある。
  */
-export const interruptSteps = (steps: StepStates, error: string): StepStates =>
+export const interruptSteps = (steps: StepStates): StepStates =>
   PIPELINE_STEPS.reduce(
-    (acc, step) => (acc[step].status === 'running' ? failStep(acc, step, error) : acc),
+    (acc, step) =>
+      acc[step].status === 'running' ? failStep(acc, step, { code: 'stepInterrupted' }) : acc,
     steps
   )
 
@@ -153,9 +175,11 @@ export const isProcessing = (steps: StepStates): boolean =>
 export const transcriptEditBlocker = (steps: {
   readonly transcribe: { readonly status: string }
   readonly diarize: { readonly status: string }
-}): string | undefined => {
-  if (steps.transcribe.status === 'running') return '文字起こしが終わるまでお待ちください。'
-  if (steps.diarize.status === 'running') return '話者識別が終わるまでお待ちください。'
+}): ErrorReason | undefined => {
+  if (steps.transcribe.status === 'running') {
+    return { code: 'transcriptEditBlocked', step: 'transcribe' }
+  }
+  if (steps.diarize.status === 'running') return { code: 'transcriptEditBlocked', step: 'diarize' }
   return undefined
 }
 

@@ -136,12 +136,12 @@ describe('DualTrackRecorder', () => {
 
   it('二重の開始を拒否する', async () => {
     await start()
-    await expect(start()).rejects.toThrow('すでに録音中です。')
+    await expect(start()).rejects.toThrow('alreadyRecording')
     await recorder.stop()
   })
 
   it('録音していないのに停止したら失敗する', async () => {
-    await expect(recorder.stop()).rejects.toThrow('録音中ではありません。')
+    await expect(recorder.stop()).rejects.toThrow('notRecording')
   })
 
   it('音声ソースの開始に失敗したら録音状態を残さない', async () => {

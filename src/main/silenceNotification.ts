@@ -1,4 +1,5 @@
 import { Notification } from 'electron'
+import { text } from './i18n'
 
 /**
  * 「無音が続いている」ことを OS の通知で知らせる。
@@ -18,10 +19,10 @@ export const notifySilence = (params: {
   if (!Notification.isSupported()) return
 
   const notification = new Notification({
-    title: '録音を続けていますか？',
-    body: `${params.minutes} 分以上、音が入っていません。会議が終わっているなら録音を停止してください。`,
-    actions: [{ type: 'button', text: '録音を停止' }],
-    closeButtonText: '続ける'
+    title: text().notification.silenceTitle,
+    body: text().notification.silenceBody(params.minutes),
+    actions: [{ type: 'button', text: text().notification.stop }],
+    closeButtonText: text().notification.keepGoing
   })
 
   notification.on('action', () => params.onStop())

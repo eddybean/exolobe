@@ -403,7 +403,7 @@ describe('DownloadModel', () => {
   it('未知の ID は拒否する', async () => {
     await expect(
       new DownloadModel(new FakeSettingsRepository(), new FakeModelStore()).execute({ id: 'nope' })
-    ).rejects.toThrow('不明なモデルです: nope')
+    ).rejects.toThrow('unknownModel')
   })
 
   it('取得に失敗したら設定を書き換えない', async () => {
@@ -555,7 +555,7 @@ describe('DeleteModel', () => {
       deleter(new FakeSettingsRepository(defaultSettings()), store, recordings).execute(
         'summarization-model'
       )
-    ).rejects.toThrow('録音中')
+    ).rejects.toThrow('modelBusyRecording')
     expect(store.removed).toEqual([])
   })
 
@@ -573,7 +573,7 @@ describe('DeleteModel', () => {
       deleter(new FakeSettingsRepository(defaultSettings()), store, recordings).execute(
         'transcription-model'
       )
-    ).rejects.toThrow('処理中')
+    ).rejects.toThrow('modelBusyProcessing')
     expect(store.removed).toEqual([])
   })
 
@@ -597,7 +597,7 @@ describe('DeleteModel', () => {
   it('未知の ID は拒否する', async () => {
     await expect(
       deleter(new FakeSettingsRepository(), new FakeModelStore()).execute('nope')
-    ).rejects.toThrow('不明なモデルです: nope')
+    ).rejects.toThrow('unknownModel')
   })
 })
 
@@ -631,7 +631,7 @@ describe('UpdateModel', () => {
       updater(new FakeSettingsRepository(defaultSettings()), store, recordings).execute({
         id: 'summarization-model'
       })
-    ).rejects.toThrow('録音中はモデルを更新できません')
+    ).rejects.toThrow('modelBusyRecording')
     expect(store.fetched).toEqual([])
   })
 
@@ -649,13 +649,13 @@ describe('UpdateModel', () => {
       updater(new FakeSettingsRepository(defaultSettings()), store, recordings).execute({
         id: 'transcription-model'
       })
-    ).rejects.toThrow('処理中の録音があるためモデルを更新できません')
+    ).rejects.toThrow('modelBusyProcessing')
     expect(store.fetched).toEqual([])
   })
 
   it('未知の ID は拒否する', async () => {
     await expect(
       updater(new FakeSettingsRepository(), new FakeModelStore()).execute({ id: 'nope' })
-    ).rejects.toThrow('不明なモデルです: nope')
+    ).rejects.toThrow('unknownModel')
   })
 })

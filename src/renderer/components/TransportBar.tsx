@@ -3,6 +3,7 @@ import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import { autoStartedMessage, startAlertMessage } from '@shared/startAlert'
 import type { Transport } from '../hooks/useTransport'
 import { formatDuration } from '../format'
+import { locale } from '../i18n/locale'
 
 /**
  * 画面下部に常時固定される操作バー。
@@ -78,7 +79,7 @@ export const TransportBar = ({
       {/* 自動で始めた録音の取り消し口（ADR-041）。通知を見逃しても、録音中はここから破棄できる。 */}
       {active && autoStarted && autoStarted.recordingId === state.recordingId && (
         <div className="transport__start-alert" role="alert">
-          <span>{autoStartedMessage(autoStarted.eventTitle)}</span>
+          <span>{autoStartedMessage(autoStarted.eventTitle, locale())}</span>
           <button type="button" onClick={() => void transport.discard()} disabled={busy}>
             停止して破棄
           </button>
@@ -92,7 +93,7 @@ export const TransportBar = ({
           ここで気づけるよう、応答するまで出し続ける。 */}
       {!active && startAlert && (
         <div className="transport__start-alert" role="alert">
-          <span>{`${startAlertMessage(startAlert)}録音を開始しますか？`}</span>
+          <span>{`${startAlertMessage(startAlert, locale())}録音を開始しますか？`}</span>
           <button type="button" onClick={() => void transport.start()} disabled={busy}>
             録音する
           </button>

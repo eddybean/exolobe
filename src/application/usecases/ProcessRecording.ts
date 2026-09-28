@@ -16,6 +16,7 @@ import type {
 import {
   PIPELINE_STEPS,
   failStep,
+  failureFields,
   overallStatus,
   startStep,
   succeedStep,
@@ -26,7 +27,13 @@ import {
   type StepStates
 } from '@domain/Recording'
 import { diarizationTarget, mixInputs, transcriptionTargets } from '@domain/RecordingSource'
-import { PipelineStepError, RecordingNotFoundError, toMessage } from '@domain/errors'
+import {
+  PipelineStepError,
+  RecordingNotFoundError,
+  reasonOf,
+  toMessage,
+  type ErrorReason
+} from '@domain/errors'
 import {
   estimateSummarizationBytes,
   estimateTranscriptionBytes,
@@ -94,14 +101,6 @@ const TRACK_CONSUMERS: readonly PipelineStep[] = ['mix', 'transcribe', 'diarize'
 const intermediatesDisposable = (steps: StepStates): boolean =>
   INTERMEDIATE_CONSUMERS.every((step) => steps[step].status === 'done')
 
-const STEP_LABELS: Readonly<Record<PipelineStep, string>> = {
-  mix: 'ミックス',
-  transcribe: '文字起こし',
-  diarize: '話者識別',
-  summarize: '要約',
-  encode: 'エンコード'
-}
-
 interface StepContext {
   readonly recording: Recording
   readonly settings: Settings
@@ -168,14 +167,14 @@ export class ProcessRecording {
    * 残すと「まだこれから動く」と読めてしまうため。中間 WAV は再実行しても
    * 同じ理由で断られる＝二度と使わないので、ここで捨てる。
    */
-  private async abort(recording: Recording, reason: string): Promise<Recording> {
+  private async abort(recording: Recording, reason: ErrorReason): Promise<Recording> {
     let steps = recording.steps
     for (const step of PIPELINE_STEPS) {
       this.deps.progress.report({
         recordingId: recording.id,
         step,
         status: 'failed',
-        error: reason
+        ...failureFields(reason)
       })
       steps = failStep(steps, step, reason)
     }
@@ -193,11 +192,7 @@ export class ProcessRecording {
   ): Promise<StepStates> {
     const blocker = STEP_DEPENDENCIES[step].find((dep) => steps[dep].status === 'failed')
     if (blocker) {
-      return failStep(
-        steps,
-        step,
-        `前のステップ（${STEP_LABELS[blocker]}）が失敗したため実行しませんでした。`
-      )
+      return failStep(steps, step, { code: 'stepBlocked', blocker })
     }
 
     const { recording } = context
@@ -209,7 +204,7 @@ export class ProcessRecording {
         recordingId: recording.id,
         step,
         status: 'failed',
-        error: shortage
+        ...failureFields(shortage)
       })
       return failStep(steps, step, shortage)
     }
@@ -227,9 +222,14 @@ export class ProcessRecording {
       this.deps.progress.report({ recordingId: recording.id, step, status: 'done' })
       return succeedStep(running, step)
     } catch (error: unknown) {
-      const message = toMessage(error)
-      this.deps.progress.report({ recordingId: recording.id, step, status: 'failed', error: message })
-      return failStep(running, step, message)
+      const failure = reasonOf(error) ?? toMessage(error)
+      this.deps.progress.report({
+        recordingId: recording.id,
+        step,
+        status: 'failed',
+        ...failureFields(failure)
+      })
+      return failStep(running, step, failure)
     }
   }
 
@@ -242,7 +242,7 @@ export class ProcessRecording {
   private async checkMemory(
     step: PipelineStep,
     { settings }: StepContext
-  ): Promise<string | undefined> {
+  ): Promise<ErrorReason | undefined> {
     if (settings.memoryProtection === 'off') return undefined
 
     const demand = await this.demandOf(step, settings)
@@ -268,7 +268,7 @@ export class ProcessRecording {
         if (modelFileBytes === undefined) return undefined
         return {
           bytes: estimateTranscriptionBytes({ modelFileBytes }),
-          label: STEP_LABELS.transcribe
+          task: 'transcribe'
         }
       }
       case 'summarize': {
@@ -282,7 +282,7 @@ export class ProcessRecording {
             modelFileBytes,
             contextSize: settings.summarization.contextSize
           }),
-          label: STEP_LABELS.summarize
+          task: 'summarize'
         }
       }
       default:
@@ -480,7 +480,7 @@ export class ProcessRecording {
   ): Promise<RecordingSource> {
     const tracks = loaded ?? (await this.deps.artifacts.readTracks(recording))
     if (!tracks) {
-      throw new PipelineStepError('録音データが見つかりません。')
+      throw new PipelineStepError({ code: 'recordingDataMissing' })
     }
     return tracks
   }
@@ -490,7 +490,7 @@ export class ProcessRecording {
   ): Promise<{ segments: TranscriptSegment[]; speakers: Speaker[] }> {
     const transcript = await this.deps.artifacts.readTranscript(recording)
     if (!transcript) {
-      throw new PipelineStepError('文字起こしがまだありません。先に文字起こしを実行してください。')
+      throw new PipelineStepError({ code: 'transcriptRequiredFirst' })
     }
     return transcript
   }

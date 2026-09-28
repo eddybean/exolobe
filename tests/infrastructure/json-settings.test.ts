@@ -118,7 +118,7 @@ describe('JsonSettingsRepository', () => {
     const repository = new JsonSettingsRepository(newer)
     expect((await repository.load()).storageDir).toBe('/Users/me/Meetings')
     await expect(repository.save({ storageDir: '/elsewhere' })).rejects.toThrow(
-      'アプリを更新してください'
+      'storageNewerVersion'
     )
     expect(await readFile(newer, 'utf8')).toBe(content)
   })
@@ -128,7 +128,7 @@ describe('JsonSettingsRepository', () => {
     await writeFile(odd, JSON.stringify({ schemaVersion: '2' }), 'utf8')
 
     await expect(new JsonSettingsRepository(odd).save({ storageDir: '/x' })).rejects.toThrow(
-      'アプリを更新してください'
+      'storageNewerVersion'
     )
   })
 
@@ -151,6 +151,6 @@ describe('SettingsStorageLocator', () => {
   it('未設定なら設定画面へ誘導する', async () => {
     await expect(
       new SettingsStorageLocator(new JsonSettingsRepository(filePath)).root()
-    ).rejects.toThrow('保存先が設定されていません。設定画面から保存先を選んでください。')
+    ).rejects.toThrow('storageNotConfigured')
   })
 })

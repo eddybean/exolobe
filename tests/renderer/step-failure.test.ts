@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setLocale } from '@renderer/i18n/locale'
 import { failureTooltip, failuresIn, queuedIn, stepFailure } from '@renderer/stepFailure'
 
 /**
@@ -24,6 +25,25 @@ describe('stepFailure', () => {
 
     expect(failure?.label).toBe('要約')
     expect(failure?.message).not.toBe('')
+  })
+
+  it('理由のある失敗は、保存されたコードではなく今の言語の文言にする', () => {
+    const state = {
+      status: 'failed',
+      error: 'stepBlocked',
+      reason: { code: 'stepBlocked', blocker: 'transcribe' }
+    } as const
+
+    expect(stepFailure('diarize', state)).toEqual({
+      label: '話者識別',
+      message: '前のステップ（文字起こし）が失敗したため実行しませんでした。'
+    })
+  })
+
+  it('知らない理由（新しい版の保存データ）は保存された error に戻る', () => {
+    const state = { status: 'failed', error: 'fromTheFuture', reason: { code: 'fromTheFuture' } }
+
+    expect(stepFailure('mix', state as never)?.message).toBe('fromTheFuture')
   })
 
   it('未知のステップ名はそのままラベルにする', () => {
@@ -131,5 +151,29 @@ describe('queuedIn', () => {
 
   it('順番待ちが無ければ何も出さない', () => {
     expect(queuedIn('audio', steps({ encode: { status: 'running' } }))).toEqual([])
+  })
+})
+
+describe('英語の UI', () => {
+  afterEach(() => setLocale('ja'))
+
+  it('ラベル・本文・ツールチップを英語で組み立てる', () => {
+    setLocale('en')
+    const failure = stepFailure('diarize', {
+      status: 'failed',
+      error: 'stepBlocked',
+      reason: { code: 'stepBlocked', blocker: 'transcribe' }
+    })
+
+    expect(failure).toEqual({
+      label: 'Speaker identification',
+      message: 'Skipped because an earlier step (Transcription) failed.'
+    })
+    expect(failureTooltip({ label: 'Summary', message: 'Out of memory.' })).toBe(
+      'Summary failed: Out of memory.'
+    )
+    expect(stepFailure('summarize', { status: 'failed' })?.message).toBe(
+      'The cause could not be determined.'
+    )
   })
 })

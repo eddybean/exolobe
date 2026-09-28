@@ -1,4 +1,4 @@
-import { toMessage } from '@domain/errors'
+import { errorToWorkerPayload } from './workerError'
 import { toRecordingDto } from '@shared/ipc'
 import { createPipeline, createVoiceExtractor } from './pipeline-container'
 import { isWorkerRequest, type WorkerResponse } from './protocol'
@@ -51,7 +51,7 @@ port.on('message', (message) => {
 
       send({ type: 'done', jobId: request.jobId, recording: toRecordingDto(recording) })
     } catch (error: unknown) {
-      send({ type: 'error', jobId: request.jobId, message: toMessage(error) })
+      send({ type: 'error', jobId: request.jobId, ...errorToWorkerPayload(error) })
     }
   })
 })

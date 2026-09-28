@@ -105,7 +105,7 @@ describe('AfconvertDecoder', () => {
 
     await expect(
       decoder.decode({ inputPath: join(dir, 'missing.mp3'), outputPath: output, sampleRate: TARGET_RATE })
-    ).rejects.toThrow('読み取れませんでした')
+    ).rejects.toThrow('decodeFailed')
     await expect(stat(output)).rejects.toThrow()
   }, 30_000)
 
@@ -117,7 +117,7 @@ describe('AfconvertDecoder', () => {
 
     await expect(
       decoder.decode({ inputPath: input, outputPath: output, sampleRate: TARGET_RATE })
-    ).rejects.toThrow('broken.mp3')
+    ).rejects.toMatchObject({ reason: { code: 'decodeFailed', fileName: 'broken.mp3' } })
     await expect(stat(output)).rejects.toThrow()
   }, 30_000)
 })

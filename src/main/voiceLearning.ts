@@ -1,6 +1,7 @@
 import type { VoiceExtractionPort } from '@application/ports'
 import type { VoiceMemoryResult } from '@application/usecases/library'
-import { ConfigurationError, toMessage } from '@domain/errors'
+import { ConfigurationError } from '@domain/errors'
+import { describe } from './i18n'
 import type { VoiceLearnedDto } from '@shared/ipc'
 
 export type VoiceLearnedEvent = VoiceLearnedDto
@@ -47,7 +48,7 @@ export const createVoiceLearning = (deps: {
           deps.notify({ ...params, status })
         } catch (error: unknown) {
           // 1 件の失敗で列を止めない。次の話者は覚えられるかもしれない。
-          deps.notify({ ...params, status: 'failed', message: toMessage(error) })
+          deps.notify({ ...params, status: 'failed', message: describe(error) })
         }
       })
     },
@@ -72,7 +73,7 @@ export class WorkerVoiceExtraction implements VoiceExtractionPort {
 
   async extract(recordingId: string): Promise<void> {
     if (!this.delegate) {
-      throw new ConfigurationError('処理プロセスを使えないため、声を覚えられません。')
+      throw new ConfigurationError({ code: 'voiceLearningUnavailable' })
     }
     await this.delegate(recordingId)
   }

@@ -4,6 +4,8 @@ import { app, utilityProcess } from 'electron'
 import { PIPELINE_STEPS, type PipelineStep } from '@domain/Recording'
 import type { ProgressEventDto, RecordingDto } from '@shared/ipc'
 import { isWorkerResponse } from './protocol'
+import { text } from '../i18n'
+import { errorFromWorker } from './workerError'
 
 /** utilityProcess のうち、このクラスが使う部分だけ。テストで差し替えられるようにする。 */
 export interface PipelineWorker {
@@ -64,7 +66,7 @@ export class PipelineClient {
       { recordingId: params.recordingId, steps: new Set(steps) }
     )
 
-    if (!recording) throw new Error('処理の結果を受け取れませんでした。')
+    if (!recording) throw new Error(text().error.pipelineNoResult)
     return recording
   }
 
@@ -170,7 +172,7 @@ export class PipelineClient {
 
       if (message.type === 'done') job.resolve(message.recording)
       else if (message.type === 'voices-done') job.resolve(undefined)
-      else job.reject(new Error(message.message))
+      else job.reject(errorFromWorker(message))
 
       this.finish(worker)
     })
@@ -186,9 +188,7 @@ export class PipelineClient {
         .catch(() => undefined)
         .then(() => {
           // 失われるのは実行中のジョブだけ。待っていたジョブは新しいワーカーで続ける。
-          this.current?.job.reject(
-            new Error('処理プロセスが終了しました。詳細画面から失敗したステップを再実行してください。')
-          )
+          this.current?.job.reject(new Error(text().error.pipelineExited))
           this.finish(worker)
         })
     })

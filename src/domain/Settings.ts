@@ -1,3 +1,4 @@
+import type { SettingsProblem } from '@domain/errors'
 import { isMemoryProtection, type MemoryProtection } from '@domain/MemoryGuard'
 import { VOICEPRINT_MATCH_THRESHOLD } from '@domain/Voiceprint'
 
@@ -279,54 +280,35 @@ export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings =>
   chat: mergeGroup(base.chat, patch.chat)
 })
 
-/** 保存前に呼ぶ。問題があればユーザー向けメッセージの配列を返す。 */
-export const validateSettings = (settings: Settings): string[] => {
-  const errors: string[] = []
+/** 保存前に呼ぶ。問題があれば、その種類を並べて返す（文言は表示側が引く）。 */
+export const validateSettings = (settings: Settings): SettingsProblem[] => {
+  const problems: SettingsProblem[] = []
 
-  if (!SUPPORTED_SAMPLE_RATES.includes(settings.audio.sampleRate)) {
-    errors.push(
-      `サンプルレートは ${SUPPORTED_SAMPLE_RATES.join(', ')} のいずれかを指定してください。`
-    )
-  }
-  if (settings.audio.bitrateKbps <= 0) {
-    errors.push('ビットレートは 1kbps 以上を指定してください。')
-  }
-  if (settings.recording.silenceDurationMs < 60_000) {
-    errors.push('無音を知らせるまでの時間は 1 分以上を指定してください。')
-  }
-  if (settings.recording.startAlertDelayMs < 30_000) {
-    errors.push('録音を促すまでの時間は 30 秒以上を指定してください。')
-  }
-  if (settings.diarization.maxSpeakers < 2) {
-    errors.push('話者数の上限は 2 以上を指定してください。')
-  }
+  if (!SUPPORTED_SAMPLE_RATES.includes(settings.audio.sampleRate)) problems.push('sampleRate')
+  if (settings.audio.bitrateKbps <= 0) problems.push('bitrate')
+  if (settings.recording.silenceDurationMs < 60_000) problems.push('silenceDuration')
+  if (settings.recording.startAlertDelayMs < 30_000) problems.push('startAlertDelay')
+  if (settings.diarization.maxSpeakers < 2) problems.push('maxSpeakers')
   if (
     settings.diarization.voiceprintThreshold <= 0 ||
     settings.diarization.voiceprintThreshold > 1
   ) {
-    errors.push('声紋の一致閾値は 0 より大きく 1 以下の値を指定してください。')
+    problems.push('voiceprintThreshold')
   }
   if (
     settings.diarization.clusteringThreshold <= 0 ||
     settings.diarization.clusteringThreshold > 1
   ) {
-    errors.push('話者を分ける近さは 0 より大きく 1 以下の値を指定してください。')
+    problems.push('clusteringThreshold')
   }
-  if (!isMemoryProtection(settings.memoryProtection)) {
-    errors.push('メモリ保護は「保守的」「標準」「オフ」のいずれかを指定してください。')
-  }
-  if (settings.summarization.contextSize < 1_024) {
-    errors.push('要約モデルのコンテキスト長は 1024 以上を指定してください。')
-  }
+  if (!isMemoryProtection(settings.memoryProtection)) problems.push('memoryProtection')
+  if (settings.summarization.contextSize < 1_024) problems.push('contextSize')
   if (!settings.summarization.promptTemplate.includes(TRANSCRIPT_PLACEHOLDER)) {
-    errors.push(
-      `要約プロンプトには文字起こしの差し込み位置 ${TRANSCRIPT_PLACEHOLDER} を含めてください。`
-    )
+    problems.push('promptPlaceholder')
   }
-
   if (settings.chat.maxRecordings < 1 || settings.chat.maxRecordings > 30) {
-    errors.push('チャットで参照する録音の件数は 1〜30 の範囲で指定してください。')
+    problems.push('chatMaxRecordings')
   }
 
-  return errors
+  return problems
 }

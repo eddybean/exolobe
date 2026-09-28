@@ -1,5 +1,5 @@
 import type { SearchHit } from '@application/usecases/search'
-import { toMessage } from '@domain/errors'
+import { errorToWorkerPayload } from './workerError'
 import type { SearchHitDto } from '@shared/ipc'
 import { createSearch, type SearchServices } from './search-container'
 import { isSearchWorkerRequest, type SearchWorkerResponse } from './search-protocol'
@@ -58,7 +58,7 @@ port.on('message', (message) => {
           const hits = await search.execute({ query: request.query, limit: request.limit })
           send({ type: 'search-result', id: request.id, hits: hits.map(toDto) })
         } catch (error: unknown) {
-          send({ type: 'error', id: request.id, message: toMessage(error) })
+          send({ type: 'error', id: request.id, ...errorToWorkerPayload(error) })
         }
       })()
       return
@@ -76,7 +76,7 @@ port.on('message', (message) => {
           })
           send({ type: 'sync-done', id: request.id, result })
         } catch (error: unknown) {
-          send({ type: 'error', id: request.id, message: toMessage(error) })
+          send({ type: 'error', id: request.id, ...errorToWorkerPayload(error) })
         } finally {
           if (syncAbort === controller) syncAbort = undefined
         }

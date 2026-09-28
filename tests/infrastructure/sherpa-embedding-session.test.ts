@@ -26,7 +26,7 @@ vi.mock('@infrastructure/diarization/sherpaModule', () => ({
     OfflineSpeakerDiarization: class {},
     SpeakerEmbeddingExtractor: FakeExtractor
   }),
-  missingModelMessage: () => undefined,
+  missingModel: () => undefined,
   sherpaThreads: () => 2
 }))
 

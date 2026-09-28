@@ -5,10 +5,6 @@ export interface RecoverInterruptedStepsDeps {
   readonly repository: RecordingRepositoryPort
 }
 
-/** 原因までは分からない。要約のメモリ不足で OS に止められた場合も、利用者が終了した場合もある。 */
-export const INTERRUPTED_STEP_ERROR =
-  '処理の途中でアプリまたは処理プロセスが終了したため、完了しませんでした。再実行してください。'
-
 /**
  * 実行中のまま保存に残ったステップを失敗に直す。
  *
@@ -29,7 +25,7 @@ export class RecoverInterruptedSteps {
     for (const recording of recordings) {
       if (!isProcessing(recording.steps)) continue
 
-      const steps = interruptSteps(recording.steps, INTERRUPTED_STEP_ERROR)
+      const steps = interruptSteps(recording.steps)
       await this.deps.repository.save({ ...recording, steps, status: overallStatus(steps) })
     }
   }

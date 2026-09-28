@@ -24,7 +24,7 @@ export class DiscardRecording {
 
   async execute(recordingId: string): Promise<void> {
     if (!this.deps.capture.isActive()) {
-      throw new RecordingStateError('録音中ではありません。')
+      throw new RecordingStateError({ code: 'notRecording' })
     }
 
     const recording = await this.deps.repository.find(recordingId)

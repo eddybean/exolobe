@@ -314,9 +314,9 @@ describe('音声ファイルの取り込み', () => {
     const ctx = await build()
     const source = await writeSource('短い.wav', 2)
 
-    await expect(ctx.importAudioFile.execute({ filePath: source })).rejects.toThrow(
-      '1 分未満の録音は処理しません'
-    )
+    await expect(ctx.importAudioFile.execute({ filePath: source })).rejects.toMatchObject({
+      reason: { code: 'tooShortRecording' }
+    })
     expect(await ctx.list.execute()).toEqual([])
     expect(await readdir(storage)).toEqual([])
   }, 60_000)
@@ -327,7 +327,9 @@ describe('音声ファイルの取り込み', () => {
     const renamed = source.replace(/\.wav$/, '.webm')
     await rename(source, renamed)
 
-    await expect(ctx.importAudioFile.execute({ filePath: renamed })).rejects.toThrow('.webm')
+    await expect(ctx.importAudioFile.execute({ filePath: renamed })).rejects.toMatchObject({
+      reason: { code: 'importUnreadableFormat', extension: 'webm' }
+    })
     expect(await ctx.list.execute()).toEqual([])
   }, 60_000)
 })

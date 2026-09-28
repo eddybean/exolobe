@@ -1,6 +1,8 @@
 import { join } from 'node:path'
 import { BrowserWindow, app, globalShortcut, shell, type Tray } from 'electron'
+import { localeArg, resolveLocale } from '@shared/i18n/locale'
 import { createContainer } from './container'
+import { appLocale, setAppLocale } from './i18n'
 import { registerIpcHandlers } from './ipc/handlers'
 import { createApplicationMenu } from './menu'
 import { createTray } from './tray'
@@ -40,7 +42,8 @@ const createWindow = (): BrowserWindow => {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      contextIsolation: true
+      contextIsolation: true,
+      additionalArguments: [localeArg(appLocale())]
     }
   })
 
@@ -61,6 +64,18 @@ const createWindow = (): BrowserWindow => {
   return window
 }
 
+/**
+ * UI の言語を決める優先言語（ADR-043）。
+ *
+ * OMR_LOCALE は OS の設定を変えずに別の言語の画面を確かめるための開発用。先頭に置くだけなので、
+ * 対応していない値なら OS の優先言語に戻る。
+ */
+const preferredLanguages = (): string[] => {
+  const override = process.env['OMR_LOCALE']
+  const system = app.getPreferredSystemLanguages()
+  return override ? [override, ...system] : system
+}
+
 const showWindow = (): void => {
   if (!mainWindow || mainWindow.isDestroyed()) {
     mainWindow = createWindow()
@@ -73,6 +88,7 @@ const showWindow = (): void => {
 // 2 つ目の起動では何も始めない。コンテナを作るだけでワーカーや監視が動き出すため、判定は最初に行う。
 if (claimSingleInstance(app, showWindow)) {
   void app.whenReady().then(() => {
+    setAppLocale(resolveLocale(preferredLanguages()))
     const container = createContainer()
 
     mainWindow = createWindow()

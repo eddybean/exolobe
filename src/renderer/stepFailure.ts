@@ -1,4 +1,18 @@
-import { STEP_LABELS } from './format'
+import type { ErrorReason } from '@domain/errors'
+import { stepLabel } from '@shared/i18n/steps'
+import { failureText } from './i18n/failure'
+import { locale, localized } from './i18n/locale'
+
+const text = localized({
+  ja: {
+    unknownCause: '原因を特定できませんでした。',
+    failed: (label: string, message: string) => `${label}が失敗しました: ${message}`
+  },
+  en: {
+    unknownCause: 'The cause could not be determined.',
+    failed: (label: string, message: string) => `${label} failed: ${message}`
+  }
+})
 
 export interface StepFailure {
   readonly label: string
@@ -13,14 +27,14 @@ export interface StepFailure {
  */
 export const stepFailure = (
   step: string,
-  state: { status: string; error?: string } | undefined
+  state: { status: string; error?: string; reason?: ErrorReason } | undefined
 ): StepFailure | undefined => {
   if (state?.status !== 'failed') return undefined
 
   return {
-    label: STEP_LABELS[step] ?? step,
+    label: stepLabel(step, locale()),
     // 原因不明のままツールチップを空にすると、失敗の理由を探す手掛かりごと消える。
-    message: state.error ?? '原因を特定できませんでした。'
+    message: failureText(state) ?? text().unknownCause
   }
 }
 
@@ -28,13 +42,13 @@ export const stepFailure = (
  * ツールチップとコピーに渡す本文。
  *
  * バッヂ内では 340px で省略されて読めなかったので、ここでは一切切り詰めない。
- * ホバーだけで文脈が分かるようステップ名を前置するが、infrastructure 側は既に
- * 「文字起こしに失敗しました: …」の形で投げてくるので、二重に名乗らせない。
+ * ホバーだけで文脈が分かるようステップ名を前置するが、失敗の文言の多くは既に
+ * 「文字起こしに失敗しました: …」の形なので、二重に名乗らせない。
  */
 export const failureTooltip = (failure: StepFailure): string =>
   failure.message.includes(failure.label)
     ? failure.message
-    : `${failure.label}が失敗しました: ${failure.message}`
+    : text().failed(failure.label, failure.message)
 
 /** 失敗を出す場所。そのステップが作るはずだったものが本来出る欄。 */
 export type FailureArea = 'transcript' | 'summary' | 'audio'
@@ -54,7 +68,9 @@ const FAILURE_AREAS: ReadonlyArray<readonly [string, FailureArea]> = [
 /** その欄に出す失敗を、パイプラインの順に返す。 */
 export const failuresIn = (
   area: FailureArea,
-  steps: Readonly<Record<string, { status: string; error?: string } | undefined>>
+  steps: Readonly<
+    Record<string, { status: string; error?: string; reason?: ErrorReason } | undefined>
+  >
 ): Array<StepFailure & { readonly step: string }> =>
   FAILURE_AREAS.flatMap(([step, stepArea]) => {
     const failure = stepArea === area ? stepFailure(step, steps[step]) : undefined
@@ -71,6 +87,6 @@ export const queuedIn = (
 ): Array<{ readonly step: string; readonly label: string }> =>
   FAILURE_AREAS.flatMap(([step, stepArea]) =>
     stepArea === area && steps[step]?.status === 'queued'
-      ? [{ step, label: STEP_LABELS[step] ?? step }]
+      ? [{ step, label: stepLabel(step, locale()) }]
       : []
   )

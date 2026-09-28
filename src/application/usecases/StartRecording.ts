@@ -33,14 +33,12 @@ export class StartRecording {
 
   async execute(params: { title?: string }): Promise<Recording> {
     if (this.deps.capture.isActive()) {
-      throw new RecordingStateError('すでに録音中です。')
+      throw new RecordingStateError({ code: 'alreadyRecording' })
     }
 
     const settings = await this.deps.settings.load()
     if (!isConfigured(settings)) {
-      throw new ConfigurationError(
-        '保存先が設定されていません。設定画面から保存先を選んでください。'
-      )
+      throw new ConfigurationError({ code: 'storageNotConfigured' })
     }
 
     const draft = createRecording({ id: this.deps.ids.next(), startedAt: this.deps.clock.now() })

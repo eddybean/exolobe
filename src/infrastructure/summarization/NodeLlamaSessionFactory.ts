@@ -64,7 +64,7 @@ export class NodeLlamaSessionFactory implements LlmSessionFactory {
       }
     } catch (error: unknown) {
       throw new ModelLoadError(
-        `要約モデルを読み込めませんでした（${config.modelPath}）: ${toMessage(error)}`,
+        { code: 'summaryModelLoadFailed', path: config.modelPath, detail: toMessage(error) },
         { cause: error }
       )
     }

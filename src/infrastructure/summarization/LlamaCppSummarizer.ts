@@ -129,12 +129,10 @@ export class LlamaCppSummarizer implements SummarizationPort {
     promptTemplate: string
   }): Promise<string> {
     if (!this.config.modelPath) {
-      throw new SummarizationError(
-        '要約モデルが設定されていません。設定画面でモデルを選んでください。'
-      )
+      throw new SummarizationError({ code: 'summaryModelNotConfigured' })
     }
     if (params.transcript.trim().length === 0) {
-      throw new SummarizationError('文字起こしが空のため要約できません。')
+      throw new SummarizationError({ code: 'summaryTranscriptEmpty' })
     }
 
     const session = await this.factory.create(this.config)

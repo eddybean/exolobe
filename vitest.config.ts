@@ -28,6 +28,7 @@ export default defineConfig({
     // tests/manual は実機の権限（TCC）と鳴っている音が要るので、CI と
     // 普段の npm test からは外す。走らせるのは npm run test:manual。
     exclude: [...configDefaults.exclude, 'tests/manual/**'],
+    setupFiles: ['tests/setup.ts'],
     env
   }
 })

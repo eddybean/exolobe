@@ -50,29 +50,24 @@ describe('unsupportedImportReason', () => {
   })
 
   it('音声として使われるが開けない形式は名指しで断る', () => {
-    const reason = unsupportedImportReason('/x/会議.webm')
-
-    expect(reason).toContain('会議.webm')
-    expect(reason).toContain('.webm')
-    // 変換してもらう案内までを示す。
-    expect(reason).toContain('mp3')
+    expect(unsupportedImportReason('/x/会議.webm')).toEqual({
+      code: 'importUnreadableFormat',
+      fileName: '会議.webm',
+      extension: 'webm'
+    })
   })
 
-  /** ffmpeg の同梱は別の決定なので、利用者に ffmpeg を求める文面にはしない。 */
-  it('断る理由で ffmpeg に言及しない', () => {
-    for (const path of ['/x/a.webm', '/x/a.mkv', '/x/a.mov', '/x/a.wma', '/x/memo.txt']) {
-      expect(unsupportedImportReason(path)).not.toContain('ffmpeg')
-    }
-  })
-
-  it('音声ではない拡張子は取り込める形式を添えて断る', () => {
-    const reason = unsupportedImportReason('/x/memo.txt')
-
-    expect(reason).toContain('memo.txt')
-    expect(reason).toContain('mp3')
+  it('音声ではない拡張子は音声として扱えないと断る', () => {
+    expect(unsupportedImportReason('/x/memo.txt')).toEqual({
+      code: 'importNotAudio',
+      fileName: 'memo.txt'
+    })
   })
 
   it('拡張子が無ければ判別できないことを伝える', () => {
-    expect(unsupportedImportReason('/x/recording')).toContain('拡張子')
+    expect(unsupportedImportReason('/x/recording')).toEqual({
+      code: 'importNoExtension',
+      fileName: 'recording'
+    })
   })
 })

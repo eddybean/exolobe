@@ -5,6 +5,8 @@ import type { SyncSearchIndexResult } from '@application/usecases/search'
 import type { SearchHitDto } from '@shared/ipc'
 import type { PipelineWorker } from './PipelineClient'
 import { isSearchWorkerResponse, type SearchWorkerRequest } from './search-protocol'
+import { text } from '../i18n'
+import { errorFromWorker } from './workerError'
 
 interface Waiting {
   resolve: (value: unknown) => void
@@ -112,7 +114,7 @@ export class SearchClient {
           waiting.resolve(message.result)
           break
         case 'error':
-          waiting.reject(new Error(message.message))
+          waiting.reject(errorFromWorker(message))
           break
       }
       this.pending.delete(message.id)
@@ -152,7 +154,7 @@ export class SearchClient {
 
   private rejectPending(): void {
     for (const [, waiting] of this.pending) {
-      waiting.reject(new Error('検索用のプロセスが終了しました。もう一度お試しください。'))
+      waiting.reject(new Error(text().error.searchExited))
     }
     this.pending.clear()
   }

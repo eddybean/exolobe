@@ -68,7 +68,7 @@ export class AudioTeeSource implements SystemAudioSource {
 
   /**
    * TCC による拒否は子プロセスの起動失敗として現れ、原因が伝わりにくい。
-   * 利用者が次に取るべき操作へつながるメッセージに変換する。
+   * 利用者が次に取るべき操作へつながる理由に変換する。
    */
   private describe(error: unknown): Error {
     const message = error instanceof Error ? error.message : String(error)
@@ -77,18 +77,13 @@ export class AudioTeeSource implements SystemAudioSource {
     // 紛らわしいので切り分けて伝える。
     if (/ENOTDIR|ENOENT|spawn/i.test(message)) {
       return new SystemAudioBinaryError(
-        `システム音声の取得プログラムを起動できませんでした（${message}）。` +
-          'アプリの再インストールで解消しない場合は不具合の可能性があります。',
+        { code: 'systemAudioBinary', detail: message },
         { cause: error }
       )
     }
 
     if (/permission|denied|not authorized|tap/i.test(message)) {
-      return new SystemAudioPermissionError(
-        'システム音声を取得できませんでした。「システム設定 > プライバシーとセキュリティ > ' +
-          'オーディオ録音」でこのアプリを許可してください。',
-        { cause: error }
-      )
+      return new SystemAudioPermissionError({ code: 'systemAudioPermission' }, { cause: error })
     }
 
     return error instanceof Error ? error : new Error(message)

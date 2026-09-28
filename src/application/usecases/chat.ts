@@ -78,7 +78,7 @@ const ensureChatMemory = async (deps: AskChatDeps, modelPath: string): Promise<v
         modelFileBytes,
         contextSize: settings.summarization.contextSize
       }),
-      label: 'チャットの回答'
+      task: 'chat'
     },
     protection: settings.memoryProtection
   })
@@ -148,9 +148,7 @@ export class AskChat {
   }): Promise<ChatAnswer> {
     const settings = await this.deps.settings.load()
     if (!settings.summarization.modelPath) {
-      throw new ConfigurationError(
-        'チャットに使うモデルが設定されていません。設定画面で要約モデルを取得してください。'
-      )
+      throw new ConfigurationError({ code: 'chatModelNotConfigured' })
     }
 
     const plan = planChatQuery(params.question, this.deps.clock.now())

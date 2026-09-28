@@ -1,5 +1,6 @@
 import type { SyncSearchIndexResult } from '@application/usecases/search'
 import type { SearchHitDto } from '@shared/ipc'
+import type { WorkerErrorPayload } from './workerError'
 
 /** main ↔ 検索ワーカー間のメッセージ。 */
 
@@ -18,7 +19,7 @@ export type SearchWorkerResponse =
       readonly total: number
     }
   | { readonly type: 'sync-done'; readonly id: string; readonly result: SyncSearchIndexResult }
-  | { readonly type: 'error'; readonly id: string; readonly message: string }
+  | ({ readonly type: 'error'; readonly id: string } & WorkerErrorPayload)
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null

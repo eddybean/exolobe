@@ -64,9 +64,7 @@ export class SettingsStorageLocator implements StorageLocator {
   async root(): Promise<string> {
     const { storageDir } = await this.settings.load()
     if (!storageDir) {
-      throw new ConfigurationError(
-        '保存先が設定されていません。設定画面から保存先を選んでください。'
-      )
+      throw new ConfigurationError({ code: 'storageNotConfigured' })
     }
     return storageDir
   }

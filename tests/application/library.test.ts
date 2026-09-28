@@ -122,7 +122,7 @@ describe('GetRecordingDetail', () => {
 
   it('存在しない録音は開けない', async () => {
     await expect(new GetRecordingDetail(deps).execute('unknown')).rejects.toThrow(
-      '録音が見つかりません: unknown'
+      'recordingNotFound'
     )
   })
 })
@@ -160,7 +160,7 @@ describe('AddBookmark', () => {
   it('存在しない録音には付けられない', async () => {
     await expect(
       new AddBookmark(deps).execute({ recordingId: 'unknown', atMs: 0 })
-    ).rejects.toThrow('録音が見つかりません: unknown')
+    ).rejects.toThrow('recordingNotFound')
   })
 })
 
@@ -175,7 +175,7 @@ describe('UpdateSummary', () => {
   it('存在しない録音の要約は直せない', async () => {
     await expect(
       new UpdateSummary(deps).execute({ recordingId: 'unknown', summary: '要約' })
-    ).rejects.toThrow('録音が見つかりません: unknown')
+    ).rejects.toThrow('recordingNotFound')
   })
 })
 
@@ -202,7 +202,7 @@ describe('RenameRecording', () => {
   it('空のタイトルは拒否する', async () => {
     await expect(
       new RenameRecording(deps).execute({ recordingId: 'rec-1', title: '   ' })
-    ).rejects.toThrow('タイトルを入力してください。')
+    ).rejects.toThrow('titleRequired')
   })
 })
 
@@ -237,7 +237,7 @@ describe('RenameSpeaker', () => {
   it('空の話者名は拒否する', async () => {
     await expect(
       new RenameSpeaker(deps).execute({ recordingId: 'rec-1', speakerId: 'remote:spk0', label: ' ' })
-    ).rejects.toThrow('話者名を入力してください。')
+    ).rejects.toThrow('speakerNameRequired')
   })
 
   it('文字起こしがまだ無ければ拒否する', async () => {
@@ -246,7 +246,7 @@ describe('RenameSpeaker', () => {
 
     await expect(
       new RenameSpeaker(deps).execute({ recordingId: 'rec-2', speakerId: 'self', label: 'A' })
-    ).rejects.toThrow('文字起こしがまだありません。')
+    ).rejects.toThrow('transcriptMissing')
   })
 })
 
@@ -306,20 +306,20 @@ describe('EditSegmentText', () => {
   it('空の本文は拒否する', async () => {
     await expect(
       new EditSegmentText(deps).execute({ recordingId: 'rec-1', index: 0, startMs: 0, text: ' ' })
-    ).rejects.toThrow('本文を入力してください。')
+    ).rejects.toThrow('transcriptTextRequired')
   })
 
   it('画面が見ていたセグメントと開始時刻が食い違えば拒否する', async () => {
     await expect(
       new EditSegmentText(deps).execute({ recordingId: 'rec-1', index: 1, startMs: 0, text: 'x' })
-    ).rejects.toThrow('文字起こしが更新されています。')
+    ).rejects.toThrow('transcriptChanged')
     expect((await artifacts.readTranscript(recording))?.segments).toEqual(segments)
   })
 
   it('範囲外の位置は拒否する', async () => {
     await expect(
       new EditSegmentText(deps).execute({ recordingId: 'rec-1', index: 2, startMs: 0, text: 'x' })
-    ).rejects.toThrow('文字起こしが更新されています。')
+    ).rejects.toThrow('transcriptChanged')
   })
 
   it('話者識別の最中は拒否する（終わったときに古い本文で上書きされるため）', async () => {
@@ -327,7 +327,7 @@ describe('EditSegmentText', () => {
 
     await expect(
       new EditSegmentText(deps).execute({ recordingId: 'rec-1', index: 0, startMs: 0, text: 'x' })
-    ).rejects.toThrow('話者識別が終わるまでお待ちください。')
+    ).rejects.toThrow('transcriptEditBlocked')
   })
 
   it('文字起こしがまだ無ければ拒否する', async () => {
@@ -336,7 +336,7 @@ describe('EditSegmentText', () => {
 
     await expect(
       new EditSegmentText(deps).execute({ recordingId: 'rec-2', index: 0, startMs: 0, text: 'x' })
-    ).rejects.toThrow('文字起こしがまだありません。')
+    ).rejects.toThrow('transcriptMissing')
   })
 })
 
@@ -413,9 +413,9 @@ describe('RememberSpeakerVoice', () => {
 
   it('取り直しが失敗したら理由をそのまま投げる', async () => {
     artifacts.voices.delete(recording.id)
-    voices.error = new ConfigurationError('話者識別が無効なため、この録音から声を覚えられません。')
+    voices.error = new ConfigurationError({ code: 'voiceLearningDiarizationDisabled' })
 
-    await expect(rememberName('田中さん')).rejects.toThrow('話者識別が無効なため')
+    await expect(rememberName('田中さん')).rejects.toThrow('voiceLearningDiarizationDisabled')
   })
 
   it('別の録音で同じ名前を付けると声紋を平均し、出所が増える', async () => {
@@ -490,7 +490,7 @@ describe('DeleteRecording', () => {
 
   it('存在しない録音は削除できない', async () => {
     await expect(new DeleteRecording(deps).execute('unknown')).rejects.toThrow(
-      '録音が見つかりません: unknown'
+      'recordingNotFound'
     )
   })
 })
@@ -511,7 +511,7 @@ describe('UpdateSettings', () => {
 
     await expect(
       new UpdateSettings(settings).execute({ audio: { sampleRate: 12_345 } })
-    ).rejects.toThrow('サンプルレートは')
+    ).rejects.toThrow('invalidSettings')
     expect((await settings.load()).audio.sampleRate).toBe(16_000)
   })
 
@@ -520,7 +520,7 @@ describe('UpdateSettings', () => {
 
     await expect(
       new UpdateSettings(settings).execute({ recording: { silenceDurationMs: 0 } })
-    ).rejects.toThrow('無音を知らせるまでの時間は')
+    ).rejects.toThrow('invalidSettings')
     expect((await settings.load()).recording.silenceDurationMs).toBe(300_000)
   })
 
@@ -529,7 +529,9 @@ describe('UpdateSettings', () => {
 
     await expect(
       new UpdateSettings(settings).execute({ summarization: { promptTemplate: '要約して' } })
-    ).rejects.toThrow('{{transcript}}')
+    ).rejects.toMatchObject({
+      reason: { code: 'invalidSettings', problems: ['promptPlaceholder'] }
+    })
   })
 })
 

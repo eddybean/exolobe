@@ -57,19 +57,17 @@ export class ExtractVoices {
 
     // 空の modelKey は NullSpeakerEmbedder、つまり話者識別が無効かモデルが未取得。
     if (modelKey.length === 0) {
-      throw new ConfigurationError('話者識別が無効なため、この録音から声を覚えられません。')
+      throw new ConfigurationError({ code: 'voiceLearningDiarizationDisabled' })
     }
 
     const transcript = await this.deps.artifacts.readTranscript(recording)
     if (!transcript) {
-      throw new ConfigurationError('文字起こしがまだありません。')
+      throw new ConfigurationError({ code: 'transcriptMissing' })
     }
 
     const turns = voiceTurnsFromTranscript(transcript.segments)
     if (turns.length === 0) {
-      throw new ConfigurationError(
-        'この録音は話者が分かれていないため、声を覚えられません。'
-      )
+      throw new ConfigurationError({ code: 'voiceLearningNoSpeakers' })
     }
 
     const audioPath = await this.deps.artifacts.audioPath(recording)

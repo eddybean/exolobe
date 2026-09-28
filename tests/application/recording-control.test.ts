@@ -67,14 +67,14 @@ describe('StartRecording', () => {
     const ctxUnconfigured = build(new FakeSettingsRepository(defaultSettings()))
 
     await expect(ctxUnconfigured.start.execute({})).rejects.toThrow(
-      '保存先が設定されていません。設定画面から保存先を選んでください。'
+      'storageNotConfigured'
     )
     expect(ctxUnconfigured.capture.isActive()).toBe(false)
   })
 
   it('すでに録音中なら二重に開始しない', async () => {
     await ctx.start.execute({})
-    await expect(ctx.start.execute({})).rejects.toThrow('すでに録音中です。')
+    await expect(ctx.start.execute({})).rejects.toThrow('alreadyRecording')
     expect(ctx.capture.startCalls).toHaveLength(1)
   })
 
@@ -202,11 +202,11 @@ describe('StopRecording', () => {
   })
 
   it('録音中でなければ停止できない', async () => {
-    await expect(ctx.stop.execute('rec-1')).rejects.toThrow('録音中ではありません。')
+    await expect(ctx.stop.execute('rec-1')).rejects.toThrow('notRecording')
   })
 
   it('存在しない録音 ID なら停止できない', async () => {
     await ctx.start.execute({})
-    await expect(ctx.stop.execute('unknown')).rejects.toThrow('録音が見つかりません: unknown')
+    await expect(ctx.stop.execute('unknown')).rejects.toThrow('recordingNotFound')
   })
 })

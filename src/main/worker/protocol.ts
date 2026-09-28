@@ -1,5 +1,6 @@
 import type { PipelineStep } from '@domain/Recording'
 import type { ProgressEventDto, RecordingDto } from '@shared/ipc'
+import type { WorkerErrorPayload } from './workerError'
 
 /** main ↔ パイプラインワーカー間のメッセージ。 */
 
@@ -29,7 +30,7 @@ export type WorkerResponse =
   | { readonly type: 'done'; readonly jobId: string; readonly recording: RecordingDto }
   /** 声紋の取り直しの完了。取れた声紋は録音と一緒に保存済みなので、返すものは無い。 */
   | { readonly type: 'voices-done'; readonly jobId: string }
-  | { readonly type: 'error'; readonly jobId: string; readonly message: string }
+  | ({ readonly type: 'error'; readonly jobId: string } & WorkerErrorPayload)
 
 export const isWorkerRequest = (value: unknown): value is WorkerRequest => {
   if (typeof value !== 'object' || value === null) return false

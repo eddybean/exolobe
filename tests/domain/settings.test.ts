@@ -92,20 +92,20 @@ describe('validateSettings', () => {
   it('サポート外のサンプルレートを弾く', () => {
     const settings = mergeSettings(defaultSettings(), { audio: { sampleRate: 12_345 } })
     expect(validateSettings(settings)).toContain(
-      'サンプルレートは 8000, 16000, 22050, 24000, 32000, 44100, 48000 のいずれかを指定してください。'
+      'sampleRate'
     )
   })
 
   it('話者数の上限が 2 未満なら弾く', () => {
     const settings = mergeSettings(defaultSettings(), { diarization: { maxSpeakers: 1 } })
-    expect(validateSettings(settings)).toContain('話者数の上限は 2 以上を指定してください。')
+    expect(validateSettings(settings)).toContain('maxSpeakers')
   })
 
   it('声紋の一致閾値が範囲外なら弾く', () => {
     for (const voiceprintThreshold of [0, 1.2]) {
       const settings = mergeSettings(defaultSettings(), { diarization: { voiceprintThreshold } })
       expect(validateSettings(settings)).toContain(
-        '声紋の一致閾値は 0 より大きく 1 以下の値を指定してください。'
+        'voiceprintThreshold'
       )
     }
   })
@@ -114,7 +114,7 @@ describe('validateSettings', () => {
     for (const clusteringThreshold of [0, 1.2]) {
       const settings = mergeSettings(defaultSettings(), { diarization: { clusteringThreshold } })
       expect(validateSettings(settings)).toContain(
-        '話者を分ける近さは 0 より大きく 1 以下の値を指定してください。'
+        'clusteringThreshold'
       )
     }
   })
@@ -132,7 +132,7 @@ describe('validateSettings', () => {
       summarization: { promptTemplate: '要約してください。' }
     })
     expect(validateSettings(settings)).toContain(
-      '要約プロンプトには文字起こしの差し込み位置 {{transcript}} を含めてください。'
+      'promptPlaceholder'
     )
   })
 })
@@ -209,7 +209,7 @@ describe('startAlert', () => {
     const settings = { ...base, recording: { ...base.recording, startAlertDelayMs: 10_000 } }
 
     expect(validateSettings(settings)).toContain(
-      '録音を促すまでの時間は 30 秒以上を指定してください。'
+      'startAlertDelay'
     )
   })
 })
@@ -234,6 +234,6 @@ describe('silenceAlert', () => {
   it('短すぎる無音時間を弾く', () => {
     const settings = mergeSettings(defaultSettings(), { recording: { silenceDurationMs: 30_000 } })
 
-    expect(validateSettings(settings)).toContain('無音を知らせるまでの時間は 1 分以上を指定してください。')
+    expect(validateSettings(settings)).toContain('silenceDuration')
   })
 })

@@ -155,7 +155,7 @@ export class RenameRecording {
     const recording = await findOrThrow(this.deps.repository, params.recordingId)
     const title = params.title.trim()
     if (title.length === 0) {
-      throw new ConfigurationError('タイトルを入力してください。')
+      throw new ConfigurationError({ code: 'titleRequired' })
     }
 
     const renamed: Recording = { ...recording, title }
@@ -181,12 +181,12 @@ export class RenameSpeaker {
     const recording = await findOrThrow(this.deps.repository, params.recordingId)
     const transcript = await this.deps.artifacts.readTranscript(recording)
     if (!transcript) {
-      throw new ConfigurationError('文字起こしがまだありません。')
+      throw new ConfigurationError({ code: 'transcriptMissing' })
     }
 
     const label = params.label.trim()
     if (label.length === 0) {
-      throw new ConfigurationError('話者名を入力してください。')
+      throw new ConfigurationError({ code: 'speakerNameRequired' })
     }
 
     const speakers = transcript.speakers.map((speaker) =>
@@ -230,18 +230,18 @@ export class EditSegmentText {
 
     const transcript = await this.deps.artifacts.readTranscript(recording)
     if (!transcript) {
-      throw new ConfigurationError('文字起こしがまだありません。')
+      throw new ConfigurationError({ code: 'transcriptMissing' })
     }
 
     // transcript.md は 1 発言を 1 行に書く。貼り付けなどで混ざった改行は空白に畳む。
     const text = params.text.replace(/\s*[\r\n]+\s*/g, ' ').trim()
     if (text.length === 0) {
-      throw new ConfigurationError('本文を入力してください。')
+      throw new ConfigurationError({ code: 'transcriptTextRequired' })
     }
 
     const target = transcript.segments[params.index]
     if (!target || target.startMs !== params.startMs) {
-      throw new ConfigurationError('文字起こしが更新されています。画面を開き直してください。')
+      throw new ConfigurationError({ code: 'transcriptChanged' })
     }
 
     const segments = transcript.segments.map((segment, index) =>
@@ -350,9 +350,9 @@ export class UpdateSettings {
 
   async execute(patch: SettingsPatch): Promise<Settings> {
     const current = await this.settings.load()
-    const errors = validateSettings(mergeSettings(current, patch))
-    if (errors.length > 0) {
-      throw new ConfigurationError(errors.join('\n'))
+    const problems = validateSettings(mergeSettings(current, patch))
+    if (problems.length > 0) {
+      throw new ConfigurationError({ code: 'invalidSettings', problems })
     }
 
     return this.settings.save(patch)

@@ -103,7 +103,7 @@ describe('ImportAudioFile — 断る場合', () => {
     const ctx = build(new FakeSettingsRepository(defaultSettings()))
 
     await expect(ctx.importAudioFile.execute({ filePath: SOURCE })).rejects.toThrow(
-      '保存先が設定されていません'
+      'storageNotConfigured'
     )
     expect(ctx.repository.records.size).toBe(0)
   })
@@ -112,7 +112,9 @@ describe('ImportAudioFile — 断る場合', () => {
     const ctx = build()
     ctx.files.entries.set('/x/会議.webm', { sizeBytes: 1, modifiedAt })
 
-    await expect(ctx.importAudioFile.execute({ filePath: '/x/会議.webm' })).rejects.toThrow('.webm')
+    await expect(ctx.importAudioFile.execute({ filePath: '/x/会議.webm' })).rejects.toMatchObject({
+      reason: { code: 'importUnreadableFormat', fileName: '会議.webm', extension: 'webm' }
+    })
     expect(ctx.decoder.calls).toEqual([])
     expect(ctx.repository.records.size).toBe(0)
   })
@@ -121,7 +123,7 @@ describe('ImportAudioFile — 断る場合', () => {
     const ctx = build()
 
     await expect(ctx.importAudioFile.execute({ filePath: '/x/missing.mp3' })).rejects.toThrow(
-      '読み取れません'
+      'fileUnreadable'
     )
     expect(ctx.repository.records.size).toBe(0)
   })
@@ -143,7 +145,7 @@ describe('ImportAudioFile — 断る場合', () => {
     ctx.decoder.durationMs = MINIMUM_RECORDING_MS - 1_000
 
     await expect(ctx.importAudioFile.execute({ filePath: SOURCE })).rejects.toThrow(
-      '1 分未満の録音は処理しません'
+      'tooShortRecording'
     )
     expect(ctx.repository.records.size).toBe(0)
     expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])

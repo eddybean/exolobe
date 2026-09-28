@@ -184,7 +184,7 @@ const single = (asset: ManagedAsset): ModelPackage => ({
 
 const assetOf = (id: ManagedAssetId): ManagedAsset => {
   const asset = findAsset(id)
-  if (!asset) throw new Error(`カタログに無いファイルです: ${id}`)
+  if (!asset) throw new Error(`Asset is not in the catalog: ${id}`)
   return asset
 }
 

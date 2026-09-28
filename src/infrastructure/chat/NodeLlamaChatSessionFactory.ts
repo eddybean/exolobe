@@ -99,7 +99,7 @@ export class NodeLlamaChatSessionFactory implements ChatLlmSessionFactory {
       }
     } catch (error: unknown) {
       throw new ChatModelLoadError(
-        `チャット用のモデルを読み込めませんでした（${config.modelPath}）: ${toMessage(error)}`,
+        { code: 'chatModelLoadFailed', path: config.modelPath, detail: toMessage(error) },
         { cause: error }
       )
     }

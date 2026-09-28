@@ -104,7 +104,7 @@ describe('estimateEmbeddingBytes', () => {
 
 describe('insufficientMemory', () => {
   const total = 16 * GB
-  const demand = { bytes: 7 * GB, label: '要約' }
+  const demand = { bytes: 7 * GB, task: 'summarize' as const }
 
   it('余白を含めて足りていれば通す', () => {
     const snapshot = { totalBytes: total, availableBytes: 12 * GB }
@@ -112,14 +112,15 @@ describe('insufficientMemory', () => {
     expect(insufficientMemory({ snapshot, demand, protection: 'standard' })).toBeUndefined()
   })
 
-  it('足りなければ理由を日本語で返す', () => {
+  it('足りなければ、何をどれだけ必要としたかを理由として返す', () => {
     const snapshot = { totalBytes: total, availableBytes: 3 * GB }
-    const message = insufficientMemory({ snapshot, demand, protection: 'standard' })
 
-    expect(message).toBeDefined()
-    expect(message).toContain('要約')
-    // 利用者が次に何をすればよいか分かること。
-    expect(message).toContain('再実行')
+    expect(insufficientMemory({ snapshot, demand, protection: 'standard' })).toEqual({
+      code: 'insufficientMemory',
+      task: 'summarize',
+      requiredBytes: 7 * GB,
+      availableBytes: 3 * GB
+    })
   })
 
   it('オフならどれだけ足りなくても通す', () => {
@@ -141,7 +142,7 @@ describe('insufficientMemory', () => {
     // 別に効いているので、事前チェックの余白は OS の揺れを吸う程度でよい。
     const summarize = {
       bytes: estimateSummarizationBytes({ modelFileBytes: GEMMA_BYTES, contextSize: 32_768 }),
-      label: '要約'
+      task: 'summarize' as const
     }
     const snapshot = { totalBytes: total, availableBytes: summarize.bytes + 0.9 * GB }
 
@@ -155,7 +156,7 @@ describe('insufficientMemory', () => {
     // OS を守る余白は node-llama-cpp の内蔵ガードが持つので、標準は見積もりだけで判定する。
     const summarize = {
       bytes: estimateSummarizationBytes({ modelFileBytes: GEMMA_BYTES, contextSize: 32_768 }),
-      label: '要約'
+      task: 'summarize' as const
     }
     const snapshot = { totalBytes: total, availableBytes: 7_600_000_000 }
 
