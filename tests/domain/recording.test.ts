@@ -5,6 +5,7 @@ import {
   failStep,
   finishRecording,
   initialStepStates,
+  interruptSteps,
   isProcessing,
   nextPendingStep,
   overallStatus,
@@ -83,6 +84,23 @@ describe('ステップの状態遷移', () => {
   it('実行中のステップがあれば processing を返す', () => {
     expect(isProcessing(startStep(initialStepStates(), 'mix'))).toBe(true)
     expect(overallStatus(startStep(initialStepStates(), 'mix'))).toBe('processing')
+  })
+})
+
+describe('interruptSteps', () => {
+  it('実行中のまま残ったステップを失敗にし、他のステップには触れない', () => {
+    const steps = startStep(
+      succeedStep(failStep(initialStepStates(), 'diarize', '前の失敗'), 'mix'),
+      'summarize'
+    )
+
+    const interrupted = interruptSteps(steps, 'プロセスが終了しました')
+
+    expect(interrupted.summarize).toEqual({ status: 'failed', error: 'プロセスが終了しました' })
+    expect(interrupted.mix).toEqual({ status: 'done' })
+    expect(interrupted.diarize).toEqual({ status: 'failed', error: '前の失敗' })
+    expect(interrupted.encode).toEqual({ status: 'pending' })
+    expect(isProcessing(interrupted)).toBe(false)
   })
 })
 

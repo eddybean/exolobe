@@ -123,6 +123,19 @@ export const succeedStep = (steps: StepStates, step: PipelineStep): StepStates =
 export const failStep = (steps: StepStates, step: PipelineStep, error: string): StepStates =>
   setStep(steps, step, { status: 'failed', error })
 
+/**
+ * 実行中のまま残ったステップを失敗にする。
+ *
+ * ステップは開始時点で running として保存するので、処理プロセスやアプリが途中で
+ * 終わるとそのまま残る。running は再実行の対象にならず overallStatus も processing を
+ * 返し続けるため、動いているものが無いと分かった時点で失敗に倒して再実行できるようにする。
+ */
+export const interruptSteps = (steps: StepStates, error: string): StepStates =>
+  PIPELINE_STEPS.reduce(
+    (acc, step) => (acc[step].status === 'running' ? failStep(acc, step, error) : acc),
+    steps
+  )
+
 /** 次に実行すべきステップ。全て完了、または失敗で止まっている場合は undefined。 */
 export const nextPendingStep = (steps: StepStates): PipelineStep | undefined =>
   PIPELINE_STEPS.find((step) => steps[step].status === 'pending')

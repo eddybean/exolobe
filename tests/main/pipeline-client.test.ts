@@ -139,6 +139,76 @@ describe('PipelineClient', () => {
     await expect(second).resolves.toMatchObject({ id: 'r1' })
   })
 
+  describe('ワーカーが落ちたときの後始末', () => {
+    const setupWithRecovery = (
+      recover: () => Promise<void>
+    ): { client: PipelineClient; workers: FakeWorker[] } => {
+      const workers: FakeWorker[] = []
+      const client = new PipelineClient(
+        () => undefined,
+        () => {
+          const worker = new FakeWorker()
+          workers.push(worker)
+          return worker
+        },
+        recover
+      )
+      return { client, workers }
+    }
+
+    it('実行中のまま残った状態を直し終えてから、ジョブを失敗させて次のジョブへ進む', async () => {
+      let finishRecovery = (): void => undefined
+      const recovered = new Promise<void>((resolve) => (finishRecovery = resolve))
+      const order: string[] = []
+      const { client, workers } = setupWithRecovery(async () => {
+        order.push('recover')
+        await recovered
+      })
+
+      const first = client.run({ recordingId: 'r1' }).catch(() => order.push('rejected'))
+      const second = client.run({ recordingId: 'r2' })
+      workers[0]?.emit('exit', 1)
+
+      // 直している間に次のジョブが走り出すと、そのステップの running まで失敗にしてしまう。
+      expect(workers).toHaveLength(1)
+
+      finishRecovery()
+      await first
+      expect(order).toEqual(['recover', 'rejected'])
+      expect(workers).toHaveLength(2)
+
+      workers[1]?.complete(workers[1].sent[0]?.jobId ?? '')
+      await second
+    })
+
+    it('直すのに失敗しても列は止めない', async () => {
+      const { client, workers } = setupWithRecovery(async () => {
+        throw new Error('書けませんでした')
+      })
+
+      const first = client.run({ recordingId: 'r1' })
+      const second = client.run({ recordingId: 'r2' })
+      workers[0]?.emit('exit', 1)
+
+      await expect(first).rejects.toThrow('処理プロセスが終了しました')
+      workers[1]?.complete(workers[1].sent[0]?.jobId ?? '')
+      await second
+    })
+
+    it('自分で終わらせたワーカーでは直さない（ジョブは片付いている）', async () => {
+      const calls: string[] = []
+      const { client, workers } = setupWithRecovery(async () => {
+        calls.push('recover')
+      })
+
+      const job = client.run({ recordingId: 'r1' })
+      workers[0]?.complete(workers[0].sent[0]?.jobId ?? '')
+      await job
+
+      expect(calls).toEqual([])
+    })
+  })
+
   it('ジョブを抱えている間だけ busy を知らせる（検索の同期を譲らせるため）', async () => {
     const { client, workers } = setup()
     const changes: boolean[] = []
