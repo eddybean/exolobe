@@ -214,11 +214,13 @@ export class ProcessRecording {
       return failStep(steps, step, shortage)
     }
 
-    this.deps.progress.report({ recordingId: recording.id, step, status: 'running' })
-
     // 途中でアプリが落ちても「実行中で止まった」ことが分かるよう、開始時点で保存する。
+    // 知らせるのは保存の後。知らせを受けた画面はすぐ読み直すので、先に知らせると
+    // 前回の失敗を読んで出し直し、完了まで読み直す合図が来ないまま失敗と出続ける。
     const running = startStep(steps, step)
     await this.saveSteps(recording, running, 'processing')
+
+    this.deps.progress.report({ recordingId: recording.id, step, status: 'running' })
 
     try {
       await this.executeStep(step, context)

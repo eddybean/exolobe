@@ -345,6 +345,28 @@ describe('ProcessRecording — 個別リトライ', () => {
     expect(result.status).toBe('ready')
   })
 
+  it('実行中と知らせる時点で、保存された状態も実行中になっている', async () => {
+    // 知らせを受けた画面はすぐ読み直す。保存が後だと前回の失敗を読んで出し直し、
+    // その後は完了まで読み直す合図が来ないので、動いているのに失敗と出続ける。
+    const ctx = await build()
+    ctx.summarizer.error = new Error('要約モデルが読み込めません')
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    ctx.summarizer.clearError()
+
+    const storedAtRunning: (string | undefined)[] = []
+    const report = ctx.progress.report.bind(ctx.progress)
+    ctx.progress.report = (event) => {
+      if (event.status === 'running' && event.fraction === undefined) {
+        storedAtRunning.push(ctx.repository.records.get('rec-1')?.steps[event.step].status)
+      }
+      report(event)
+    }
+
+    await ctx.process.execute({ recordingId: 'rec-1', only: ['summarize'] })
+
+    expect(storedAtRunning).toEqual(['running'])
+  })
+
   it('中間ファイルを片付けた後でも要約は再実行できる（要約はトラックを読まない）', async () => {
     const ctx = await build()
     ctx.summarizer.error = new Error('要約モデルが読み込めません')
