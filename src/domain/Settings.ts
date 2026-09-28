@@ -218,9 +218,29 @@ export interface ChatSettings {
   readonly maxRecordings: number
 }
 
+/**
+ * 画面の明暗。`system` は OS の設定（外観）に従う。
+ *
+ * 会議中に画面共有するとき、OS はダークのままアプリだけ明るくしたい、という使い方がある。
+ */
+export type Appearance = 'system' | 'light' | 'dark'
+
+export const APPEARANCES: readonly Appearance[] = ['system', 'light', 'dark']
+
+const isAppearance = (value: unknown): value is Appearance =>
+  APPEARANCES.includes(value as Appearance)
+
+/**
+ * 反映する明暗。読み込んだ設定は検証を通らないので、知らない値（新しい版が足したもの）なら
+ * OS に従う。そのまま Electron に渡すと例外で起動が止まる。
+ */
+export const appearanceOf = (settings: Settings): Appearance =>
+  isAppearance(settings.appearance) ? settings.appearance : 'system'
+
 export interface Settings {
   /** ユーザーが初期設定で選ぶ保存先。未選択なら null。 */
   readonly storageDir: string | null
+  readonly appearance: Appearance
   /**
    * 重い推論の前に空きメモリを確認する強さ。
    *
@@ -243,6 +263,7 @@ export interface Settings {
  */
 export type SettingsPatch = {
   readonly storageDir?: string | null | undefined
+  readonly appearance?: Appearance | undefined
   readonly memoryProtection?: MemoryProtection | undefined
   readonly recording?: Partial<RecordingSettings>
   readonly transcription?: Partial<TranscriptionSettings>
@@ -259,6 +280,7 @@ export type SettingsPatch = {
  */
 export const defaultSettings = (language: MeetingLanguage): Settings => ({
   storageDir: null,
+  appearance: 'system',
   memoryProtection: 'standard',
   recording: {
     silenceAlertEnabled: true,
@@ -327,6 +349,7 @@ const mergeGroup = <T extends object>(base: T, patch: Partial<T> | undefined): T
 
 export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings => ({
   storageDir: patch.storageDir === undefined ? base.storageDir : patch.storageDir,
+  appearance: patch.appearance === undefined ? base.appearance : patch.appearance,
   memoryProtection:
     patch.memoryProtection === undefined ? base.memoryProtection : patch.memoryProtection,
   recording: mergeGroup(base.recording, patch.recording),
@@ -359,6 +382,7 @@ export const validateSettings = (settings: Settings): SettingsProblem[] => {
   ) {
     problems.push('clusteringThreshold')
   }
+  if (!isAppearance(settings.appearance)) problems.push('appearance')
   if (!isMemoryProtection(settings.memoryProtection)) problems.push('memoryProtection')
   if (settings.summarization.contextSize < 1_024) problems.push('contextSize')
   if (!settings.summarization.promptTemplate.includes(TRANSCRIPT_PLACEHOLDER)) {

@@ -1,5 +1,13 @@
 import { basename } from 'node:path'
-import { BrowserWindow, dialog, ipcMain, shell, systemPreferences, type FileFilter } from 'electron'
+import {
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  nativeTheme,
+  shell,
+  systemPreferences,
+  type FileFilter
+} from 'electron'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import { ConfigurationError, RecordingStateError, reasonOf, type ErrorReason } from '@domain/errors'
 import { IMPORTABLE_EXTENSIONS } from '@domain/AudioImport'
@@ -35,6 +43,7 @@ import {
 } from '@shared/ipc'
 import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import { startAlertMessage } from '@shared/startAlert'
+import { applyAppearance } from '../appearance'
 import type { Container } from '../container'
 import { createVoiceLearning } from '../voiceLearning'
 import { createSearchSyncScheduler } from '../searchSyncScheduler'
@@ -877,6 +886,7 @@ export const registerIpcHandlers = (
   handle(IPC.updateSettings, async (patch: unknown) => {
     const before = await container.settings.load()
     const settings = await container.updateSettings.execute(patch as SettingsPatch)
+    applyAppearance(nativeTheme, settings)
     // 開始忘れの見張りは録音していない間ずっと動いているので、設定の変更を
     // 次の録音まで待たずにここで反映する。
     if (!active) await startStartWatch()

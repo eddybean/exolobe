@@ -1,4 +1,4 @@
-/* macOS のシステム UI に馴染ませ、ライト／ダークの両方に自動で追従させる。 */
+/* macOS のシステム UI に馴染ませる。明暗は main が nativeTheme.themeSource で決め（設定の外観）、prefers-color-scheme がそれに従う。 */
 :root {
   color-scheme: light dark;
 

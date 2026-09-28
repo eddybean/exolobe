@@ -2,7 +2,9 @@ import { useState, type ReactElement, type ReactNode } from 'react'
 import { formatGlossary, parseGlossary } from '@domain/Glossary'
 import { type MemoryProtection } from '@domain/MemoryGuard'
 import {
+  APPEARANCES,
   SUPPORTED_SAMPLE_RATES,
+  type Appearance,
   settingsSummaryPrompt,
   type Settings,
   type SettingsPatch
@@ -428,6 +430,22 @@ export const SettingsView = ({
           </Field>
         </SettingsCard>
       </>
+    ),
+    appearance: (
+      <SettingsCard>
+        <Field label={t.appearance.label} hint={t.appearance.hint}>
+          <select
+            value={settings.appearance}
+            onChange={(event) => update({ appearance: event.target.value as Appearance })}
+          >
+            {APPEARANCES.map((appearance) => (
+              <option key={appearance} value={appearance}>
+                {t.appearance[appearance]}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </SettingsCard>
     ),
     about: <LicenseNotices />
   }

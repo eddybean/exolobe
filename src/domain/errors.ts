@@ -12,6 +12,7 @@ export type SettingsProblem =
   | 'maxSpeakers'
   | 'voiceprintThreshold'
   | 'clusteringThreshold'
+  | 'appearance'
   | 'memoryProtection'
   | 'contextSize'
   | 'promptPlaceholder'
