@@ -44,7 +44,11 @@ npx vitest run -t "テスト名の一部"
 - whisper-cli は「設定のパス（既定値 `whisper-cli` 以外）→ 同梱バイナリ → PATH」の順に解決する。
   `npm run setup` が入れる Homebrew 版は Core ML 無しなので、Core ML の高速化を開発中に
   確かめるときは `npm run build:whisper` のビルドを設定でパス指定する（ADR-007 / ADR-026）。
-- リリースは `v*` タグの push で `.github/workflows/release.yml` が .dmg を作る。Secrets に
+- リリースは Actions の **Bump version**（手動実行）が版上げの PR を作り、マージで `tag-release.yml` が
+  タグを打って `release.yml` を起動する（手元からの `v*` タグの push でも動く）。GITHUB_TOKEN の push は
+  他のワークフローを起動しないため、CI と Release は `gh workflow run` で明示的に起動している。
+  whisper-cli と node_modules のキャッシュは **main の CI が作り、Release は読むだけ**（タグの実行が
+  保存したキャッシュは次のタグから見えない）。キーは `ci.yml` と `release.yml` で揃える。Secrets に
   `MAC_CERT_P12_BASE64` / `MAC_CERT_PASSWORD`（署名）と `APPLE_ID` /
   `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`（公証）が揃えば正式に署名・公証し、
   無ければ ad-hoc 署名になる。

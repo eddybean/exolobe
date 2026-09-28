@@ -35,9 +35,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
+
+      # タグ上で保存したキャッシュは次のタグから見えないので、main の CI が作った分を
+      # 読むだけにする（ここで保存しても使われず、後処理の時間だけがかかる）。
+      # キーは ci.yml と揃える。
+      - name: node_modules のキャッシュを復元
+        id: node-modules-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
 
       - name: 依存関係をインストール
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: 型チェック
@@ -46,17 +56,27 @@ jobs:
       - name: テスト
         run: npm test
 
-      # whisper.cpp のビルドは数分かかるため、バージョンが変わらない限り使い回す。
+      # whisper.cpp のビルドは時間がかかるため、main の CI が作ったものを使い回す。
+      # 対象は whisper-cli だけにする。resources/bin ごとにすると、キーに表れない
+      # micwatch / calendarevents の古いものが復元され、build-*.sh が「既にある」と
+      # 判断して作り直さない。キーは ci.yml と揃える。
       - name: whisper-cli のキャッシュを復元
         id: whisper-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
-          path: resources/bin
+          path: resources/bin/whisper-cli
           key: whisper-${{ runner.os }}-${{ runner.arch }}-${{ env.WHISPER_VERSION }}-${{ hashFiles('scripts/build-whisper.sh') }}
 
       - name: whisper-cli をビルド
         if: steps.whisper-cache.outputs.cache-hit != 'true'
         run: npm run build:whisper
+
+      # 見つからなければアプリは黙って開始忘れの見張り・カレンダー連携を無効にする
+      # （resolve*Binary.ts）ため、同梱漏れは画面からは気付けない。数秒で済むので毎回作る。
+      - name: micwatch / calendarevents をビルド
+        run: |
+          npm run build:micwatch
+          npm run build:calendarevents
 
       - name: アプリをビルド
         run: npx electron-vite build
@@ -103,6 +123,10 @@ jobs:
           echo "アプリ: $APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
           codesign --display --entitlements - "$APP" | head -40
+          # 同梱バイナリが欠けてもアプリは起動してしまうので、ここで止める。
+          for bin in whisper-cli micwatch calendarevents; do
+            test -x "$APP/Contents/Resources/bin/$bin" || { echo "::error::$bin が同梱されていません"; exit 1; }
+          done
 
       - name: チェックサムを作成
         working-directory: release
