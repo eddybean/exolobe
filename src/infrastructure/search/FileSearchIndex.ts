@@ -191,7 +191,7 @@ export class FileSearchIndex implements SearchIndexPort {
 
   private pathFor(recordingId: string): string {
     if (!SAFE_ID.test(recordingId)) {
-      throw new Error(`索引に使えない録音 ID です: ${recordingId}`)
+      throw new Error(`Invalid recording ID for the search index: ${recordingId}`)
     }
     return join(this.root, `${recordingId}${EXTENSION}`)
   }

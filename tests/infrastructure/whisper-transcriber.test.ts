@@ -63,6 +63,30 @@ describe('parseWhisperJson', () => {
     expect(parseWhisperJson(raw, 'self').map((s) => s.text)).toEqual(['来週の予定を確認します'])
   })
 
+  /** 英語の会議でも無音から同じ種類の定型句が生まれる。大文字小文字は揺れるので問わない。 */
+  it('英語の定型のハルシネーションも除去する', () => {
+    const raw = whisperJson([
+      { from: 0, to: 2000, text: ' Thank you for watching!' },
+      { from: 2000, to: 4000, text: 'Thanks for watching.' },
+      { from: 4000, to: 6000, text: 'Please subscribe to my channel.' },
+      { from: 6000, to: 8000, text: "Let's review next week's schedule." }
+    ])
+
+    expect(parseWhisperJson(raw, 'self').map((s) => s.text)).toEqual([
+      "Let's review next week's schedule."
+    ])
+  })
+
+  it('英語でも、定型句を含むだけの本物の発話と短い汎用語は消さない', () => {
+    const raw = whisperJson([
+      { from: 0, to: 2000, text: 'Thank you for watching the demo, everyone.' },
+      { from: 2000, to: 4000, text: 'Thank you.' },
+      { from: 4000, to: 6000, text: 'Bye.' }
+    ])
+
+    expect(parseWhisperJson(raw, 'remote')).toHaveLength(3)
+  })
+
   it('ブロックリストの語を含むだけの本物の発話は消さない', () => {
     // 完全一致だけを落とすので、会議で実際に交わされる言葉は残る。
     const raw = whisperJson([

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import type { SearchIndexStatusDto } from '@shared/ipc'
 import { messageOf } from '../errorMessage'
+import { semanticSearchText } from '../i18n/semanticSearch'
 import { searchIndexSummary } from '../library/semanticSearch'
 
 /**
@@ -17,6 +18,7 @@ export const SemanticSearchSettings = ({
   enabled: boolean
   onToggle: (enabled: boolean) => void
 }): ReactElement => {
+  const t = semanticSearchText()
   const [status, setStatus] = useState<SearchIndexStatusDto>()
   const [error, setError] = useState<string>()
   const [clearing, setClearing] = useState(false)
@@ -50,37 +52,32 @@ export const SemanticSearchSettings = ({
   return (
     <>
       <label className="field">
-        <span className="field__label">意味検索を使う</span>
+        <span className="field__label">{t.enableLabel}</span>
         <input
           type="checkbox"
           checked={enabled}
           onChange={(event) => onToggle(event.target.checked)}
         />
-        <span className="field__hint">
-          「天気の話をした会議」のような文章で録音を探せるようにします。文字起こし・要約・メモを
-          この Mac の中でベクトル化して検索します。無効にするとインデックスは削除されます。
-        </span>
+        <span className="field__hint">{t.enableHint}</span>
       </label>
 
       <div className="field">
-        <span className="field__label">インデックス</span>
+        <span className="field__label">{t.indexLabel}</span>
         <div className="settings__path">
           <span className="semantic__status">
             {status === undefined
-              ? '確認中…'
+              ? t.checking
               : status.enabled
                 ? searchIndexSummary(status)
                 : hasIndex
-                  ? `無効（${status.indexedCount} 件分が残っています）`
-                  : '無効'}
+                  ? t.disabledWithRemainder(status.indexedCount)
+                  : t.disabled}
           </span>
           <button type="button" disabled={!hasIndex || clearing} onClick={() => void clear()}>
-            {clearing ? '削除中…' : 'インデックスを削除'}
+            {clearing ? t.deleting : t.deleteButton}
           </button>
         </div>
-        <span className="field__hint">
-          削除しても録音・文字起こし・要約・メモは消えません。意味検索が有効な間は、次に録音を処理したときなどに作り直されます。
-        </span>
+        <span className="field__hint">{t.deleteHint}</span>
         {error && (
           <span className="settings__error" role="alert">
             {error}

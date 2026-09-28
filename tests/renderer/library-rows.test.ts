@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { formatRowDuration, groupByDate, recordingRowMeta } from '@renderer/library/rows'
+import { setLocale } from '@renderer/i18n/locale'
 
 // vitest は TZ=Asia/Tokyo 固定。2026-09-24 は木曜日。
 const now = new Date('2026-09-24T18:00:00+09:00')
@@ -85,5 +86,50 @@ describe('formatRowDuration', () => {
 
   it('1 分未満はそう書く', () => {
     expect(formatRowDuration(30_000)).toBe('1分未満')
+  })
+})
+
+describe('英語表示', () => {
+  afterEach(() => setLocale('ja'))
+
+  it('区切りの見出しを英語にする', () => {
+    setLocale('en')
+    const groups = groupByDate(
+      [
+        at('2026-09-24T14:00:00+09:00', 'today'),
+        at('2026-09-23T17:00:00+09:00', 'yesterday'),
+        at('2026-09-21T10:00:00+09:00', 'monday'),
+        at('2026-09-10T10:00:00+09:00', 'this-month'),
+        at('2026-08-31T10:00:00+09:00', 'august'),
+        at('2025-12-01T10:00:00+09:00', 'last-year')
+      ],
+      now
+    )
+
+    expect(groups.map((g) => g.label)).toEqual([
+      'Today',
+      'Yesterday',
+      'This Week',
+      'This Month',
+      'August',
+      'December 2025'
+    ])
+  })
+
+  it('行の長さを英語の単位で出す', () => {
+    setLocale('en')
+    expect(formatRowDuration(64 * 60_000)).toBe('1 hr 4 min')
+    expect(formatRowDuration(120 * 60_000)).toBe('2 hr')
+    expect(formatRowDuration(30_000)).toBe('Less than 1 minute')
+  })
+
+  it('直近以外の行は月・日・曜日を英語で添える', () => {
+    setLocale('en')
+    expect(
+      recordingRowMeta(
+        { startedAt: new Date('2026-09-21T09:05:00+09:00').toISOString(), durationMs: 55 * 60_000 },
+        now
+      )
+    ).toBe('Sep 21 (Mon) 09:05 · 55 min')
   })
 })

@@ -1,5 +1,6 @@
 import { useId, type ReactElement } from 'react'
 import { useInlineEdit } from '../hooks/useInlineEdit'
+import { editableText } from '../i18n/editable'
 
 /**
  * 文字起こしの行頭に出る話者名。クリックするとその場で書き換えられる。
@@ -28,6 +29,7 @@ export const EditableSpeaker = ({
     onCommit
   )
   const listId = useId()
+  const t = editableText().speaker
 
   if (!editing) {
     return (
@@ -37,7 +39,7 @@ export const EditableSpeaker = ({
           tone === undefined ? 'segment__speaker' : `segment__speaker speaker-chip tone-${tone}`
         }
         onClick={start}
-        title="クリックして話者名を変更"
+        title={t.hint}
       >
         {label}
       </button>
@@ -51,7 +53,7 @@ export const EditableSpeaker = ({
         className="segment__speaker-input"
         value={draft}
         readOnly={saving}
-        aria-label="話者名"
+        aria-label={t.ariaLabel}
         list={suggestions.length > 0 ? listId : undefined}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}

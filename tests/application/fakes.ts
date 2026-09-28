@@ -34,6 +34,7 @@ import type {
 import type { CalendarEvent } from '@domain/CalendarEvent'
 import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
+import type { MeetingLanguage } from '@domain/MeetingLanguage'
 import type { Bookmark } from '@domain/MeetingNotes'
 import { normalize } from '@domain/vector'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
@@ -232,7 +233,7 @@ export class FakeArtifactStore implements RecordingArtifactPort {
 }
 
 export class FakeSettingsRepository implements SettingsRepositoryPort {
-  constructor(private settings: Settings = { ...defaultSettings(), storageDir: '/storage' }) {}
+  constructor(private settings: Settings = { ...defaultSettings('ja'), storageDir: '/storage' }) {}
   async load(): Promise<Settings> {
     return this.settings
   }
@@ -347,6 +348,7 @@ export class FakeSummarizer implements SummarizationPort {
   result = '## 概要\nテスト要約'
   receivedTranscript?: string
   receivedNotes: string | undefined
+  receivedPromptTemplate: string | undefined
   error?: Error
 
   clearError(): void {
@@ -357,10 +359,12 @@ export class FakeSummarizer implements SummarizationPort {
     transcript: string
     notes?: string
     promptTemplate: string
+    language: MeetingLanguage
   }): Promise<string> {
     if (this.error) throw this.error
     this.receivedTranscript = params.transcript
     this.receivedNotes = params.notes
+    this.receivedPromptTemplate = params.promptTemplate
     return this.result
   }
 }

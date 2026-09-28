@@ -1,3 +1,5 @@
+import { libraryListText } from '../i18n/libraryList'
+
 /**
  * 録音一覧の行の見せ方。
  *
@@ -24,13 +26,14 @@ const daysAgo = (date: Date, now: Date): number =>
 const weekdayFromMonday = (date: Date): number => (date.getDay() + 6) % 7
 
 const groupLabel = (date: Date, now: Date): string => {
+  const t = libraryListText()
   const days = daysAgo(date, now)
-  if (days <= 0) return '今日'
-  if (days === 1) return '昨日'
-  if (days <= weekdayFromMonday(now)) return '今週'
-  if (date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()) return '今月'
-  if (date.getFullYear() === now.getFullYear()) return `${date.getMonth() + 1}月`
-  return `${date.getFullYear()}年${date.getMonth() + 1}月`
+  if (days <= 0) return t.today
+  if (days === 1) return t.yesterday
+  if (days <= weekdayFromMonday(now)) return t.thisWeek
+  if (date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()) return t.thisMonth
+  if (date.getFullYear() === now.getFullYear()) return t.monthHeading(date)
+  return t.yearMonthHeading(date)
 }
 
 /**
@@ -53,14 +56,13 @@ export const groupByDate = <T extends { readonly startedAt: string }>(
 
 /** 一覧の行に出す長さ。秒まで出しても探す手掛かりにならないので分で丸める。 */
 export const formatRowDuration = (ms: number): string => {
+  const t = libraryListText()
   const minutes = Math.floor(ms / 60_000)
-  if (minutes < 1) return '1分未満'
+  if (minutes < 1) return t.underOneMinute
   const hours = Math.floor(minutes / 60)
-  if (hours === 0) return `${minutes}分`
-  return minutes % 60 === 0 ? `${hours}時間` : `${hours}時間${minutes % 60}分`
+  if (hours === 0) return t.minutes(minutes)
+  return minutes % 60 === 0 ? t.hours(hours) : t.hoursMinutes(hours, minutes % 60)
 }
-
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'] as const
 
 const pad = (value: number): string => String(value).padStart(2, '0')
 
@@ -69,13 +71,11 @@ export const recordingRowMeta = (
   recording: { readonly startedAt: string; readonly durationMs: number },
   now: Date
 ): string => {
+  const t = libraryListText()
   const date = new Date(recording.startedAt)
   const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`
-  const when =
-    daysAgo(date, now) <= 1
-      ? time
-      : `${date.getMonth() + 1}月${date.getDate()}日(${WEEKDAYS[date.getDay()]}) ${time}`
+  const when = daysAgo(date, now) <= 1 ? time : t.rowDateTime(date, time)
 
   // 録音中は長さが 0 のまま。「1分未満」と出すと終わった録音に見える。
-  return recording.durationMs > 0 ? `${when} ・ ${formatRowDuration(recording.durationMs)}` : when
+  return recording.durationMs > 0 ? t.joinMeta(when, formatRowDuration(recording.durationMs)) : when
 }

@@ -1,4 +1,5 @@
 import type { RecordingDto } from '@shared/ipc'
+import { libraryText } from '../i18n/library'
 
 /**
  * 音声プレビューを再生できるか。
@@ -13,5 +14,5 @@ export const isAudioReady = (recording: RecordingDto): boolean =>
 /** 再生できない間に添える理由。録音中に「処理を待て」と出すと、まだ何も始まっていないのに待たせることになる。 */
 export const pendingAudioHint = (recordingStatus: string): string =>
   recordingStatus === 'recording'
-    ? '録音を止めると処理が始まり、終わると再生できます。'
-    : 'エンコードが終わると再生できます。'
+    ? libraryText().audio.pendingRecording
+    : libraryText().audio.pendingProcessing

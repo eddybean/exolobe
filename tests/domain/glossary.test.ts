@@ -41,16 +41,25 @@ describe('formatGlossary', () => {
 
 describe('glossaryPrompt', () => {
   it('用語を読点でつないで文にする', () => {
-    expect(glossaryPrompt(['Anthropic', 'Claude Code'])).toBe('Anthropic、Claude Code。')
+    expect(glossaryPrompt(['Anthropic', 'Claude Code'], 'ja')).toBe('Anthropic、Claude Code。')
+  })
+
+  /**
+   * 英語の会議に読点と句点を見せると、whisper が日本語の句読点を英文に混ぜる。
+   * 自動判定では従来どおり日本語の区切りにする（日本語の会議の結果を変えない）。
+   */
+  it('英語の会議ではカンマとピリオドでつなぐ', () => {
+    expect(glossaryPrompt(['Anthropic', 'Claude Code'], 'en')).toBe('Anthropic, Claude Code.')
+    expect(glossaryPrompt(['Anthropic', 'Claude Code'], 'auto')).toBe('Anthropic、Claude Code。')
   })
 
   it('用語が無ければ空文字（whisper に渡さない合図）', () => {
-    expect(glossaryPrompt([])).toBe('')
+    expect(glossaryPrompt([], 'ja')).toBe('')
   })
 
   it('上限を超える分の用語は落とし、プロンプトを上限内に収める', () => {
     const terms = Array.from({ length: 60 }, (_, i) => `用語${String(i).padStart(2, '0')}`)
-    const prompt = glossaryPrompt(terms)
+    const prompt = glossaryPrompt(terms, 'ja')
 
     expect(prompt.length).toBeLessThanOrEqual(GLOSSARY_PROMPT_LIMIT)
     // 先に書いた用語から順に残る。
@@ -60,6 +69,6 @@ describe('glossaryPrompt', () => {
   })
 
   it('1 語だけで上限を超えるなら空文字にして丸ごと諦める', () => {
-    expect(glossaryPrompt(['あ'.repeat(GLOSSARY_PROMPT_LIMIT + 1)])).toBe('')
+    expect(glossaryPrompt(['あ'.repeat(GLOSSARY_PROMPT_LIMIT + 1)], 'ja')).toBe('')
   })
 })

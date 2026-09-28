@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   PIPELINE_STEPS,
   createRecording,
+  defaultTitle,
   failStep,
   finishRecording,
   initialStepStates,
@@ -20,21 +21,29 @@ const startedAt = new Date('2026-09-06T14:30:00+09:00')
 
 describe('createRecording', () => {
   it('録音中の状態と全ステップ pending で開始する', () => {
-    const recording = createRecording({ id: 'r1', startedAt })
+    const recording = createRecording({ id: 'r1', startedAt, title: '会議' })
 
     expect(recording.status).toBe('recording')
     expect(recording.durationMs).toBe(0)
     expect(Object.values(recording.steps).every((s) => s.status === 'pending')).toBe(true)
   })
 
-  it('タイトル未指定なら開始日時から既定タイトルを付ける', () => {
-    expect(createRecording({ id: 'r1', startedAt }).title).toBe('2026-09-06 14:30 の会議')
+  it('渡されたタイトルを使う', () => {
+    expect(createRecording({ id: 'r1', startedAt, title: '週次定例' }).title).toBe('週次定例')
+  })
+})
+
+/** 既定のタイトルは会議の言語で付ける。一覧と要約の見出しに残る（ADR-043）。 */
+describe('defaultTitle', () => {
+  it('開始日時から付ける', () => {
+    expect(defaultTitle(startedAt, 'ja')).toBe('2026-09-06 14:30 の会議')
+    expect(defaultTitle(startedAt, 'en')).toBe('Meeting on 2026-09-06 14:30')
   })
 })
 
 describe('finishRecording', () => {
   it('録音時間を確定して処理中へ遷移する', () => {
-    const recording = finishRecording(createRecording({ id: 'r1', startedAt }), 65_000)
+    const recording = finishRecording(createRecording({ id: 'r1', startedAt, title: '会議' }), 65_000)
 
     expect(recording.status).toBe('processing')
     expect(recording.durationMs).toBe(65_000)
@@ -42,7 +51,7 @@ describe('finishRecording', () => {
 })
 
 describe('ステップの状態遷移', () => {
-  const processing = finishRecording(createRecording({ id: 'r1', startedAt }), 1000)
+  const processing = finishRecording(createRecording({ id: 'r1', startedAt, title: '会議' }), 1000)
 
   it('nextPendingStep は定義順に未実行のステップを返す', () => {
     expect(nextPendingStep(processing.steps)).toBe(PIPELINE_STEPS[0])

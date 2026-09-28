@@ -1,4 +1,5 @@
 import type { VoiceLearnedDto } from '@shared/ipc'
+import { libraryText } from '../i18n/library'
 
 /**
  * 声紋を覚えられなかったことを画面に出す文面。覚えられたときは何も言わない。
@@ -10,8 +11,7 @@ import type { VoiceLearnedDto } from '@shared/ipc'
 export const voiceLearnedNotice = (event: VoiceLearnedDto): string | undefined => {
   if (event.status === 'remembered' || event.status === 'skipped-self') return undefined
 
-  const head = `「${event.label}」の声は覚えられませんでした`
-  return event.message
-    ? `${head} ―― ${event.message}`
-    : `${head}。この名前は次回以降の録音には引き継がれません。`
+  const text = libraryText().voiceLearned
+  const head = text.notRemembered(event.label)
+  return event.message ? text.withMessage(head, event.message) : text.withoutMessage(head)
 }

@@ -38,7 +38,15 @@ const LOCALE_ARG = '--omr-locale='
  */
 export const localeArg = (locale: Locale): string => `${LOCALE_ARG}${locale}`
 
-export const localeFromArgv = (argv: readonly string[]): Locale => {
-  const value = argv.find((arg) => arg.startsWith(LOCALE_ARG))?.slice(LOCALE_ARG.length)
-  return LOCALES.find((locale) => locale === value) ?? FALLBACK_LOCALE
-}
+export const localeFromArgv = (argv: readonly string[]): Locale =>
+  parseLocale(argv.find((arg) => arg.startsWith(LOCALE_ARG))?.slice(LOCALE_ARG.length))
+
+/** main が決めて渡した言語（起動引数・環境変数）を読む。知らない値は英語。 */
+export const parseLocale = (value: string | undefined): Locale =>
+  LOCALES.find((locale) => locale === value) ?? FALLBACK_LOCALE
+
+/**
+ * ワーカーへ UI の言語を渡す環境変数。ワーカーは electron の API を持たず、優先言語を読めない。
+ * 開発用に main の言語を上書きする OMR_LOCALE とは別の名前にし、決めた結果だけを渡す。
+ */
+export const UI_LOCALE_ENV = 'OMR_UI_LOCALE'

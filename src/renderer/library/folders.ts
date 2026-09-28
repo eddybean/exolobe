@@ -1,4 +1,5 @@
 import type { FolderDto, RecordingDto } from '@shared/ipc'
+import { libraryListText } from '../i18n/libraryList'
 import { FOLDER_MIME, RECORDING_MIME } from './fileDrop'
 
 /**
@@ -113,12 +114,13 @@ export const folderChipRows = (
     onPath: onPath.has(folder.id)
   })
 
+  const t = libraryListText()
   const top: FolderChip[] = [
-    { key: 'all', kind: 'all', name: 'すべて', count: recordings.length, onPath: key === 'all' },
+    { key: 'all', kind: 'all', name: t.allFolders, count: recordings.length, onPath: key === 'all' },
     {
       key: 'unfiled',
       kind: 'unfiled',
-      name: '未分類',
+      name: t.unfiledFolder,
       count: recordingsInFolder(folders, recordings, 'unfiled').length,
       onPath: key === 'unfiled'
     },
@@ -137,9 +139,10 @@ export const folderPathLabel = (
   folders: readonly FolderDto[],
   folderId: string | undefined
 ): string => {
-  if (folderId === undefined) return '未分類'
+  const t = libraryListText()
+  if (folderId === undefined) return t.unfiledFolder
   const path = ancestry(folders, folderId)
-  return path.length === 0 ? '未分類' : path.map((folder) => folder.name).join(' / ')
+  return path.length === 0 ? t.unfiledFolder : path.map((folder) => folder.name).join(' / ')
 }
 
 /** タイトルと要約の冒頭で絞り込む。本文は別の検索（searchTranscripts）が受け持つ。 */

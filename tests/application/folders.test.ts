@@ -127,7 +127,7 @@ describe('DeleteFolder', () => {
       { id: 'c', name: 'C', parentId: 'b' }
     ])
     await recordings.save({
-      ...createRecording({ id: 'rec-x', startedAt }),
+      ...createRecording({ id: 'rec-x', startedAt, title: '会議' }),
       folderId: 'b'
     })
   })
@@ -165,7 +165,7 @@ describe('DeleteFolder', () => {
 describe('MoveRecordingToFolder', () => {
   beforeEach(async () => {
     await folders.replaceAll([{ id: 'f1', name: '議事録' }])
-    await recordings.save(createRecording({ id: 'rec-x', startedAt }))
+    await recordings.save(createRecording({ id: 'rec-x', startedAt, title: '会議' }))
   })
 
   it('録音をフォルダへ割り当てる', async () => {
@@ -179,7 +179,7 @@ describe('MoveRecordingToFolder', () => {
   })
 
   it('folderId を省略すると未分類に戻す', async () => {
-    await recordings.save({ ...createRecording({ id: 'rec-x', startedAt }), folderId: 'f1' })
+    await recordings.save({ ...createRecording({ id: 'rec-x', startedAt, title: '会議' }), folderId: 'f1' })
 
     const recording = await new MoveRecordingToFolder(deps).execute({
       recordingId: 'rec-x',

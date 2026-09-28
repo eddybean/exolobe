@@ -5,7 +5,8 @@ import type { SyncSearchIndexResult } from '@application/usecases/search'
 import type { SearchHitDto } from '@shared/ipc'
 import type { PipelineWorker } from './PipelineClient'
 import { isSearchWorkerResponse, type SearchWorkerRequest } from './search-protocol'
-import { text } from '../i18n'
+import { UI_LOCALE_ENV } from '@shared/i18n/locale'
+import { appLocale, text } from '../i18n'
 import { errorFromWorker } from './workerError'
 
 interface Waiting {
@@ -168,6 +169,10 @@ export class SearchClient {
 const forkSearchWorker = (): PipelineWorker =>
   utilityProcess.fork(join(__dirname, 'search-worker.js'), [], {
     // ワーカーは electron API を持たないため、必要なパスは環境変数で渡す。
-    env: { ...process.env, OMR_USER_DATA: app.getPath('userData') },
+    env: {
+      ...process.env,
+      OMR_USER_DATA: app.getPath('userData'),
+      [UI_LOCALE_ENV]: appLocale()
+    },
     stdio: 'inherit'
   })

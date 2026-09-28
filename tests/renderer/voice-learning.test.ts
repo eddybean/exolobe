@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { VoiceLearnedDto } from '@shared/ipc'
 import { voiceLearnedNotice } from '../../src/renderer/library/voiceLearning'
+import { setLocale } from '@renderer/i18n/locale'
+
+afterEach(() => {
+  setLocale('ja')
+})
 
 const event = (patch: Partial<VoiceLearnedDto>): VoiceLearnedDto => ({
   recordingId: 'rec-1',
@@ -39,5 +44,15 @@ describe('voiceLearnedNotice', () => {
     expect(voiceLearnedNotice(event({ status: 'failed' }))).toBe(
       '「田中さん」の声は覚えられませんでした。この名前は次回以降の録音には引き継がれません。'
     )
+  })
+
+  it('英語ロケールでは英語で伝える', () => {
+    setLocale('en')
+    expect(voiceLearnedNotice(event({ status: 'unavailable' }))).toBe(
+      "Couldn't remember the voice for \"田中さん\". This name won't carry over to future recordings."
+    )
+    expect(
+      voiceLearnedNotice(event({ status: 'failed', message: 'Speaker ID is disabled.' }))
+    ).toBe('Couldn\'t remember the voice for "田中さん" — Speaker ID is disabled.')
   })
 })

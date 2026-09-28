@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  HALLUCINATION_GUARD,
+  hallucinationGuard,
   LlamaCppSummarizer,
   renderPrompt,
   splitTranscript,
@@ -9,6 +9,7 @@ import {
 } from '@infrastructure/summarization/LlamaCppSummarizer'
 import {
   DEFAULT_SUMMARY_PROMPT,
+  DEFAULT_SUMMARY_PROMPT_EN,
   NOTES_PLACEHOLDER,
   TRANSCRIPT_PLACEHOLDER
 } from '@domain/Settings'
@@ -69,15 +70,15 @@ describe('renderPrompt', () => {
   })
 })
 
-describe('HALLUCINATION_GUARD', () => {
+describe('hallucinationGuard', () => {
   it('反復と字幕の定型句を無視させる指示を含む', () => {
-    expect(HALLUCINATION_GUARD).toContain('繰り返')
-    expect(HALLUCINATION_GUARD).toContain('字幕')
+    expect(hallucinationGuard('ja')).toContain('繰り返')
+    expect(hallucinationGuard('ja')).toContain('字幕')
   })
 
   it('利用者が編集できるプロンプトの既定値には入れない', () => {
     // 設定画面で消せてしまうと、防御の有無が利用者ごとに変わる。
-    expect(DEFAULT_SUMMARY_PROMPT).not.toContain(HALLUCINATION_GUARD)
+    expect(DEFAULT_SUMMARY_PROMPT).not.toContain(hallucinationGuard('ja'))
   })
 })
 
@@ -111,6 +112,7 @@ describe('LlamaCppSummarizer', () => {
     const summarizer = new LlamaCppSummarizer(config, factoryFor(llm))
 
     const summary = await summarizer.summarize({
+      language: 'ja',
       transcript: '**[00:00] 自分**\nおはようございます',
       promptTemplate: DEFAULT_SUMMARY_PROMPT
     })
@@ -125,11 +127,12 @@ describe('LlamaCppSummarizer', () => {
     const summarizer = new LlamaCppSummarizer(config, factoryFor(llm))
 
     await summarizer.summarize({
+      language: 'ja',
       transcript: '**[00:00] 自分**\nおはようございます',
       promptTemplate: `独自のプロンプト${TRANSCRIPT_PLACEHOLDER}`
     })
 
-    expect(llm.prompts[0]).toContain(HALLUCINATION_GUARD)
+    expect(llm.prompts[0]).toContain(hallucinationGuard('ja'))
     expect(llm.prompts[0]).toContain('独自のプロンプト')
   })
 
@@ -142,9 +145,13 @@ describe('LlamaCppSummarizer', () => {
       (_, i) => `**[00:0${i % 10}] 自分**\n${'あ'.repeat(60)}`
     ).join('\n\n')
 
-    await summarizer.summarize({ transcript, promptTemplate: DEFAULT_SUMMARY_PROMPT })
+    await summarizer.summarize({
+      language: 'ja',
+      transcript,
+      promptTemplate: DEFAULT_SUMMARY_PROMPT
+    })
 
-    expect(llm.prompts.every((p) => p.includes(HALLUCINATION_GUARD))).toBe(true)
+    expect(llm.prompts.every((p) => p.includes(hallucinationGuard('ja')))).toBe(true)
   })
 
   it('長い文字起こしは部分要約してから統合する', async () => {
@@ -164,6 +171,7 @@ describe('LlamaCppSummarizer', () => {
     ).join('\n\n')
 
     const summary = await summarizer.summarize({
+      language: 'ja',
       transcript,
       promptTemplate: DEFAULT_SUMMARY_PROMPT
     })
@@ -188,6 +196,7 @@ describe('LlamaCppSummarizer', () => {
     ).join('\n\n')
 
     await summarizer.summarize({
+      language: 'ja',
       transcript,
       notes: '## 会議中のメモ\n価格改定',
       promptTemplate: DEFAULT_SUMMARY_PROMPT
@@ -197,11 +206,33 @@ describe('LlamaCppSummarizer', () => {
     expect(llm.prompts.slice(0, -1).some((p) => p.includes('価格改定'))).toBe(false)
   })
 
+  /** 英語の会議に日本語の指示を混ぜると、要約の一部が日本語で返る（ADR-043）。 */
+  it('英語の会議には、防御の指示も部分要約の指示も英語で渡す', async () => {
+    const llm = new FakeLlm()
+    // contextSize を絞って必ず分割させる
+    const summarizer = new LlamaCppSummarizer({ ...config, contextSize: 1_024 }, factoryFor(llm))
+    const transcript = Array.from(
+      { length: 30 },
+      (_, i) => `**[00:0${i % 10}] Me**\n${'Discussing the estimate. '.repeat(10)}`
+    ).join('\n\n')
+
+    await summarizer.summarize({
+      language: 'en',
+      transcript,
+      promptTemplate: DEFAULT_SUMMARY_PROMPT_EN
+    })
+
+    expect(llm.prompts.length).toBeGreaterThan(2)
+    expect(llm.prompts.every((p) => p.includes(hallucinationGuard('en')))).toBe(true)
+    expect(llm.prompts.some((p) => p.includes('bullet points'))).toBe(true)
+    expect(llm.prompts.some((p) => /[\u3040-\u30ff]/.test(p))).toBe(false)
+  })
+
   it('要約が終わったら必ずモデルを解放する', async () => {
     const llm = new FakeLlm()
     const summarizer = new LlamaCppSummarizer(config, factoryFor(llm))
 
-    await summarizer.summarize({ transcript: '本文', promptTemplate: DEFAULT_SUMMARY_PROMPT })
+    await summarizer.summarize({ language: 'ja', transcript: '本文', promptTemplate: DEFAULT_SUMMARY_PROMPT })
 
     expect(llm.disposed).toBe(1)
   })
@@ -214,7 +245,7 @@ describe('LlamaCppSummarizer', () => {
     const summarizer = new LlamaCppSummarizer(config, factoryFor(llm))
 
     await expect(
-      summarizer.summarize({ transcript: '本文', promptTemplate: DEFAULT_SUMMARY_PROMPT })
+      summarizer.summarize({ language: 'ja', transcript: '本文', promptTemplate: DEFAULT_SUMMARY_PROMPT })
     ).rejects.toThrow('生成に失敗しました')
     expect(llm.disposed).toBe(1)
   })
@@ -226,7 +257,7 @@ describe('LlamaCppSummarizer', () => {
     )
 
     await expect(
-      summarizer.summarize({ transcript: '本文', promptTemplate: DEFAULT_SUMMARY_PROMPT })
+      summarizer.summarize({ language: 'ja', transcript: '本文', promptTemplate: DEFAULT_SUMMARY_PROMPT })
     ).rejects.toThrow('summaryModelNotConfigured')
   })
 
@@ -235,7 +266,7 @@ describe('LlamaCppSummarizer', () => {
     const summarizer = new LlamaCppSummarizer(config, factoryFor(llm))
 
     await expect(
-      summarizer.summarize({ transcript: '   \n  ', promptTemplate: DEFAULT_SUMMARY_PROMPT })
+      summarizer.summarize({ language: 'ja', transcript: '   \n  ', promptTemplate: DEFAULT_SUMMARY_PROMPT })
     ).rejects.toThrow('summaryTranscriptEmpty')
     expect(llm.prompts).toEqual([])
   })
@@ -246,7 +277,7 @@ describe('LlamaCppSummarizer', () => {
     const summarizer = new LlamaCppSummarizer(config, factoryFor(llm))
 
     expect(
-      await summarizer.summarize({ transcript: '本文', promptTemplate: DEFAULT_SUMMARY_PROMPT })
+      await summarizer.summarize({ language: 'ja', transcript: '本文', promptTemplate: DEFAULT_SUMMARY_PROMPT })
     ).toBe('## 概要\n本文')
   })
 })

@@ -1,6 +1,7 @@
 import { useRef, type ReactElement } from 'react'
 import { keyboardResize } from '../library/paneWidth'
 import type { LibraryWidth } from '../hooks/useLibraryWidth'
+import { libraryListText } from '../i18n/libraryList'
 
 /**
  * ライブラリと詳細の境目のつまみ。ドラッグで幅を変え、ダブルクリックで既定の幅に戻す。
@@ -15,6 +16,7 @@ export const PaneResizer = ({
   onDraggingChange: (dragging: boolean) => void
 }): ReactElement => {
   const drag = useRef<{ startX: number; startWidth: number } | undefined>(undefined)
+  const t = libraryListText()
 
   const finish = (element: HTMLElement, pointerId: number): void => {
     if (!drag.current) return
@@ -32,12 +34,12 @@ export const PaneResizer = ({
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- 上記のとおり hr では代われない
       role="separator"
       aria-orientation="vertical"
-      aria-label="ライブラリの幅（ダブルクリックで元に戻す）"
+      aria-label={t.paneAriaLabel}
       aria-valuenow={pane.width}
       aria-valuemin={pane.min}
       aria-valuemax={pane.max}
       tabIndex={0}
-      title="ドラッグで幅を変更・ダブルクリックで元に戻す"
+      title={t.paneTitle}
       onPointerDown={(event) => {
         if (event.button !== 0) return
         event.preventDefault()

@@ -13,7 +13,8 @@ import {
   pickEventForRecording,
   type CalendarEvent
 } from '@domain/CalendarEvent'
-import { createRecording, type Recording } from '@domain/Recording'
+import { meetingLanguageOf, type MeetingLanguage } from '@domain/MeetingLanguage'
+import { createRecording, defaultTitle, type Recording } from '@domain/Recording'
 import { ConfigurationError, RecordingStateError } from '@domain/errors'
 import { isConfigured } from '@domain/Settings'
 
@@ -25,6 +26,8 @@ export interface StartRecordingDeps {
   readonly calendar: CalendarPort
   readonly clock: ClockPort
   readonly ids: IdGeneratorPort
+  /** 文字起こしの言語が自動判定のときの会議の言語。既定のタイトルに使う（ADR-043）。 */
+  readonly fallbackLanguage: MeetingLanguage
 }
 
 /** 録音を開始する。保存先が未設定、または録音中の場合は失敗する。 */
@@ -41,7 +44,13 @@ export class StartRecording {
       throw new ConfigurationError({ code: 'storageNotConfigured' })
     }
 
-    const draft = createRecording({ id: this.deps.ids.next(), startedAt: this.deps.clock.now() })
+    const startedAt = this.deps.clock.now()
+    const language = meetingLanguageOf(settings.transcription.language, this.deps.fallbackLanguage)
+    const draft = createRecording({
+      id: this.deps.ids.next(),
+      startedAt,
+      title: defaultTitle(startedAt, language)
+    })
     // 予定の問い合わせはキャプチャと並べて走らせる。応答を待ってから録り始めると、
     // その間の会議の冒頭が失われる。
     const lookup = settings.recording.calendarEnabled
@@ -74,21 +83,21 @@ export class StartRecording {
   }
 }
 
-/** 指定されたタイトルがあればそれを、無ければ予定のタイトルを使う。 */
+/**
+ * 指定されたタイトルがあればそれを、無ければ予定のタイトルを使う。どちらも空なら、
+ * 下書きに付けた既定のタイトルのまま。
+ */
 const withEvent = (
   draft: Recording,
   title: string | undefined,
   event: CalendarEvent | undefined
 ): Recording => {
-  const chosen = title ?? event?.title
+  const chosen = (title ?? event?.title)?.trim()
   const participants = event ? participantNames(event) : []
 
   return {
-    ...createRecording({
-      id: draft.id,
-      startedAt: draft.startedAt,
-      ...(chosen === undefined ? {} : { title: chosen })
-    }),
+    ...draft,
+    ...(chosen ? { title: chosen } : {}),
     ...(participants.length > 0 ? { participants } : {})
   }
 }

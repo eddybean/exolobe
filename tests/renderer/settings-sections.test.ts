@@ -21,11 +21,6 @@ describe('SETTINGS_SECTIONS', () => {
       'about'
     ])
   })
-
-  it('ナビの表記は重ならない', () => {
-    const labels = SETTINGS_SECTIONS.map((section) => section.label)
-    expect(new Set(labels).size).toBe(labels.length)
-  })
 })
 
 describe('initialSettingsSection', () => {

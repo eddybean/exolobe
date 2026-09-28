@@ -22,19 +22,33 @@ afterEach(async () => {
 
 describe('JsonSettingsRepository', () => {
   it('未作成なら既定値を返す', async () => {
-    expect(await new JsonSettingsRepository(filePath).load()).toEqual(defaultSettings())
+    expect(await new JsonSettingsRepository(filePath, 'ja').load()).toEqual(defaultSettings('ja'))
+  })
+
+  it('未作成なら、渡された言語の既定値を返す（新しく入れた人の文字起こしの言語）', async () => {
+    const settings = await new JsonSettingsRepository(filePath, 'en').load()
+
+    expect(settings.transcription.language).toBe('en')
+  })
+
+  it('保存済みの言語は、渡された言語より優先する', async () => {
+    await new JsonSettingsRepository(filePath, 'ja').save({ storageDir: '/Users/me/Meetings' })
+
+    const settings = await new JsonSettingsRepository(filePath, 'en').load()
+
+    expect(settings.transcription.language).toBe('ja')
   })
 
   it('保存した設定を別インスタンスから読み戻せる', async () => {
-    await new JsonSettingsRepository(filePath).save({ storageDir: '/Users/me/Meetings' })
+    await new JsonSettingsRepository(filePath, 'ja').save({ storageDir: '/Users/me/Meetings' })
 
-    expect((await new JsonSettingsRepository(filePath).load()).storageDir).toBe(
+    expect((await new JsonSettingsRepository(filePath, 'ja').load()).storageDir).toBe(
       '/Users/me/Meetings'
     )
   })
 
   it('部分更新で他の設定を失わない', async () => {
-    const repository = new JsonSettingsRepository(filePath)
+    const repository = new JsonSettingsRepository(filePath, 'ja')
     await repository.save({ storageDir: '/Users/me/Meetings' })
     await repository.save({ audio: { bitrateKbps: 64 } })
 
@@ -48,23 +62,23 @@ describe('JsonSettingsRepository', () => {
     const legacy = join(dir, 'legacy.json')
     await writeFile(legacy, JSON.stringify({ storageDir: '/old' }), 'utf8')
 
-    const settings = await new JsonSettingsRepository(legacy).load()
+    const settings = await new JsonSettingsRepository(legacy, 'ja').load()
     expect(settings.storageDir).toBe('/old')
-    expect(settings.audio).toEqual(defaultSettings().audio)
+    expect(settings.audio).toEqual(defaultSettings('ja').audio)
   })
 
   it('壊れた JSON でも既定値で起動できる', async () => {
     const broken = join(dir, 'broken.json')
     await writeFile(broken, '{ not json', 'utf8')
 
-    expect(await new JsonSettingsRepository(broken).load()).toEqual(defaultSettings())
+    expect(await new JsonSettingsRepository(broken, 'ja').load()).toEqual(defaultSettings('ja'))
   })
 
   it('壊れた設定ファイルは保存する前に退避する（保存先の指定を黙って失わない）', async () => {
     const broken = join(dir, 'broken.json')
     await writeFile(broken, '{ "storageDir": "/Users/me/Meet', 'utf8')
 
-    await new JsonSettingsRepository(broken).save({ audio: { bitrateKbps: 64 } })
+    await new JsonSettingsRepository(broken, 'ja').save({ audio: { bitrateKbps: 64 } })
 
     const [quarantined] = (await readdir(dir)).filter((name) =>
       name.startsWith('broken.json.unreadable-')
@@ -78,8 +92,8 @@ describe('JsonSettingsRepository', () => {
     const odd = join(dir, 'odd.json')
     await writeFile(odd, 'null', 'utf8')
 
-    const repository = new JsonSettingsRepository(odd)
-    expect(await repository.load()).toEqual(defaultSettings())
+    const repository = new JsonSettingsRepository(odd, 'ja')
+    expect(await repository.load()).toEqual(defaultSettings('ja'))
     await repository.save({ storageDir: '/Users/me/Meetings' })
 
     expect((await readdir(dir)).some((name) => name.startsWith('odd.json.unreadable-'))).toBe(
@@ -95,7 +109,7 @@ describe('JsonSettingsRepository', () => {
       'utf8'
     )
 
-    await new JsonSettingsRepository(newer).save({ storageDir: '/new' })
+    await new JsonSettingsRepository(newer, 'ja').save({ storageDir: '/new' })
 
     expect(JSON.parse(await readFile(newer, 'utf8'))).toMatchObject({
       storageDir: '/new',
@@ -105,7 +119,7 @@ describe('JsonSettingsRepository', () => {
   })
 
   it('形式の番号（schemaVersion）を書き込む', async () => {
-    await new JsonSettingsRepository(filePath).save({ storageDir: '/Users/me/Meetings' })
+    await new JsonSettingsRepository(filePath, 'ja').save({ storageDir: '/Users/me/Meetings' })
 
     expect(JSON.parse(await readFile(filePath, 'utf8'))).toMatchObject({ schemaVersion: 1 })
   })
@@ -115,7 +129,7 @@ describe('JsonSettingsRepository', () => {
     const content = JSON.stringify({ schemaVersion: 2, storageDir: '/Users/me/Meetings' })
     await writeFile(newer, content, 'utf8')
 
-    const repository = new JsonSettingsRepository(newer)
+    const repository = new JsonSettingsRepository(newer, 'ja')
     expect((await repository.load()).storageDir).toBe('/Users/me/Meetings')
     await expect(repository.save({ storageDir: '/elsewhere' })).rejects.toThrow(
       'storageNewerVersion'
@@ -127,13 +141,13 @@ describe('JsonSettingsRepository', () => {
     const odd = join(dir, 'odd-version.json')
     await writeFile(odd, JSON.stringify({ schemaVersion: '2' }), 'utf8')
 
-    await expect(new JsonSettingsRepository(odd).save({ storageDir: '/x' })).rejects.toThrow(
+    await expect(new JsonSettingsRepository(odd, 'ja').save({ storageDir: '/x' })).rejects.toThrow(
       'storageNewerVersion'
     )
   })
 
   it('中断で壊れないよう一時ファイル経由で置換する', async () => {
-    await new JsonSettingsRepository(filePath).save({ storageDir: '/Users/me/Meetings' })
+    await new JsonSettingsRepository(filePath, 'ja').save({ storageDir: '/Users/me/Meetings' })
 
     const raw = await readFile(filePath, 'utf8')
     expect(JSON.parse(raw)).toMatchObject({ storageDir: '/Users/me/Meetings' })
@@ -142,7 +156,7 @@ describe('JsonSettingsRepository', () => {
 
 describe('SettingsStorageLocator', () => {
   it('設定された保存先を返す', async () => {
-    const repository = new JsonSettingsRepository(filePath)
+    const repository = new JsonSettingsRepository(filePath, 'ja')
     await repository.save({ storageDir: '/Users/me/Meetings' })
 
     expect(await new SettingsStorageLocator(repository).root()).toBe('/Users/me/Meetings')
@@ -150,7 +164,7 @@ describe('SettingsStorageLocator', () => {
 
   it('未設定なら設定画面へ誘導する', async () => {
     await expect(
-      new SettingsStorageLocator(new JsonSettingsRepository(filePath)).root()
+      new SettingsStorageLocator(new JsonSettingsRepository(filePath, 'ja')).root()
     ).rejects.toThrow('storageNotConfigured')
   })
 })

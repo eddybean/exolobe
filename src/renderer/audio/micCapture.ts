@@ -1,3 +1,4 @@
+import { audioText } from '../i18n/audio'
 import { MicSetupError, describeMicFailure, detailOf } from './micErrors'
 
 /**
@@ -77,10 +78,7 @@ export const startMicCapture = async (params: {
     // （"The user aborted a request."）だけを返す。権限やデバイスの問題と
     // 区別がつかないため、ここで何に失敗したかを明示する。
     await context.close()
-    throw new MicSetupError(
-      `マイクの音声処理を初期化できませんでした（${detailOf(error)}）。`,
-      { cause: error }
-    )
+    throw new MicSetupError(audioText().setupFailed(detailOf(error)), { cause: error })
   } finally {
     URL.revokeObjectURL(workletUrl)
   }

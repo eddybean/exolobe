@@ -100,7 +100,7 @@ describe('ImportAudioFile — 正常系', () => {
 
 describe('ImportAudioFile — 断る場合', () => {
   it('保存先が未設定なら取り込まない', async () => {
-    const ctx = build(new FakeSettingsRepository(defaultSettings()))
+    const ctx = build(new FakeSettingsRepository(defaultSettings('ja')))
 
     await expect(ctx.importAudioFile.execute({ filePath: SOURCE })).rejects.toThrow(
       'storageNotConfigured'

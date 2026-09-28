@@ -4,7 +4,13 @@ import { PIPELINE_STEPS, createRecording, finishRecording, type Recording } from
 import type { SummarizationPort } from '@application/ports'
 import { SELF_SPEAKER_ID } from '@domain/Speaker'
 import { normalize } from '@domain/vector'
-import { mergeSettings, type SettingsPatch } from '@domain/Settings'
+import type { MeetingLanguage } from '@domain/MeetingLanguage'
+import {
+  DEFAULT_SUMMARY_PROMPT,
+  DEFAULT_SUMMARY_PROMPT_EN,
+  mergeSettings,
+  type SettingsPatch
+} from '@domain/Settings'
 import {
   FakeArtifactStore,
   FakeDiarizer,
@@ -32,7 +38,7 @@ const tracks = {
 
 const build = async (
   settingsPatch: SettingsPatch = {},
-  options: { durationMs?: number } = {}
+  options: { durationMs?: number; fallbackLanguage?: MeetingLanguage } = {}
 ) => {
   const repository = new FakeRecordingRepository()
   const artifacts = new FakeArtifactStore()
@@ -50,7 +56,7 @@ const build = async (
   const system = new FakeSystemResource()
 
   const recording = finishRecording(
-    createRecording({ id: 'rec-1', startedAt }),
+    createRecording({ id: 'rec-1', startedAt, title: '会議' }),
     options.durationMs ?? 65_000
   )
   await repository.save(recording)
@@ -74,7 +80,8 @@ const build = async (
     summarizer,
     encoder,
     progress,
-    system
+    system,
+    fallbackLanguage: options.fallbackLanguage ?? 'ja'
   }
 
   return { ...deps, recording, process: new ProcessRecording(deps) }
@@ -544,6 +551,7 @@ describe('ProcessRecording — 処理中の利用者の編集', () => {
     return {
       ctx,
       process: new ProcessRecording({
+        fallbackLanguage: 'ja',
         settings: ctx.settings,
         repository: ctx.repository,
         artifacts: ctx.artifacts,
@@ -890,5 +898,72 @@ describe('ProcessRecording — 声紋による話者名の自動適用', () => {
     expect(
       (await ctx.artifacts.readTranscript(ctx.recording))?.speakers.map((s) => s.label)
     ).toEqual(['自分', '参加者A', '参加者B'])
+  })
+})
+
+/** 会議の言語（ADR-043）。話者の既定名・要約プロンプト・メモの見出しを揃える。 */
+describe('ProcessRecording — 会議の言語', () => {
+  const clustered = async (
+    patch: SettingsPatch,
+    options: { fallbackLanguage?: MeetingLanguage } = {}
+  ) => {
+    const ctx = await build(patch, options)
+    ctx.diarizer.turns = [
+      { startMs: 1000, endMs: 3000, speaker: 'spk0' },
+      { startMs: 4500, endMs: 6500, speaker: 'spk1' }
+    ]
+    return ctx
+  }
+
+  const labels = async (ctx: Awaited<ReturnType<typeof build>>): Promise<string[]> =>
+    ((await ctx.artifacts.readTranscript(ctx.recording))?.speakers ?? []).map((s) => s.label)
+
+  it('英語の会議では話者に英語の既定名を付ける', async () => {
+    const ctx = await clustered({ transcription: { language: 'en' } })
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(await labels(ctx)).toEqual(['Me', 'Participant A', 'Participant B'])
+  })
+
+  it('自動判定なら UI の言語で名前を付ける', async () => {
+    const ctx = await clustered({ transcription: { language: 'auto' } }, { fallbackLanguage: 'en' })
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(await labels(ctx)).toEqual(['Me', 'Participant A', 'Participant B'])
+  })
+
+  it('既定の要約プロンプトのままなら、会議の言語の既定プロンプトで要約する', async () => {
+    const ctx = await build({
+      transcription: { language: 'en' },
+      summarization: { promptTemplate: DEFAULT_SUMMARY_PROMPT }
+    })
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.summarizer.receivedPromptTemplate).toBe(DEFAULT_SUMMARY_PROMPT_EN)
+  })
+
+  it('メモの見出しも会議の言語で渡す', async () => {
+    const ctx = await build({ transcription: { language: 'en' } })
+    await ctx.artifacts.writeNote(ctx.recording, 'Export ships next sprint')
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.summarizer.receivedNotes).toContain('## Notes taken during the meeting')
+  })
+
+  it('言語を変えて話者識別をやり直すと、前の言語の既定名は新しい言語の既定名に替える', async () => {
+    const ctx = await clustered({ transcription: { language: 'ja' } })
+    await ctx.process.execute({ recordingId: 'rec-1' })
+    expect(await labels(ctx)).toEqual(['自分', '参加者A', '参加者B'])
+
+    await ctx.settings.save({ transcription: { language: 'en' } })
+    await ctx.artifacts.writeTracks(ctx.recording, tracks)
+    await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
+
+    // 「自分」は利用者が付けた名前と区別できないので残る（付け直すのは採番した相手側だけ）。
+    expect(await labels(ctx)).toEqual(['自分', 'Participant A', 'Participant B'])
   })
 })

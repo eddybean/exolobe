@@ -121,10 +121,9 @@ export interface ModelProgressDto {
   readonly error?: string
 }
 
+/** 名前と説明は renderer が UI の言語で引く（ADR-043、`@shared/i18n/models`）。 */
 export interface ManagedAssetStatusDto {
   readonly id: string
-  readonly label: string
-  readonly description: string
   readonly bytes: number
   readonly optional: boolean
   readonly installed: boolean
@@ -237,11 +236,17 @@ export interface ChatCitationDto {
   readonly truncated: boolean
 }
 
+/** チャットが絞った範囲。期間は問いの言い回しをそのまま使う（利用者が書いた言葉）。 */
+export interface ChatScopeDto {
+  readonly rangeLabel: string
+  readonly count: number
+}
+
 export interface ChatAnswerDto {
   readonly text: string
   readonly citations: readonly ChatCitationDto[]
-  /** 「先週（08/31〜09/06）の 3 件」。何を見て答えたかを利用者に示す。 */
-  readonly scopeLabel?: string
+  /** 何を見て答えたか。文言（「先週（08/31〜09/06）の 3 件」）は画面が UI の言語で組む。 */
+  readonly scope?: ChatScopeDto
   readonly usedTranscript: boolean
   readonly droppedCount: number
   /** 生成の上限に達して書ききれなかったか。 */
@@ -264,7 +269,7 @@ export interface ChatDoneDto {
   readonly requestId: string
   readonly text: string
   readonly citations: readonly ChatCitationDto[]
-  readonly scopeLabel?: string
+  readonly scope?: ChatScopeDto
   readonly droppedCount: number
   /** 生成の上限に達して書ききれなかったか。 */
   readonly truncated: boolean

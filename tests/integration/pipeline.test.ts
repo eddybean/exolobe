@@ -68,7 +68,7 @@ afterEach(async () => {
 })
 
 const build = async (options: { summarizerError?: Error } = {}) => {
-  const settings = new JsonSettingsRepository(join(userData, 'settings.json'))
+  const settings = new JsonSettingsRepository(join(userData, 'settings.json'), 'ja')
   await settings.save({ storageDir: storage })
 
   const locator = { root: async () => storage }
@@ -95,7 +95,8 @@ const build = async (options: { summarizerError?: Error } = {}) => {
       artifacts,
       calendar: new FakeCalendar(),
       clock: { now: () => new Date('2026-09-06T14:30:00+09:00') },
-      ids: { next: () => 'rec-1' }
+      ids: { next: () => 'rec-1' },
+      fallbackLanguage: 'ja'
     }),
     stop: new StopRecording({ repository, capture: recorder, artifacts }),
     importAudioFile: new ImportAudioFile({
@@ -109,6 +110,7 @@ const build = async (options: { summarizerError?: Error } = {}) => {
     }),
     process: new ProcessRecording({
       settings,
+      fallbackLanguage: 'ja',
       repository,
       artifacts,
       system: new NodeSystemResourceProbe(),

@@ -16,6 +16,20 @@ import type { ManagedAssetId } from './ModelCatalog'
  * MANAGED_ASSETS を突き合わせて、漏れたら落ちるようにしてある。
  */
 
+/** 表記に添える説明の種類。 */
+export type NoticeNoteId =
+  | 'includedInElectron'
+  | 'renderingUi'
+  | 'bundledWhisperCli'
+  | 'includedInNodeLlamaCpp'
+  | 'linkedIntoWhisperAndLlama'
+  | 'speakerIdentification'
+  | 'includedInSherpaOnnx'
+  | 'systemAudioNoCopyright'
+  | 'ggmlConversionByWhisperCpp'
+  | 'onnxConversionBySherpa'
+  | 'ggufConversionByGgmlOrg'
+
 export interface ThirdPartyNotice {
   readonly name: string
   readonly license: LicenseId
@@ -23,8 +37,10 @@ export interface ThirdPartyNotice {
   readonly url: string
   /** 配布元が掲げている著作権表示の原文。 */
   readonly copyright?: string
-  /** どう使っているか、あるいは表記が欠けている理由。 */
-  readonly note?: string
+  /** どう使っているか、あるいは表記が欠けている理由。文言は画面が UI の言語で引く（ADR-043）。 */
+  readonly noteId?: NoticeNoteId
+  /** 配布元が表示を求める文。条件の一部なので訳さず原文のまま載せる。 */
+  readonly requiredNotice?: string
   /** npm パッケージ名。同梱している依存が漏れていないかの突き合わせに使う。 */
   readonly packageName?: string
   /** このモデルの表記であることを示す。カタログとの突き合わせに使う。 */
@@ -45,42 +61,42 @@ const BUNDLED: readonly ThirdPartyNotice[] = [
     license: 'BSD-3-Clause',
     url: 'https://www.chromium.org/Home/',
     copyright: 'Copyright 2015 The Chromium Authors',
-    note: 'Electron に含まれています。'
+    noteId: 'includedInElectron'
   },
   {
     name: 'Node.js',
     license: 'MIT',
     url: 'https://nodejs.org/',
     copyright: 'Copyright Node.js contributors. All rights reserved.',
-    note: 'Electron に含まれています。'
+    noteId: 'includedInElectron'
   },
   {
     name: 'React',
     license: 'MIT',
     url: 'https://react.dev/',
     copyright: 'Copyright (c) Meta Platforms, Inc. and affiliates.',
-    note: 'react / react-dom を画面の描画に使っています。'
+    noteId: 'renderingUi'
   },
   {
     name: 'whisper.cpp',
     license: 'MIT',
     url: 'https://github.com/ggml-org/whisper.cpp',
     copyright: 'Copyright (c) 2023-2026 The ggml authors',
-    note: 'ビルドした whisper-cli を同梱しています。'
+    noteId: 'bundledWhisperCli'
   },
   {
     name: 'llama.cpp',
     license: 'MIT',
     url: 'https://github.com/ggml-org/llama.cpp',
     copyright: 'Copyright (c) 2023-2026 The ggml authors',
-    note: 'node-llama-cpp に含まれています。'
+    noteId: 'includedInNodeLlamaCpp'
   },
   {
     name: 'ggml',
     license: 'MIT',
     url: 'https://github.com/ggml-org/ggml',
     copyright: 'Copyright (c) 2023-2026 The ggml authors',
-    note: 'whisper.cpp と llama.cpp に静的リンクされています。'
+    noteId: 'linkedIntoWhisperAndLlama'
   },
   {
     name: 'node-llama-cpp',
@@ -94,7 +110,7 @@ const BUNDLED: readonly ThirdPartyNotice[] = [
     license: 'Apache-2.0',
     url: 'https://github.com/k2-fsa/sherpa-onnx',
     copyright: 'Copyright (c) 2022-2024 Xiaomi Corporation',
-    note: 'sherpa-onnx-node（ネイティブアドオン）として話者識別に使っています。',
+    noteId: 'speakerIdentification',
     packageName: 'sherpa-onnx-node'
   },
   {
@@ -102,13 +118,13 @@ const BUNDLED: readonly ThirdPartyNotice[] = [
     license: 'MIT',
     url: 'https://github.com/microsoft/onnxruntime',
     copyright: 'Copyright (c) Microsoft Corporation',
-    note: 'sherpa-onnx-node に含まれています。'
+    noteId: 'includedInSherpaOnnx'
   },
   {
     name: 'AudioTee',
     license: 'MIT',
     url: 'https://github.com/makeusabrew/audiotee',
-    note: 'システム音声の取り込みに使っています。配布元が著作権表示を掲げていないため、ライセンスの種別だけを示します。',
+    noteId: 'systemAudioNoCopyright',
     packageName: 'audiotee'
   }
 ]
@@ -121,11 +137,11 @@ const BUNDLED: readonly ThirdPartyNotice[] = [
  */
 const MODELS: readonly ThirdPartyNotice[] = [
   {
-    name: 'Whisper（large-v3-turbo）',
+    name: 'Whisper (large-v3-turbo)',
     license: 'MIT',
     url: 'https://github.com/openai/whisper',
     copyright: 'Copyright (c) 2022 OpenAI',
-    note: 'ggml 形式への変換は whisper.cpp の配布物を使っています。',
+    noteId: 'ggmlConversionByWhisperCpp',
     assetIds: ['transcription-model', 'transcription-coreml-encoder']
   },
   {
@@ -139,24 +155,25 @@ const MODELS: readonly ThirdPartyNotice[] = [
     name: 'Gemma',
     license: 'Gemma Terms of Use',
     url: 'https://ai.google.dev/gemma/terms',
-    note: 'Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms',
+    requiredNotice:
+      'Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms',
     assetIds: ['summarization-model']
   },
   {
-    name: 'pyannote.audio（segmentation 3.0）',
+    name: 'pyannote.audio (segmentation 3.0)',
     license: 'MIT',
     url: 'https://github.com/pyannote/pyannote-audio',
     copyright: 'Copyright (c) 2020 CNRS',
-    note: 'sherpa-onnx が配布する ONNX 変換版を使っています。',
+    noteId: 'onnxConversionBySherpa',
     assetIds: ['diarization-segmentation']
   },
   {
-    name: '3D-Speaker（CAM++）',
+    name: '3D-Speaker (CAM++)',
     license: 'Apache-2.0',
     url: 'https://github.com/alibaba-damo-academy/3D-Speaker',
     copyright:
       'Copyright 3D-Speaker (https://github.com/alibaba-damo-academy/3D-Speaker). All Rights Reserved.',
-    note: 'sherpa-onnx が配布する ONNX 変換版を使っています。',
+    noteId: 'onnxConversionBySherpa',
     assetIds: ['diarization-embedding']
   },
   {
@@ -164,28 +181,20 @@ const MODELS: readonly ThirdPartyNotice[] = [
     license: 'MIT',
     url: 'https://github.com/FlagOpen/FlagEmbedding',
     copyright: 'Copyright (c) 2022 staoxiao',
-    note: 'GGUF 形式への変換は ggml-org の配布物を使っています。',
+    noteId: 'ggufConversionByGgmlOrg',
     assetIds: ['search-model']
   }
 ]
 
+/** 見出しと説明は画面が UI の言語で引く（ADR-043）。 */
 export interface NoticeGroup {
-  readonly title: string
-  readonly description: string
+  readonly id: 'bundled' | 'models'
   readonly entries: readonly ThirdPartyNotice[]
 }
 
 export const NOTICE_GROUPS: readonly NoticeGroup[] = [
-  {
-    title: '同梱しているソフトウェア',
-    description: 'アプリと一緒に配布しているものです。',
-    entries: BUNDLED
-  },
-  {
-    title: 'ダウンロードして使うモデル',
-    description: 'アプリには含まれず、設定画面から配布元より取得します。',
-    entries: MODELS
-  }
+  { id: 'bundled', entries: BUNDLED },
+  { id: 'models', entries: MODELS }
 ]
 
 export const THIRD_PARTY_NOTICES: readonly ThirdPartyNotice[] = [...BUNDLED, ...MODELS]

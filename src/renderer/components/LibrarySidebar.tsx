@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { FolderDto, RecordingDto } from '@shared/ipc'
 import { messageOf } from '../errorMessage'
+import { libraryListText } from '../i18n/libraryList'
 import { isCommitEnter } from '../keyboard'
 import { FOLDER_MIME, RECORDING_MIME } from '../library/fileDrop'
 import {
@@ -21,7 +22,7 @@ import {
   type FolderChip,
   type FolderKey
 } from '../library/folders'
-import { STATUS_LABELS } from '../format'
+import { statusLabel } from '../format'
 import { useNow } from '../hooks/useNow'
 import { groupByDate, recordingRowMeta } from '../library/rows'
 import { SemanticSearchResults, type SemanticSearchState } from './SemanticSearchResults'
@@ -68,6 +69,8 @@ const FolderNameModal = ({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onCancel])
 
+  const t = libraryListText()
+
   const submit = (): void => {
     const name = draft.trim()
     if (name) onCommit(name)
@@ -89,13 +92,13 @@ const FolderNameModal = ({
         <input
           ref={inputRef}
           className="modal__input"
-          placeholder="フォルダ名"
+          placeholder={t.folderNamePlaceholder}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
         />
         <div className="modal__actions">
           <button type="button" onClick={onCancel}>
-            キャンセル
+            {t.cancel}
           </button>
           <button type="submit" disabled={draft.trim().length === 0}>
             {submitLabel}
@@ -274,19 +277,20 @@ export const LibrarySidebar = ({
   }
 
   const showSemanticResults = semanticMode && semantic !== undefined && query.trim() !== ''
+  const t = libraryListText()
 
   return (
     <nav className="tree">
       <div className="tree__header">
         <div className="tree__header-row">
-          <h2>ライブラリ</h2>
+          <h2>{t.libraryTitle}</h2>
           <span className="tree__header-actions">
             {/* ドロップだけでは気付かれないので、明示的な入口をここに置く。 */}
             <button
               type="button"
               className="tree__add"
-              title="音声ファイルを取り込む"
-              aria-label="音声ファイルを取り込む"
+              title={t.importAudio}
+              aria-label={t.importAudio}
               disabled={importing}
               onClick={onImport}
             >
@@ -297,9 +301,7 @@ export const LibrarySidebar = ({
         <input
           type="search"
           className="tree__search"
-          placeholder={
-            semanticMode ? '例: 天気の話をした会議（Enter で検索）' : 'タイトル・要約・本文で絞り込む'
-          }
+          placeholder={semanticMode ? t.searchPlaceholderSemantic : t.searchPlaceholderKeyword}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
@@ -310,23 +312,23 @@ export const LibrarySidebar = ({
           }}
         />
         {semanticAvailable && (
-          <fieldset className="semantic__modes" aria-label="検索の方法">
+          <fieldset className="semantic__modes" aria-label={t.searchModeLabel}>
             <button
               type="button"
               className={semanticMode ? 'semantic__mode' : 'semantic__mode semantic__mode--active'}
               aria-pressed={!semanticMode}
               onClick={() => switchMode('keyword')}
             >
-              キーワード
+              {t.keywordMode}
             </button>
             <button
               type="button"
               className={semanticMode ? 'semantic__mode semantic__mode--active' : 'semantic__mode'}
               aria-pressed={semanticMode}
-              title="文章の意味で探します。例:「天気の話をした会議」"
+              title={t.semanticModeHint}
               onClick={() => switchMode('semantic')}
             >
-              意味
+              {t.semanticMode}
             </button>
           </fieldset>
         )}
@@ -341,13 +343,13 @@ export const LibrarySidebar = ({
           {/* 作成の入口はフォルダの見出しに置く。「ライブラリ」の横では何を作るのか読み取れなかった。 */}
           <div className="folders__header">
             <h3 id="folders-title" className="folders__title">
-              フォルダ
+              {t.foldersHeading}
             </h3>
             <button
               type="button"
               className="tree__add"
-              title="新規フォルダ"
-              aria-label="新規フォルダ"
+              title={t.newFolder}
+              aria-label={t.newFolder}
               onClick={() => setModal({ kind: 'create' })}
             >
               ＋
@@ -379,17 +381,17 @@ export const LibrarySidebar = ({
           {selectedFolder && (
             <div className="folders__actions">
               <button type="button" onClick={() => setModal({ kind: 'create', parentId: selectedFolder.id })}>
-                子フォルダを作成
+                {t.createSubfolder}
               </button>
               <button type="button" onClick={() => setModal({ kind: 'rename', folder: selectedFolder })}>
-                名前を変更
+                {t.renameFolder}
               </button>
               <button
                 type="button"
                 className="folders__delete"
                 onClick={() => onDeleteFolder(selectedFolder.id)}
               >
-                削除
+                {t.deleteFolder}
               </button>
             </div>
           )}
@@ -397,23 +399,23 @@ export const LibrarySidebar = ({
       )}
 
       {!showSemanticResults && searching && (
-        <p className="folders__searching">すべてのフォルダから探しています</p>
+        <p className="folders__searching">{t.searchingAllFolders}</p>
       )}
 
       {!showSemanticResults && listed.length === 0 && !hasTranscriptHits && (
         <p className="tree__empty">
           {recordings.length === 0 ? (
             <>
-              録音はまだありません。下の「録音」ボタンで開始するか、
+              {t.noRecordingsYetPrefix}
               <button type="button" className="tree__empty-link" onClick={onImport}>
-                音声ファイルを取り込め
+                {t.noRecordingsYetLink}
               </button>
-              ます。
+              {t.noRecordingsYetSuffix}
             </>
           ) : searching ? (
-            '一致する録音がありません。'
+            t.noMatchingRecordings
           ) : (
-            'このフォルダに録音はありません。録音を上のフォルダへドラッグすると移せます。'
+            t.noRecordingsInFolder
           )}
         </p>
       )}
@@ -435,7 +437,7 @@ export const LibrarySidebar = ({
                   selected={recording.id === selectedId}
                   meta={
                     searching
-                      ? `${recordingRowMeta(recording, now)} ・ ${folderPathLabel(folders, recording.folderId)}`
+                      ? t.joinMeta(recordingRowMeta(recording, now), folderPathLabel(folders, recording.folderId))
                       : recordingRowMeta(recording, now)
                   }
                   onSelect={onSelect}
@@ -458,13 +460,13 @@ export const LibrarySidebar = ({
         <FolderNameModal
           title={
             modal.kind === 'rename'
-              ? 'フォルダの名前を変更'
+              ? t.renameFolderTitle
               : modal.parentId
-                ? '子フォルダを作成'
-                : '新規フォルダ'
+                ? t.createSubfolderTitle
+                : t.newFolderTitle
           }
           initialName={modal.kind === 'rename' ? modal.folder.name : ''}
-          submitLabel={modal.kind === 'rename' ? '変更' : '作成'}
+          submitLabel={modal.kind === 'rename' ? t.renameSubmit : t.createSubmit}
           onCommit={(name) => {
             if (modal.kind === 'rename') {
               if (name !== modal.folder.name) onRenameFolder(modal.folder.id, name)
@@ -560,7 +562,7 @@ const RecordingRow = ({
       {/* 完了は大半の行の状態で、並べても何も語らない。手が要る状態だけ出す。 */}
       {recording.status !== 'ready' && (
         <span className={`badge badge--${recording.status}`}>
-          {STATUS_LABELS[recording.status] ?? recording.status}
+          {statusLabel(recording.status)}
         </span>
       )}
     </span>

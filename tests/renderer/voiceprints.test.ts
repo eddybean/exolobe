@@ -1,10 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { VoiceprintDto } from '@shared/ipc'
 import {
   filterVoiceprints,
   voiceprintCountLabel,
   voiceprintSummary
 } from '@renderer/library/voiceprints'
+import { setLocale } from '@renderer/i18n/locale'
+
+afterEach(() => {
+  setLocale('ja')
+})
 
 describe('voiceprintSummary', () => {
   it('学習に使った録音の数と、最後に覚えた日を出す', () => {
@@ -74,5 +79,23 @@ describe('voiceprintCountLabel', () => {
 
   it('1 人でも同じ形で出す', () => {
     expect(voiceprintCountLabel(1)).toBe('1 人を覚えています')
+  })
+})
+
+describe('英語ロケール', () => {
+  it('学習した録音数と日付を英語で出す（単数と複数で語尾を変える）', () => {
+    setLocale('en')
+    expect(
+      voiceprintSummary({ name: 'Alice', samples: 3, updatedAt: '2026-09-10T09:00:00+09:00' })
+    ).toBe('Learned from 3 recordings · September 10')
+    expect(
+      voiceprintSummary({ name: 'Bob', samples: 1, updatedAt: '2026-09-12T09:00:00+09:00' })
+    ).toBe('Learned from 1 recording · September 12')
+  })
+
+  it('覚えている人数を英語で出す（単数と複数で語尾を変える）', () => {
+    setLocale('en')
+    expect(voiceprintCountLabel(3)).toBe('3 voices remembered')
+    expect(voiceprintCountLabel(1)).toBe('1 voice remembered')
   })
 })

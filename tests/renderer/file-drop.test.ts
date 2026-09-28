@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { ImportAudioResultDto, RecordingDto } from '@shared/ipc'
 import {
   FOLDER_MIME,
@@ -7,6 +7,7 @@ import {
   isExternalFileDrag,
   nextDragDepth
 } from '@renderer/library/fileDrop'
+import { setLocale } from '@renderer/i18n/locale'
 
 describe('isExternalFileDrag', () => {
   it('OS から来たファイルのドラッグを受け入れる', () => {
@@ -110,5 +111,33 @@ describe('importSummary', () => {
     expect(summary).toContain('2')
     expect(summary).toContain('x.webm')
     expect(summary).toContain('y.mkv')
+  })
+})
+
+describe('英語表示', () => {
+  afterEach(() => setLocale('ja'))
+
+  it('1 件の失敗を英語で出す', () => {
+    setLocale('en')
+    const summary = importSummary(
+      result([], [{ fileName: 'meeting.webm', reason: "This audio format isn't supported yet." }])
+    )
+
+    expect(summary).toBe(`Couldn't import "meeting.webm". This audio format isn't supported yet.`)
+  })
+
+  it('複数の失敗を英語で件数とファイル名付きで出す', () => {
+    setLocale('en')
+    const summary = importSummary(
+      result(
+        [],
+        [
+          { fileName: 'x.webm', reason: 'nope' },
+          { fileName: 'y.mkv', reason: 'nope' }
+        ]
+      )
+    )
+
+    expect(summary).toBe(`Couldn't import 2 files: x.webm, y.mkv`)
   })
 })

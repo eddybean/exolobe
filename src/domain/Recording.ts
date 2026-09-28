@@ -1,4 +1,5 @@
 import type { ErrorReason } from '@domain/errors'
+import type { MeetingLanguage } from '@domain/MeetingLanguage'
 
 /** 停止後に順に実行されるパイプラインのステップ。配列の順序が実行順を定義する。 */
 export const PIPELINE_STEPS = ['mix', 'transcribe', 'diarize', 'summarize', 'encode'] as const
@@ -76,21 +77,25 @@ export const slugForRecording = (startedAt: Date, id: string): string => {
   return `${date}_${time}-${idSuffix}`
 }
 
-export const defaultTitle = (startedAt: Date): string => {
+/**
+ * タイトルが決まらないときの名前。会議の言語で付ける（ADR-043）。
+ * 一度付けた名前は保存されるので、後から言語を変えても書き換わらない。
+ */
+export const defaultTitle = (startedAt: Date, language: MeetingLanguage): string => {
   const { date } = formatDateTime(startedAt)
-  return `${date} ${pad(startedAt.getHours())}:${pad(startedAt.getMinutes())} の会議`
+  const time = `${pad(startedAt.getHours())}:${pad(startedAt.getMinutes())}`
+  return language === 'en' ? `Meeting on ${date} ${time}` : `${date} ${time} の会議`
 }
 
 export const createRecording = (params: {
   id: string
   startedAt: Date
-  title?: string
+  /** 空にしない。既定のタイトルは会議の言語が要るので呼び出し側が決める（defaultTitle）。 */
+  title: string
 }): Recording => {
-  const title = params.title?.trim() || defaultTitle(params.startedAt)
-
   return {
     id: params.id,
-    title,
+    title: params.title,
     startedAt: params.startedAt,
     durationMs: 0,
     status: 'recording',

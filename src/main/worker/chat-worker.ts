@@ -4,6 +4,7 @@ import { errorToWorkerPayload } from './workerError'
 import type { ChatAnswerDto } from '@shared/ipc'
 import { createChat, type ChatServices } from './chat-container'
 import { isChatWorkerRequest, type ChatWorkerResponse } from './chat-protocol'
+import { UI_LOCALE_ENV, parseLocale } from '@shared/i18n/locale'
 
 /**
  * チャットの utilityProcess。
@@ -40,7 +41,8 @@ const finderFor = (requestId: string): RecordingFinderPort => ({
 let services: Promise<ChatServices> | undefined
 
 const getServices = (finder: RecordingFinderPort): Promise<ChatServices> => {
-  services ??= createChat(process.env['OMR_USER_DATA'] ?? '', finder).catch((error: unknown) => {
+  const uiLocale = parseLocale(process.env[UI_LOCALE_ENV])
+  services ??= createChat(process.env['OMR_USER_DATA'] ?? '', uiLocale, finder).catch((error: unknown) => {
     services = undefined
     throw error
   })
@@ -59,7 +61,7 @@ const toDto = (answer: ChatAnswer): ChatAnswerDto => ({
     ...(citation.startMs === undefined ? {} : { startMs: citation.startMs }),
     truncated: citation.truncated
   })),
-  ...(answer.scopeLabel === undefined ? {} : { scopeLabel: answer.scopeLabel }),
+  ...(answer.scope === undefined ? {} : { scope: answer.scope }),
   usedTranscript: answer.usedTranscript,
   droppedCount: answer.droppedCount,
   truncated: answer.truncated

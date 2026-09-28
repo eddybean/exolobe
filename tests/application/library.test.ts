@@ -110,7 +110,7 @@ describe('GetRecordingDetail', () => {
   })
 
   it('処理中で文字起こしがまだ無くても開ける', async () => {
-    const other = createRecording({ id: 'rec-2', startedAt })
+    const other = createRecording({ id: 'rec-2', startedAt, title: '会議' })
     await repository.save(other)
 
     const detail = await new GetRecordingDetail(deps).execute('rec-2')
@@ -241,7 +241,7 @@ describe('RenameSpeaker', () => {
   })
 
   it('文字起こしがまだ無ければ拒否する', async () => {
-    const other = createRecording({ id: 'rec-2', startedAt })
+    const other = createRecording({ id: 'rec-2', startedAt, title: '会議' })
     await repository.save(other)
 
     await expect(
@@ -331,7 +331,7 @@ describe('EditSegmentText', () => {
   })
 
   it('文字起こしがまだ無ければ拒否する', async () => {
-    const other = createRecording({ id: 'rec-2', startedAt })
+    const other = createRecording({ id: 'rec-2', startedAt, title: '会議' })
     await repository.save(other)
 
     await expect(
@@ -537,7 +537,7 @@ describe('UpdateSettings', () => {
 
 describe('GetSetupState', () => {
   it('保存先もモデルも未設定なら初期設定が必要と伝える', async () => {
-    const state = await new GetSetupState(new FakeSettingsRepository(defaultSettings())).execute()
+    const state = await new GetSetupState(new FakeSettingsRepository(defaultSettings('ja'))).execute()
 
     expect(state.needsStorageDir).toBe(true)
     expect(state.needsTranscriptionModel).toBe(true)
@@ -546,10 +546,10 @@ describe('GetSetupState', () => {
 
   it('揃っていれば初期設定は不要と伝える', async () => {
     const settings = new FakeSettingsRepository({
-      ...defaultSettings(),
+      ...defaultSettings('ja'),
       storageDir: '/storage',
-      transcription: { ...defaultSettings().transcription, modelPath: '/m/whisper.bin' },
-      summarization: { ...defaultSettings().summarization, modelPath: '/m/qwen.gguf' }
+      transcription: { ...defaultSettings('ja').transcription, modelPath: '/m/whisper.bin' },
+      summarization: { ...defaultSettings('ja').summarization, modelPath: '/m/qwen.gguf' }
     })
 
     const state = await new GetSetupState(settings).execute()

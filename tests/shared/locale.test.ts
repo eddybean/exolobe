@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { localeArg, localeFromArgv, localeTag, resolveLocale } from '@shared/i18n/locale'
+import {
+  localeArg,
+  localeFromArgv,
+  localeTag,
+  parseLocale,
+  resolveLocale
+} from '@shared/i18n/locale'
 
 describe('resolveLocale', () => {
   it('優先言語の先頭が日本語なら日本語', () => {
@@ -49,5 +55,18 @@ describe('localeArg / localeFromArgv', () => {
   it('引数が無い・知らない値なら英語', () => {
     expect(localeFromArgv(['/path/Electron'])).toBe('en')
     expect(localeFromArgv(['--omr-locale=de'])).toBe('en')
+  })
+})
+
+/** main が決めた言語をワーカーへ渡す環境変数（OMR_UI_LOCALE）の読み取り。 */
+describe('parseLocale', () => {
+  it('対応している言語はそのまま', () => {
+    expect(parseLocale('ja')).toBe('ja')
+    expect(parseLocale('en')).toBe('en')
+  })
+
+  it('無い・知らない値は英語', () => {
+    expect(parseLocale(undefined)).toBe('en')
+    expect(parseLocale('ja-JP')).toBe('en')
   })
 })

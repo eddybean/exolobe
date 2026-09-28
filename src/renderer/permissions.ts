@@ -1,4 +1,5 @@
 import type { CalendarPermissionDto, MicPermissionDto, PrivacyPaneDto } from '@shared/ipc'
+import { permissionsText } from './i18n/permissions'
 import type { InputCheckOutcome, InputCheckResult } from './session/runInputCheck'
 
 export interface PermissionView {
@@ -15,16 +16,17 @@ export interface PermissionView {
  * 二度とダイアログを出さないので、それ以外はシステム設定へ案内するしかない。
  */
 export const micPermissionView = (status: MicPermissionDto): PermissionView => {
+  const t = permissionsText()
   switch (status) {
     case 'granted':
-      return { label: '許可済み', ok: true, action: undefined }
+      return { label: t.micGranted, ok: true, action: undefined }
     case 'not-determined':
-      return { label: 'まだ許可していません', ok: false, action: 'request' }
+      return { label: t.micNotDetermined, ok: false, action: 'request' }
     case 'denied':
     case 'restricted':
-      return { label: '許可されていません', ok: false, action: 'open-settings' }
+      return { label: t.micDenied, ok: false, action: 'open-settings' }
     case 'unknown':
-      return { label: '確認できません', ok: false, action: 'open-settings' }
+      return { label: t.micUnknown, ok: false, action: 'open-settings' }
   }
 }
 
@@ -35,11 +37,12 @@ export const micPermissionView = (status: MicPermissionDto): PermissionView => {
  * 同梱物が無いときは許可で解決しないので、操作を出さない。
  */
 export const calendarPermissionView = (status: CalendarPermissionDto): PermissionView => {
+  const t = permissionsText()
   switch (status) {
     case 'write-only':
-      return { label: '予定の追加だけが許可されています', ok: false, action: 'open-settings' }
+      return { label: t.calendarWriteOnly, ok: false, action: 'open-settings' }
     case 'unavailable':
-      return { label: 'この環境では使えません', ok: false, action: undefined }
+      return { label: t.calendarUnavailable, ok: false, action: undefined }
     default:
       return micPermissionView(status)
   }
@@ -63,18 +66,19 @@ export interface InputCheckRow {
  * マイクに何も入らないのは、話していない・別のマイクを選んでいる、でも起きるので、
  * 許可の問題とは決めつけない。
  */
-export const inputCheckView = (result: InputCheckResult): InputCheckRow[] => [
-  row('相手の声（システム音声）', result.system, {
-    message:
-      '確認音が取れませんでした。システム設定でこのアプリの「システムオーディオ録音」を許可してから、もう一度テストしてください。許可のダイアログがいま出た場合は、許可した後にもう一度テストすれば取れます。',
-    openSettings: 'system-audio'
-  }),
-  row('自分の声（マイク）', result.mic, {
-    message:
-      'マイクに音が入りませんでした。マイクに向かって話しながら、もう一度テストしてください。外付けのマイクを使っている場合は、つながっているかも確かめてください。',
-    openSettings: undefined
-  })
-]
+export const inputCheckView = (result: InputCheckResult): InputCheckRow[] => {
+  const t = permissionsText()
+  return [
+    row(t.systemAudioSubject, result.system, {
+      message: t.systemAudioMessage,
+      openSettings: 'system-audio'
+    }),
+    row(t.micSubject, result.mic, {
+      message: t.micMessage,
+      openSettings: undefined
+    })
+  ]
+}
 
 const row = (
   subject: string,

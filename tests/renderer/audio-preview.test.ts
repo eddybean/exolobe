@@ -1,8 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { RecordingDto } from '@shared/ipc'
 import { isAudioReady, pendingAudioHint } from '@renderer/library/audio'
+import { setLocale } from '@renderer/i18n/locale'
+
+afterEach(() => {
+  setLocale('ja')
+})
 
 const dto = (encode: string): RecordingDto => ({
   id: 'rec-1',
@@ -47,6 +52,12 @@ describe('再生できない理由', () => {
 
   it('録音後は、エンコードを待つことを伝える', () => {
     expect(pendingAudioHint('failed')).toMatch(/エンコード/)
+  })
+
+  it('英語ロケールでも同じ使い分けをする', () => {
+    setLocale('en')
+    expect(pendingAudioHint('recording')).toMatch(/stop recording/)
+    expect(pendingAudioHint('failed')).toMatch(/encoding/)
   })
 })
 

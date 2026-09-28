@@ -1,11 +1,15 @@
+import type { MeetingLanguage } from '@domain/MeetingLanguage'
+
 /**
  * チャットでモデルに渡す指示文。
  *
  * 要約プロンプト（DEFAULT_SUMMARY_PROMPT）と違い、設定で編集できるようにしない。
  * ここには「文脈だけを根拠にする」「[1] の形で引用する」という出力の契約が
  * 含まれていて、画面の引用表示がそれに依存する。書き換えられると UI が黙って壊れる。
+ *
+ * 問いの言語ごとに持つ（ADR-043）。英語版も契約は日本語版と同じにする。片方だけ直すと、
+ * 言語によって引用が出たり出なかったりする。
  */
-
 export const CONTEXT_PLACEHOLDER = '{{context}}'
 export const QUESTION_PLACEHOLDER = '{{question}}'
 
@@ -46,17 +50,81 @@ export const DEFAULT_CHAT_PROMPT = [
   '答えの形は質問に合うものを選び、根拠にした会議の番号を [1] の形で添えてください。'
 ].join('\n')
 
+export const DEFAULT_CHAT_SYSTEM_PROMPT_EN = [
+  "You are an assistant that answers questions using only the user's meeting records.",
+  '',
+  'How to answer:',
+  '- Gather what matches the question across meetings and answer with it.',
+  '- Do not list meetings one by one under their own headings. A list of meetings is not an answer.',
+  '  Group by meeting only when asked to summarize meeting by meeting.',
+  '- If the same point appears in several meetings, state it once.',
+  '- Choose the shape of the answer to fit the question:',
+  '  - For to-dos or tasks, use `- [ ] ` checkboxes and include the owner and due date',
+  '    in the item when the records give them',
+  '  - For lists such as decisions, use bullet points',
+  '  - For background, flow, or reasons, write short paragraphs',
+  '  - For comparing numbers or periods, use a table',
+  '- End each item with the number of the meeting it is based on, in the form [1]. The number',
+  '  is the one in the record heading. Do not write meeting names or dates (the app fills them',
+  "  in from the number on the user's screen).",
+  '- Keep any preamble to one sentence. Do not add impressions or extra notes after the answer.',
+  '',
+  'Rules:',
+  '- Base the answer only on what is written in the given meeting records. Do not guess.',
+  '- Copy dates, numbers, names of people, and company names exactly as recorded.',
+  '  Do not round or paraphrase them.',
+  '- If nothing in the records matches, say clearly "The records do not say." and suggest',
+  '  asking again with a different period or wording.'
+].join('\n')
+
+export const DEFAULT_CHAT_PROMPT_EN = [
+  '# Meeting records',
+  CONTEXT_PLACEHOLDER,
+  '',
+  '# Question',
+  QUESTION_PLACEHOLDER,
+  '',
+  'Answer in English, based only on the meeting records above.',
+  'Do not list the meetings; answer with what matches the question.',
+  'Choose a shape that fits the question and cite the meeting numbers you used in the form [1].'
+].join('\n')
+
+const PROMPTS: Readonly<
+  Record<MeetingLanguage, { readonly system: string; readonly prompt: string }>
+> = {
+  ja: { system: DEFAULT_CHAT_SYSTEM_PROMPT, prompt: DEFAULT_CHAT_PROMPT },
+  en: { system: DEFAULT_CHAT_SYSTEM_PROMPT_EN, prompt: DEFAULT_CHAT_PROMPT_EN }
+}
+
+/** 問いの言語の指示文。 */
+export const chatPrompts = (
+  language: MeetingLanguage
+): { readonly system: string; readonly prompt: string } => PROMPTS[language]
+
 /** 文脈が空のときにそう書く。空欄のまま渡すと、モデルが記憶から会議を作り出す。 */
-const EMPTY_CONTEXT = '（該当する会議の記録はありません）'
+const EMPTY_CONTEXT: Readonly<Record<MeetingLanguage, string>> = {
+  ja: '（該当する会議の記録はありません）',
+  en: '(No meeting records match.)'
+}
+
+/** 差し込み位置を持たないテンプレートに足す見出し。 */
+const FALLBACK_HEADINGS: Readonly<
+  Record<MeetingLanguage, { readonly context: string; readonly question: string }>
+> = {
+  ja: { context: '# 会議記録', question: '# 質問' },
+  en: { context: '# Meeting records', question: '# Question' }
+}
 
 const fill = (template: string, placeholder: string, value: string): string =>
   template.includes(placeholder) ? template.split(placeholder).join(value) : template
 
 export const renderChatPrompt = (
   template: string,
+  language: MeetingLanguage,
   params: { readonly context: string; readonly question: string }
 ): string => {
-  const context = params.context.trim() || EMPTY_CONTEXT
+  const context = params.context.trim() || EMPTY_CONTEXT[language]
+  const headings = FALLBACK_HEADINGS[language]
   const base = fill(
     fill(template, CONTEXT_PLACEHOLDER, context),
     QUESTION_PLACEHOLDER,
@@ -66,5 +134,5 @@ export const renderChatPrompt = (
   // 差し込み位置を持たないテンプレートでも、文脈と質問は必ず届ける。
   return base.includes(context) && base.includes(params.question)
     ? base
-    : [base, '', '# 会議記録', context, '', '# 質問', params.question].join('\n')
+    : [base, '', headings.context, context, '', headings.question, params.question].join('\n')
 }

@@ -13,6 +13,7 @@ import {
   type Settings,
   type SettingsPatch
 } from '@domain/Settings'
+import type { MeetingLanguage } from '@domain/MeetingLanguage'
 
 /** settings.json の形式の番号。破壊的に変えたときだけ上げる（ADR-035）。 */
 const SCHEMA_VERSION = 1
@@ -29,7 +30,13 @@ export class JsonSettingsRepository implements SettingsRepositoryPort {
   /** 最後に読み書きしたファイルの生の内容。知らないキーを書き戻しで残すために持つ。 */
   private stored: StoredJson<Record<string, unknown>> = { kind: 'missing' }
 
-  constructor(private readonly filePath: string) {}
+  /**
+   * @param language 設定ファイルが無いときの文字起こしの言語。UI の言語を渡す（ADR-043）。
+   */
+  constructor(
+    private readonly filePath: string,
+    private readonly language: MeetingLanguage
+  ) {}
 
   async load(): Promise<Settings> {
     if (this.cache) return this.cache
@@ -38,7 +45,7 @@ export class JsonSettingsRepository implements SettingsRepositoryPort {
     // 状態を作らない。
     this.stored = await readStoredJson(this.filePath, isPlainObject)
     this.cache = mergeSettings(
-      defaultSettings(),
+      defaultSettings(this.language),
       this.stored.kind === 'ok' ? (this.stored.value as SettingsPatch) : {}
     )
     return this.cache

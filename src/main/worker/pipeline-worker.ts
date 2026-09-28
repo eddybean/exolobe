@@ -2,6 +2,7 @@ import { errorToWorkerPayload } from './workerError'
 import { toRecordingDto } from '@shared/ipc'
 import { createPipeline, createVoiceExtractor } from './pipeline-container'
 import { isWorkerRequest, type WorkerResponse } from './protocol'
+import { UI_LOCALE_ENV, parseLocale } from '@shared/i18n/locale'
 
 /**
  * 文字起こし・要約・話者識別を担当する utilityProcess。
@@ -30,17 +31,18 @@ port.on('message', (message) => {
   queue = queue.then(async () => {
     try {
       const userData = process.env['OMR_USER_DATA'] ?? ''
+      const uiLocale = parseLocale(process.env[UI_LOCALE_ENV])
 
       // 声紋の取り直しはパイプラインの外側の仕事だが、読むモデルもクラッシュの
       // 危うさも同じなので同じワーカーで捌く。
       if (request.type === 'voices') {
-        const extractor = await createVoiceExtractor(userData)
+        const extractor = await createVoiceExtractor(userData, uiLocale)
         await extractor.execute(request.recordingId)
         send({ type: 'voices-done', jobId: request.jobId })
         return
       }
 
-      const pipeline = await createPipeline(userData, {
+      const pipeline = await createPipeline(userData, uiLocale, {
         report: (event) => send({ type: 'progress', event })
       })
 

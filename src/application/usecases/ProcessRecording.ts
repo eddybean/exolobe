@@ -41,11 +41,15 @@ import {
   type MemoryDemand
 } from '@domain/MemoryGuard'
 import { findAsset } from '@domain/ModelCatalog'
-import type { Settings } from '@domain/Settings'
+import { meetingLanguageOf, type MeetingLanguage } from '@domain/MeetingLanguage'
+import { summaryPromptFor, type Settings } from '@domain/Settings'
 import {
   REMOTE_SPEAKER_ID,
   SELF_SPEAKER_ID,
+  defaultRemoteGroupLabel,
   defaultRemoteLabel,
+  defaultSelfLabel,
+  isDefaultRemoteLabel,
   isRemoteSpeakerId,
   remoteSpeakerId,
   type Speaker
@@ -68,6 +72,11 @@ export interface ProcessRecordingDeps {
   readonly encoder: AudioEncoderPort
   readonly progress: ProgressReporterPort
   readonly system: SystemResourcePort
+  /**
+   * 文字起こしの言語が自動判定のときの会議の言語。UI の言語を渡す（ADR-043）。
+   * 話者の既定名・要約プロンプト・メモの見出しをこれで決める。
+   */
+  readonly fallbackLanguage: MeetingLanguage
 }
 
 /** 各ステップが必要とする先行ステップ。先行が失敗したステップは実行せずスキップする。 */
@@ -106,6 +115,7 @@ interface StepContext {
   readonly settings: Settings
   /** トラックを読むステップを含まない実行では undefined（片付け済みでも動けるように）。 */
   readonly tracks: RecordingSource | undefined
+  readonly language: MeetingLanguage
 }
 
 /**
@@ -142,7 +152,8 @@ export class ProcessRecording {
       : undefined
 
     const settings = await this.deps.settings.load()
-    const context: StepContext = { recording, settings, tracks }
+    const language = meetingLanguageOf(settings.transcription.language, this.deps.fallbackLanguage)
+    const context: StepContext = { recording, settings, tracks, language }
 
     let steps = recording.steps
     for (const step of PIPELINE_STEPS) {
@@ -344,8 +355,7 @@ export class ProcessRecording {
    * 素材ごとに文字起こしし、話者 ID を付けて 1 本にまとめる。
    * どの WAV を誰として起こすかは transcriptionTargets が決める。
    */
-  private async transcribe({ recording, settings, tracks }: StepContext): Promise<void> {
-    const { language } = settings.transcription
+  private async transcribe({ recording, settings, tracks, language }: StepContext): Promise<void> {
 
     // 直列に回す。whisper を 2 本同時に走らせてもメモリを食うだけで速くならない。
     const targets = transcriptionTargets(await this.requireTracks(recording, tracks))
@@ -354,7 +364,7 @@ export class ProcessRecording {
       tracked.push(
         await this.deps.transcriber.transcribe({
           wavPath: target.wavPath,
-          language,
+          language: settings.transcription.language,
           speakerId: target.speakerId,
           // 利用者が知りたいのはステップ全体の進み具合なので、トラック内の割合を
           // 全体へ換算する。トラックの長さはほぼ揃う（同じ会議の 2 系統）ので等分でよい。
@@ -373,12 +383,12 @@ export class ProcessRecording {
     const segments = mergeTracks(tracked)
     await this.deps.artifacts.writeTranscript(recording, {
       segments,
-      speakers: buildSpeakers(segments, previous?.speakers)
+      speakers: buildSpeakers(segments, language, previous?.speakers)
     })
   }
 
   /** 相手側を話者クラスタに分割し、文字起こしを上書きする。 */
-  private async diarize({ recording, settings, tracks }: StepContext): Promise<void> {
+  private async diarize({ recording, settings, tracks, language }: StepContext): Promise<void> {
     if (!settings.diarization.enabled) return
 
     const existing = await this.requireTranscript(recording)
@@ -393,7 +403,7 @@ export class ProcessRecording {
 
     await this.deps.artifacts.writeTranscript(recording, {
       segments,
-      speakers: buildSpeakers(segments, existing.speakers, known)
+      speakers: buildSpeakers(segments, language, existing.speakers, known)
     })
   }
 
@@ -442,19 +452,21 @@ export class ProcessRecording {
     }
   }
 
-  private async summarize({ recording, settings }: StepContext): Promise<void> {
+  private async summarize({ recording, settings, language }: StepContext): Promise<void> {
     const { segments, speakers } = await this.requireTranscript(recording)
     // メモは録音後にも書き足せる。再要約でも毎回読み直す（ADR-042）。
     const notes = summaryNotes({
       note: await this.deps.artifacts.readNote(recording),
       marks: await this.deps.artifacts.readBookmarks(recording),
       segments,
-      speakers
+      speakers,
+      language
     })
     const summary = await this.deps.summarizer.summarize({
       transcript: toMarkdown(segments, speakers),
       notes,
-      promptTemplate: settings.summarization.promptTemplate
+      promptTemplate: summaryPromptFor(settings.summarization.promptTemplate, language),
+      language
     })
 
     await this.deps.artifacts.writeSummary(recording, summary)
@@ -512,6 +524,7 @@ export class ProcessRecording {
  */
 const buildSpeakers = (
   segments: readonly TranscriptSegment[],
+  language: MeetingLanguage,
   existing: readonly Speaker[] = [],
   known: ReadonlyMap<string, string> = new Map()
 ): Speaker[] => {
@@ -524,7 +537,7 @@ const buildSpeakers = (
     speakers.push({
       id: SELF_SPEAKER_ID,
       kind: 'self',
-      label: named.get(SELF_SPEAKER_ID) ?? '自分'
+      label: named.get(SELF_SPEAKER_ID) ?? defaultSelfLabel(language)
     })
     seen.add(SELF_SPEAKER_ID)
   }
@@ -534,21 +547,25 @@ const buildSpeakers = (
     seen.add(segment.speakerId)
 
     if (isRemoteSpeakerId(segment.speakerId)) {
-      const fallback =
-        segment.speakerId === REMOTE_SPEAKER_ID ? '参加者' : defaultRemoteLabel(remoteIndex)
-      if (segment.speakerId !== REMOTE_SPEAKER_ID) remoteIndex += 1
+      const grouped = segment.speakerId === REMOTE_SPEAKER_ID
+      const index = remoteIndex
+      const fallback = grouped
+        ? defaultRemoteGroupLabel(language)
+        : defaultRemoteLabel(index, language)
+      if (!grouped) remoteIndex += 1
 
       // 既に付いている名前が既定の採番そのものなら、利用者が付けたものではない。
       // そこだけ声紋の引き当てに譲る（声紋帳が育った後で話者識別をやり直せば、
-      // 過去の録音にも名前が入る）。
+      // 過去の録音にも名前が入る）。別の言語で付けた採番も既定とみなす。
       const given = named.get(segment.speakerId)
+      const userGiven =
+        given !== undefined &&
+        given !== fallback &&
+        (grouped || !isDefaultRemoteLabel(given, index))
       speakers.push({
         id: segment.speakerId,
         kind: 'remote',
-        label:
-          given !== undefined && given !== fallback
-            ? given
-            : (known.get(segment.speakerId) ?? fallback)
+        label: userGiven ? given : (known.get(segment.speakerId) ?? fallback)
       })
     } else {
       speakers.push({

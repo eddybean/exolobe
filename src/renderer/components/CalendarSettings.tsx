@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import type { CalendarPermissionDto } from '@shared/ipc'
 import { messageOf } from '../errorMessage'
+import { calendarText } from '../i18n/calendar'
 import { calendarPermissionView } from '../permissions'
 
 /**
@@ -23,6 +24,7 @@ export const CalendarSettings = ({
   onChange: (enabled: boolean) => void
   onAutoStartChange: (enabled: boolean) => void
 }): ReactElement => {
+  const t = calendarText()
   const [permission, setPermission] = useState<CalendarPermissionDto>()
   const [error, setError] = useState<string>()
 
@@ -64,7 +66,7 @@ export const CalendarSettings = ({
   return (
     <section className="settings-card permissions" aria-labelledby="calendar-title">
       <h3 id="calendar-title" className="settings-card__title">
-        カレンダー連携
+        {t.title}
       </h3>
 
       {error && (
@@ -74,26 +76,26 @@ export const CalendarSettings = ({
       )}
 
       <label className="field">
-        <span className="field__label">予定からタイトルと参加者を埋める</span>
+        <span className="field__label">{t.fillLabel}</span>
         <input type="checkbox" checked={enabled} onChange={(event) => toggle(event.target.checked)} />
         <span className="field__hint">
-          {'録音を始めた時刻に重なる予定のタイトルを録音の名前にし、参加者を話者名の候補に出します。'}
-          {'会議の URL を含む予定の時間帯にマイクが使われたら、録音を早めに促します。'}
-          {'macOS のカレンダーを読むだけで、どこにも送信しません。'}
+          {t.fillHint1}
+          {t.fillHint2}
+          {t.fillHint3}
         </span>
       </label>
 
       {enabled && (
         <label className="field">
-          <span className="field__label">会議の予定の時間帯にマイクが使われたら、録音を自動で始める</span>
+          <span className="field__label">{t.autoStartLabel}</span>
           <input
             type="checkbox"
             checked={autoStartEnabled}
             onChange={(event) => onAutoStartChange(event.target.checked)}
           />
           <span className="field__hint">
-            {'Google Meet・Zoom・Teams の URL を含む予定があり、他のアプリがマイクを 30 秒使い続けたときだけ始めます。'}
-            {'始めたら通知で知らせ、「停止して破棄」で何も残さずに取り消せます。止めた会議では再び自動で始めません。'}
+            {t.autoStartHint1}
+            {t.autoStartHint2}
           </span>
         </label>
       )}
@@ -101,8 +103,8 @@ export const CalendarSettings = ({
       {enabled && (
         <div className="permissions__row">
           <div className="permissions__subject">
-            <span className="permissions__name">カレンダー</span>
-            <span className="permissions__purpose">予定の読み取り</span>
+            <span className="permissions__name">{t.subjectName}</span>
+            <span className="permissions__purpose">{t.subjectPurpose}</span>
           </div>
           {view && (
             <span className={view.ok ? 'permissions__state permissions__state--ok' : 'permissions__state permissions__state--ng'}>
@@ -111,12 +113,12 @@ export const CalendarSettings = ({
           )}
           {view?.action === 'request' && (
             <button type="button" onClick={request}>
-              許可する
+              {t.allow}
             </button>
           )}
           {view?.action === 'open-settings' && (
             <button type="button" onClick={openSettings}>
-              システム設定を開く
+              {t.openSettings}
             </button>
           )}
         </div>

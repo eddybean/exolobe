@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { SearchHitDto, SearchIndexStatusDto } from '@shared/ipc'
 import {
   hitLocation,
   isSemanticSearchAvailable,
   searchIndexSummary
 } from '../../src/renderer/library/semanticSearch'
+import { setLocale } from '../../src/renderer/i18n/locale'
 
 const hit = (overrides: Partial<SearchHitDto> = {}): SearchHitDto => ({
   recordingId: 'rec-1',
@@ -79,5 +80,24 @@ describe('searchIndexSummary', () => {
     expect(searchIndexSummary(status({ modelInstalled: false }))).toBe(
       '上の「モデル」から意味検索モデルをダウンロードしてください'
     )
+  })
+})
+
+describe('英語表示', () => {
+  afterEach(() => setLocale('ja'))
+
+  it('出どころを英語で示す', () => {
+    setLocale('en')
+    expect(hitLocation(hit({ startMs: 754_000 }))).toBe('Transcript 12:34')
+    expect(hitLocation(hit({ source: 'summary' }))).toBe('Summary')
+    expect(hitLocation(hit({ source: 'note' }))).toBe('Notes')
+  })
+
+  it('索引の状態を英語で示す', () => {
+    setLocale('en')
+    expect(searchIndexSummary(status())).toBe('12 of 15 indexed (3MB)')
+    expect(
+      searchIndexSummary(status({ sync: { state: 'running', done: 3, total: 8 } }))
+    ).toBe('Building index (3 of 8)')
   })
 })

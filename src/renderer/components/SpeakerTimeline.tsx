@@ -1,5 +1,6 @@
 import type { MouseEvent, ReactElement } from 'react'
 import { seekTargetMs, type SpeakerLane } from '../library/timeline'
+import { editableText } from '../i18n/editable'
 
 /**
  * 話者ごとの発言の帯。会議の流れ（いつ誰が話していたか）を一目で見せ、押した位置へ飛ぶ。
@@ -51,7 +52,7 @@ export const SpeakerTimeline = ({
             key={lane.speakerId}
             type="button"
             className={`timeline__track tone-${tones.get(lane.speakerId) ?? 0}`}
-            aria-label={`${lane.label}の発言の帯。押した発言から再生`}
+            aria-label={editableText().timeline.laneAriaLabel(lane.label)}
             disabled={disabled}
             // 押してもフォーカスを奪わない。本文を直している最中に聞き直すと、
             // 編集欄の blur で直しかけの本文が確定されてしまうため（時刻のボタンと同じ）。

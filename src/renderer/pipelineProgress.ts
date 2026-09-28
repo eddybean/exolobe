@@ -1,6 +1,8 @@
 import { PIPELINE_STEPS } from '@domain/Recording'
 import type { ProgressEventDto } from '@shared/ipc'
-import { STEP_LABELS } from './format'
+import { stepLabel } from '@shared/i18n/steps'
+import { pipelineText } from './i18n/pipeline'
+import { locale } from './i18n/locale'
 
 /**
  * 処理状況（タイトル下のピル）を出すか。
@@ -62,7 +64,9 @@ export const estimateRemainingMs = (
 
 /** 見積もりは粗いので、分単位で切り上げて「約」を付ける。 */
 export const formatRemaining = (ms: number): string =>
-  ms < 60_000 ? '残り 1 分未満' : `残り約 ${Math.ceil(ms / 60_000)} 分`
+  ms < 60_000
+    ? pipelineText().remainingUnderMinute
+    : pipelineText().remainingAbout(Math.ceil(ms / 60_000))
 
 /**
  * ピルの文言。閉じたままでも用が足りるよう、いま動いているステップと残り時間を 1 行にする。
@@ -77,9 +81,10 @@ export const pipelinePillLabel = (
 ): string => {
   const running = PIPELINE_STEPS.find((step) => steps[step]?.status === 'running')
   // ワーカーはジョブを直列に捌くので、他の録音の処理が終わるのを待っている間がある。
-  if (!running) return '処理待ち'
+  if (!running) return pipelineText().queued
 
   const fraction = sample?.step === running ? ` ${Math.round(sample.fraction * 100)}%` : ''
-  const remaining = remainingMs === undefined ? '' : ` ・ ${formatRemaining(remainingMs)}`
-  return `${STEP_LABELS[running]}中${fraction}${remaining}`
+  const remaining =
+    remainingMs === undefined ? '' : `${pipelineText().separator}${formatRemaining(remainingMs)}`
+  return pipelineText().running(stepLabel(running, locale()), fraction, remaining)
 }

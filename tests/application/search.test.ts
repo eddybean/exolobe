@@ -49,7 +49,7 @@ beforeEach(async () => {
   embedder = new FakeTextEmbedder()
   system = new FakeSystemResource()
   settings = new FakeSettingsRepository({
-    ...defaultSettings(),
+    ...defaultSettings('ja'),
     storageDir: '/storage',
     search: { enabled: true, modelPath: MODEL_PATH }
   })

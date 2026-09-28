@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   acceptedDrop,
   filterByQuery,
@@ -9,6 +9,7 @@ import {
 } from '@renderer/library/folders'
 import type { FolderDto, RecordingDto } from '@shared/ipc'
 import { FOLDER_MIME, RECORDING_MIME } from '@renderer/library/fileDrop'
+import { setLocale } from '@renderer/i18n/locale'
 
 const folder = (id: string, name: string, parentId?: string): FolderDto => ({
   id,
@@ -181,5 +182,22 @@ describe('acceptedDrop', () => {
 
   it('アプリの外から来たもの（ファイルなど）は受けない', () => {
     expect(acceptedDrop('folder', ['Files'])).toBeUndefined()
+  })
+})
+
+describe('英語表示', () => {
+  afterEach(() => setLocale('ja'))
+
+  it('「すべて」「未分類」を英語で出す', () => {
+    setLocale('en')
+    const rows = folderChipRows(folders, recordings, 'all')
+
+    expect(rows[0]?.map((chip) => chip.name)).toEqual(['All Recordings', 'Unfiled', '顧客', '定例'])
+  })
+
+  it('フォルダの位置を英語でも「/」で区切る（フォルダ名自体は変わらない）', () => {
+    setLocale('en')
+    expect(folderPathLabel(folders, 'x')).toBe('顧客 / A社 / 案件X')
+    expect(folderPathLabel(folders, undefined)).toBe('Unfiled')
   })
 })

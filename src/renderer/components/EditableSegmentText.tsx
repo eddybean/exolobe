@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { useInlineEdit } from '../hooks/useInlineEdit'
+import { editableText } from '../i18n/editable'
 
 /**
  * 文字起こしの 1 発言の本文。「直す」を押すとその場で書き換えられる。
@@ -25,6 +26,7 @@ export const EditableSegmentText = ({
     text,
     onCommit
   )
+  const t = editableText().segmentText
 
   if (!editing) {
     return (
@@ -35,9 +37,9 @@ export const EditableSegmentText = ({
           className="segment__edit"
           onClick={start}
           disabled={blocker !== undefined}
-          title={blocker ?? '音声を聞いて本文を直す'}
+          title={blocker ?? t.editHint}
         >
-          直す
+          {t.edit}
         </button>
       </div>
     )
@@ -50,14 +52,12 @@ export const EditableSegmentText = ({
         className="segment__text-input"
         value={draft}
         readOnly={saving}
-        aria-label="発言の本文"
+        aria-label={t.ariaLabel}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={onKeyDown}
       />
-      <p className="segment__edit-hint">
-        Enter で保存 ・ Esc で取り消し ・ 時刻を押すと直しながら聞き直せます
-      </p>
+      <p className="segment__edit-hint">{t.keyHint}</p>
     </div>
   )
 }

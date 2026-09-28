@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from 'react'
 import type { SetupStateDto } from '@shared/ipc'
 import { ModelManager } from '../components/ModelManager'
+import { onboardingText } from '../i18n/onboarding'
 
 /**
  * 初回起動時の案内。
@@ -18,6 +19,7 @@ export const OnboardingView = ({
   onChanged: () => void
   onOpenSettings: () => void
 }): ReactElement => {
+  const t = onboardingText()
   const [error, setError] = useState<string>()
 
   const chooseStorage = (): void => {
@@ -35,11 +37,8 @@ export const OnboardingView = ({
 
   return (
     <section className="onboarding">
-      <h2>はじめに</h2>
-      <p className="onboarding__lead">
-        会議の音声を録音し、文字起こし・話者識別・要約までをこの Mac の中だけで行います。
-        音声もテキストも外部には送信されません。
-      </p>
+      <h2>{t.title}</h2>
+      <p className="onboarding__lead">{t.lead}</p>
 
       {error && (
         <p className="onboarding__error" role="alert">
@@ -50,38 +49,35 @@ export const OnboardingView = ({
       <ol className="onboarding__steps">
         <li className={setup.needsStorageDir ? 'todo' : 'done'}>
           <div>
-            <strong>保存先を選ぶ</strong>
-            <p>録音・文字起こし・要約の保存場所です。これを決めると録音を始められます。</p>
-            <code>{setup.settings.storageDir ?? '未設定'}</code>
+            <strong>{t.step1Title}</strong>
+            <p>{t.step1Description}</p>
+            <code>{setup.settings.storageDir ?? t.unset}</code>
           </div>
           <button type="button" onClick={chooseStorage}>
-            {setup.needsStorageDir ? '選択' : '変更'}
+            {setup.needsStorageDir ? t.choose : t.change}
           </button>
         </li>
 
       </ol>
 
-      <h3 className="onboarding__section">モデルを取得する</h3>
+      <h3 className="onboarding__section">{t.modelsSectionTitle}</h3>
       <p className="onboarding__lead">
-        文字起こしと要約に使うモデルをダウンロードします。合計で約 5.7GB あり、
-        回線によっては時間がかかります。中断しても途中から再開できます。
-        <strong>モデルが無くても録音は始められます</strong>ので、
-        先に会議を録っておいて後から処理することもできます。
+        {t.modelsLead1}
+        <strong>{t.modelsLeadStrong}</strong>
+        {t.modelsLead2}
       </p>
 
       <ModelManager onChanged={onChanged} />
 
       <p className="onboarding__note">
-        細かい設定や、手元にあるモデルの指定は
+        {t.settingsNote1}
         <button type="button" className="onboarding__link" onClick={onOpenSettings}>
-          設定画面
+          {t.settingsLink}
         </button>
-        から行えます。
+        {t.settingsNote2}
       </p>
 
-      <p className="onboarding__note">
-        初回の録音時に「マイク」と「オーディオ録音」の許可を求められます。どちらも許可してください。
-      </p>
+      <p className="onboarding__note">{t.permissionsNote}</p>
     </section>
   )
 }

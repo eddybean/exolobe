@@ -19,7 +19,7 @@ const stuck = (id: string): Recording => {
     PIPELINE_STEPS.reduce((acc, step) => succeedStep(acc, step), initialStepStates()),
     'summarize'
   )
-  return { ...finishRecording(createRecording({ id, startedAt }), 120_000), steps }
+  return { ...finishRecording(createRecording({ id, startedAt, title: '会議' }), 120_000), steps }
 }
 
 describe('RecoverInterruptedSteps', () => {
@@ -38,7 +38,7 @@ describe('RecoverInterruptedSteps', () => {
   it('実行中のステップが無い録音は書き直さない（利用者の編集と競らないように）', async () => {
     const repository = new FakeRecordingRepository()
     const ready: Recording = {
-      ...finishRecording(createRecording({ id: 'r2', startedAt }), 120_000),
+      ...finishRecording(createRecording({ id: 'r2', startedAt, title: '会議' }), 120_000),
       steps: PIPELINE_STEPS.reduce((acc, step) => succeedStep(acc, step), initialStepStates()),
       status: 'ready'
     }

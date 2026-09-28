@@ -13,6 +13,8 @@ import { FlagIcon } from '../components/FlagIcon'
 import type { Transport } from '../hooks/useTransport'
 import { BOOKMARK_SHORTCUT_LABEL, isBookmarkKey } from '../keyboard'
 import { litSegments } from '../library/liveNotes'
+import { liveText } from '../i18n/live'
+import { intlLocale } from '../i18n/locale'
 
 /** メモの自動保存までの待ち時間。詳細画面のメモと揃える。 */
 const NOTE_SAVE_DELAY_MS = 600
@@ -128,13 +130,14 @@ export const RecordingLiveView = ({
     [recordingId, onChanged]
   )
 
-  const startedAt = new Date(detail.recording.startedAt).toLocaleTimeString('ja-JP', {
+  const t = liveText()
+  const startedAt = new Date(detail.recording.startedAt).toLocaleTimeString(intlLocale(), {
     hour: '2-digit',
     minute: '2-digit'
   })
 
   return (
-    <section className="detail live" aria-label="録音中">
+    <section className="detail live" aria-label={t.sectionAriaLabel}>
       {error && (
         <p className="detail__error" role="alert">
           {error}
@@ -143,34 +146,39 @@ export const RecordingLiveView = ({
 
       <div className="live__body">
         <div className="live__side">
-          <section className="live__card" aria-label="録音の状態">
+          <section className="live__card" aria-label={t.status.ariaLabel}>
             <p className="live__status">
               <span className="live__dot" aria-hidden="true" />
-              <span className="live__status-label">録音中</span>
-              <span className="live__started">{startedAt} 開始</span>
+              <span className="live__status-label">{t.status.label}</span>
+              <span className="live__started">{t.status.startedAt(startedAt)}</span>
             </p>
             <EditableTitle value={detail.recording.title} onCommit={renameTitle} />
-            <p className="live__clock" aria-label="経過時間">
+            <p className="live__clock" aria-label={t.status.elapsedAriaLabel}>
               {formatNoteStamp(transport.elapsedMs)}
             </p>
             <Meter
-              label="相手"
-              source="システム音声"
+              label={t.meter.remoteLabel}
+              source={t.meter.remoteSource}
               tone="remote"
               level={transport.levels.system}
             />
-            <Meter label="自分" source="マイク" tone="self" level={transport.levels.mic} />
+            <Meter
+              label={t.meter.selfLabel}
+              source={t.meter.selfSource}
+              tone="self"
+              level={transport.levels.mic}
+            />
           </section>
 
-          <section className="live__card" aria-label="印">
+          <section className="live__card" aria-label={t.bookmark.sectionAriaLabel}>
             <div className="live__mark-row">
               <button type="button" className="live__mark" onClick={addBookmark}>
                 <FlagIcon />
-                今の発言に印をつける
+                {t.bookmark.button}
               </button>
               <kbd className="live__kbd">{BOOKMARK_SHORTCUT_LABEL}</kbd>
             </div>
-            <p className="live__hint">印は録音後の文字起こしに残り、要約で優先されます</p>
+            <p className="live__hint">{t.bookmark.hint}</p>
             {bookmarks.length > 0 && (
               <ol className="live__marks">
                 {[...bookmarks]
@@ -178,7 +186,7 @@ export const RecordingLiveView = ({
                   .map((bookmark, index) => (
                     <li key={`${bookmark.atMs}-${index}`}>
                       <span className="live__mark-time">{formatNoteStamp(bookmark.atMs)}</span>
-                      <span>印</span>
+                      <span>{t.bookmark.text}</span>
                     </li>
                   ))}
               </ol>
@@ -186,13 +194,13 @@ export const RecordingLiveView = ({
           </section>
         </div>
 
-        <section className="panel live__notes" aria-label="会議中のメモ">
+        <section className="panel live__notes" aria-label={t.notes.sectionAriaLabel}>
           <div className="panel__header">
             <div className="live__notes-heading">
-              <h3>会議中のメモ</h3>
-              <span className="panel__hint">要点だけで十分です。細部は文字起こしが拾います</span>
+              <h3>{t.notes.heading}</h3>
+              <span className="panel__hint">{t.notes.hint}</span>
             </div>
-            <span className="panel__hint">{noteSaved ? '保存済み' : '保存中…'}</span>
+            <span className="panel__hint">{noteSaved ? t.notes.saved : t.notes.saving}</span>
           </div>
           <textarea
             className="note"
@@ -202,12 +210,10 @@ export const RecordingLiveView = ({
               const atMs = elapsedNow()
               setLines((current) => stampLines(current, text, atMs))
             }}
-            placeholder={'- 決まったこと\n- 気になった論点'}
-            aria-label="会議中のメモ"
+            placeholder={t.notes.placeholder}
+            aria-label={t.notes.ariaLabel}
           />
-          <p className="live__footnote">
-            録音を止めると、このメモと文字起こしを合わせて要約を作ります。各行は書き始めた時刻つきで保存され、録音後にその位置へ戻れます。
-          </p>
+          <p className="live__footnote">{t.notes.footnote}</p>
         </section>
       </div>
     </section>
@@ -227,18 +233,19 @@ const Meter = ({
   level: number | undefined
 }): ReactElement => {
   const lit = level === undefined ? 0 : litSegments(level, METER_SEGMENTS)
+  const t = liveText().meter
 
   return (
     <div className={`live__meter live__meter--${tone}`}>
       <p className="live__meter-label">
         <strong>{label}</strong>
         <span>{source}</span>
-        {level === undefined && <span className="live__meter-off">取得できていません</span>}
+        {level === undefined && <span className="live__meter-off">{t.unavailable}</span>}
       </p>
       <div
         className="live__meter-bars"
         role="meter"
-        aria-label={`${label}の入力レベル`}
+        aria-label={t.ariaLabel(label)}
         aria-valuemin={0}
         aria-valuemax={METER_SEGMENTS}
         aria-valuenow={lit}

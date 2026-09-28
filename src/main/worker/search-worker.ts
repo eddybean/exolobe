@@ -3,6 +3,7 @@ import { errorToWorkerPayload } from './workerError'
 import type { SearchHitDto } from '@shared/ipc'
 import { createSearch, type SearchServices } from './search-container'
 import { isSearchWorkerRequest, type SearchWorkerResponse } from './search-protocol'
+import { UI_LOCALE_ENV, parseLocale } from '@shared/i18n/locale'
 
 /**
  * 意味検索の utilityProcess。
@@ -23,7 +24,7 @@ const send = (response: SearchWorkerResponse): void => {
 let services: Promise<SearchServices> | undefined
 
 const getServices = (): Promise<SearchServices> => {
-  services ??= createSearch(process.env['OMR_USER_DATA'] ?? '').catch((error: unknown) => {
+  services ??= createSearch(process.env['OMR_USER_DATA'] ?? '', parseLocale(process.env[UI_LOCALE_ENV])).catch((error: unknown) => {
     services = undefined
     throw error
   })

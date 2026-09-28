@@ -3,13 +3,8 @@ import type { ChatCitationDto } from '@shared/ipc'
 import { Markdown } from '../components/Markdown'
 import { formatDateTime } from '../format'
 import { answerNotice, withInlineSources } from '../chat/messages'
+import { chatText } from '../i18n/chat'
 import type { ChatController } from '../hooks/useChat'
-
-const EXAMPLES = [
-  '先週のTODOをまとめて',
-  '先週の自分の発言だけを要約して',
-  '今月の決定事項を一覧にして'
-] as const
 
 /** 引用の並びは答えの中の [1] [2] と同じ。番号で辿れるようにする。 */
 const Citations = ({
@@ -20,6 +15,7 @@ const Citations = ({
   onOpenRecording: (recordingId: string) => void
 }): ReactElement | null => {
   if (citations.length === 0) return null
+  const t = chatText()
 
   return (
     <ul className="chat__citations">
@@ -34,9 +30,7 @@ const Citations = ({
             <span className="chat__citation-index">[{index + 1}]</span>
             <span className="chat__citation-title">{citation.title}</span>
             <span className="chat__citation-meta">
-              {formatDateTime(citation.startedAt)} ・
-              {citation.source === 'summary' ? ' 要約' : ' 文字起こし'}
-              {citation.truncated ? '（一部）' : ''}
+              {t.citationMeta(formatDateTime(citation.startedAt), citation.source, citation.truncated)}
             </span>
           </button>
         </li>
@@ -63,6 +57,7 @@ export const ChatView = ({
 }): ReactElement => {
   const [draft, setDraft] = useState('')
   const logRef = useRef<HTMLDivElement>(null)
+  const t = chatText()
 
   // 生成につれて下に伸びるので、常に最後を見せる。
   useEffect(() => {
@@ -75,9 +70,9 @@ export const ChatView = ({
     availability === undefined
       ? undefined
       : !availability.enabled
-        ? 'チャットが無効です。設定画面で有効にしてください。'
+        ? t.chatDisabled
         : !availability.modelInstalled
-          ? '要約モデルが未取得です。設定画面で取得してください。'
+          ? t.modelNotInstalled
           : availability.busyReason
 
   const submit = (): void => {
@@ -89,13 +84,11 @@ export const ChatView = ({
   return (
     <section className="chat">
       <header className="chat__header">
-        <h2 className="chat__heading">チャット</h2>
-        <p className="chat__lead">
-          録音・文字起こし・要約をもとに答えます。処理はすべてこの Mac の中で完結します。
-        </p>
+        <h2 className="chat__heading">{t.heading}</h2>
+        <p className="chat__lead">{t.lead}</p>
         {chat.messages.length > 0 && (
           <button type="button" className="chat__reset" onClick={chat.reset}>
-            新しい会話
+            {t.newConversation}
           </button>
         )}
       </header>
@@ -103,9 +96,9 @@ export const ChatView = ({
       <div className="chat__log" ref={logRef}>
         {chat.messages.length === 0 && (
           <div className="chat__empty">
-            <p>期間や話し手で絞って尋ねられます。</p>
+            <p>{t.emptyHint}</p>
             <ul className="chat__examples">
-              {EXAMPLES.map((example) => (
+              {t.examples.map((example) => (
                 <li key={example}>
                   <button
                     type="button"
@@ -132,7 +125,7 @@ export const ChatView = ({
               .join(' ')}
           >
             {message.scopeLabel !== undefined && (
-              <p className="chat__scope">対象: {message.scopeLabel}</p>
+              <p className="chat__scope">{t.scopePrefix(message.scopeLabel)}</p>
             )}
 
             {message.error !== undefined ? (
@@ -147,13 +140,13 @@ export const ChatView = ({
             )}
 
             {message.streaming && message.text === '' && (
-              <p className="chat__thinking">考えています…</p>
+              <p className="chat__thinking">{t.thinking}</p>
             )}
             {(() => {
               const notice = answerNotice(message)
               return notice === undefined ? null : <p className="chat__truncated">{notice}</p>
             })()}
-            {message.aborted === true && <p className="chat__aborted">ここで中断しました。</p>}
+            {message.aborted === true && <p className="chat__aborted">{t.aborted}</p>}
 
             {message.citations !== undefined && (
               <Citations citations={message.citations} onOpenRecording={onOpenRecording} />
@@ -176,7 +169,7 @@ export const ChatView = ({
         <textarea
           className="chat__input"
           value={draft}
-          placeholder="先週のTODOをまとめて"
+          placeholder={t.composerPlaceholder}
           rows={2}
           disabled={blocked !== undefined}
           onChange={(event) => setDraft(event.target.value)}
@@ -190,7 +183,7 @@ export const ChatView = ({
         />
         {generating ? (
           <button type="button" className="chat__stop" onClick={chat.cancel}>
-            停止
+            {t.stop}
           </button>
         ) : (
           <button
@@ -198,7 +191,7 @@ export const ChatView = ({
             className="chat__send"
             disabled={draft.trim().length === 0 || blocked !== undefined}
           >
-            送信
+            {t.send}
           </button>
         )}
       </form>

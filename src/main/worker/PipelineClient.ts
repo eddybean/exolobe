@@ -4,7 +4,8 @@ import { app, utilityProcess } from 'electron'
 import { PIPELINE_STEPS, type PipelineStep } from '@domain/Recording'
 import type { ProgressEventDto, RecordingDto } from '@shared/ipc'
 import { isWorkerResponse } from './protocol'
-import { text } from '../i18n'
+import { UI_LOCALE_ENV } from '@shared/i18n/locale'
+import { appLocale, text } from '../i18n'
 import { errorFromWorker } from './workerError'
 
 /** utilityProcess のうち、このクラスが使う部分だけ。テストで差し替えられるようにする。 */
@@ -223,6 +224,7 @@ const forkPipelineWorker = (): PipelineWorker =>
     env: {
       ...process.env,
       OMR_USER_DATA: app.getPath('userData'),
+      [UI_LOCALE_ENV]: appLocale(),
       // 同梱した whisper-cli の場所。開発中は空になり PATH 上の物が使われる。
       ...(app.isPackaged ? { OMR_RESOURCES: process.resourcesPath } : {})
     },

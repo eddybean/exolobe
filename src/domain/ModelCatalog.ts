@@ -22,8 +22,6 @@ export type ManagedAssetId =
 
 export interface ManagedAsset {
   readonly id: ManagedAssetId
-  readonly label: string
-  readonly description: string
   readonly url: string
   /** models ディレクトリ配下の保存名。 */
   readonly fileName: string
@@ -49,8 +47,6 @@ export interface ManagedAsset {
 export const MANAGED_ASSETS: readonly ManagedAsset[] = [
   {
     id: 'transcription-model',
-    label: '文字起こしモデル',
-    description: 'whisper large-v3-turbo（q5_0）。日本語を含む多言語に対応します。',
     url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin',
     fileName: 'ggml-large-v3-turbo-q5_0.bin',
     bytes: 574_041_195,
@@ -71,9 +67,6 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
    */
   {
     id: 'transcription-coreml-encoder',
-    label: '文字起こし高速化（任意）',
-    description:
-      'whisper のエンコーダを Neural Engine で動かします。文字起こしが約 1.4 倍速くなります（メモリ使用量は変わりません）。',
     url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-encoder.mlmodelc.zip',
     fileName: 'ggml-large-v3-turbo-encoder.mlmodelc.zip',
     bytes: 1_173_393_014,
@@ -86,9 +79,6 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
   },
   {
     id: 'vad-model',
-    label: '無音検出モデル',
-    description:
-      'Silero VAD。喋っていない区間を文字起こしから除き、無音から生まれる誤った文章を防ぎます。',
     url: 'https://huggingface.co/ggml-org/whisper-vad/resolve/9ffd54a1e1ee413ddf265af9913beaf518d1639b/ggml-silero-v5.1.2.bin',
     fileName: 'ggml-silero-v5.1.2.bin',
     bytes: 885_098,
@@ -100,9 +90,6 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
   },
   {
     id: 'summarization-model',
-    label: '要約モデル',
-    description:
-      'Gemma 4 E4B（QAT q4_0）。128K のコンテキストがあり、長い会議も分割せず要約できます。',
     url: 'https://huggingface.co/google/gemma-4-E4B-it-qat-q4_0-gguf/resolve/4b4a2c1d584be7264f87aac328a1bc739ce81b6c/gemma-4-E4B_q4_0-it.gguf',
     fileName: 'gemma-4-E4B_q4_0-it.gguf',
     bytes: 5_154_941_280,
@@ -112,8 +99,6 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
   },
   {
     id: 'diarization-segmentation',
-    label: '話者分割モデル（任意）',
-    description: '参加者が複数人いるとき、相手側を話者ごとに分けるために使います。',
     url: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2',
     fileName: 'sherpa-onnx-pyannote-segmentation-3-0.tar.bz2',
     bytes: 6_958_444,
@@ -125,8 +110,6 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
   },
   {
     id: 'diarization-embedding',
-    label: '話者埋め込みモデル（任意）',
-    description: '話者分割モデルと組み合わせて、同じ人の発話をまとめます。',
     url: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx',
     fileName: '3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx',
     bytes: 28_281_164,
@@ -142,9 +125,6 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
    */
   {
     id: 'search-model',
-    label: '意味検索モデル（任意）',
-    description:
-      'bge-m3（Q8_0）。「天気の話をした会議」のような自然な文章で録音を探せるようにします。',
     url: 'https://huggingface.co/ggml-org/bge-m3-Q8_0-GGUF/resolve/9eba04c5d75ba5a1595e45de734d36bef4e5cb98/bge-m3-q8_0.gguf',
     fileName: 'bge-m3-q8_0.gguf',
     bytes: 634_553_760,
@@ -166,8 +146,6 @@ export const findAsset = (id: string): ManagedAsset | undefined =>
  */
 export interface ModelPackage {
   readonly id: string
-  readonly label: string
-  readonly description: string
   readonly optional: boolean
   readonly bytes: number
   readonly assets: readonly ManagedAsset[]
@@ -175,8 +153,6 @@ export interface ModelPackage {
 
 const single = (asset: ManagedAsset): ModelPackage => ({
   id: asset.id,
-  label: asset.label,
-  description: asset.description,
   optional: asset.optional,
   bytes: asset.bytes,
   assets: [asset]
@@ -203,9 +179,6 @@ export const MODEL_PACKAGES: readonly ModelPackage[] = MANAGED_ASSETS.flatMap(
     return [
       {
         id: 'diarization',
-        label: '話者識別モデル（任意）',
-        description:
-          '参加者が複数人いるとき、相手側を話者ごとに分けます。話者分割と話者埋め込みの 2 つのファイルをまとめて取得します。',
         optional: true,
         bytes: diarization.reduce((sum, file) => sum + file.bytes, 0),
         assets: diarization

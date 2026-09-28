@@ -58,6 +58,7 @@ import { resolveCalendarBinary } from '@infrastructure/calendar/resolveCalendarB
 import { FileModelStore } from '@infrastructure/download/FileModelStore'
 import { FileSearchIndex, SEARCH_INDEX_DIR } from '@infrastructure/search/FileSearchIndex'
 import { NodeFileInfoProbe } from '@infrastructure/system/NodeFileInfoProbe'
+import { appLocale } from './i18n'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import {
   JsonSettingsRepository,
@@ -120,7 +121,7 @@ export interface Container {
 
 export const createContainer = (): Container => {
   const userData = app.getPath('userData')
-  const settings = new JsonSettingsRepository(join(userData, 'settings.json'))
+  const settings = new JsonSettingsRepository(join(userData, 'settings.json'), appLocale())
   const locator = new SettingsStorageLocator(settings)
 
   const repository = new FileRecordingRepository(locator)
@@ -171,7 +172,8 @@ export const createContainer = (): Container => {
       artifacts,
       calendar,
       clock: { now: () => new Date() },
-      ids: { next: () => randomUUID() }
+      ids: { next: () => randomUUID() },
+      fallbackLanguage: appLocale()
     }),
     stopRecording: new StopRecording(capture),
     discardRecording: new DiscardRecording(capture),

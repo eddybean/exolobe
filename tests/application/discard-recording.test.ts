@@ -23,7 +23,8 @@ const build = () => {
     artifacts: new FakeArtifactStore(),
     calendar: new FakeCalendar(),
     clock: new FakeClock(new Date('2026-09-27T10:00:00+09:00')),
-    ids: new FakeIdGenerator()
+    ids: new FakeIdGenerator(),
+    fallbackLanguage: 'ja' as const
   }
   return { ...deps, start: new StartRecording(deps), discard: new DiscardRecording(deps) }
 }

@@ -424,15 +424,24 @@ const HALLUCINATIONS: readonly string[] = [
   'チャンネル登録よろしくお願いします',
   'チャンネル登録高評価よろしくお願いします',
   'この動画が良かったと思ったらチャンネル登録よろしくお願いします',
-  '次回の動画でお会いしましょう'
+  '次回の動画でお会いしましょう',
+  // 英語の会議でも無音から同じ種類の定型句が生まれる（ADR-043）。比較は小文字で行う。
+  'thank you for watching',
+  'thanks for watching',
+  'thank you so much for watching',
+  'thanks for watching and see you next time',
+  'please subscribe to my channel',
+  'please like and subscribe',
+  'see you in the next video'
 ]
 
 /** 末尾の句読点や感嘆符は揺れるだけで意味を持たないため、比較前に落とす。 */
 const stripTrailingPunctuation = (text: string): string =>
   text.replace(/[。．.、，,！!？?〜~…\s]+$/u, '')
 
+/** 英語は文頭の大文字が揺れる。日本語には影響しない。 */
 const isHallucination = (text: string): boolean =>
-  HALLUCINATIONS.includes(stripTrailingPunctuation(text))
+  HALLUCINATIONS.includes(stripTrailingPunctuation(text).trim().toLowerCase())
 
 /**
  * サンプルを 1 つも持たない WAV かどうか。
@@ -563,7 +572,7 @@ export class WhisperCppTranscriber implements TranscriptionPort {
     const outputPrefix = params.wavPath.replace(/\.wav$/, '')
     const jsonPath = `${outputPrefix}.json`
 
-    const prompt = glossaryPrompt(this.config.glossary ?? [])
+    const prompt = glossaryPrompt(this.config.glossary ?? [], params.language)
     const vadModelPath = this.config.vadModelPath ?? ''
 
     const argv = [

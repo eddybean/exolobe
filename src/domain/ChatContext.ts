@@ -2,6 +2,7 @@ import type { SpeakerScope, SummarySection } from '@domain/ChatQuery'
 import { isRemoteSpeakerId, SELF_SPEAKER_ID, type Speaker } from '@domain/Speaker'
 import { formatTimestamp } from '@domain/Transcript'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
+import type { MeetingLanguage } from '@domain/MeetingLanguage'
 
 /**
  * 選ばれた録音から、モデルに読ませる文脈を組み立てる純粋な計算。
@@ -63,7 +64,54 @@ export const INSTRUCTION_TOKENS = 512
  */
 export const MIN_PER_RECORDING_CHARS = 400
 
-const OMISSION = '…（以下省略）'
+/**
+ * 文脈に添える注記。指示文と同じく問いの言語で書く（ADR-043）。指示文と文脈の言語が
+ * ずれると、4B のモデルは答えの言語まで揺れる。
+ */
+const CONTEXT_TEXT: Readonly<
+  Record<
+    MeetingLanguage,
+    {
+      readonly omission: string
+      readonly weekdays: readonly string[]
+      readonly date: (isoDate: string, weekday: string) => string
+      readonly summary: string
+      readonly transcript: (scope: SpeakerScope) => string
+      readonly dropped: (total: number, kept: number) => string
+    }
+  >
+> = {
+  ja: {
+    omission: '…（以下省略）',
+    weekdays: ['日', '月', '火', '水', '木', '金', '土'],
+    date: (isoDate, weekday) => `${isoDate}（${weekday}）`,
+    summary: '（要約）',
+    transcript: (scope) =>
+      `（${
+        scope === 'self'
+          ? '自分の発言のみ・文字起こし'
+          : scope === 'remote'
+            ? '相手の発言のみ・文字起こし'
+            : '文字起こし'
+      }）`,
+    dropped: (total, kept) =>
+      `※ 対象は ${total} 件ありましたが、長さの都合で新しい ${kept} 件だけを載せています。`
+  },
+  en: {
+    omission: '… (rest omitted)',
+    weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    date: (isoDate, weekday) => `${isoDate} (${weekday})`,
+    summary: '(summary)',
+    transcript: (scope) =>
+      scope === 'self'
+        ? '(your remarks only, transcript)'
+        : scope === 'remote'
+          ? "(other participants' remarks only, transcript)"
+          : '(transcript)',
+    dropped: (total, kept) =>
+      `Note: ${total} meetings matched, but only the newest ${kept} are included because of length.`
+  }
+}
 
 /**
  * 議事録の見出しから節を見分ける語。
@@ -73,10 +121,10 @@ const OMISSION = '…（以下省略）'
  * 中身を落とすと、答えに要る記述ごと消える。
  */
 const SECTION_HEADINGS: Record<SummarySection, RegExp> = {
-  todo: /todo|to ?do|タスク|やること|アクション|宿題|次に(?:やる|する)/i,
-  decision: /決定|決まった|決め事|合意|結論/,
-  overview: /概要|要点|サマリ/,
-  discussion: /議論|流れ|経緯|やり取り/
+  todo: /todo|to ?do|to-do|action items?|tasks?|next steps|タスク|やること|アクション|宿題|次に(?:やる|する)/i,
+  decision: /決定|決まった|決め事|合意|結論|decisions?|agreed|conclusions?/i,
+  overview: /概要|要点|サマリ|overview|summary|key points/i,
+  discussion: /議論|流れ|経緯|やり取り|discussion/i
 }
 
 /**
@@ -136,18 +184,19 @@ export const filterSegmentsByScope = (
   })
 }
 
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'] as const
-
 const pad = (value: number): string => String(value).padStart(2, '0')
 
-const formatDate = (date: Date): string =>
-  `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}（${WEEKDAYS[date.getDay()] ?? ''}）`
+const formatDate = (date: Date, language: MeetingLanguage): string => {
+  const text = CONTEXT_TEXT[language]
+  const isoDate = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  return text.date(isoDate, text.weekdays[date.getDay()] ?? '')
+}
 
-export const formatContextHeading = (index: number, material: ChatSourceMaterial): string =>
-  `## [${index}] ${formatDate(material.startedAt)} ${material.title}`
-
-const scopeNote = (scope: SpeakerScope): string =>
-  scope === 'self' ? '自分の発言のみ・文字起こし' : scope === 'remote' ? '相手の発言のみ・文字起こし' : '文字起こし'
+export const formatContextHeading = (
+  index: number,
+  material: ChatSourceMaterial,
+  language: MeetingLanguage
+): string => `## [${index}] ${formatDate(material.startedAt, language)} ${material.title}`
 
 const transcriptBody = (
   material: ChatSourceMaterial,
@@ -186,7 +235,8 @@ const toCandidate = (
   material: ChatSourceMaterial,
   scope: SpeakerScope,
   useTranscript: boolean,
-  section: SummarySection | undefined
+  section: SummarySection | undefined,
+  language: MeetingLanguage
 ): Candidate | undefined => {
   if (useTranscript || scope !== 'all' || !material.summary?.trim()) {
     const { body, startMs } = transcriptBody(material, scope)
@@ -194,7 +244,7 @@ const toCandidate = (
       return {
         material,
         source: 'transcript',
-        note: `（${scopeNote(scope)}）`,
+        note: CONTEXT_TEXT[language].transcript(scope),
         body,
         ...(startMs === undefined ? {} : { startMs })
       }
@@ -209,7 +259,7 @@ const toCandidate = (
   // 節を名指しされていれば、その節だけを渡す。要約の全体を渡すと、4B 級のモデルは
   // 会議ごとの見出しをそのまま写して「会議の一覧」を答えにしてしまう。
   const narrowed = section === undefined ? undefined : extractSummarySection(summary, section)
-  return { material, source: 'summary', note: '（要約）', body: narrowed ?? summary }
+  return { material, source: 'summary', note: CONTEXT_TEXT[language].summary, body: narrowed ?? summary }
 }
 
 /**
@@ -241,9 +291,14 @@ export const buildChatContext = (params: {
   readonly budgetChars: number
   /** 問いが名指しした要約の節。文字起こしを使うときは効かない。 */
   readonly section?: SummarySection
+  /** 問いの言語。見出しと注記をこの言語で書く。 */
+  readonly language: MeetingLanguage
 }): ChatContext => {
+  const text = CONTEXT_TEXT[params.language]
   const all = params.materials
-    .map((material) => toCandidate(material, params.scope, params.useTranscript, params.section))
+    .map((material) =>
+      toCandidate(material, params.scope, params.useTranscript, params.section, params.language)
+    )
     .filter((candidate): candidate is Candidate => candidate !== undefined)
 
   if (all.length === 0) return { text: '', citations: [], droppedCount: 0 }
@@ -262,7 +317,9 @@ export const buildChatContext = (params: {
   const blocks = chosen.map((candidate, index) => {
     const allowance = allowances[index] ?? candidate.body.length
     const truncated = candidate.body.length > allowance
-    const body = truncated ? `${candidate.body.slice(0, allowance)}${OMISSION}` : candidate.body
+    const body = truncated
+      ? `${candidate.body.slice(0, allowance)}${text.omission}`
+      : candidate.body
 
     citations.push({
       recordingId: candidate.material.recordingId,
@@ -273,14 +330,12 @@ export const buildChatContext = (params: {
       truncated
     })
 
-    return `${formatContextHeading(index + 1, candidate.material)}\n${candidate.note}\n${body}`
+    return `${formatContextHeading(index + 1, candidate.material, params.language)}\n${candidate.note}\n${body}`
   })
 
   // 落とした件数を書かないと、モデルは与えられた範囲を全体だと思って断定する。
   const notice =
-    droppedCount > 0
-      ? `\n\n※ 対象は ${params.materials.length} 件ありましたが、長さの都合で新しい ${chosen.length} 件だけを載せています。`
-      : ''
+    droppedCount > 0 ? `\n\n${text.dropped(params.materials.length, chosen.length)}` : ''
 
   return { text: blocks.join('\n\n') + notice, citations, droppedCount }
 }

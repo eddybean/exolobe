@@ -34,8 +34,6 @@ export interface ModelStorePort {
 export interface ManagedAssetStatus {
   /** ModelPackage の ID。取得・削除などの操作はこの単位で行う。 */
   readonly id: string
-  readonly label: string
-  readonly description: string
   readonly bytes: number
   readonly optional: boolean
   readonly installed: boolean
@@ -86,8 +84,6 @@ export class GetModelStatus {
 
         return {
           id: pkg.id,
-          label: pkg.label,
-          description: pkg.description,
           bytes: pkg.bytes,
           optional: pkg.optional,
           installed,

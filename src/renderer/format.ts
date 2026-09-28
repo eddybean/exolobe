@@ -1,3 +1,6 @@
+import { formatText } from './i18n/format'
+import { intlLocale } from './i18n/locale'
+
 export { formatBytes } from '@domain/ModelCatalog'
 
 /** 経過時間・録音長を mm:ss（1 時間以上は h:mm:ss）で表す。 */
@@ -16,7 +19,7 @@ export const formatDateTime = (iso: string): string => {
   const date = new Date(iso)
   const sameYear = date.getFullYear() === new Date().getFullYear()
 
-  return new Intl.DateTimeFormat('ja-JP', {
+  return new Intl.DateTimeFormat(intlLocale(), {
     ...(sameYear ? {} : { year: 'numeric' }),
     month: 'short',
     day: 'numeric',
@@ -25,17 +28,8 @@ export const formatDateTime = (iso: string): string => {
   }).format(date)
 }
 
-export const STATUS_LABELS: Record<string, string> = {
-  recording: '録音中',
-  processing: '処理中',
-  ready: '完了',
-  failed: '一部失敗'
-}
-
-export const STEP_LABELS: Record<string, string> = {
-  mix: 'ミックス',
-  transcribe: '文字起こし',
-  diarize: '話者識別',
-  summarize: '要約',
-  encode: 'エンコード'
+/** 一覧の状態バッジ。知らない状態（新しい版の保存データ）は状態名をそのまま出す。 */
+export const statusLabel = (status: string): string => {
+  const labels: Readonly<Record<string, string>> = formatText().status
+  return labels[status] ?? status
 }

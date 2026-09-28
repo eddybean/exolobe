@@ -1030,7 +1030,7 @@ export const registerIpcHandlers = (
       done({
         text: answer.text,
         citations: answer.citations,
-        ...(answer.scopeLabel === undefined ? {} : { scopeLabel: answer.scopeLabel }),
+        ...(answer.scope === undefined ? {} : { scope: answer.scope }),
         droppedCount: answer.droppedCount,
         truncated: answer.truncated,
         aborted: cancelled.delete(requestId)

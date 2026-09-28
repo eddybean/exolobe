@@ -157,7 +157,7 @@ describe('GetModelStatus', () => {
   it('未取得のモデルを未インストールとして返す', async () => {
     const store = new FakeModelStore()
     const status = await new GetModelStatus(
-      new FakeSettingsRepository(defaultSettings()),
+      new FakeSettingsRepository(defaultSettings('ja')),
       store
     ).execute()
 
@@ -171,8 +171,8 @@ describe('GetModelStatus', () => {
     store.present.add('/custom/whisper.bin')
 
     const settings = new FakeSettingsRepository({
-      ...defaultSettings(),
-      transcription: { ...defaultSettings().transcription, modelPath: '/custom/whisper.bin' }
+      ...defaultSettings('ja'),
+      transcription: { ...defaultSettings('ja').transcription, modelPath: '/custom/whisper.bin' }
     })
 
     const status = await new GetModelStatus(settings, store).execute()
@@ -184,8 +184,8 @@ describe('GetModelStatus', () => {
 
   it('設定されたパスのファイルが消えていれば未インストールに戻す', async () => {
     const settings = new FakeSettingsRepository({
-      ...defaultSettings(),
-      transcription: { ...defaultSettings().transcription, modelPath: '/gone/whisper.bin' }
+      ...defaultSettings('ja'),
+      transcription: { ...defaultSettings('ja').transcription, modelPath: '/gone/whisper.bin' }
     })
 
     const status = await new GetModelStatus(settings, new FakeModelStore()).execute()
@@ -198,7 +198,7 @@ describe('GetModelStatus', () => {
     store.present.add('/models/ggml-large-v3-turbo-encoder.mlmodelc/weights/weight.bin')
 
     const status = await new GetModelStatus(
-      new FakeSettingsRepository(defaultSettings()),
+      new FakeSettingsRepository(defaultSettings('ja')),
       store
     ).execute()
     const encoder = status.find((s) => s.id === 'transcription-coreml-encoder')
@@ -212,7 +212,7 @@ describe('GetModelStatus', () => {
     store.present.add('/models/ggml-large-v3-turbo-q5_0.bin')
 
     const status = await new GetModelStatus(
-      new FakeSettingsRepository(defaultSettings()),
+      new FakeSettingsRepository(defaultSettings('ja')),
       store
     ).execute()
 
@@ -224,7 +224,7 @@ describe('GetModelStatus', () => {
     store.present.add('/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx')
     const statusOf = async () =>
       (
-        await new GetModelStatus(new FakeSettingsRepository(defaultSettings()), store).execute()
+        await new GetModelStatus(new FakeSettingsRepository(defaultSettings('ja')), store).execute()
       ).find((s) => s.id === 'diarization')
 
     expect((await statusOf())?.installed).toBe(false)
@@ -243,7 +243,7 @@ describe('GetModelStatus', () => {
     store.digests.set(embedding, 'old-digest')
 
     const status = await new GetModelStatus(
-      new FakeSettingsRepository(defaultSettings()),
+      new FakeSettingsRepository(defaultSettings('ja')),
       store
     ).execute()
 
@@ -253,7 +253,7 @@ describe('GetModelStatus', () => {
 
 describe('GetModelStatus（更新の有無）', () => {
   const summarization = findAsset('summarization-model')
-  const statusOf = async (store: FakeModelStore, settings = defaultSettings()) =>
+  const statusOf = async (store: FakeModelStore, settings = defaultSettings('ja')) =>
     (await new GetModelStatus(new FakeSettingsRepository(settings), store).execute()).find(
       (s) => s.id === 'summarization-model'
     )
@@ -288,8 +288,8 @@ describe('GetModelStatus（更新の有無）', () => {
     store.present.add('/models/gemma-old.gguf')
     store.digests.set('/models/gemma-old.gguf', 'old-digest')
     const settings = {
-      ...defaultSettings(),
-      summarization: { ...defaultSettings().summarization, modelPath: '/models/gemma-old.gguf' }
+      ...defaultSettings('ja'),
+      summarization: { ...defaultSettings('ja').summarization, modelPath: '/models/gemma-old.gguf' }
     }
 
     expect((await statusOf(store, settings))?.updateAvailable).toBe(true)
@@ -306,7 +306,7 @@ describe('GetModelStatus（更新の有無）', () => {
     }
 
     const status = await new GetModelStatus(
-      new FakeSettingsRepository(defaultSettings()),
+      new FakeSettingsRepository(defaultSettings('ja')),
       store
     ).execute({ checkUpdates: false })
 
@@ -324,7 +324,7 @@ describe('GetModelStatus（更新の有無）', () => {
 
 describe('DownloadModel', () => {
   it('取得したパスを設定へ書き込む', async () => {
-    const settings = new FakeSettingsRepository(defaultSettings())
+    const settings = new FakeSettingsRepository(defaultSettings('ja'))
     const store = new FakeModelStore()
 
     const updated = await new DownloadModel(settings, store).execute({
@@ -336,7 +336,7 @@ describe('DownloadModel', () => {
   })
 
   it('話者識別は 2 ファイルとも取得し、diarization の設定へ両方を書き込む', async () => {
-    const settings = new FakeSettingsRepository(defaultSettings())
+    const settings = new FakeSettingsRepository(defaultSettings('ja'))
     const store = new FakeModelStore()
 
     const updated = await new DownloadModel(settings, store).execute({ id: 'diarization' })
@@ -351,7 +351,7 @@ describe('DownloadModel', () => {
   it('複数ファイルの進捗はまとめて 1 本のバーになるよう積み上げる', async () => {
     const progress: [number, number | undefined][] = []
 
-    await new DownloadModel(new FakeSettingsRepository(defaultSettings()), new FakeModelStore()).execute({
+    await new DownloadModel(new FakeSettingsRepository(defaultSettings('ja')), new FakeModelStore()).execute({
       id: 'diarization',
       onProgress: (received, total) => progress.push([received, total])
     })
@@ -365,7 +365,7 @@ describe('DownloadModel', () => {
 
   it('2 つ目の取得に失敗したら設定を書き換えない', async () => {
     // 片方だけ設定に入っても使えないので、揃うまでは書き込まない。
-    const settings = new FakeSettingsRepository(defaultSettings())
+    const settings = new FakeSettingsRepository(defaultSettings('ja'))
     const store = new FakeModelStore()
     const fetch = store.fetch.bind(store)
     store.fetch = async (asset, options) => {
@@ -380,7 +380,7 @@ describe('DownloadModel', () => {
   })
 
   it('意味検索モデルは search の設定へ入る', async () => {
-    const settings = new FakeSettingsRepository(defaultSettings())
+    const settings = new FakeSettingsRepository(defaultSettings('ja'))
 
     const updated = await new DownloadModel(settings, new FakeModelStore()).execute({
       id: 'search-model'
@@ -392,7 +392,7 @@ describe('DownloadModel', () => {
   it('進捗を呼び出し側へ渡す', async () => {
     const progress: [number, number | undefined][] = []
 
-    await new DownloadModel(new FakeSettingsRepository(defaultSettings()), new FakeModelStore()).execute({
+    await new DownloadModel(new FakeSettingsRepository(defaultSettings('ja')), new FakeModelStore()).execute({
       id: 'transcription-model',
       onProgress: (received, total) => progress.push([received, total])
     })
@@ -407,7 +407,7 @@ describe('DownloadModel', () => {
   })
 
   it('取得に失敗したら設定を書き換えない', async () => {
-    const settings = new FakeSettingsRepository(defaultSettings())
+    const settings = new FakeSettingsRepository(defaultSettings('ja'))
     const store = new FakeModelStore()
     store.failWith = new Error('通信に失敗しました')
 
@@ -473,7 +473,7 @@ describe('DeleteModel', () => {
     const store = new FakeModelStore()
     store.present.add('/models/gemma-4-E4B_q4_0-it.gguf')
 
-    const base = defaultSettings()
+    const base = defaultSettings('ja')
     const settings = new FakeSettingsRepository({
       ...base,
       summarization: { ...base.summarization, modelPath: '/models/gemma-4-E4B_q4_0-it.gguf' }
@@ -488,7 +488,7 @@ describe('DeleteModel', () => {
   it('意味検索モデルを消すと search の参照も外れる', async () => {
     const store = new FakeModelStore()
     store.present.add('/models/bge-m3-q8_0.gguf')
-    const base = defaultSettings()
+    const base = defaultSettings('ja')
     const settings = new FakeSettingsRepository({
       ...base,
       search: { enabled: true, modelPath: '/models/bge-m3-q8_0.gguf' }
@@ -502,7 +502,7 @@ describe('DeleteModel', () => {
 
   it('話者識別は 2 ファイルとも消し、両方の参照を外す', async () => {
     const store = new FakeModelStore()
-    const base = defaultSettings()
+    const base = defaultSettings('ja')
     const settings = new FakeSettingsRepository({
       ...base,
       diarization: {
@@ -523,7 +523,7 @@ describe('DeleteModel', () => {
     const store = new FakeModelStore()
     store.present.add('/custom/whisper.bin')
 
-    const base = defaultSettings()
+    const base = defaultSettings('ja')
     const settings = new FakeSettingsRepository({
       ...base,
       transcription: { ...base.transcription, modelPath: '/custom/whisper.bin' }
@@ -539,7 +539,7 @@ describe('DeleteModel', () => {
     const store = new FakeModelStore()
     store.present.add('/models/ggml-large-v3-turbo-q5_0.bin')
 
-    await deleter(new FakeSettingsRepository(defaultSettings()), store).execute(
+    await deleter(new FakeSettingsRepository(defaultSettings('ja')), store).execute(
       'transcription-model'
     )
 
@@ -552,7 +552,7 @@ describe('DeleteModel', () => {
     await recordings.save(recordingWith({ status: 'recording' }))
 
     await expect(
-      deleter(new FakeSettingsRepository(defaultSettings()), store, recordings).execute(
+      deleter(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute(
         'summarization-model'
       )
     ).rejects.toThrow('modelBusyRecording')
@@ -570,7 +570,7 @@ describe('DeleteModel', () => {
     )
 
     await expect(
-      deleter(new FakeSettingsRepository(defaultSettings()), store, recordings).execute(
+      deleter(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute(
         'transcription-model'
       )
     ).rejects.toThrow('modelBusyProcessing')
@@ -587,7 +587,7 @@ describe('DeleteModel', () => {
       id: 'rec-2'
     })
 
-    await deleter(new FakeSettingsRepository(defaultSettings()), store, recordings).execute(
+    await deleter(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute(
       'summarization-model'
     )
 
@@ -612,8 +612,8 @@ describe('UpdateModel', () => {
     const store = new FakeModelStore()
     store.present.add('/models/gemma-old.gguf')
     const settings = new FakeSettingsRepository({
-      ...defaultSettings(),
-      summarization: { ...defaultSettings().summarization, modelPath: '/models/gemma-old.gguf' }
+      ...defaultSettings('ja'),
+      summarization: { ...defaultSettings('ja').summarization, modelPath: '/models/gemma-old.gguf' }
     })
 
     const saved = await updater(settings, store).execute({ id: 'summarization-model' })
@@ -628,7 +628,7 @@ describe('UpdateModel', () => {
     await recordings.save(recordingWith({ status: 'recording' }))
 
     await expect(
-      updater(new FakeSettingsRepository(defaultSettings()), store, recordings).execute({
+      updater(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute({
         id: 'summarization-model'
       })
     ).rejects.toThrow('modelBusyRecording')
@@ -646,7 +646,7 @@ describe('UpdateModel', () => {
     )
 
     await expect(
-      updater(new FakeSettingsRepository(defaultSettings()), store, recordings).execute({
+      updater(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute({
         id: 'transcription-model'
       })
     ).rejects.toThrow('modelBusyProcessing')

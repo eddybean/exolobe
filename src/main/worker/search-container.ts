@@ -15,6 +15,7 @@ import {
   SettingsStorageLocator
 } from '@infrastructure/settings/JsonSettingsRepository'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
+import type { Locale } from '@shared/i18n/locale'
 
 export interface SearchServices {
   readonly sync: SyncSearchIndex
@@ -30,13 +31,16 @@ export interface SearchServices {
  * 読み込んだまま次の検索に使い回すため。モデルの差し替えは main がワーカーを
  * 終わらせることで反映する。
  */
-export const createSearch = async (userDataPath: string): Promise<SearchServices> => {
+export const createSearch = async (
+  userDataPath: string,
+  uiLocale: Locale
+): Promise<SearchServices> => {
   const settingsPath = join(userDataPath, 'settings.json')
   // ワーカーは長く生きるので、キャッシュを持つリポジトリを使い回すと、利用者が
   // 保存先や有効・無効を変えても古い値で動き続ける。読むたびにファイルから取り直す。
   const settings: SettingsRepositoryPort = {
-    load: () => new JsonSettingsRepository(settingsPath).load(),
-    save: (patch) => new JsonSettingsRepository(settingsPath).save(patch)
+    load: () => new JsonSettingsRepository(settingsPath, uiLocale).load(),
+    save: (patch) => new JsonSettingsRepository(settingsPath, uiLocale).save(patch)
   }
   const current = await settings.load()
   const locator = new SettingsStorageLocator(settings)

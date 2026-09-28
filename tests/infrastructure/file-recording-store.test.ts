@@ -62,7 +62,7 @@ describe('FileRecordingRepository', () => {
   })
 
   it('新しい順に並べる', async () => {
-    const older = createRecording({ id: 'old', startedAt: new Date('2026-09-01T10:00:00+09:00') })
+    const older = createRecording({ id: 'old', startedAt: new Date('2026-09-01T10:00:00+09:00'), title: '会議' })
     await repository.save(older)
     await repository.save(recording)
 
