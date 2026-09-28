@@ -23,12 +23,13 @@ describe('headroomBytes', () => {
 
   it('小容量の機体でも下限を確保する', () => {
     // 総量比だけで決めると 8GB 機で余白が小さくなりすぎる。
-    expect(headroomBytes('standard', 8 * GB)).toBeGreaterThanOrEqual(0.5 * GB)
     expect(headroomBytes('conservative', 8 * GB)).toBeGreaterThanOrEqual(3 * GB)
   })
 
   it('大容量の機体では総量に比例して増える', () => {
-    expect(headroomBytes('standard', 64 * GB)).toBeGreaterThan(headroomBytes('standard', 16 * GB))
+    expect(headroomBytes('conservative', 64 * GB)).toBeGreaterThan(
+      headroomBytes('conservative', 16 * GB)
+    )
   })
 })
 
@@ -128,7 +129,7 @@ describe('insufficientMemory', () => {
   })
 
   it('保守的にすると標準では通る状況でも止める', () => {
-    // 余白の差だけで結果が変わる領域を選ぶ（標準 7+0.8GB、保守的 7+3.2GB）。
+    // 余白の差だけで結果が変わる領域を選ぶ（標準 7GB、保守的 7+3.2GB）。
     const snapshot = { totalBytes: total, availableBytes: 9 * GB }
 
     expect(insufficientMemory({ snapshot, demand, protection: 'standard' })).toBeUndefined()
@@ -147,6 +148,26 @@ describe('insufficientMemory', () => {
     expect(
       insufficientMemory({ snapshot, demand: summarize, protection: 'standard' })
     ).toBeUndefined()
+  })
+
+  it('標準は見積もりが空きに収まれば要約を通す', () => {
+    // 実機で「オフ」なら要約できたのに標準が拒んだ数値（空き 約7.6GB、10 億バイト単位）。
+    // OS を守る余白は node-llama-cpp の内蔵ガードが持つので、標準は見積もりだけで判定する。
+    const summarize = {
+      bytes: estimateSummarizationBytes({ modelFileBytes: GEMMA_BYTES, contextSize: 32_768 }),
+      label: '要約'
+    }
+    const snapshot = { totalBytes: total, availableBytes: 7_600_000_000 }
+
+    expect(
+      insufficientMemory({ snapshot, demand: summarize, protection: 'standard' })
+    ).toBeUndefined()
+  })
+
+  it('標準でも見積もりが空きを超えれば止める', () => {
+    const snapshot = { totalBytes: total, availableBytes: demand.bytes - 1 }
+
+    expect(insufficientMemory({ snapshot, demand, protection: 'standard' })).toBeDefined()
   })
 
   it('空き容量が読めなかった場合は止めない', () => {
