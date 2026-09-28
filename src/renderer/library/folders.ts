@@ -145,6 +145,18 @@ export const folderPathLabel = (
   return path.length === 0 ? t.unfiledFolder : path.map((folder) => folder.name).join(' / ')
 }
 
+/**
+ * 一覧の行に添える、直属のフォルダ名を引く関数。子フォルダの録音も並ぶので、どこに入れたかが要る。
+ * 行ごとに一覧を探さずに済むよう、引く表は 1 度だけ作る。親まで辿ると長くなって省略に負けるので辿らない。
+ * 未分類（と消えたフォルダを指すもの）は何も出さない —— 大半の行に「未分類」が並ぶと手掛かりにならない。
+ */
+export const folderNameLookup = (
+  folders: readonly FolderDto[]
+): ((folderId: string | undefined) => string | undefined) => {
+  const known = byId(folders)
+  return (folderId) => (folderId === undefined ? undefined : known.get(folderId)?.name)
+}
+
 /** タイトルと要約の冒頭で絞り込む。本文は別の検索（searchTranscripts）が受け持つ。 */
 export const filterByQuery = <T extends Pick<RecordingDto, 'title' | 'summaryPreview'>>(
   recordings: readonly T[],

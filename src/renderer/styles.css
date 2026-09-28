@@ -403,9 +403,31 @@ code {
 }
 
 .tree__meta {
+  display: flex;
+  min-width: 0;
   font-size: 11px;
   font-weight: 400;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 日時と長さは行を見分ける手掛かりなので、フォルダ名に押し出させない。 */
+.tree__meta-when {
+  flex-shrink: 0;
+}
+
+/* flex の子の端の空白は詰められるので、区切りの前後の空白を保つ。 */
+.tree__meta-separator {
+  flex-shrink: 0;
+  white-space: pre;
+}
+
+/* 長いフォルダ名で 2 行目が折り返さないよう、幅を決めて省略する。狭いときはさらに縮む。 */
+.tree__folder {
+  min-width: 0;
+  max-width: 12em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

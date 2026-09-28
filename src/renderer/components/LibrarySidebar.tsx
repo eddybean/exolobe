@@ -16,6 +16,7 @@ import {
   acceptedDrop,
   filterByQuery,
   folderChipRows,
+  folderNameLookup,
   folderPathLabel,
   recordingsInFolder,
   resolveFolderKey,
@@ -190,6 +191,7 @@ export const LibrarySidebar = ({
         : recordingsInFolder(folders, recordings, currentKey),
     [folders, recordings, currentKey, searching, keywordQuery]
   )
+  const folderNameOf = useMemo(() => folderNameLookup(folders), [folders])
 
   /**
    * 本文の検索。1 文字ごとに全件の transcript.json を読むのは重いので少し待つ。
@@ -435,10 +437,12 @@ export const LibrarySidebar = ({
                 <RecordingRow
                   recording={recording}
                   selected={recording.id === selectedId}
-                  meta={
+                  meta={recordingRowMeta(recording, now)}
+                  folder={
+                    // 検索はフォルダを横断するので、同名の子フォルダと区別できるよう親からの位置を出す。
                     searching
-                      ? t.joinMeta(recordingRowMeta(recording, now), folderPathLabel(folders, recording.folderId))
-                      : recordingRowMeta(recording, now)
+                      ? folderPathLabel(folders, recording.folderId)
+                      : folderNameOf(recording.folderId)
                   }
                   onSelect={onSelect}
                 />
@@ -539,11 +543,13 @@ const RecordingRow = ({
   recording,
   selected,
   meta,
+  folder,
   onSelect
 }: {
   recording: RecordingDto
   selected: boolean
   meta: string
+  folder: string | undefined
   onSelect: (id: string) => void
 }): ReactElement => (
   <button
@@ -566,6 +572,18 @@ const RecordingRow = ({
         </span>
       )}
     </span>
-    <span className="tree__meta">{meta}</span>
+    <span className="tree__meta">
+      <span className="tree__meta-when">{meta}</span>
+      {folder !== undefined && (
+        <>
+          <span className="tree__meta-separator" aria-hidden="true">
+            {libraryListText().metaSeparator}
+          </span>
+          <span className="tree__folder" title={folder}>
+            {folder}
+          </span>
+        </>
+      )}
+    </span>
   </button>
 )
