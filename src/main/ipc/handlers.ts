@@ -39,7 +39,9 @@ import {
   type SilenceAlertDto,
   type StartAlertDto,
   type AutoStartedDto,
-  type TransportStateDto
+  type TransportStateDto,
+  type UpdateStatusDto,
+  toUpdateStatusDto
 } from '@shared/ipc'
 import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import { startAlertMessage } from '@shared/startAlert'
@@ -47,6 +49,7 @@ import { applyAppearance } from '../appearance'
 import type { Container } from '../container'
 import { createVoiceLearning } from '../voiceLearning'
 import { createSearchSyncScheduler } from '../searchSyncScheduler'
+import { createUpdateChecker } from '../updateChecker'
 import { createSilenceMonitor } from '../silenceMonitor'
 import { notifySilence } from '../silenceNotification'
 import { createMeetingLookup } from '../meetingLookup'
@@ -236,6 +239,21 @@ export const registerIpcHandlers = (
     },
     onStateChange: (state) => send(IPC.searchIndexChanged, state)
   })
+
+  /** 新しい版の確認（ADR-044）。知らせるだけで、アプリは自分を入れ替えない。 */
+  const updates = createUpdateChecker({
+    check: (options) => container.checkForUpdate.execute(options),
+    onChange: (status) => send(IPC.updateStatusChanged, toUpdateStatusDto(status))
+  })
+  updates.start()
+  const updateStatusDto = (status = updates.status()): UpdateStatusDto =>
+    toUpdateStatusDto(
+      status ?? {
+        currentVersion: container.appVersion,
+        checkedAt: undefined,
+        available: undefined
+      }
+    )
 
   /** 重い処理に入る前に、同期を止めて埋め込みモデルの分のメモリを空ける。 */
   const yieldSearch = (): void => {
@@ -893,6 +911,9 @@ export const registerIpcHandlers = (
     await applyShortcut()
     await applySearchSettings(before, settings)
     await applyChatSettings(before, settings)
+    // 間隔を縮めた・「確認しない」をやめたときに時期が来ていれば、次の見回りを待たずに確かめる。
+    // 「確認しない」にしたときは、出ていた知らせをここで消す。
+    if (before.updateCheck !== settings.updateCheck) void updates.refresh()
     send(IPC.recordingsChanged)
     return settings
   })
@@ -1117,6 +1138,21 @@ export const registerIpcHandlers = (
   handle(IPC.clearVoiceprints, async (): Promise<VoiceprintDto[]> => {
     await container.clearVoiceprints.execute()
     return container.listVoiceprints.execute()
+  })
+
+  handle(IPC.getUpdateStatus, async (): Promise<UpdateStatusDto> =>
+    updateStatusDto(await updates.current())
+  )
+
+  handle(IPC.checkForUpdate, async (): Promise<UpdateStatusDto> => {
+    await updates.checkNow()
+    return updateStatusDto()
+  })
+
+  // renderer から URL は受け取らない。開くのは main が確かめた配布ページだけ。
+  handle(IPC.openUpdatePage, async () => {
+    const pageUrl = updates.status()?.available?.pageUrl
+    if (pageUrl) await shell.openExternal(pageUrl)
   })
 
   handle(IPC.chooseStorageDir, async (): Promise<string | undefined> => {

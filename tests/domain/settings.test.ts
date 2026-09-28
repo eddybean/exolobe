@@ -6,6 +6,7 @@ import {
   NOTES_PLACEHOLDER,
   TRANSCRIPT_PLACEHOLDER,
   appearanceOf,
+  updateCheckIntervalOf,
   isDefaultSummaryPrompt,
   settingsSummaryPrompt,
   summaryPromptFor,
@@ -209,6 +210,35 @@ describe('appearance', () => {
 
     expect(appearanceOf(settings)).toBe('system')
     expect(appearanceOf({ ...defaultSettings('ja'), appearance: 'light' })).toBe('light')
+  })
+})
+
+/**
+ * 新しい版の確認の間隔（ADR-044）。週 1 回を既定にし、1 日から「確認しない」まで選べる。
+ */
+describe('updateCheck', () => {
+  it('既定は週 1 回', () => {
+    expect(defaultSettings('ja').updateCheck).toBe('weekly')
+  })
+
+  it('部分更新でき、未指定なら既存の値を保つ', () => {
+    const never = mergeSettings(defaultSettings('ja'), { updateCheck: 'never' })
+
+    expect(never.updateCheck).toBe('never')
+    expect(mergeSettings(never, { storageDir: '/x' }).updateCheck).toBe('never')
+  })
+
+  it('未知の値は保存前に弾く', () => {
+    const settings = { ...defaultSettings('ja'), updateCheck: 'hourly' } as never
+
+    expect(validateSettings(settings)).toEqual(['updateCheck'])
+  })
+
+  it('読み込んだ値が未知なら週 1 回として扱う', () => {
+    const settings = { ...defaultSettings('ja'), updateCheck: 'hourly' } as never
+
+    expect(updateCheckIntervalOf(settings)).toBe('weekly')
+    expect(updateCheckIntervalOf({ ...defaultSettings('ja'), updateCheck: 'never' })).toBe('never')
   })
 })
 

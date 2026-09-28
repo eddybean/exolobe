@@ -1,3 +1,4 @@
+import type { InstallSource } from '@domain/AppUpdate'
 import type { CalendarEvent } from '@domain/CalendarEvent'
 import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
@@ -351,4 +352,45 @@ export interface SearchIndexPort {
   clear(): Promise<void>
   /** 索引が占めている件数と容量。設定画面で消すかどうかの判断材料にする。 */
   stats(): Promise<{ count: number; bytes: number }>
+}
+
+/** 公開された最新の版と、その配布ページ。 */
+export interface PublishedRelease {
+  /** `0.3.0` の形。タグの `v` は外してある。 */
+  readonly version: string
+  readonly pageUrl: string
+}
+
+/**
+ * 最新の版を引いた結果。
+ *
+ * 「見られない」と「通信の失敗」を分けるのは、前者は確認できた（更新なし）として間隔まで待ち、
+ * 後者は次の機会に確かめ直すため。どちらも利用者には失敗として見せない（ADR-044）。
+ */
+export type ReleaseLookup =
+  | { readonly kind: 'found'; readonly release: PublishedRelease }
+  /** 公開された版が無い、またはリポジトリが見られない（非公開の間は 404 になる）。 */
+  | { readonly kind: 'none' }
+  | { readonly kind: 'unreachable' }
+
+/** 配布元（GitHub Releases）に最新の版を問い合わせる。 */
+export interface ReleaseFeedPort {
+  latest(): Promise<ReleaseLookup>
+}
+
+/** 前回の確認。間隔を空けるためと、確認しない日にも見つけた版を知らせ続けるために覚える。 */
+export interface UpdateCheckRecord {
+  readonly checkedAt: Date
+  readonly latest: PublishedRelease | undefined
+}
+
+/** 前回の確認の置き場所。失っても次に確かめ直すだけのキャッシュ。 */
+export interface UpdateCheckStorePort {
+  load(): Promise<UpdateCheckRecord | undefined>
+  save(record: UpdateCheckRecord): Promise<void>
+}
+
+/** このアプリをどこから入れたか。 */
+export interface InstallSourcePort {
+  detect(): Promise<InstallSource>
 }

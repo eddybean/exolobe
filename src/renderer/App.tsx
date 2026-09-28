@@ -20,6 +20,8 @@ import { isSemanticSearchAvailable } from './library/semanticSearch'
 import { recordingToOpen, showsLiveView } from './library/liveNotes'
 import { TransportBar } from './components/TransportBar'
 import { useTransport } from './hooks/useTransport'
+import { useUpdateStatus } from './hooks/useUpdateStatus'
+import { updateText } from './i18n/update'
 import { ChatView } from './views/ChatView'
 import { OnboardingView } from './views/OnboardingView'
 import { RecordingDetailView } from './views/RecordingDetailView'
@@ -69,6 +71,7 @@ export const App = (): ReactElement => {
   // 会話は画面を切り替えても残す。引用から録音へ飛ぶとチャット画面は外れるので、
   // チャット側に持たせると戻ったときに会話が消える。
   const chat = useChat()
+  const [updateStatus, setUpdateStatus] = useUpdateStatus()
 
   const refreshSetup = useCallback(async (): Promise<void> => {
     const state = await window.recorder.getSetupState()
@@ -231,6 +234,20 @@ export const App = (): ReactElement => {
             {t.navSettings}
           </button>
         </div>
+        {/* 新しい版の知らせ（ADR-044）。どの画面でも目に入り、押すと更新の手順へ行く。 */}
+        {updateStatus?.available && (
+          <button
+            type="button"
+            className="nav__update"
+            title={updateText().navBadgeTitle}
+            onClick={() => {
+              setSettingsSection('about')
+              setScreen('settings')
+            }}
+          >
+            {updateText().navBadge(updateStatus.available.version)}
+          </button>
+        )}
       </nav>
 
       <main className="main">
@@ -261,6 +278,8 @@ export const App = (): ReactElement => {
             })}
             onSectionChange={setSettingsSection}
             onChanged={() => void refreshSetup()}
+            updateStatus={updateStatus}
+            onUpdateStatus={setUpdateStatus}
           />
         )}
 

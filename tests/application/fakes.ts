@@ -13,12 +13,15 @@ import type {
   FileInfoPort,
   FolderRepositoryPort,
   IdGeneratorPort,
+  InstallSourcePort,
   ProgressReporterPort,
   RecordingArtifactPort,
   RecordingFinderPort,
   RecordingRepositoryPort,
   RecordingSource,
   RecordingVoices,
+  ReleaseFeedPort,
+  ReleaseLookup,
   SearchIndexEntry,
   SearchIndexPort,
   SettingsRepositoryPort,
@@ -27,10 +30,13 @@ import type {
   SystemResourcePort,
   TextEmbedderPort,
   TranscriptionPort,
+  UpdateCheckRecord,
+  UpdateCheckStorePort,
   Voiceprint,
   VoiceExtractionPort,
   VoiceprintRepositoryPort
 } from '@application/ports'
+import type { InstallSource } from '@domain/AppUpdate'
 import type { CalendarEvent } from '@domain/CalendarEvent'
 import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
@@ -542,5 +548,31 @@ export class FakeSearchIndex implements SearchIndexPort {
   }
   async stats(): Promise<{ count: number; bytes: number }> {
     return { count: this.entries.size, bytes: this.entries.size * 1_000 }
+  }
+}
+
+export class FakeReleaseFeed implements ReleaseFeedPort {
+  result: ReleaseLookup = { kind: 'none' }
+  calls = 0
+  async latest(): Promise<ReleaseLookup> {
+    this.calls += 1
+    return this.result
+  }
+}
+
+export class FakeUpdateCheckStore implements UpdateCheckStorePort {
+  record: UpdateCheckRecord | undefined
+  async load(): Promise<UpdateCheckRecord | undefined> {
+    return this.record
+  }
+  async save(record: UpdateCheckRecord): Promise<void> {
+    this.record = record
+  }
+}
+
+export class FakeInstallSource implements InstallSourcePort {
+  source: InstallSource = 'dmg'
+  async detect(): Promise<InstallSource> {
+    return this.source
   }
 }

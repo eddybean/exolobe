@@ -76,6 +76,7 @@
             <tr><td><a href="#adr-041">ADR-041</a></td><td>会議の予定を加味した開始忘れの防止</td><td>会議 URL 付きの予定の時間帯は早めに促し、利用者が選んだときだけ自動で録音を始める</td></tr>
             <tr><td><a href="#adr-042">ADR-042</a></td><td>録音中のメモと印</td><td>メモは行ごとの時刻を note.md に埋め、印は bookmarks.json に持ち、どちらも要約の入力に含める</td></tr>
             <tr><td><a href="#adr-043">ADR-043</a></td><td>多言語対応（日本語・英語）</td><td>UI の言語は起動時に macOS の優先言語で決め、会議の言語は文字起こしの言語設定で決める。domain は文言でなく理由のコードを返す</td></tr>
+            <tr><td><a href="#adr-044">ADR-044</a></td><td>新しい版の通知</td><td>GitHub Releases を週 1 回（設定で毎日〜確認しない）確かめ、入れ方に応じた更新の手順を知らせるだけ。アプリは自分を入れ替えない</td></tr>
           </tbody>
         </table>
       </div>
@@ -3926,6 +3927,108 @@
         </ul>
       </div>
 
+      <h2 id="adr-044">ADR-044 新しい版の通知（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-044</span>
+          <p class="adr__title">GitHub Releases の latest を設定の間隔（既定は週 1 回）で確かめ、今の版より新しければ入れ方（Homebrew / DMG）に応じた更新の手順を知らせる。アプリは自分を入れ替えず、確かめられなかったことは見せない</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          一般公開したあと、配った版を使い続ける人に新しい版があることを知らせたい（Issue #98）。通知の仕組みは後から足しても
+          「足す前の版」の利用者には届かないので、最初の公開版に入れておく必要がある。
+        </p>
+        <p>
+          一方で、当面は Developer ID を取らず ad-hoc 署名で配る。ad-hoc 署名ではアプリの身元（designated requirement）が
+          cdhash になり、Squirrel.Mac / electron-updater の検証が通らない。アプリ自身による自動更新は使えない。
+        </p>
+
+        <h4>決定</h4>
+        <ul>
+          <li>
+            <strong>確認先は GitHub Releases の latest に一本化する。</strong>
+            <code>GET https://api.github.com/repos/eddybean/exolobe/releases/latest</code> を認証なしで引く。
+            DMG と Homebrew のどちらで入れても同じ Release を配るので、確認先を分けない。latest はドラフトとプレリリースを返さない。
+          </li>
+          <li>
+            <strong>知らせるだけで、アプリは自分を入れ替えない。</strong>ナビの右端に「新しい版」の札を出し、押すと設定の
+            「このアプリについて」で手順を見せる。Homebrew（<code>/opt/homebrew/Caskroom/exolobe</code> か
+            <code>/usr/local/Caskroom/exolobe</code> がある）なら <code>brew upgrade --cask exolobe</code> を、
+            それ以外は配布ページを案内する。Homebrew で入れた人が DMG で上書きすると、brew の記録と実体の版が食い違うため。
+            cask に <code>auto_updates true</code> は付けない。
+          </li>
+          <li>
+            <strong>間隔は設定で選ぶ（毎日・毎週・毎月・確認しない）。既定は週 1 回。</strong>急ぐ知らせではなく、GitHub への問い合わせを
+            必要以上に増やさない。問い合わせるかどうかはユースケース（<code>CheckForUpdate</code>）が前回の確認
+            （<code>userData/update-check.json</code>、失っても確かめ直すだけのキャッシュ）と間隔から決める。main は起動の 15 秒後と
+            1 時間ごとに「時期か」を見るだけで、時期でなければ通信しない。「今すぐ確認」は間隔も「確認しない」も越えて問い合わせる。
+            読めない設定値は週 1 回に倒す（「確認しない」に倒すと、古い版のまま使い続ける人が残る）。
+          </li>
+          <li>
+            <strong>確かめられなかったことは見せない。</strong>404（リポジトリが非公開の間・Release がまだ無い）は「更新なし」として
+            記録し、間隔まで問い合わせない。通信の失敗・上限超過（403）・サーバーの失敗は記録を変えず、次の見回りで確かめ直す。
+            どちらも例外にせず、画面にも出さない。知らせるだけの機能で、利用者に打てる手が無いため。
+          </li>
+          <li>
+            <strong>版の比較は domain の純粋関数（<code>AppUpdate.ts</code>）。</strong>タグ（<code>v0.3.0</code>）と
+            <code>app.getVersion()</code> を数の組として比べる。どちらかが読めない（プレリリースなど）なら知らせない側に倒す。
+          </li>
+          <li>
+            <strong>配布ページの URL は main だけが持つ。</strong>返事の <code>html_url</code> は使わず、検証済みのタグから
+            <code>https://github.com/eddybean/exolobe/releases/tag/…</code> を組む。renderer には版と入れ方だけを渡し、
+            開く操作は引数なしの IPC にする。記録のファイルに GitHub 以外の URL があれば読まない。
+          </li>
+          <li>
+            <strong>プライバシー。</strong>GitHub に届くのは IP アドレスと User-Agent（<code>Exolobe/&lt;版&gt;</code>）だけ。
+            設定の説明と README に、通信の種類と時機をモデルのダウンロードと並べて書く。
+          </li>
+        </ul>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>論点</th><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>更新の仕方</td>
+                <td>electron-updater による自動更新</td>
+                <td>見送り</td>
+                <td>ad-hoc 署名では Squirrel.Mac の検証が通らない。Developer ID を取ればそのまま使えるので、そちらを先に検討する</td>
+              </tr>
+              <tr>
+                <td>更新の仕方</td>
+                <td>自作の差し替え</td>
+                <td>不採用</td>
+                <td>配布物の署名検証（Ed25519）、差し替えのスクリプト、App Translocation・書き込み権限・録音中の扱いが要り、知らせるだけに比べて得るものが少ない</td>
+              </tr>
+              <tr>
+                <td>知らせ方</td>
+                <td>macOS の通知センター</td>
+                <td>不採用</td>
+                <td>通知は録音の開始忘れ・無音の知らせに使っている。急がない知らせで割り込まず、アプリを開いたときに目に入れば足りる</td>
+              </tr>
+              <tr>
+                <td>確認の失敗</td>
+                <td>画面にエラーを出す</td>
+                <td>不採用</td>
+                <td>非公開の間は必ず 404 になる。オフラインの人にも毎回出る。利用者に打てる手が無い</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>残した判断</h4>
+        <ul>
+          <li>実際の Release での確認は、リポジトリを public にした後に行う。非公開の間は常に「更新なし」になる。</li>
+          <li>
+            更新のたびにプライバシーの許可（マイク・システム音声）が外れる可能性がある。身元が cdhash のため、TCC の許可が
+            ビルドごとに別物として扱われる可能性が高い（未確認）。通知の有無に関係なく既にある問題で、Developer ID の判断材料になる。
+          </li>
+          <li>Homebrew の tap / cask は public 化の後に作る。cask 名は <code>exolobe</code> を前提に判定と案内を書いている。</li>
+        </ul>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -3986,6 +4089,10 @@
             <tr>
               <td><a href="#adr-043">ADR-043</a> 自動判定の会議の言語を UI の言語で決める</td>
               <td>自動判定で録る人が要約の言語の取り違えに困ったとき。whisper の判定結果を <code>transcript.json</code> に残して使う</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-044">ADR-044</a> 新しい版を知らせるだけで、自分では入れ替えない</td>
+              <td>Developer ID を取ったとき。electron-updater で自動更新に切り替え、確認先（GitHub Releases）はそのまま使う</td>
             </tr>
             <tr>
               <td><a href="#adr-027">ADR-027</a> アプリが起動している間しか見張らない</td>
