@@ -246,9 +246,9 @@ export const registerIpcHandlers = (
     onChange: (status) => send(IPC.updateStatusChanged, toUpdateStatusDto(status))
   })
   updates.start()
-  const updateStatusDto = (): UpdateStatusDto =>
+  const updateStatusDto = (status = updates.status()): UpdateStatusDto =>
     toUpdateStatusDto(
-      updates.status() ?? {
+      status ?? {
         currentVersion: container.appVersion,
         checkedAt: undefined,
         available: undefined
@@ -1140,7 +1140,9 @@ export const registerIpcHandlers = (
     return container.listVoiceprints.execute()
   })
 
-  handle(IPC.getUpdateStatus, async (): Promise<UpdateStatusDto> => updateStatusDto())
+  handle(IPC.getUpdateStatus, async (): Promise<UpdateStatusDto> =>
+    updateStatusDto(await updates.current())
+  )
 
   handle(IPC.checkForUpdate, async (): Promise<UpdateStatusDto> => {
     await updates.checkNow()

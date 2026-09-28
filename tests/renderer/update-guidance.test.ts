@@ -36,4 +36,17 @@ describe('updateGuidance', () => {
   it('まだ一度も確かめていなければ、そう伝える（最新とは言わない）', () => {
     expect(updateGuidance(status({ checkedAt: null }))).toEqual({ kind: 'unchecked' })
   })
+
+  it('自動で確かめない設定なら、最新かどうかは言わない（覚えていた版を隠しているだけ）', () => {
+    expect(updateGuidance(status({}), { automatic: false })).toEqual({ kind: 'manualOnly' })
+  })
+
+  it('確認しない設定でも、自分で確かめた後はその結果を伝える', () => {
+    expect(updateGuidance(status({}), { automatic: true })).toMatchObject({ kind: 'upToDate' })
+    expect(
+      updateGuidance(status({ available: { version: '0.3.0', installSource: 'dmg' } }), {
+        automatic: false
+      })
+    ).toEqual({ kind: 'download', version: '0.3.0' })
+  })
 })

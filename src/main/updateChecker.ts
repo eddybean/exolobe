@@ -16,6 +16,11 @@ export interface UpdateChecker {
   stop(): void
   /** 最後に得た結果。まだ一度も確かめていなければ undefined。 */
   status(): UpdateStatus | undefined
+  /**
+   * 画面が尋ねたときの結果。まだ無ければその場で確かめる（時期でなければ前回の記録から答えるだけ）。
+   * 起動直後の待ちの間に画面が開くと、覚えている新しい版を 15 秒出せなかった。
+   */
+  current(): Promise<UpdateStatus | undefined>
   /** 確認の時期なら確かめる。設定の間隔が変わったときにも呼ぶ。 */
   refresh(): Promise<UpdateStatus | undefined>
   /** 利用者の「今すぐ確認」。間隔も「確認しない」も越えて問い合わせる。 */
@@ -62,6 +67,7 @@ export const createUpdateChecker = (deps: {
       clearInterval(tickTimer)
     },
     status: () => latest,
+    current: async () => latest ?? run(false),
     refresh: () => run(false),
     checkNow: () => run(true)
   }

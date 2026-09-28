@@ -24,14 +24,21 @@ export const UpdateSettings = ({
   onStatus: (status: UpdateStatusDto) => void
 }): ReactElement => {
   const [checking, setChecking] = useState(false)
+  /** この画面で「今すぐ確認」を押したか。押した後は、確認しない設定でもその結果を伝える。 */
+  const [checkedNow, setCheckedNow] = useState(false)
   const t = updateText()
-  const guidance = status ? updateGuidance(status) : undefined
+  const guidance = status
+    ? updateGuidance(status, { automatic: interval !== 'never' || checkedNow })
+    : undefined
 
   const checkNow = (): void => {
     setChecking(true)
     window.recorder
       .checkForUpdate()
-      .then(onStatus)
+      .then((result) => {
+        setCheckedNow(true)
+        onStatus(result)
+      })
       .catch(() => undefined)
       .finally(() => setChecking(false))
   }
@@ -76,6 +83,8 @@ const Summary = ({ guidance }: { guidance: UpdateGuidance }): ReactElement => {
   switch (guidance.kind) {
     case 'unchecked':
       return <>{t.unchecked}</>
+    case 'manualOnly':
+      return <>{t.manualOnly}</>
     case 'upToDate':
       return <>{t.upToDate(formatDateTime(guidance.checkedAt))}</>
     case 'homebrew':

@@ -123,6 +123,18 @@ describe('createUpdateChecker', () => {
     expect(checker.status()?.available?.version).toBe('0.3.0')
   })
 
+  it('まだ結果が無いうちに画面が尋ねたら、起動直後の待ちを待たずに確かめて答える', async () => {
+    next = async () => statusOf('0.3.0')
+    const checker = setup()
+    checker.start()
+
+    expect((await checker.current())?.available?.version).toBe('0.3.0')
+    expect(calls).toEqual([{ force: false }])
+
+    await checker.current()
+    expect(calls).toHaveLength(1)
+  })
+
   it('止めたら以後は確かめない', async () => {
     const checker = setup()
     checker.start()
