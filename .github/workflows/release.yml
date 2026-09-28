@@ -165,3 +165,44 @@ jobs:
               --notes "$BODY" \
               --generate-notes
           fi
+
+      # 公式の homebrew/cask は公証されていないアプリを受け付けないので、自前の tap に置く。
+      # 書き込みは tap だけに効く deploy key で行い、fork など鍵の無い実行では飛ばす。
+      - name: Homebrew の cask を更新
+        env:
+          TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TAP_KEY" ]; then
+            echo "::warning::HOMEBREW_TAP_DEPLOY_KEY が無いため cask を更新しません。"
+            exit 0
+          fi
+
+          VERSION="${TAG#v}"
+          SHA=$(shasum -a 256 "release/exolobe-$VERSION-arm64.dmg" | cut -d' ' -f1)
+
+          # ssh-keyscan の結果を信じると経路上で差し替えられうるので、GitHub が公開している
+          # ホスト鍵を固定する。
+          mkdir -p ~/.ssh
+          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' >> ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          ssh-add - <<<"$TAP_KEY"
+
+          git clone --depth 1 git@github.com:eddybean/homebrew-tap.git tap
+          cd tap
+          sed -E -i '' \
+            -e "s/^  version \".*\"/  version \"$VERSION\"/" \
+            -e "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" \
+            Casks/exolobe.rb
+
+          # 同じタグで Release を作り直したときなど、中身が変わらなければ何もしない。
+          if git diff --quiet; then
+            echo "cask は既に $VERSION です。"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am "exolobe $VERSION"
+          git push origin HEAD
+          echo "Homebrew の cask を $VERSION に更新しました。" >> "$GITHUB_STEP_SUMMARY"

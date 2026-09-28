@@ -42,6 +42,17 @@ Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし�
 
 ## インストール方法
 
+### Homebrew
+
+```sh
+brew install --cask eddybean/tap/exolobe
+```
+
+自前の tap（[eddybean/homebrew-tap](https://github.com/eddybean/homebrew-tap)）から入れます。
+下の `xattr` の操作は cask が行うので不要です。
+
+### .dmg
+
 [Releases ページ](https://github.com/eddybean/exolobe/releases/latest) から最新の
 `.dmg` をダウンロードし、`Exolobe.app` を「アプリケーション」フォルダへドラッグします。
 
