@@ -30,7 +30,8 @@ import {
   type StartAlertDto,
   type AutoStartedDto,
   type TransportRequestDto,
-  type TransportStateDto
+  type TransportStateDto,
+  type UpdateStatusDto
 } from '@shared/ipc'
 import { localeFromArgv } from '@shared/i18n/locale'
 
@@ -171,7 +172,13 @@ const api: RendererApi = {
     ipcRenderer.invoke(IPC.removeVoiceprint, name) as Promise<VoiceprintDto[]>,
   confirmClearVoiceprints: () =>
     ipcRenderer.invoke(IPC.confirmClearVoiceprints) as Promise<boolean>,
-  clearVoiceprints: () => ipcRenderer.invoke(IPC.clearVoiceprints) as Promise<VoiceprintDto[]>
+  clearVoiceprints: () => ipcRenderer.invoke(IPC.clearVoiceprints) as Promise<VoiceprintDto[]>,
+
+  getUpdateStatus: () => ipcRenderer.invoke(IPC.getUpdateStatus) as Promise<UpdateStatusDto>,
+  checkForUpdate: () => ipcRenderer.invoke(IPC.checkForUpdate) as Promise<UpdateStatusDto>,
+  openUpdatePage: () => ipcRenderer.invoke(IPC.openUpdatePage) as Promise<void>,
+  onUpdateStatusChanged: (listener) =>
+    subscribe<UpdateStatusDto>(IPC.updateStatusChanged, listener)
 }
 
 contextBridge.exposeInMainWorld('recorder', api)

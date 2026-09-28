@@ -6,6 +6,7 @@ import { StartRecording } from '@application/usecases/StartRecording'
 import { StopRecording } from '@application/usecases/StopRecording'
 import { DiscardRecording } from '@application/usecases/DiscardRecording'
 import { RecoverInterruptedSteps } from '@application/usecases/RecoverInterruptedSteps'
+import { CheckForUpdate } from '@application/usecases/CheckForUpdate'
 import {
   CreateFolder,
   DeleteFolder,
@@ -58,6 +59,9 @@ import { resolveCalendarBinary } from '@infrastructure/calendar/resolveCalendarB
 import { FileModelStore } from '@infrastructure/download/FileModelStore'
 import { FileSearchIndex, SEARCH_INDEX_DIR } from '@infrastructure/search/FileSearchIndex'
 import { NodeFileInfoProbe } from '@infrastructure/system/NodeFileInfoProbe'
+import { CaskroomInstallSource } from '@infrastructure/update/CaskroomInstallSource'
+import { FileUpdateCheckStore } from '@infrastructure/update/FileUpdateCheckStore'
+import { GitHubReleaseFeed } from '@infrastructure/update/GitHubReleaseFeed'
 import { appLocale } from './i18n'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import {
@@ -117,7 +121,13 @@ export interface Container {
   readonly listVoiceprints: ListVoiceprints
   readonly removeVoiceprint: RemoveVoiceprint
   readonly clearVoiceprints: ClearVoiceprints
+  /** いま動いているアプリの版（`0.2.2`）。 */
+  readonly appVersion: string
+  readonly checkForUpdate: CheckForUpdate
 }
+
+/** 新しい版を配る場所（ADR-044）。DMG も Homebrew の cask も、ここの Release を配る。 */
+const RELEASE_REPOSITORY = 'eddybean/exolobe'
 
 export const createContainer = (): Container => {
   const userData = app.getPath('userData')
@@ -155,6 +165,8 @@ export const createContainer = (): Container => {
   // 意味検索の索引も再生成できるキャッシュ。書き込みは検索ワーカーが行い、
   // main は容量の確認と一括削除にだけ使う。
   const searchIndex = new FileSearchIndex(join(userData, SEARCH_INDEX_DIR))
+
+  const appVersion = app.getVersion()
 
   const library = { repository, artifacts }
   const capture = { repository, capture: recorder, artifacts }
@@ -227,6 +239,16 @@ export const createContainer = (): Container => {
     clearSearchIndex: new ClearSearchIndex(searchIndex),
     listVoiceprints: new ListVoiceprints(voiceprints),
     removeVoiceprint: new RemoveVoiceprint(voiceprints),
-    clearVoiceprints: new ClearVoiceprints(voiceprints)
+    clearVoiceprints: new ClearVoiceprints(voiceprints),
+    appVersion,
+    checkForUpdate: new CheckForUpdate({
+      settings,
+      releases: new GitHubReleaseFeed({ repository: RELEASE_REPOSITORY, appVersion }),
+      // 前回の確認は再取得できるキャッシュなので、保存先ではなく userData に置く。
+      store: new FileUpdateCheckStore(join(userData, 'update-check.json')),
+      installation: new CaskroomInstallSource(),
+      clock: { now: () => new Date() },
+      currentVersion: appVersion
+    })
   }
 }

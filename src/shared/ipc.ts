@@ -1,3 +1,4 @@
+import type { InstallSource } from '@domain/AppUpdate'
 import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
 import type { Bookmark } from '@domain/MeetingNotes'
@@ -348,6 +349,27 @@ export const withQueuedSteps = (
   return { ...dto, status: 'processing', steps }
 }
 
+/** 新しい版の確認の結果（ADR-044）。 */
+export interface UpdateStatusDto {
+  readonly currentVersion: string
+  /** 最後に確かめた時刻（ISO 文字列）。一度も確かめていなければ null。 */
+  readonly checkedAt: string | null
+  /** 今の版より新しい版。配布ページは main が開くので、URL は渡さない。 */
+  readonly available: { readonly version: string; readonly installSource: InstallSource } | null
+}
+
+export const toUpdateStatusDto = (status: {
+  readonly currentVersion: string
+  readonly checkedAt: Date | undefined
+  readonly available: { readonly version: string; readonly installSource: InstallSource } | undefined
+}): UpdateStatusDto => ({
+  currentVersion: status.currentVersion,
+  checkedAt: status.checkedAt?.toISOString() ?? null,
+  available: status.available
+    ? { version: status.available.version, installSource: status.available.installSource }
+    : null
+})
+
 export const toFolderDto = (folder: Folder): FolderDto => ({
   id: folder.id,
   name: folder.name,
@@ -498,6 +520,14 @@ export interface RendererApi {
   removeVoiceprint(name: string): Promise<VoiceprintDto[]>
   confirmClearVoiceprints(): Promise<boolean>
   clearVoiceprints(): Promise<VoiceprintDto[]>
+
+  /** 新しい版の確認の結果（ADR-044）。まだ確かめていなければ、今の版だけが入る。 */
+  getUpdateStatus(): Promise<UpdateStatusDto>
+  /** 設定の間隔を越えて、いま GitHub に確かめる。見られなくても失敗にはしない。 */
+  checkForUpdate(): Promise<UpdateStatusDto>
+  /** 新しい版の配布ページを既定のブラウザで開く。 */
+  openUpdatePage(): Promise<void>
+  onUpdateStatusChanged(listener: (status: UpdateStatusDto) => void): () => void
 }
 
 /** IPC チャンネル名。main と preload で共有し、綴りのずれを防ぐ。 */
@@ -574,5 +604,9 @@ export const IPC = {
   confirmRemoveVoiceprint: 'voiceprints:confirmRemove',
   removeVoiceprint: 'voiceprints:remove',
   confirmClearVoiceprints: 'voiceprints:confirmClear',
-  clearVoiceprints: 'voiceprints:clear'
+  clearVoiceprints: 'voiceprints:clear',
+  getUpdateStatus: 'update:status',
+  checkForUpdate: 'update:check',
+  openUpdatePage: 'update:openPage',
+  updateStatusChanged: 'update:changed'
 } as const
