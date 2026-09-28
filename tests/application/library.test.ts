@@ -524,11 +524,13 @@ describe('UpdateSettings', () => {
     expect((await settings.load()).recording.silenceDurationMs).toBe(300_000)
   })
 
-  it('要約プロンプトから差し込み位置を消す変更を拒否する', async () => {
+  it('カスタムの要約プロンプトから差し込み位置を消す変更を拒否する', async () => {
     const settings = new FakeSettingsRepository()
 
     await expect(
-      new UpdateSettings(settings).execute({ summarization: { promptTemplate: '要約して' } })
+      new UpdateSettings(settings).execute({
+        summarization: { promptMode: 'custom', promptTemplate: '要約して' }
+      })
     ).rejects.toMatchObject({
       reason: { code: 'invalidSettings', problems: ['promptPlaceholder'] }
     })

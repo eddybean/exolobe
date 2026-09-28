@@ -426,7 +426,7 @@
             <tr><td>用語集</td><td>空</td><td>1 行 1 語。whisper の initial prompt に渡す。上限を超えた分は無視する</td></tr>
             <tr><td>要約モデル</td><td>未設定</td><td>GGUF なら差し替え可能</td></tr>
             <tr><td>コンテキスト長</td><td>32768</td><td>1 時間の会議を分割せず要約できる長さ</td></tr>
-            <tr><td>要約プロンプト</td><td>議事録テンプレート</td><td><code>{{transcript}}</code> の位置に本文が入る</td></tr>
+            <tr><td>要約プロンプト</td><td>アプリの既定</td><td>既定（議事録テンプレート）は会議の言語で切り替わり、編集できない。カスタムを選ぶと書き換えられ、<code>{{transcript}}</code> の位置に本文が入る（<a href="decisions.html#adr-047">ADR-047</a>）</td></tr>
             <tr><td>話者識別</td><td>有効</td><td>無効でも 2 話者には常に分かれる</td></tr>
             <tr><td>話者数の上限</td><td>6</td><td>超過分は発話時間の短い順に捨てる</td></tr>
             <tr><td>意味検索</td><td>無効</td><td>無効にするとインデックスを自動で削除する</td></tr>

@@ -8,9 +8,12 @@ import {
   appearanceOf,
   summarizationProviderOf,
   updateCheckIntervalOf,
+  customSummaryPromptSeed,
   isDefaultSummaryPrompt,
+  legacySummaryPromptMode,
   settingsSummaryPrompt,
   summaryPromptFor,
+  type SummaryPromptMode,
   defaultSettings,
   isConfigured,
   mergeSettings,
@@ -135,13 +138,20 @@ describe('validateSettings', () => {
     expect(validateSettings(settings)).toEqual([])
   })
 
-  it('要約プロンプトに文字起こしの差し込み位置が無ければ弾く', () => {
+  it('カスタムの要約プロンプトに文字起こしの差し込み位置が無ければ弾く', () => {
     const settings = mergeSettings(defaultSettings('ja'), {
-      summarization: { promptTemplate: '要約してください。' }
+      summarization: { promptMode: 'custom', promptTemplate: '要約してください。' }
     })
     expect(validateSettings(settings)).toContain(
       'promptPlaceholder'
     )
+  })
+
+  it('既定のプロンプトを使うなら、カスタムの本文は検証しない（要約に使わないため）', () => {
+    const settings = mergeSettings(defaultSettings('ja'), {
+      summarization: { promptMode: 'default', promptTemplate: '要約してください。' }
+    })
+    expect(validateSettings(settings)).toEqual([])
   })
 })
 
@@ -152,7 +162,7 @@ describe('DEFAULT_SUMMARY_PROMPT', () => {
 
   it('メモは必須にしない（{{notes}} を消したプロンプトも保存できる）', () => {
     const settings = mergeSettings(defaultSettings('ja'), {
-      summarization: { promptTemplate: '要約してください。{{transcript}}' }
+      summarization: { promptMode: 'custom', promptTemplate: '要約してください。{{transcript}}' }
     })
     expect(validateSettings(settings)).toEqual([])
   })
@@ -364,22 +374,63 @@ describe('要約プロンプトの言語', () => {
     expect(DEFAULT_SUMMARY_PROMPT_EN).toContain('in English')
   })
 
-  it('既定のプロンプトのままなら、会議の言語の既定プロンプトに差し替える', () => {
-    expect(summaryPromptFor(DEFAULT_SUMMARY_PROMPT, 'en')).toBe(DEFAULT_SUMMARY_PROMPT_EN)
-    expect(summaryPromptFor(DEFAULT_SUMMARY_PROMPT_EN, 'ja')).toBe(DEFAULT_SUMMARY_PROMPT)
-    expect(summaryPromptFor(DEFAULT_SUMMARY_PROMPT, 'ja')).toBe(DEFAULT_SUMMARY_PROMPT)
+  it('既定のプロンプトを使うなら、会議の言語の既定プロンプトにする', () => {
+    const summarization = { promptMode: 'default', promptTemplate: DEFAULT_SUMMARY_PROMPT } as const
+    expect(summaryPromptFor(summarization, 'en')).toBe(DEFAULT_SUMMARY_PROMPT_EN)
+    expect(summaryPromptFor(summarization, 'ja')).toBe(DEFAULT_SUMMARY_PROMPT)
+  })
+
+  /** 保存されている本文が古い版の既定でも、アプリの今の既定を使う（更新が届く）。 */
+  it('既定のプロンプトを使うなら、保存されている本文は見ない', () => {
+    const summarization = {
+      promptMode: 'default',
+      promptTemplate: `前の版の既定\n${TRANSCRIPT_PLACEHOLDER}`
+    } as const
+    expect(summaryPromptFor(summarization, 'ja')).toBe(DEFAULT_SUMMARY_PROMPT)
   })
 
   /** 利用者が書き換えたプロンプトは、言語が違っても書いたとおりに使う（翻訳しない）。 */
-  it('書き換えたプロンプトは言語にかかわらずそのまま使う', () => {
+  it('カスタムのプロンプトは言語にかかわらずそのまま使う', () => {
     const custom = `箇条書きで要約して\n${TRANSCRIPT_PLACEHOLDER}`
-    expect(summaryPromptFor(custom, 'en')).toBe(custom)
+    expect(summaryPromptFor({ promptMode: 'custom', promptTemplate: custom }, 'en')).toBe(custom)
+  })
+
+  it('知らない選び方（新しい版が足したもの）なら既定のプロンプトに倒す', () => {
+    const summarization = {
+      promptMode: 'library' as SummaryPromptMode,
+      promptTemplate: `独自\n${TRANSCRIPT_PLACEHOLDER}`
+    }
+    expect(summaryPromptFor(summarization, 'en')).toBe(DEFAULT_SUMMARY_PROMPT_EN)
   })
 
   it('既定かどうかは前後の空白の違いを無視して判定する', () => {
     expect(isDefaultSummaryPrompt(`${DEFAULT_SUMMARY_PROMPT}\n`)).toBe(true)
     expect(isDefaultSummaryPrompt(`${DEFAULT_SUMMARY_PROMPT_EN}  `)).toBe(true)
     expect(isDefaultSummaryPrompt('要約して {{transcript}}')).toBe(false)
+  })
+})
+
+describe('要約プロンプトの選び方', () => {
+  it('既定では、アプリの既定プロンプトを使う', () => {
+    expect(defaultSettings('ja').summarization.promptMode).toBe('default')
+  })
+
+  /** 選び方を持たない設定は、全文が既定と一致するかで「書き換えたか」を判断していた。 */
+  it('選び方を足す前の設定は、本文が既定のままなら既定、書き換えていればカスタムと読む', () => {
+    expect(legacySummaryPromptMode(`${DEFAULT_SUMMARY_PROMPT_EN}\n`)).toBe('default')
+    expect(legacySummaryPromptMode(`箇条書きで\n${TRANSCRIPT_PLACEHOLDER}`)).toBe('custom')
+  })
+
+  it('カスタムに切り替えるとき、書いたことのある本文があればそれを編集の出発点にする', () => {
+    const settings = mergeSettings(defaultSettings('ja'), {
+      summarization: { promptMode: 'default', promptTemplate: `箇条書きで\n${TRANSCRIPT_PLACEHOLDER}` }
+    })
+    expect(customSummaryPromptSeed(settings, 'ja')).toBe(`箇条書きで\n${TRANSCRIPT_PLACEHOLDER}`)
+  })
+
+  it('カスタムに切り替えるとき、書いたことが無ければ会議の言語の既定を写す', () => {
+    const settings = mergeSettings(defaultSettings('ja'), { transcription: { language: 'en' } })
+    expect(customSummaryPromptSeed(settings, 'ja')).toBe(DEFAULT_SUMMARY_PROMPT_EN)
   })
 })
 

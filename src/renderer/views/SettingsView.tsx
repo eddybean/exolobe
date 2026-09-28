@@ -5,6 +5,7 @@ import {
   APPEARANCES,
   SUPPORTED_SAMPLE_RATES,
   type Appearance,
+  customSummaryPromptSeed,
   settingsSummaryPrompt,
   summarizationProviderOf,
   updateCheckIntervalOf,
@@ -51,9 +52,13 @@ export const SettingsView = ({
 }): ReactElement => {
   const [error, setError] = useState<string>()
   const [saved, setSaved] = useState(false)
+  // 保存を断られたら欄を作り直し、保存済みの値に戻す。入力欄は defaultValue なので、そのままだと
+  // 保存されなかった文面が残り、保存できたように見える。
+  const [revision, setRevision] = useState(0)
   const settings = setup.settings
   const t = settingsText()
   const usesGemma = summarizationProviderOf(settings) === 'llama-cpp'
+  const customPrompt = settings.summarization.promptMode === 'custom'
 
   const update = (patch: SettingsPatch): void => {
     setError(undefined)
@@ -64,7 +69,10 @@ export const SettingsView = ({
         window.setTimeout(() => setSaved(false), 1_500)
         onChanged()
       })
-      .catch((updateError: unknown) => setError(messageOf(updateError)))
+      .catch((updateError: unknown) => {
+        setError(messageOf(updateError))
+        setRevision((current) => current + 1)
+      })
   }
 
   const pickFile = (kind: 'whisper-model' | 'llm-model' | 'onnx-model', apply: (path: string) => SettingsPatch): void => {
@@ -311,16 +319,38 @@ export const SettingsView = ({
     summarization: (
       <>
         <SettingsCard title={t.summarization.styleCardTitle}>
-          <Field label={t.summarization.promptLabel} hint={t.summarization.promptHint}>
-            {/* 既定のままなら会議の言語の既定を見せる（ADR-043）。key で作り直すのは、文字起こしの
-                言語を変えたときに編集欄も切り替えるため（defaultValue は最初の描画にしか効かない）。 */}
+          <Field label={t.summarization.promptModeLabel} hint={t.summarization.promptModeHint}>
+            <select
+              value={customPrompt ? 'custom' : 'default'}
+              onChange={(event) =>
+                update({
+                  summarization:
+                    event.target.value === 'custom'
+                      ? { promptMode: 'custom', promptTemplate: customSummaryPromptSeed(settings, locale()) }
+                      : { promptMode: 'default' }
+                })
+              }
+            >
+              <option value="default">{t.summarization.promptModeDefault}</option>
+              <option value="custom">{t.summarization.promptModeCustom}</option>
+            </select>
+          </Field>
+
+          <Field
+            label={t.summarization.promptLabel}
+            hint={customPrompt ? t.summarization.promptHint : t.summarization.promptDefaultHint}
+          >
+            {/* 既定なら会議の言語の既定を見せる（ADR-043）。既定は書き換えさせず読むだけにする — 書き換えると
+                アプリの更新で既定が改善されても届かなくなる（ADR-047）。key で作り直すのは、言語や選び方を
+                変えたときに欄も切り替えるため（defaultValue は最初の描画にしか効かない）。 */}
             <textarea
               key={settingsSummaryPrompt(settings, locale())}
               className="settings__prompt"
+              readOnly={!customPrompt}
               defaultValue={settingsSummaryPrompt(settings, locale())}
-              onBlur={(event) =>
-                update({ summarization: { promptTemplate: event.target.value } })
-              }
+              onBlur={(event) => {
+                if (customPrompt) update({ summarization: { promptTemplate: event.target.value } })
+              }}
             />
           </Field>
 
@@ -515,8 +545,9 @@ export const SettingsView = ({
           </p>
         )}
 
-        {/* key で項目ごとに作り直す。未確定の入力（defaultValue）を別の項目へ持ち越さない。 */}
-        <div key={section} className="settings__body">
+        {/* key で項目ごとに作り直す。未確定の入力（defaultValue）を別の項目へ持ち越さない。
+            保存を断られたときも作り直して、保存済みの値に戻す。 */}
+        <div key={`${section}:${revision}`} className="settings__body">
           {content[section]}
         </div>
       </div>
