@@ -35,19 +35,19 @@ const GB = 1_024 ** 3
 /**
  * OS と他アプリのために空けておく量。
  *
- * 総量比だけで決めると 8GB 機で余白が小さくなりすぎ、比を使わないと 64GB 機で
+ * 保守的は、総量比だけで決めると 8GB 機で余白が小さくなりすぎ、比を使わないと 64GB 機で
  * 過剰に厳しくなる。下限と比率の大きい方を採る。
  *
- * 標準は OS の揺れを吸う程度に留める。以前の 1GB / 10% では 16GB 機で 1.6GB を上乗せし、
- * 「オフ」なら問題なく要約できる状況まで拒んでいた。OS を守る余白は node-llama-cpp が
- * 内蔵で別に確保しており（RAM の 25%）、事前チェックがそれを二重に持つ必要はない。
+ * 標準は余白を持たず、見積もりそのものが空きに収まるかだけを見る。1GB / 10%、
+ * 0.5GB / 5% と段階的に緩めても、16GB 機では「オフ」なら問題なく要約できる状況
+ * （空き 約7.6GB に対し見積もり 約7.4GB）を拒み続けた。見積もりは既に実測より安全側に
+ * 丸めてあり、OS を守る余白は node-llama-cpp が内蔵で別に確保している（RAM の 25%）。
  */
 export const headroomBytes = (protection: MemoryProtection, totalBytes: number): number => {
   switch (protection) {
     case 'off':
-      return 0
     case 'standard':
-      return Math.max(0.5 * GB, totalBytes * 0.05)
+      return 0
     case 'conservative':
       return Math.max(3 * GB, totalBytes * 0.2)
   }
