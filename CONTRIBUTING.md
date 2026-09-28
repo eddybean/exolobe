@@ -4,11 +4,12 @@
 
 ## ライセンスの前提
 
-このリポジトリは `LICENSE`（PolyForm Noncommercial License 1.0.0 + `LICENSE-ADDENDUM.md`）
-のもとで公開しています。OSI 承認のオープンソースライセンスではなく、**商用利用を許諾
-していない source-available なプロジェクト**です。
+このリポジトリは `LICENSE`（PolyForm Internal Use License 1.0.0 + `LICENSE-ADDENDUM.md`）
+のもとで公開しています。OSI 承認のオープンソースライセンスではなく、**第三者への配布や
+販売を許諾していない source-available なプロジェクト**です。Pull Request のための
+GitHub 上の fork は追加条項の第 4 条で認めています。
 
-将来、原著作者が企業向けに別条件の商用ライセンスを提供できるようにするため、
+原著作者が将来、再配布や製品への組み込みなどに別条件のライセンスを提供できるようにするため、
 コントリビュータには以下への同意をお願いしています。CLA の署名手続きは設けず、
 Pull Request を送った時点で同意したものとみなします。
 

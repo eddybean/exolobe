@@ -4,7 +4,7 @@
 [![Release](https://github.com/eddybean/exolobe/actions/workflows/release.yml/badge.svg)](https://github.com/eddybean/exolobe/actions/workflows/release.yml)
 
 Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし・話者識別・要約までを
-この Mac の中だけで**行うデスクトップアプリ。音声もテキストも外部には送信しません。
+ローカルだけで**行うデスクトップアプリ。音声もテキストも外部には送信しません。
 
 ![録音一覧と詳細画面。左にフォルダで絞り込めるライブラリ、右に話者ごとの発言の帯・話者付きの文字起こし・議事録要約](docs/images/app-library.png)
 
@@ -37,21 +37,23 @@ Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし�
 | --- | --- |
 | macOS | 14.2 以上（Core Audio Process Tap を使用） |
 | CPU | Apple Silicon 推奨 |
-| メモリ | 16GB 以上 |
+| メモリ | 16GB 以上を推奨 |
 | 空き容量 | 約 10GB（モデル用） |
 
 ## インストール方法
 
-### Homebrew
+Homebrewもしくは手動インストールどちらかをお選びください。
+
+### Homebrew(推奨)
 
 ```sh
 brew install --cask eddybean/tap/exolobe
 ```
 
 自前の tap（[eddybean/homebrew-tap](https://github.com/eddybean/homebrew-tap)）から入れます。
-下の `xattr` の操作は cask が行うので不要です。
+下の `xattr` の操作は自動で行うので不要です。
 
-### .dmg
+### 手動インストール
 
 [Releases ページ](https://github.com/eddybean/exolobe/releases/latest) から最新の
 `.dmg` をダウンロードし、`Exolobe.app` を「アプリケーション」フォルダへドラッグします。
@@ -289,15 +291,17 @@ git push --follow-tags
 
 ## ライセンス
 
-[PolyForm Noncommercial License 1.0.0](LICENSE) に
+[PolyForm Internal Use License 1.0.0](LICENSE) に
 [追加条項](LICENSE-ADDENDUM.md)を加えた条件で公開しています。OSI 承認のオープン
 ソースライセンスではなく、ソースを公開しているだけの **source-available** な
 プロジェクトです。
 
-- **個人利用・学習・研究・非営利団体での利用は自由**です
-- **商用利用はできません**。本アプリまたはその改変版を販売・有償提供する場合は
-  個別の許諾が必要です
-- 改変版を配布する場合は、対応するソースコードを同一条件で提供してください
+- **個人での非商用利用は自由**です（学習・研究・趣味など）
+- **企業・団体の内部業務での利用も自由**です。営利企業が自社の会議の録音に使う
+  場合も含み、社員や業務委託先への展開もできます（その会社の業務に使う範囲で）。改変して社内で使うこともできます
+- **第三者への配布・販売はできません**（有償・無償を問わず、改変版も同じ）。
+  入手は本リポジトリの GitHub Releases と Homebrew tap からに限ります。
+  配布や製品への組み込みを希望する場合は個別の許諾が必要です
 - 本リポジトリのコードを機械学習モデルの訓練・評価に使うことを禁じます
   （アプリを**動かして得た**録音・文字起こし・要約は利用者のものです）
 
