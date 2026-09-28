@@ -35,13 +35,15 @@ const en: typeof ja = {
   heading: 'Chat',
   lead: 'Answers are based on your recordings, transcripts, and summaries. Everything runs on this Mac.',
   newConversation: 'New Conversation',
-  emptyHint: 'You can ask about a specific period or speaker.',
+  // 英語の問いはまだ期間や話者で絞れない（ChatQuery / DateExpression は日本語の言い回しだけを読む、
+  // ADR-043）。絞れない問い方を例に出すと、効いていない絞り込みを効いたと思わせてしまう。
+  emptyHint: 'Ask about decisions, to-dos, or topics across your meetings.',
   examples: [
-    'Summarize last week’s to-dos',
-    'Summarize only what I said last week',
-    'List this month’s decisions'
+    'What are the open to-dos?',
+    'What did we decide about the release schedule?',
+    'Summarize the discussion about pricing'
   ] as readonly string[],
-  composerPlaceholder: 'Summarize last week’s to-dos',
+  composerPlaceholder: 'What are the open to-dos?',
   scopePrefix: (label: string): string => `Scope: ${label}`,
   scopeLabel: (rangeLabel: string, count: number): string =>
     `${rangeLabel} — ${count} ${count === 1 ? 'recording' : 'recordings'}`,

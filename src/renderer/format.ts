@@ -1,5 +1,5 @@
 import { formatText } from './i18n/format'
-import { intlLocale } from './i18n/locale'
+import { intlLocale, locale } from './i18n/locale'
 
 export { formatBytes } from '@domain/ModelCatalog'
 
@@ -23,7 +23,8 @@ export const formatDateTime = (iso: string): string => {
     ...(sameYear ? {} : { year: 'numeric' }),
     month: 'short',
     day: 'numeric',
-    hour: '2-digit',
+    // 日本語は 24 時間制で桁を揃え、英語は 12 時間制の慣習どおり時を 0 で埋めない。
+    hour: locale() === 'ja' ? '2-digit' : 'numeric',
     minute: '2-digit'
   }).format(date)
 }

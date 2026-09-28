@@ -39,15 +39,15 @@ const ja: {
 
 const en: typeof ja = {
   lead: 'Copyright notices and licenses for the software and models this app uses.',
-  fullTextTitle: 'Full License Texts',
+  fullTextTitle: 'Full license texts',
   publishedElsewhere: 'The terms are published by the distributor.',
   groups: {
     bundled: {
-      title: 'Bundled Software',
+      title: 'Bundled software',
       description: 'Distributed together with the app.'
     },
     models: {
-      title: 'Downloaded Models',
+      title: 'Downloaded models',
       description: 'Not included in the app; downloaded from the distributor in Settings.'
     }
   },

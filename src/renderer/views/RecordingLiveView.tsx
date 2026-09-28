@@ -14,7 +14,7 @@ import type { Transport } from '../hooks/useTransport'
 import { BOOKMARK_SHORTCUT_LABEL, isBookmarkKey } from '../keyboard'
 import { litSegments } from '../library/liveNotes'
 import { liveText } from '../i18n/live'
-import { intlLocale } from '../i18n/locale'
+import { intlLocale, locale } from '../i18n/locale'
 
 /** メモの自動保存までの待ち時間。詳細画面のメモと揃える。 */
 const NOTE_SAVE_DELAY_MS = 600
@@ -132,7 +132,8 @@ export const RecordingLiveView = ({
 
   const t = liveText()
   const startedAt = new Date(detail.recording.startedAt).toLocaleTimeString(intlLocale(), {
-    hour: '2-digit',
+    // 英語は 12 時間制の慣習どおり時を 0 で埋めない（format.ts の formatDateTime と揃える）。
+    hour: locale() === 'ja' ? '2-digit' : 'numeric',
     minute: '2-digit'
   })
 

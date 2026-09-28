@@ -118,11 +118,7 @@ export const RecordingPermissions = (): ReactElement => {
           {t.openSettings}
         </button>
       </div>
-      {/* 文の間で改行すると JSX が空白を挟むので、文ごとに文字列で渡す。 */}
-      <p className="field__hint permissions__hint">
-        {t.hint1}
-        {t.hint2}
-      </p>
+      <p className="field__hint permissions__hint">{t.hint}</p>
       <div className="permissions__test">
         <button type="button" onClick={runTest} disabled={testing}>
           {testing ? t.testing : t.testButton}

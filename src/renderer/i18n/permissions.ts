@@ -22,9 +22,9 @@ const ja = {
   systemAudioName: 'システム音声',
   systemAudioPurpose: '相手の声',
   systemAudioState: 'アプリからは確認できません',
-  hint1:
-    '初めて録音するとき（下のテスト録音でも）に macOS が許可を求めます。許可が無くてもエラーにはならず、相手の声が無音のまま録音されます。',
-  hint2:
+  // 文の区切り方が言語で違う（日本語は句点の後に空白を置かない）ので、2 文を 1 つの文言に持つ。
+  hint:
+    '初めて録音するとき（下のテスト録音でも）に macOS が許可を求めます。許可が無くてもエラーにはならず、相手の声が無音のまま録音されます。' +
     'システム設定の「画面収録とシステムオーディオ録音」にある「システムオーディオ録音のみ」で、このアプリがオンになっていれば問題ありません。',
   testButton: 'テスト録音',
   testing: 'テスト中…',
@@ -47,7 +47,7 @@ const en: typeof ja = {
   micMessage:
     'No sound was picked up from the microphone. Test again while speaking toward the microphone. If you’re using an external microphone, also check that it’s connected.',
   // RecordingPermissions.tsx
-  cardTitle: 'Permissions Needed to Record',
+  cardTitle: 'Permissions needed to record',
   micName: 'Microphone',
   micPurpose: 'Your voice',
   requestAllow: 'Allow',
@@ -55,9 +55,8 @@ const en: typeof ja = {
   systemAudioName: 'System Audio',
   systemAudioPurpose: 'The other side’s voice',
   systemAudioState: 'Cannot be checked from the app',
-  hint1:
-    'macOS asks for permission the first time you record (including with the test recording below). Recording does not fail without it — the other side’s voice is simply recorded as silence.',
-  hint2:
+  hint:
+    'macOS asks for permission the first time you record (including with the test recording below). Recording does not fail without it — the other side’s voice is simply recorded as silence. ' +
     'Check that this app is turned on under System Settings > Screen & System Audio Recording > System Audio Recording Only.',
   testButton: 'Test Recording',
   testing: 'Testing…',

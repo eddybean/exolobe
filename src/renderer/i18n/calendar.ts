@@ -18,7 +18,7 @@ const ja = {
 }
 
 const en: typeof ja = {
-  title: 'Calendar Integration',
+  title: 'Calendar integration',
   fillLabel: 'Fill in the title and participants from the event',
   fillHint1:
     'Uses the title of the event overlapping the time you started recording as the recording’s name, and suggests participants as speaker names.',

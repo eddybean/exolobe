@@ -34,4 +34,15 @@ describe('formatDateTime', () => {
     const iso = new Date().getFullYear() + '-03-01T09:05:00+09:00'
     expect(formatDateTime(iso)).toMatch(/Mar/)
   })
+
+  it('英語では時を 0 で埋めない（「02:00 PM」ではなく「2:00 PM」）', () => {
+    setLocale('en')
+    const iso = new Date().getFullYear() + '-03-01T14:00:00+09:00'
+    expect(formatDateTime(iso)).toMatch(/\b2:00\sPM/)
+  })
+
+  it('日本語では 24 時間制で時を揃える', () => {
+    const iso = new Date().getFullYear() + '-03-01T09:05:00+09:00'
+    expect(formatDateTime(iso)).toContain('09:05')
+  })
 })
