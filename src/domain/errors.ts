@@ -13,6 +13,7 @@ export type SettingsProblem =
   | 'voiceprintThreshold'
   | 'clusteringThreshold'
   | 'appearance'
+  | 'updateCheck'
   | 'memoryProtection'
   | 'contextSize'
   | 'promptPlaceholder'

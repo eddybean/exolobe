@@ -1,4 +1,5 @@
 import type { SettingsProblem } from '@domain/errors'
+import { isUpdateCheckInterval, type UpdateCheckInterval } from '@domain/AppUpdate'
 import { meetingLanguageOf, type MeetingLanguage } from '@domain/MeetingLanguage'
 import { isMemoryProtection, type MemoryProtection } from '@domain/MemoryGuard'
 import { VOICEPRINT_MATCH_THRESHOLD } from '@domain/Voiceprint'
@@ -237,10 +238,19 @@ const isAppearance = (value: unknown): value is Appearance =>
 export const appearanceOf = (settings: Settings): Appearance =>
   isAppearance(settings.appearance) ? settings.appearance : 'system'
 
+/**
+ * 新しい版を確かめる間隔。読み込んだ設定は検証を通らないので、知らない値なら既定（週 1 回）に倒す。
+ * 「確認しない」に倒さないのは、古い版のまま使い続ける人を残さないため（ADR-044）。
+ */
+export const updateCheckIntervalOf = (settings: Settings): UpdateCheckInterval =>
+  isUpdateCheckInterval(settings.updateCheck) ? settings.updateCheck : 'weekly'
+
 export interface Settings {
   /** ユーザーが初期設定で選ぶ保存先。未選択なら null。 */
   readonly storageDir: string | null
   readonly appearance: Appearance
+  /** 新しい版を GitHub Releases に確かめる間隔（ADR-044）。 */
+  readonly updateCheck: UpdateCheckInterval
   /**
    * 重い推論の前に空きメモリを確認する強さ。
    *
@@ -264,6 +274,7 @@ export interface Settings {
 export type SettingsPatch = {
   readonly storageDir?: string | null | undefined
   readonly appearance?: Appearance | undefined
+  readonly updateCheck?: UpdateCheckInterval | undefined
   readonly memoryProtection?: MemoryProtection | undefined
   readonly recording?: Partial<RecordingSettings>
   readonly transcription?: Partial<TranscriptionSettings>
@@ -281,6 +292,8 @@ export type SettingsPatch = {
 export const defaultSettings = (language: MeetingLanguage): Settings => ({
   storageDir: null,
   appearance: 'system',
+  // 週 1 回。急ぐ知らせではなく、GitHub への問い合わせを必要以上に増やさない。
+  updateCheck: 'weekly',
   memoryProtection: 'standard',
   recording: {
     silenceAlertEnabled: true,
@@ -350,6 +363,7 @@ const mergeGroup = <T extends object>(base: T, patch: Partial<T> | undefined): T
 export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings => ({
   storageDir: patch.storageDir === undefined ? base.storageDir : patch.storageDir,
   appearance: patch.appearance === undefined ? base.appearance : patch.appearance,
+  updateCheck: patch.updateCheck === undefined ? base.updateCheck : patch.updateCheck,
   memoryProtection:
     patch.memoryProtection === undefined ? base.memoryProtection : patch.memoryProtection,
   recording: mergeGroup(base.recording, patch.recording),
@@ -383,6 +397,7 @@ export const validateSettings = (settings: Settings): SettingsProblem[] => {
     problems.push('clusteringThreshold')
   }
   if (!isAppearance(settings.appearance)) problems.push('appearance')
+  if (!isUpdateCheckInterval(settings.updateCheck)) problems.push('updateCheck')
   if (!isMemoryProtection(settings.memoryProtection)) problems.push('memoryProtection')
   if (settings.summarization.contextSize < 1_024) problems.push('contextSize')
   if (!settings.summarization.promptTemplate.includes(TRANSCRIPT_PLACEHOLDER)) {
