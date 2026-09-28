@@ -77,6 +77,7 @@
             <tr><td><a href="#adr-042">ADR-042</a></td><td>録音中のメモと印</td><td>メモは行ごとの時刻を note.md に埋め、印は bookmarks.json に持ち、どちらも要約の入力に含める</td></tr>
             <tr><td><a href="#adr-043">ADR-043</a></td><td>多言語対応（日本語・英語）</td><td>UI の言語は起動時に macOS の優先言語で決め、会議の言語は文字起こしの言語設定で決める。domain は文言でなく理由のコードを返す</td></tr>
             <tr><td><a href="#adr-044">ADR-044</a></td><td>新しい版の通知</td><td>GitHub Releases を週 1 回（設定で毎日〜確認しない）確かめ、入れ方に応じた更新の手順を知らせるだけ。アプリは自分を入れ替えない</td></tr>
+            <tr><td><a href="#adr-045">ADR-045</a></td><td>同梱バイナリの最低対応 OS と CI のランナー</td><td>同梱バイナリは <code>LSMinimumSystemVersion</code> 向けにビルドし、配布前に検査する。CI は macOS 27 SDK のある <code>xcode-27</code> で動かす</td></tr>
           </tbody>
         </table>
       </div>
@@ -4029,6 +4030,92 @@
         </ul>
       </div>
 
+      <h2 id="adr-045">ADR-045 同梱バイナリの最低対応 OS と CI のランナー（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-045</span>
+          <p class="adr__title">同梱バイナリ（whisper-cli / micwatch / calendarevents）は、アプリが宣言する最低対応 OS（<code>electron-builder.yml</code> の <code>LSMinimumSystemVersion</code>）向けにビルドし、配布前に検査する。そのうえで CI と Release のランナーを <code>xcode-27</code> に上げる</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          macOS 27 の Apple Intelligence（FoundationModels）を要約のモデルとして選べるようにしたい。呼び出しは
+          micwatch などと同じく同梱の Swift ツールにするつもりで、そのビルドには macOS 27 SDK が要る。<code>macos-15</code> の
+          ランナーは SDK が 26.2 までで、コンテキスト長（<code>contextSize</code>、macOS 27 から）もトークン数
+          （<code>tokenCount</code>、26.4 から）も扱えない。
+        </p>
+        <p>
+          ランナーを上げる前に調べると、<code>build-*.sh</code> は対象 OS を指定しておらず、swiftc も clang もビルドした機械の OS を
+          最低対応 OS にしていた。手元の <code>resources/bin</code> は 3 本とも <code>minos 26.0</code>、macOS 27 で作り直すと
+          <code>minos 27.0</code> になる。アプリは 14.2 以降で動くと宣言しているのに、同梱バイナリはランナーの OS 以降でしか起動しない。
+          アプリ自体は起動するので、文字起こしが失敗して初めて気付く。<code>macos-15</code> でビルドした配布版も同じ形の食い違いを持つ（推定）。
+        </p>
+
+        <h4>決定</h4>
+        <ul>
+          <li>
+            <strong>最低対応 OS は <code>LSMinimumSystemVersion</code> から読み、二重に持たない。</strong>
+            <code>scripts/min-macos.sh</code> が値を読み、Swift は <code>-target arm64-apple-macos&lt;版&gt;</code>、whisper.cpp は
+            <code>CMAKE_OSX_DEPLOYMENT_TARGET</code> で渡す。既にあるバイナリの <code>minos</code> が違えば作り直す
+            （Core ML 無しの whisper-cli を作り直すのと同じ扱い）。
+          </li>
+          <li>
+            <strong>配布前に検査する。</strong><code>scripts/check-min-macos.sh</code> が同梱バイナリの <code>minos</code> を読み、
+            最低対応 OS より新しければ Release を止める。キャッシュの whisper-cli はキーに <code>electron-builder.yml</code> を含めない
+            （変更のたびに数分の作り直しになる）ので、最低対応 OS を変えたときの取り残しはこの検査で拾う。
+          </li>
+          <li>
+            <strong>ランナーは <code>xcode-27</code>（macOS 27、Xcode 27.0、arm64）。</strong>ci.yml と release.yml で揃える
+            （main の CI が作ったキャッシュを Release が読むため）。
+          </li>
+        </ul>
+
+        <h4>確かめたこと</h4>
+        <ul>
+          <li>14.2 を指定しても 3 本ともエラーなくビルドでき、<code>minos 14.2</code> になる。</li>
+          <li>
+            whisper-cli は 14.2 向けにしても Metal・Core ML・bfloat・SME を使い、合成音声の会議で処理時間（約 5.7 秒）と
+            出力が 26.0 向けのものと同じだった。
+          </li>
+        </ul>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>論点</th><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>ランナー</td>
+                <td><code>macos-15</code> のまま、Swift ツールの段だけ Xcode 26.3 に切り替える</td>
+                <td>不採用</td>
+                <td>SDK 26.2 では macOS 27 の API を使えず、コンテキスト長を決め打ちするなど回避の書き方が要る</td>
+              </tr>
+              <tr>
+                <td>ランナー</td>
+                <td><code>macos-26</code></td>
+                <td>不採用</td>
+                <td>SDK が 26.5 までで、上と同じ理由</td>
+              </tr>
+              <tr>
+                <td>最低対応 OS</td>
+                <td>ランナーの OS に任せる（今まで）</td>
+                <td>不採用</td>
+                <td>ランナーを上げるたびに、宣言より新しい OS でしか動かないバイナリが黙って配られる</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>残した判断</h4>
+        <ul>
+          <li>
+            <code>xcode-27</code> はパブリックプレビューで、予告なく変わったり正式版でラベルが変わったりしうる。戻すのは
+            <code>runs-on</code> の 1 行で、最低対応 OS の指定はランナーに依らず効く。
+          </li>
+          <li>macOS 14 / 15 の実機での起動は確かめていない（<code>minos</code> の検査まで）。</li>
+        </ul>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -4093,6 +4180,10 @@
             <tr>
               <td><a href="#adr-044">ADR-044</a> 新しい版を知らせるだけで、自分では入れ替えない</td>
               <td>Developer ID を取ったとき。electron-updater で自動更新に切り替え、確認先（GitHub Releases）はそのまま使う</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-045">ADR-045</a> CI を <code>xcode-27</code>（プレビュー）で動かす</td>
+              <td>macOS 27 のイメージが正式版（<code>macos-27</code> など）になったとき。そちらへ移す</td>
             </tr>
             <tr>
               <td><a href="#adr-027">ADR-027</a> アプリが起動している間しか見張らない</td>

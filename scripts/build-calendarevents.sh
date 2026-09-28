@@ -9,7 +9,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_DIR="$ROOT/resources/bin"
 SOURCE="$ROOT/native/calendarevents/main.swift"
 
-if [ -x "$OUT_DIR/calendarevents" ] && [ "${FORCE:-0}" != "1" ]; then
+source "$ROOT/scripts/min-macos.sh"
+
+if [ -x "$OUT_DIR/calendarevents" ] && built_for_min_macos "$OUT_DIR/calendarevents" && [ "${FORCE:-0}" != "1" ]; then
   echo "[build-calendarevents] resources/bin/calendarevents は既にあります（FORCE=1 で再ビルド）。"
   exit 0
 fi
@@ -21,7 +23,8 @@ fi
 
 mkdir -p "$OUT_DIR"
 echo "[build-calendarevents] ビルドしています..."
-swiftc -O -framework EventKit -o "$OUT_DIR/calendarevents" "$SOURCE"
+# arm64 固定なのは配布物が Apple Silicon 向けだけだから（release.yml）。
+swiftc -O -target "arm64-apple-macos$MIN_MACOS" -framework EventKit -o "$OUT_DIR/calendarevents" "$SOURCE"
 chmod +x "$OUT_DIR/calendarevents"
 
 echo "[build-calendarevents] 完了: $OUT_DIR/calendarevents"
