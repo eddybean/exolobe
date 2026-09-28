@@ -19,13 +19,15 @@ const ruleFor = (selector: string): string => {
 }
 
 describe('本文を直すボタン', () => {
-  it('ペンは常に薄く見せておく（隠すと直せることに気付けない）', () => {
-    const rule = ruleFor('.segment__edit')
-    expect(rule).not.toMatch(/opacity:\s*0\s*;/)
-    expect(rule).toMatch(/opacity:\s*0\.\d+/)
+  it('ふだんは隠しておく（全行に並ぶと本文が読みにくい）', () => {
+    expect(ruleFor('.segment__edit')).toMatch(/opacity:\s*0\s*;/)
   })
 
-  it('行にマウスを載せたときとキーボードで辿り着いたときに濃くする', () => {
+  it('押せないときは行に触れても薄く見せるだけにする（押せるように見せない）', () => {
+    expect(ruleFor('.segment:hover .segment__edit:disabled')).toMatch(/opacity:\s*0\.\d+/)
+  })
+
+  it('行にマウスを載せたときとキーボードで辿り着いたときに見せる', () => {
     expect(ruleFor('.segment:hover .segment__edit')).toMatch(/opacity:\s*1/)
     expect(ruleFor('.segment__edit:focus-visible')).toMatch(/opacity:\s*1/)
   })

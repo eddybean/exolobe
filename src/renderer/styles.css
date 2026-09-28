@@ -1488,13 +1488,13 @@ code {
 }
 
 /*
-  全行で濃く並ぶと本文が読みにくいので、ふだんは薄く見せて行に触れたときに濃くする。
-  隠しきらないのは、直せることに気付けるようにするため。
+  全行に並ぶと本文が読みにくいので、ふだんは隠して行に触れたときだけ見せる。
+  display: none にしないのは、キーボードで辿り着けるようにするため。
 */
 .segment__edit {
   display: inline-flex;
   align-items: center;
-  opacity: 0.35;
+  opacity: 0;
   border: none;
   background: transparent;
   padding: 0 2px;
@@ -1516,9 +1516,12 @@ code {
   background: transparent;
 }
 
-/* 行に触れても濃くしない（押せないものを押せるように見せない）。 */
-.segment .segment__edit:disabled {
+.segment__edit:disabled {
   cursor: default;
+}
+
+/* 押せない理由は title で出すので見せはするが、押せるようには見せない。 */
+.segment:hover .segment__edit:disabled {
   opacity: 0.35;
 }
 
