@@ -5,6 +5,7 @@ import {
   DEFAULT_SUMMARY_PROMPT_EN,
   NOTES_PLACEHOLDER,
   TRANSCRIPT_PLACEHOLDER,
+  appearanceOf,
   isDefaultSummaryPrompt,
   settingsSummaryPrompt,
   summaryPromptFor,
@@ -178,6 +179,36 @@ describe('memoryProtection', () => {
     const settings = { ...defaultSettings('ja'), memoryProtection: 'aggressive' } as never
 
     expect(validateSettings(settings).length).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * 画面の明暗。OS に従うのが既定で、アプリだけ明るく・暗くしたい人が固定できる。
+ */
+describe('appearance', () => {
+  it('既定は OS の設定に従う', () => {
+    expect(defaultSettings('ja').appearance).toBe('system')
+  })
+
+  it('部分更新でき、未指定なら既存の値を保つ', () => {
+    const dark = mergeSettings(defaultSettings('ja'), { appearance: 'dark' })
+
+    expect(dark.appearance).toBe('dark')
+    expect(mergeSettings(dark, { storageDir: '/x' }).appearance).toBe('dark')
+  })
+
+  it('未知の値は保存前に弾く', () => {
+    const settings = { ...defaultSettings('ja'), appearance: 'sepia' } as never
+
+    expect(validateSettings(settings)).toEqual(['appearance'])
+  })
+
+  it('読み込んだ値が未知なら OS の設定に従う', () => {
+    // 新しい版が足した値を古い版が読んだとき、起動時の反映で落とさない。
+    const settings = { ...defaultSettings('ja'), appearance: 'sepia' } as never
+
+    expect(appearanceOf(settings)).toBe('system')
+    expect(appearanceOf({ ...defaultSettings('ja'), appearance: 'light' })).toBe('light')
   })
 })
 

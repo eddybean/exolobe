@@ -12,6 +12,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'search' },
   { id: 'models' },
   { id: 'storage' },
+  { id: 'appearance' },
   { id: 'about' }
 ] as const
 

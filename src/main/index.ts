@@ -1,6 +1,7 @@
 import { join } from 'node:path'
-import { BrowserWindow, app, globalShortcut, shell, type Tray } from 'electron'
+import { BrowserWindow, app, globalShortcut, nativeTheme, shell, type Tray } from 'electron'
 import { localeArg, resolveLocale } from '@shared/i18n/locale'
+import { applyAppearance } from './appearance'
 import { createContainer } from './container'
 import { appLocale, setAppLocale } from './i18n'
 import { registerIpcHandlers } from './ipc/handlers'
@@ -87,10 +88,12 @@ const showWindow = (): void => {
 
 // 2 つ目の起動では何も始めない。コンテナを作るだけでワーカーや監視が動き出すため、判定は最初に行う。
 if (claimSingleInstance(app, showWindow)) {
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
     setAppLocale(resolveLocale(preferredLanguages()))
     const container = createContainer()
 
+    // ウィンドウより先に明暗を決める。後から切り替えると一瞬 OS 側の明暗で描かれる。
+    applyAppearance(nativeTheme, await container.settings.load())
     mainWindow = createWindow()
     const controller = registerIpcHandlers(container, () => mainWindow, showWindow)
 

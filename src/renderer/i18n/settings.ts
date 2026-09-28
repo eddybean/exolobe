@@ -97,6 +97,13 @@ const ja = {
     bitrateLabel: 'ビットレート',
     bitrateHint: '32kbps で 1 時間あたり約 14MB です。'
   },
+  appearance: {
+    label: 'テーマ',
+    hint: '「OS の設定に合わせる」では、macOS の外観の切り替えに追従します。',
+    system: 'OS の設定に合わせる',
+    light: 'ライト',
+    dark: 'ダーク'
+  },
   sections: {
     recording: '録音',
     transcription: '文字起こし',
@@ -105,6 +112,7 @@ const ja = {
     search: '意味検索',
     models: 'モデル',
     storage: '保存先と音声',
+    appearance: '外観',
     about: 'このアプリについて'
   }
 }
@@ -208,6 +216,13 @@ const en: typeof ja = {
     bitrateLabel: 'Bit rate',
     bitrateHint: 'At 32kbps, about 14MB per hour.'
   },
+  appearance: {
+    label: 'Theme',
+    hint: 'Match System follows the macOS appearance setting as it changes.',
+    system: 'Match System',
+    light: 'Light',
+    dark: 'Dark'
+  },
   sections: {
     recording: 'Recording',
     transcription: 'Transcription',
@@ -216,6 +231,7 @@ const en: typeof ja = {
     search: 'Semantic Search',
     models: 'Models',
     storage: 'Save Location & Audio',
+    appearance: 'Appearance',
     about: 'About'
   }
 }

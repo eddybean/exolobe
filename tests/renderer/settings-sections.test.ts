@@ -18,6 +18,7 @@ describe('SETTINGS_SECTIONS', () => {
       'search',
       'models',
       'storage',
+      'appearance',
       'about'
     ])
   })
