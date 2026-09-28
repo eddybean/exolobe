@@ -44,7 +44,12 @@ export class PipelineClient {
 
   constructor(
     private readonly onProgress: (event: ProgressEventDto) => void,
-    private readonly fork: () => PipelineWorker = forkPipelineWorker
+    private readonly fork: () => PipelineWorker = forkPipelineWorker,
+    /**
+     * ワーカーが落ちたとき、実行中のまま保存に残ったステップを直す。
+     * 落ちたワーカーは自分のステップを running から書き換えられないため、ここで引き受ける。
+     */
+    private readonly recoverInterrupted: () => Promise<void> = async () => undefined
   ) {}
 
   async run(params: { recordingId: string; only?: readonly string[] }): Promise<RecordingDto> {
@@ -174,11 +179,18 @@ export class PipelineClient {
       // 終わらせたのが自分なら、ジョブは既に片付いている。
       if (this.worker !== worker) return
 
-      // 失われるのは実行中のジョブだけ。待っていたジョブは新しいワーカーで続ける。
-      this.current?.job.reject(
-        new Error('処理プロセスが終了しました。詳細画面から失敗したステップを再実行してください。')
-      )
-      this.finish(worker)
+      // 直し終えるまで current を持ったままにし、次のジョブを始めさせない。始めた後だと
+      // そのジョブが保存した running まで失敗にしてしまう。失敗させるのも直した後にする。
+      // 先に知らせると、画面が読み直したときにまだ「処理中」が見えてしまう。
+      void this.recoverInterrupted()
+        .catch(() => undefined)
+        .then(() => {
+          // 失われるのは実行中のジョブだけ。待っていたジョブは新しいワーカーで続ける。
+          this.current?.job.reject(
+            new Error('処理プロセスが終了しました。詳細画面から失敗したステップを再実行してください。')
+          )
+          this.finish(worker)
+        })
     })
 
     this.worker = worker

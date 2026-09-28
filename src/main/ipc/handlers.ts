@@ -154,13 +154,24 @@ export const registerIpcHandlers = (
   }
 
   // 重い推論は別プロセスで動かす。ネイティブライブラリが落ちても UI は生き残る。
-  const pipeline = new PipelineClient((event: ProgressEventDto) => {
-    send(IPC.progress, event)
-    // 割合だけの通知では保存された状態は変わらない。一覧を読み直させる理由が無い。
-    if (event.fraction === undefined) send(IPC.recordingsChanged)
-  })
+  const pipeline = new PipelineClient(
+    (event: ProgressEventDto) => {
+      send(IPC.progress, event)
+      // 割合だけの通知では保存された状態は変わらない。一覧を読み直させる理由が無い。
+      if (event.fraction === undefined) send(IPC.recordingsChanged)
+    },
+    undefined,
+    () => container.recoverInterruptedSteps.execute()
+  )
 
   pipeline.onQueueCleared(() => send(IPC.recordingsChanged))
+
+  // 前回の終了時に動いていたステップは、誰も終わらせないまま running で残っている。
+  // 起動直後はまだ何も依頼されていないので、動いているステップを巻き込むことはない。
+  void container.recoverInterruptedSteps
+    .execute()
+    .then(() => send(IPC.recordingsChanged))
+    .catch(() => undefined)
 
   // 画面に渡す録音には、列で順番を待っているステップを重ねる（保存された状態には無い）。
   const recordingDto = (recording: Recording, summaryPreview?: string): RecordingDto =>

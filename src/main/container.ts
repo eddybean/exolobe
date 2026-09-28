@@ -5,6 +5,7 @@ import { ImportAudioFile } from '@application/usecases/ImportAudioFile'
 import { StartRecording } from '@application/usecases/StartRecording'
 import { StopRecording } from '@application/usecases/StopRecording'
 import { DiscardRecording } from '@application/usecases/DiscardRecording'
+import { RecoverInterruptedSteps } from '@application/usecases/RecoverInterruptedSteps'
 import {
   CreateFolder,
   DeleteFolder,
@@ -95,6 +96,8 @@ export interface Container {
   readonly deleteRecording: DeleteRecording
   /** 自動で始めた録音を、パイプラインにかけずに消す（ADR-041）。 */
   readonly discardRecording: DiscardRecording
+  /** 実行中のまま残ったステップを失敗に直す。パイプラインが何も動かしていないときだけ呼ぶ。 */
+  readonly recoverInterruptedSteps: RecoverInterruptedSteps
   readonly listFolders: ListFolders
   readonly createFolder: CreateFolder
   readonly renameFolder: RenameFolder
@@ -172,6 +175,7 @@ export const createContainer = (): Container => {
     }),
     stopRecording: new StopRecording(capture),
     discardRecording: new DiscardRecording(capture),
+    recoverInterruptedSteps: new RecoverInterruptedSteps({ repository }),
     // 変換は取り込み時に済ませるので、パイプライン側の結線は増えない（ADR-030）。
     importAudioFile: new ImportAudioFile({
       settings,
