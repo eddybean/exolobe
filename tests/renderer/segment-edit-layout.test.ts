@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 /**
  * 文字起こしの本文を直す UI の見た目のうち、崩れてもテストが全部通ってしまう部分を固定する。
  *
- * 守るのは「直すボタンが読む邪魔をしないこと」と「編集欄が本文の桁に収まり、
+ * 守るのは「直すペンが本文の末尾にあり、読む邪魔をしないこと」と「編集欄が本文の桁に収まり、
  * 長い発言でも全文が見えること」。
  */
 const css = readFileSync(join(process.cwd(), 'src/renderer/styles.css'), 'utf8')
@@ -20,12 +20,25 @@ const ruleFor = (selector: string): string => {
 
 describe('本文を直すボタン', () => {
   it('ふだんは隠しておく（全行に並ぶと本文が読みにくい）', () => {
-    expect(ruleFor('.segment__edit')).toMatch(/opacity:\s*0/)
+    expect(ruleFor('.segment__edit')).toMatch(/opacity:\s*0\s*;/)
+  })
+
+  it('押せないときは行に触れても薄く見せるだけにする（押せるように見せない）', () => {
+    expect(ruleFor('.segment:hover .segment__edit:disabled')).toMatch(/opacity:\s*0\.\d+/)
   })
 
   it('行にマウスを載せたときとキーボードで辿り着いたときに見せる', () => {
     expect(ruleFor('.segment:hover .segment__edit')).toMatch(/opacity:\s*1/)
     expect(ruleFor('.segment__edit:focus-visible')).toMatch(/opacity:\s*1/)
+  })
+
+  it('本文の末尾に続けて置き、右端の固定幅を取らない', () => {
+    expect(ruleFor('.segment__body')).not.toMatch(/display:\s*flex/)
+    expect(ruleFor('.segment__edit')).toMatch(/display:\s*inline/)
+  })
+
+  it('末尾の文字と一緒に折り返す（ペンだけが次の行に落ちない）', () => {
+    expect(ruleFor('.segment__text-tail')).toMatch(/white-space:\s*nowrap/)
   })
 })
 
