@@ -1,4 +1,7 @@
-appId: com.branch.exolobe
+# bundle ID は自分が管理するドメインを逆さにする慣習に従い、GitHub Pages の
+# eddybean.github.io から作る。変えると macOS は別アプリとみなし、マイク・システム音声・
+# カレンダーの許可を取り直させる（userData は productName 由来なので動かない）。
+appId: io.github.eddybean.exolobe
 
 # productName は必ず ASCII にする。日本語にすると、生成されたアプリが起動直後に
 # SIGTRAP で落ちる（実行ファイル名・ヘルパーアプリ名・フレームワーク参照がすべて
