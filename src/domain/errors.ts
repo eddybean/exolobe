@@ -1,3 +1,4 @@
+import type { AppleIntelligenceAvailability } from './AppleIntelligence'
 import type { PipelineStep } from './Recording'
 
 /** メモリの見積もりで断る処理。利用者に見せる名前は表示側が引く。 */
@@ -97,6 +98,13 @@ export type ErrorReason =
   | { readonly code: 'summaryModelNotConfigured' }
   | { readonly code: 'summaryModelLoadFailed'; readonly path: string; readonly detail: string }
   | { readonly code: 'summaryTranscriptEmpty' }
+  | {
+      readonly code: 'appleIntelligenceUnavailable'
+      readonly availability: Exclude<AppleIntelligenceAvailability, 'available'>
+    }
+  | { readonly code: 'appleIntelligenceRejected' }
+  | { readonly code: 'appleIntelligenceUnsupportedLanguage' }
+  | { readonly code: 'appleIntelligenceFailed'; readonly detail: string }
   // 声を覚える
   | { readonly code: 'voiceLearningDiarizationDisabled' }
   | { readonly code: 'voiceLearningNoSpeakers' }

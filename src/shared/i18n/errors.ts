@@ -8,6 +8,7 @@ import {
 } from '@domain/errors'
 import { formatBytes } from '@domain/ModelCatalog'
 import { SUPPORTED_SAMPLE_RATES, TRANSCRIPT_PLACEHOLDER } from '@domain/Settings'
+import { appleIntelligenceUnavailableText } from './appleIntelligence'
 import type { Locale } from './locale'
 import { modelText } from './models'
 import { stepLabel } from './steps'
@@ -160,6 +161,12 @@ const ja: ReasonMessages = {
     '要約モデルが設定されていません。設定画面でモデルを選んでください。',
   summaryModelLoadFailed: (r) => `要約モデルを読み込めませんでした（${r.path}）: ${r.detail}`,
   summaryTranscriptEmpty: () => '文字起こしが空のため要約できません。',
+  appleIntelligenceUnavailable: (r) => appleIntelligenceUnavailableText(r.availability, 'ja'),
+  appleIntelligenceRejected: () =>
+    'Apple Intelligence の安全フィルタが要約を拒否しました。設定で要約のモデルを Gemma に切り替えると要約できます。',
+  appleIntelligenceUnsupportedLanguage: () =>
+    'Apple Intelligence はこの会議の言語に対応していません。設定で要約のモデルを Gemma に切り替えてください。',
+  appleIntelligenceFailed: (r) => `Apple Intelligence での要約に失敗しました: ${r.detail}`,
   voiceLearningDiarizationDisabled: () =>
     '話者識別が無効なため、この録音から声を覚えられません。',
   voiceLearningNoSpeakers: () => 'この録音は話者が分かれていないため、声を覚えられません。',
@@ -269,6 +276,12 @@ const en: ReasonMessages = {
   summaryModelNotConfigured: () => 'No summarization model is set. Choose a model in Settings.',
   summaryModelLoadFailed: (r) => `Could not load the summarization model (${r.path}): ${r.detail}`,
   summaryTranscriptEmpty: () => 'The transcript is empty, so there is nothing to summarize.',
+  appleIntelligenceUnavailable: (r) => appleIntelligenceUnavailableText(r.availability, 'en'),
+  appleIntelligenceRejected: () =>
+    'Apple Intelligence’s safety filter refused to summarize this. Switch the summarization model to Gemma in Settings to summarize it.',
+  appleIntelligenceUnsupportedLanguage: () =>
+    'Apple Intelligence does not support the language of this meeting. Switch the summarization model to Gemma in Settings.',
+  appleIntelligenceFailed: (r) => `Summarizing with Apple Intelligence failed: ${r.detail}`,
   voiceLearningDiarizationDisabled: () =>
     'Speaker identification is off, so voices cannot be learned from this recording.',
   voiceLearningNoSpeakers: () =>
