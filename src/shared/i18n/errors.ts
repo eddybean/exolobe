@@ -8,6 +8,7 @@ import {
 } from '@domain/errors'
 import { formatBytes } from '@domain/ModelCatalog'
 import { SUPPORTED_SAMPLE_RATES, TRANSCRIPT_PLACEHOLDER } from '@domain/Settings'
+import { appleIntelligenceUnavailableText } from './appleIntelligence'
 import type { Locale } from './locale'
 import { modelText } from './models'
 import { stepLabel } from './steps'
@@ -53,6 +54,7 @@ const SETTINGS_PROBLEMS: Readonly<Record<Locale, Readonly<Record<SettingsProblem
     clusteringThreshold: '話者を分ける近さは 0 より大きく 1 以下の値を指定してください。',
     appearance: 'テーマは「OS の設定に合わせる」「ライト」「ダーク」のいずれかを指定してください。',
     updateCheck: '更新の確認は「毎日」「毎週」「毎月」「確認しない」のいずれかを指定してください。',
+    summarizationProvider: '要約のモデルは「Gemma」か「Apple Intelligence」を指定してください。',
     memoryProtection: 'メモリ保護は「保守的」「標準」「オフ」のいずれかを指定してください。',
     contextSize: '要約モデルのコンテキスト長は 1024 以上を指定してください。',
     promptPlaceholder: `要約プロンプトには文字起こしの差し込み位置 ${TRANSCRIPT_PLACEHOLDER} を含めてください。`,
@@ -68,6 +70,7 @@ const SETTINGS_PROBLEMS: Readonly<Record<Locale, Readonly<Record<SettingsProblem
     clusteringThreshold: 'The speaker separation threshold must be greater than 0 and at most 1.',
     appearance: 'Theme must be Match System, Light, or Dark.',
     updateCheck: 'Update checks must be Daily, Weekly, Monthly, or Never.',
+    summarizationProvider: 'The summarization model must be Gemma or Apple Intelligence.',
     memoryProtection: 'Memory protection must be Conservative, Standard, or Off.',
     contextSize: 'The summarization model context length must be at least 1024.',
     promptPlaceholder: `The summary prompt must contain ${TRANSCRIPT_PLACEHOLDER}, where the transcript is inserted.`,
@@ -158,6 +161,12 @@ const ja: ReasonMessages = {
     '要約モデルが設定されていません。設定画面でモデルを選んでください。',
   summaryModelLoadFailed: (r) => `要約モデルを読み込めませんでした（${r.path}）: ${r.detail}`,
   summaryTranscriptEmpty: () => '文字起こしが空のため要約できません。',
+  appleIntelligenceUnavailable: (r) => appleIntelligenceUnavailableText(r.availability, 'ja'),
+  appleIntelligenceRejected: () =>
+    'Apple Intelligence の安全フィルタが要約を拒否しました。設定で要約のモデルを Gemma に切り替えると要約できます。',
+  appleIntelligenceUnsupportedLanguage: () =>
+    'Apple Intelligence はこの会議の言語に対応していません。設定で要約のモデルを Gemma に切り替えてください。',
+  appleIntelligenceFailed: (r) => `Apple Intelligence での要約に失敗しました: ${r.detail}`,
   voiceLearningDiarizationDisabled: () =>
     '話者識別が無効なため、この録音から声を覚えられません。',
   voiceLearningNoSpeakers: () => 'この録音は話者が分かれていないため、声を覚えられません。',
@@ -267,6 +276,12 @@ const en: ReasonMessages = {
   summaryModelNotConfigured: () => 'No summarization model is set. Choose a model in Settings.',
   summaryModelLoadFailed: (r) => `Could not load the summarization model (${r.path}): ${r.detail}`,
   summaryTranscriptEmpty: () => 'The transcript is empty, so there is nothing to summarize.',
+  appleIntelligenceUnavailable: (r) => appleIntelligenceUnavailableText(r.availability, 'en'),
+  appleIntelligenceRejected: () =>
+    'Apple Intelligence’s safety filter refused to summarize this. Switch the summarization model to Gemma in Settings to summarize it.',
+  appleIntelligenceUnsupportedLanguage: () =>
+    'Apple Intelligence does not support the language of this meeting. Switch the summarization model to Gemma in Settings.',
+  appleIntelligenceFailed: (r) => `Summarizing with Apple Intelligence failed: ${r.detail}`,
   voiceLearningDiarizationDisabled: () =>
     'Speaker identification is off, so voices cannot be learned from this recording.',
   voiceLearningNoSpeakers: () =>

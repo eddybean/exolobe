@@ -124,8 +124,25 @@ export interface TranscriptionSettings {
   readonly glossary: readonly string[]
 }
 
+/**
+ * 要約に使うモデル（ADR-046）。
+ *
+ * `llama-cpp` は同梱の node-llama-cpp で GGUF（既定は Gemma 4 E4B）を動かす。`apple-intelligence` は
+ * macOS 27 以降の Apple Intelligence（FoundationModels）で、ダウンロードが要らず速いが、数値や ToDo を
+ * 落としやすい。精度を知ったうえで選んだ人だけが使う。
+ */
+export type SummarizationProvider = 'llama-cpp' | 'apple-intelligence'
+
+export const SUMMARIZATION_PROVIDERS: readonly SummarizationProvider[] = [
+  'llama-cpp',
+  'apple-intelligence'
+]
+
+const isSummarizationProvider = (value: unknown): value is SummarizationProvider =>
+  SUMMARIZATION_PROVIDERS.includes(value as SummarizationProvider)
+
 export interface SummarizationSettings {
-  readonly provider: 'llama-cpp'
+  readonly provider: SummarizationProvider
   readonly modelPath: string
   readonly contextSize: number
   readonly promptTemplate: string
@@ -244,6 +261,16 @@ export const appearanceOf = (settings: Settings): Appearance =>
  */
 export const updateCheckIntervalOf = (settings: Settings): UpdateCheckInterval =>
   isUpdateCheckInterval(settings.updateCheck) ? settings.updateCheck : 'weekly'
+
+/**
+ * 要約に使うモデル。読み込んだ設定は検証を通らないので、知らない値（新しい版が足したもの）なら
+ * 既定の node-llama-cpp に倒す。どちらのモデルが要約したかは結果から見分けにくいので、
+ * 利用者が選んでいない方へ黙って倒れるなら、精度の高い既定の方にする。
+ */
+export const summarizationProviderOf = (settings: Settings): SummarizationProvider =>
+  isSummarizationProvider(settings.summarization.provider)
+    ? settings.summarization.provider
+    : 'llama-cpp'
 
 export interface Settings {
   /** ユーザーが初期設定で選ぶ保存先。未選択なら null。 */
@@ -400,6 +427,9 @@ export const validateSettings = (settings: Settings): SettingsProblem[] => {
   if (!isUpdateCheckInterval(settings.updateCheck)) problems.push('updateCheck')
   if (!isMemoryProtection(settings.memoryProtection)) problems.push('memoryProtection')
   if (settings.summarization.contextSize < 1_024) problems.push('contextSize')
+  if (!isSummarizationProvider(settings.summarization.provider)) {
+    problems.push('summarizationProvider')
+  }
   if (!settings.summarization.promptTemplate.includes(TRANSCRIPT_PLACEHOLDER)) {
     problems.push('promptPlaceholder')
   }

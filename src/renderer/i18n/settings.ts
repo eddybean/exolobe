@@ -71,6 +71,13 @@ const ja = {
     contextSizeLabel: 'コンテキスト長',
     contextSizeHint: '長い会議ほど大きい方が有利ですが、メモリを多く使います。',
     modelCardTitle: 'モデルとメモリ',
+    providerLabel: '要約に使うモデル',
+    providerHint:
+      'Gemma はこのアプリの中で動かします。Apple Intelligence は macOS に組み込まれたモデルで、ダウンロードが要りません。30 分ほどの会議なら数倍速く終わりますが、1 時間を超える会議では細かく分けて順に要約するため、かえって遅くなります。',
+    providerLlama: 'Gemma（精度重視・おすすめ）',
+    providerApple: 'Apple Intelligence（速さ重視）',
+    appleWarning:
+      'Apple Intelligence の要約は Gemma より精度が劣ります。決定事項と ToDo を混ぜたり、ToDo の期限を取り違えたりしやすくなります。1 時間を超える会議では、要約というより話題の箇条書きを並べたものになりがちです。チャットには引き続き Gemma を使います。',
     modelLabel: '要約モデル',
     modelHint: 'GGUF 形式のモデルを指定します（既定: Gemma 4 E4B QAT q4_0）。',
     memoryProtectionLabel: 'メモリ保護',
@@ -189,6 +196,13 @@ const en: typeof ja = {
     contextSizeLabel: 'Context length',
     contextSizeHint: 'Longer meetings benefit from a larger value, but it uses more memory.',
     modelCardTitle: 'Model and memory',
+    providerLabel: 'Model used for summaries',
+    providerHint:
+      'Gemma runs inside this app. Apple Intelligence is the model built into macOS, so there is nothing to download. It finishes several times faster for meetings of about 30 minutes, but meetings over an hour are summarized in small pieces one after another, which makes it slower.',
+    providerLlama: 'Gemma (more accurate, recommended)',
+    providerApple: 'Apple Intelligence (faster)',
+    appleWarning:
+      'Summaries from Apple Intelligence are less accurate than Gemma’s. They tend to mix decisions with to-dos and get to-do due dates wrong. For meetings over an hour, the result tends to be a list of topic bullets rather than a summary. Chat still uses Gemma.',
     modelLabel: 'Summarization model',
     modelHint: 'Specify a model in GGUF format (default: Gemma 4 E4B QAT q4_0).',
     memoryProtectionLabel: 'Memory protection',

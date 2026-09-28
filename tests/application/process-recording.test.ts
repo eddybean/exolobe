@@ -632,6 +632,18 @@ describe('ProcessRecording — メモリガード', () => {
     expect(result.steps.transcribe.status).toBe('done')
   })
 
+  it('Apple Intelligence で要約するなら、Gemma の大きさで見積もらずに実行する', async () => {
+    // モデルは OS のプロセスで動き、このアプリのメモリには載らない。Gemma のパスが残っていても関係ない。
+    const ctx = await buildWithModels({
+      summarization: { modelPath, provider: 'apple-intelligence' }
+    })
+    ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 2 * GB }
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.summarize.status).toBe('done')
+  })
+
   it('メモリ保護がオフなら空きが少なくても実行する', async () => {
     const ctx = await buildWithModels({ memoryProtection: 'off' })
     ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 0 }

@@ -17,6 +17,12 @@ const CHARS_PER_TOKEN = 1.5
 const RESERVED_RATIO = 0.4
 
 /**
+ * 部分要約をまとめ直す段数の上限。1 段で入力はおおむね数分の一になるので、3 段あれば
+ * 8192 トークンのモデルでも十時間を超える会議まで収まる。暴走したモデルで回り続けないための歯止め。
+ */
+const MAX_CONDENSE_ROUNDS = 3
+
+/**
  * モデルとの 1 回のやり取り。node-llama-cpp を直接使わずこの seam を挟むことで、
  * 分割・統合のロジックをモデル無しで検証できる。
  */
@@ -166,18 +172,25 @@ export class LlamaCppSummarizer implements SummarizationPort {
     const session = await this.factory.create(this.config)
     try {
       const budget = Math.floor(this.config.contextSize * (1 - RESERVED_RATIO) * CHARS_PER_TOKEN)
-      const chunks = splitTranscript(params.transcript, budget)
 
-      const material =
-        chunks.length === 1
-          ? params.transcript
-          : (
-              await sequentially(chunks, (chunk) =>
-                session.prompt(
-                  guarded(renderPrompt(CHUNK_PROMPTS[params.language], chunk), params.language)
-                )
-              )
-            ).join('\n\n')
+      // 部分要約を束ねても収まらなければ、束ねたものをもう一度分けて要約する。Apple Intelligence
+      // （8192 トークン）では 2 時間を超える会議で起きる。縮まなくなったら（部分要約 1 件だけで上限を
+      // 超えるなど）打ち切って統合へ進む。何度分けても同じ長さのまま回り続けるため。
+      let material = params.transcript
+      for (let round = 0; round < MAX_CONDENSE_ROUNDS; round++) {
+        const chunks = splitTranscript(material, budget)
+        if (chunks.length === 1) break
+        const condensed = (
+          await sequentially(chunks, (chunk) =>
+            session.prompt(
+              guarded(renderPrompt(CHUNK_PROMPTS[params.language], chunk), params.language)
+            )
+          )
+        ).join('\n\n')
+        const shrank = condensed.length < material.length
+        material = condensed
+        if (!shrank) break
+      }
 
       // メモは統合の段でだけ渡す。部分要約にも混ぜると、どの範囲の要約にも同じ論点が現れる。
       return (

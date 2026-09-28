@@ -1,3 +1,4 @@
+import type { AppleIntelligenceAvailability } from '@domain/AppleIntelligence'
 import type { InstallSource } from '@domain/AppUpdate'
 import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
@@ -75,6 +76,9 @@ export type CalendarPermissionDto =
   | 'write-only'
   | 'unavailable'
   | 'unknown'
+
+/** Apple Intelligence が要約に使えるか（ADR-046）。使えなければ理由。 */
+export type AppleIntelligenceAvailabilityDto = AppleIntelligenceAvailability
 
 /** main から renderer へ回す録音の操作。 */
 export type TransportRequestDto = 'start' | 'stop' | 'discard'
@@ -412,6 +416,8 @@ export interface RendererApi {
   getCalendarPermission(): Promise<CalendarPermissionDto>
   /** まだ聞かれていなければ、カレンダーの許可を求める。求めた後の状態を返す。 */
   requestCalendarPermission(): Promise<CalendarPermissionDto>
+  /** Apple Intelligence が要約に使えるか。設定画面を開くたびに読み直す（有効にして戻ってくる）。 */
+  getAppleIntelligenceAvailability(): Promise<AppleIntelligenceAvailabilityDto>
   /**
    * テスト録音のうちシステム音声の側。録音とは別に短い間だけ取り込み、届いた音の
    * 最大の大きさ（0〜1）を返す。録音中は断る。
@@ -550,6 +556,7 @@ export const IPC = {
   openPrivacySettings: 'permissions:openSettings',
   getCalendarPermission: 'permissions:calendar',
   requestCalendarPermission: 'permissions:requestCalendar',
+  getAppleIntelligenceAvailability: 'summarization:appleIntelligence',
   probeSystemAudio: 'permissions:probeSystemAudio',
   transportRequested: 'transport:requested',
   retryStep: 'pipeline:retry',

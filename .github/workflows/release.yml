@@ -72,12 +72,13 @@ jobs:
         if: steps.whisper-cache.outputs.cache-hit != 'true'
         run: npm run build:whisper
 
-      # 見つからなければアプリは黙って開始忘れの見張り・カレンダー連携を無効にする
-      # （resolve*Binary.ts）ため、同梱漏れは画面からは気付けない。数秒で済むので毎回作る。
-      - name: micwatch / calendarevents をビルド
+      # 見つからなければアプリは黙って開始忘れの見張り・カレンダー連携・Apple Intelligence での要約を
+      # 無効にする（resolve*Binary.ts）ため、同梱漏れは画面からは気付けない。数秒で済むので毎回作る。
+      - name: micwatch / calendarevents / applelm をビルド
         run: |
           npm run build:micwatch
           npm run build:calendarevents
+          npm run build:applelm
 
       - name: アプリをビルド
         run: npx electron-vite build
@@ -125,12 +126,12 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           codesign --display --entitlements - "$APP" | head -40
           # 同梱バイナリが欠けてもアプリは起動してしまうので、ここで止める。
-          for bin in whisper-cli micwatch calendarevents; do
+          for bin in whisper-cli micwatch calendarevents applelm; do
             test -x "$APP/Contents/Resources/bin/$bin" || { echo "::error::$bin が同梱されていません"; exit 1; }
           done
           # 新しい OS 向けに作られたバイナリは、古い OS では起動しないのにアプリは動いてしまう。
           # キャッシュの whisper-cli は electron-builder.yml の最低対応 OS を変えても作り直されないので、ここで拾う。
-          bash scripts/check-min-macos.sh "$APP"/Contents/Resources/bin/{whisper-cli,micwatch,calendarevents}
+          bash scripts/check-min-macos.sh "$APP"/Contents/Resources/bin/{whisper-cli,micwatch,calendarevents,applelm}
 
       - name: チェックサムを作成
         working-directory: release

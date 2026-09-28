@@ -23,6 +23,7 @@ import {
   type SearchIndexStatusDto,
   type VoiceprintDto,
   type SearchSyncStateDto,
+  type AppleIntelligenceAvailabilityDto,
   type CalendarPermissionDto,
   type MicPermissionDto,
   type SetupStateDto,
@@ -67,6 +68,10 @@ const api: RendererApi = {
     ipcRenderer.invoke(IPC.getCalendarPermission) as Promise<CalendarPermissionDto>,
   requestCalendarPermission: () =>
     ipcRenderer.invoke(IPC.requestCalendarPermission) as Promise<CalendarPermissionDto>,
+  getAppleIntelligenceAvailability: () =>
+    ipcRenderer.invoke(
+      IPC.getAppleIntelligenceAvailability
+    ) as Promise<AppleIntelligenceAvailabilityDto>,
   probeSystemAudio: (durationMs) =>
     ipcRenderer.invoke(IPC.probeSystemAudio, durationMs) as Promise<number>,
   takeTransportRequest: () =>
