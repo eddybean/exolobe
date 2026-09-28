@@ -142,6 +142,23 @@ code {
   font-weight: 600;
 }
 
+/* 新しい版の知らせ。右端に寄せ、操作の邪魔をしない小さな札にする（ADR-044）。 */
+.nav__update {
+  margin-left: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+
+.nav__update:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 .main {
   overflow: hidden;
 }
@@ -2801,4 +2818,49 @@ textarea:focus {
 .chat__stop {
   color: var(--danger);
   border-color: var(--danger);
+}
+
+/* ── 新しい版の確認（設定の「このアプリについて」） ───────── */
+
+.update__version {
+  margin: 0 0 12px;
+}
+
+.update__check {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.update__state {
+  color: var(--text-muted);
+}
+
+.update__state strong {
+  color: var(--text);
+}
+
+.update__instructions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.update__instructions p {
+  margin: 0;
+}
+
+.update__command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.update__command code {
+  background: var(--surface);
 }

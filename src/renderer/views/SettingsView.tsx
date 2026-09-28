@@ -6,16 +6,18 @@ import {
   SUPPORTED_SAMPLE_RATES,
   type Appearance,
   settingsSummaryPrompt,
+  updateCheckIntervalOf,
   type Settings,
   type SettingsPatch
 } from '@domain/Settings'
-import type { SetupStateDto } from '@shared/ipc'
+import type { SetupStateDto, UpdateStatusDto } from '@shared/ipc'
 import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import { CalendarSettings } from '../components/CalendarSettings'
 import { LicenseNotices } from '../components/LicenseNotices'
 import { ModelManager } from '../components/ModelManager'
 import { RecordingPermissions } from '../components/RecordingPermissions'
 import { SemanticSearchSettings } from '../components/SemanticSearchSettings'
+import { UpdateSettings } from '../components/UpdateSettings'
 import { VoiceprintSettings } from '../components/VoiceprintSettings'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../settingsSections'
 import { locale } from '../i18n/locale'
@@ -32,13 +34,18 @@ export const SettingsView = ({
   setup,
   section,
   onSectionChange,
-  onChanged
+  onChanged,
+  updateStatus,
+  onUpdateStatus
 }: {
   setup: SetupStateDto
   /** 表示する項目。画面を切り替えて戻っても続きから見られるよう、App が持つ。 */
   section: SettingsSectionId
   onSectionChange: (section: SettingsSectionId) => void
   onChanged: () => void
+  /** 新しい版の確認の結果。ナビの知らせと同じものを見るよう、App が持つ。 */
+  updateStatus: UpdateStatusDto | undefined
+  onUpdateStatus: (status: UpdateStatusDto) => void
 }): ReactElement => {
   const [error, setError] = useState<string>()
   const [saved, setSaved] = useState(false)
@@ -447,7 +454,17 @@ export const SettingsView = ({
         </Field>
       </SettingsCard>
     ),
-    about: <LicenseNotices />
+    about: (
+      <>
+        <UpdateSettings
+          status={updateStatus}
+          interval={updateCheckIntervalOf(settings)}
+          onIntervalChange={(updateCheck) => update({ updateCheck })}
+          onStatus={onUpdateStatus}
+        />
+        <LicenseNotices />
+      </>
+    )
   }
 
   const current = SETTINGS_SECTIONS.find((item) => item.id === section) ?? SETTINGS_SECTIONS[0]
