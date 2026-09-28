@@ -182,6 +182,54 @@ describe('LlamaCppSummarizer', () => {
     expect(summary).toBe('## 概要\n最終要約')
   })
 
+  it('部分要約を束ねてもコンテキストに収まらなければ、もう一段まとめてから統合する', async () => {
+    // Apple Intelligence（8192 トークン）では、2 時間を超える会議で部分要約の合計が統合の段に収まらない。
+    const long = 'い'.repeat(400)
+    const llm = new FakeLlm()
+    llm.responder = (prompt) => {
+      if (prompt.includes('## 決定事項')) return '## 概要\n最終要約'
+      if (prompt.includes(long)) return '・二段目'
+      return `・${long}`
+    }
+    const summarizer = new LlamaCppSummarizer({ ...config, contextSize: 1_024 }, factoryFor(llm))
+    const transcript = Array.from(
+      { length: 30 },
+      (_, i) => `**[00:0${i % 10}] 自分**\n${'あ'.repeat(60)}`
+    ).join('\n\n')
+
+    const summary = await summarizer.summarize({
+      language: 'ja',
+      transcript,
+      promptTemplate: DEFAULT_SUMMARY_PROMPT
+    })
+
+    const final = llm.prompts.at(-1) ?? ''
+    expect(final).toContain('・二段目')
+    expect(final).not.toContain(long)
+    expect(summary).toBe('## 概要\n最終要約')
+  })
+
+  it('まとめ直しても縮まらない部分要約は、打ち切って統合へ進む', async () => {
+    // 部分要約 1 件がそれだけで上限を超えると、何度分けても縮まらない。無限に回さない。
+    const llm = new FakeLlm()
+    llm.responder = (prompt) =>
+      prompt.includes('## 決定事項') ? '## 概要\n最終要約' : `・${'う'.repeat(2_000)}`
+    const summarizer = new LlamaCppSummarizer({ ...config, contextSize: 1_024 }, factoryFor(llm))
+    const transcript = Array.from(
+      { length: 30 },
+      (_, i) => `**[00:0${i % 10}] 自分**\n${'あ'.repeat(60)}`
+    ).join('\n\n')
+
+    const summary = await summarizer.summarize({
+      language: 'ja',
+      transcript,
+      promptTemplate: DEFAULT_SUMMARY_PROMPT
+    })
+
+    expect(summary).toBe('## 概要\n最終要約')
+    expect(llm.prompts.length).toBeLessThan(30)
+  })
+
   it('メモは最後の統合にだけ渡し、部分要約には渡さない', async () => {
     const llm = new FakeLlm()
     llm.responder = (prompt) =>
