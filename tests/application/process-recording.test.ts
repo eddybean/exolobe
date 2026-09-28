@@ -7,6 +7,7 @@ import { normalize } from '@domain/vector'
 import type { MeetingLanguage } from '@domain/MeetingLanguage'
 import {
   DEFAULT_SUMMARY_PROMPT,
+  TRANSCRIPT_PLACEHOLDER,
   DEFAULT_SUMMARY_PROMPT_EN,
   mergeSettings,
   type SettingsPatch
@@ -946,15 +947,27 @@ describe('ProcessRecording — 会議の言語', () => {
     expect(await labels(ctx)).toEqual(['Me', 'Participant A', 'Participant B'])
   })
 
-  it('既定の要約プロンプトのままなら、会議の言語の既定プロンプトで要約する', async () => {
+  it('既定の要約プロンプトを使うなら、会議の言語の既定プロンプトで要約する', async () => {
     const ctx = await build({
       transcription: { language: 'en' },
-      summarization: { promptTemplate: DEFAULT_SUMMARY_PROMPT }
+      summarization: { promptMode: 'default', promptTemplate: DEFAULT_SUMMARY_PROMPT }
     })
 
     await ctx.process.execute({ recordingId: 'rec-1' })
 
     expect(ctx.summarizer.receivedPromptTemplate).toBe(DEFAULT_SUMMARY_PROMPT_EN)
+  })
+
+  it('カスタムの要約プロンプトを使うなら、書いたとおりに要約する', async () => {
+    const custom = `箇条書きで要約して\n${TRANSCRIPT_PLACEHOLDER}`
+    const ctx = await build({
+      transcription: { language: 'en' },
+      summarization: { promptMode: 'custom', promptTemplate: custom }
+    })
+
+    await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(ctx.summarizer.receivedPromptTemplate).toBe(custom)
   })
 
   it('メモの見出しも会議の言語で渡す', async () => {

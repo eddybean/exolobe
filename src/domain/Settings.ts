@@ -59,23 +59,42 @@ const DEFAULT_SUMMARY_PROMPTS: Readonly<Record<MeetingLanguage, string>> = {
 }
 
 /**
+ * 要約プロンプトの選び方（ADR-047）。
+ * - `default`: アプリの既定を使う。会議の言語で切り替わり、アプリの更新で既定が変われば追従する。
+ * - `custom` : 利用者が書いた `promptTemplate` を書いたとおりに使う。
+ *
+ * 既定を全文で保存して一致で見分けると、既定の文面を直した版で「書き換えた」と誤って読み、
+ * 触っていない利用者にまで古い既定が残り続ける。選び方を別に持つのはそのため。
+ */
+export type SummaryPromptMode = 'default' | 'custom'
+
+/**
  * 同梱の既定プロンプトのままか。
  *
- * 保存される設定には既定かどうかの印が無く、全文が入っている。既定の全文と一致するものを
- * 「利用者が書いていない」とみなす。編集欄を触っただけで末尾の空白が変わることがあるので、
- * 前後の空白は無視する。
+ * 選び方（`promptMode`）を足す前の設定を読み替えるためだけに使う。当時は既定かどうかの印が無く、
+ * 全文が入っていた。編集欄を触っただけで末尾の空白が変わることがあるので、前後の空白は無視する。
  */
 export const isDefaultSummaryPrompt = (template: string): boolean =>
   Object.values(DEFAULT_SUMMARY_PROMPTS).some((prompt) => prompt === template.trim())
 
+/** 選び方を持たない（ADR-047 より前に保存した）設定の選び方。当時の判定をそのまま引き継ぐ。 */
+export const legacySummaryPromptMode = (template: string): SummaryPromptMode =>
+  isDefaultSummaryPrompt(template) ? 'default' : 'custom'
+
 /**
- * 会議の言語で使う要約プロンプト（ADR-043）。
+ * 会議の言語で使う要約プロンプト（ADR-043 / ADR-047）。
  *
- * 既定のままなら会議の言語の既定に差し替える。日本語の既定には「日本語で」と書いてあり、
- * 英語の会議の要約まで日本語になる。利用者が書き換えたプロンプトは、書いたとおりに使う。
+ * 既定を使うなら会議の言語の既定にする。日本語の既定には「日本語で」と書いてあり、
+ * 英語の会議の要約まで日本語になる。カスタムは書いたとおりに使う。知らない選び方
+ * （新しい版が足したもの）は、その版の意図を再現できないので既定に倒す。
  */
-export const summaryPromptFor = (template: string, language: MeetingLanguage): string =>
-  isDefaultSummaryPrompt(template) ? DEFAULT_SUMMARY_PROMPTS[language] : template
+export const summaryPromptFor = (
+  summarization: Pick<SummarizationSettings, 'promptMode' | 'promptTemplate'>,
+  language: MeetingLanguage
+): string =>
+  summarization.promptMode === 'custom'
+    ? summarization.promptTemplate
+    : DEFAULT_SUMMARY_PROMPTS[language]
 
 /**
  * 設定から、要約に使うプロンプトを決める。設定画面の編集欄と要約の実行で同じものを見せるため。
@@ -84,9 +103,24 @@ export const summaryPromptFor = (template: string, language: MeetingLanguage): s
  */
 export const settingsSummaryPrompt = (settings: Settings, uiLanguage: MeetingLanguage): string =>
   summaryPromptFor(
-    settings.summarization.promptTemplate,
+    settings.summarization,
     meetingLanguageOf(settings.transcription.language, uiLanguage)
   )
+
+/**
+ * カスタムに切り替えたときの編集欄の出発点。
+ *
+ * 一度書いた本文があればそれに戻す（既定に切り替えても本文は消さずに持っている）。
+ * 書いたことが無ければ、白紙ではなく今の既定を写す — 差し込み位置も見出しの構成も
+ * 一から書かせることになり、`{{transcript}}` を落とした保存の失敗を招く。
+ */
+export const customSummaryPromptSeed = (settings: Settings, uiLanguage: MeetingLanguage): string =>
+  isDefaultSummaryPrompt(settings.summarization.promptTemplate)
+    ? summaryPromptFor(
+        { promptMode: 'default', promptTemplate: '' },
+        meetingLanguageOf(settings.transcription.language, uiLanguage)
+      )
+    : settings.summarization.promptTemplate
 
 /**
  * 話者分割のクラスタリングで「同じ人」とみなす距離の上限。
@@ -145,6 +179,14 @@ export interface SummarizationSettings {
   readonly provider: SummarizationProvider
   readonly modelPath: string
   readonly contextSize: number
+  /** 既定を使うかカスタムを使うか（ADR-047）。 */
+  readonly promptMode: SummaryPromptMode
+  /**
+   * カスタムの要約プロンプトの本文。既定を使っている間も消さずに持ち、カスタムに戻したら続きから書ける。
+   *
+   * 既定を使う設定では要約に使わないが、選び方を知らない前の版が読むので、新しく入れた人には
+   * 既定の全文を入れておく（前の版はこれを既定のままとみなす）。
+   */
   readonly promptTemplate: string
 }
 
@@ -349,6 +391,7 @@ export const defaultSettings = (language: MeetingLanguage): Settings => ({
     // 食うため 32K に留める。16kHz 1 時間の会議でも分割せず 1 回で要約でき、
     // 分割による文脈の途切れを避けられる。
     contextSize: 32_768,
+    promptMode: 'default',
     promptTemplate: DEFAULT_SUMMARY_PROMPTS[language]
   },
   diarization: {
@@ -430,7 +473,11 @@ export const validateSettings = (settings: Settings): SettingsProblem[] => {
   if (!isSummarizationProvider(settings.summarization.provider)) {
     problems.push('summarizationProvider')
   }
-  if (!settings.summarization.promptTemplate.includes(TRANSCRIPT_PLACEHOLDER)) {
+  // 既定を使う間は本文を要約に使わないので、見ない。カスタムへ切り替える保存でここを通る。
+  if (
+    settings.summarization.promptMode === 'custom' &&
+    !settings.summarization.promptTemplate.includes(TRANSCRIPT_PLACEHOLDER)
+  ) {
     problems.push('promptPlaceholder')
   }
   if (settings.chat.maxRecordings < 1 || settings.chat.maxRecordings > 30) {

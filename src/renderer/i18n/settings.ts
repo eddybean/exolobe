@@ -65,9 +65,15 @@ const ja = {
   },
   summarization: {
     styleCardTitle: '要約の作り方',
+    promptModeLabel: '使うプロンプト',
+    promptModeDefault: 'アプリの既定',
+    promptModeCustom: 'カスタム',
+    promptModeHint:
+      'アプリの既定は会議の言語に合わせて切り替わり、アプリの更新で改善されたときも自動で反映されます。',
     promptLabel: '要約プロンプト',
     promptHint:
       '{{transcript}} の位置に文字起こしが、{{notes}} の位置に録音中のメモと印が差し込まれます（{{notes}} が無ければ末尾に付きます）。',
+    promptDefaultHint: '既定のプロンプトは編集できません。書き換えるときは「カスタム」を選びます。',
     contextSizeLabel: 'コンテキスト長',
     contextSizeHint: '長い会議ほど大きい方が有利ですが、メモリを多く使います。',
     modelCardTitle: 'モデルとメモリ',
@@ -190,9 +196,15 @@ const en: typeof ja = {
   },
   summarization: {
     styleCardTitle: 'How summaries are made',
+    promptModeLabel: 'Prompt to use',
+    promptModeDefault: 'App default',
+    promptModeCustom: 'Custom',
+    promptModeHint:
+      'The app default follows the meeting language and picks up improvements when the app is updated.',
     promptLabel: 'Summary prompt',
     promptHint:
       'The transcript is inserted at {{transcript}}, and notes and bookmarks taken during recording are inserted at {{notes}} (appended at the end if {{notes}} is absent).',
+    promptDefaultHint: 'The default prompt cannot be edited. Choose "Custom" to write your own.',
     contextSizeLabel: 'Context length',
     contextSizeHint: 'Longer meetings benefit from a larger value, but it uses more memory.',
     modelCardTitle: 'Model and memory',

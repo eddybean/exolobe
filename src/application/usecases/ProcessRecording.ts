@@ -467,7 +467,7 @@ export class ProcessRecording {
     const summary = await this.deps.summarizer.summarize({
       transcript: toMarkdown(segments, speakers),
       notes,
-      promptTemplate: summaryPromptFor(settings.summarization.promptTemplate, language),
+      promptTemplate: summaryPromptFor(settings.summarization, language),
       language
     })
 

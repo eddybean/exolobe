@@ -6,7 +6,7 @@ import {
   JsonSettingsRepository,
   SettingsStorageLocator
 } from '@infrastructure/settings/JsonSettingsRepository'
-import { defaultSettings } from '@domain/Settings'
+import { DEFAULT_SUMMARY_PROMPT_EN, TRANSCRIPT_PLACEHOLDER, defaultSettings } from '@domain/Settings'
 
 let dir: string
 let filePath: string
@@ -65,6 +65,37 @@ describe('JsonSettingsRepository', () => {
     const settings = await new JsonSettingsRepository(legacy, 'ja').load()
     expect(settings.storageDir).toBe('/old')
     expect(settings.audio).toEqual(defaultSettings('ja').audio)
+  })
+
+  /** 選び方（ADR-047）を足す前は、全文が既定と一致するかで「書き換えたか」を見ていた。 */
+  describe('要約プロンプトの選び方を持たない設定', () => {
+    const load = async (summarization: object) => {
+      const legacy = join(dir, 'legacy.json')
+      await writeFile(legacy, JSON.stringify({ summarization }), 'utf8')
+      return new JsonSettingsRepository(legacy, 'ja').load()
+    }
+
+    it('書き換えたプロンプトはカスタムとして読む', async () => {
+      const settings = await load({ promptTemplate: `箇条書きで\n${TRANSCRIPT_PLACEHOLDER}` })
+
+      expect(settings.summarization.promptMode).toBe('custom')
+      expect(settings.summarization.promptTemplate).toBe(`箇条書きで\n${TRANSCRIPT_PLACEHOLDER}`)
+    })
+
+    it('既定の全文のままなら既定として読む', async () => {
+      const settings = await load({ promptTemplate: DEFAULT_SUMMARY_PROMPT_EN })
+
+      expect(settings.summarization.promptMode).toBe('default')
+    })
+
+    it('保存済みの選び方があれば、本文からは推し量らない', async () => {
+      const settings = await load({
+        promptMode: 'default',
+        promptTemplate: `箇条書きで\n${TRANSCRIPT_PLACEHOLDER}`
+      })
+
+      expect(settings.summarization.promptMode).toBe('default')
+    })
   })
 
   it('壊れた JSON でも既定値で起動できる', async () => {

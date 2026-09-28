@@ -9,11 +9,30 @@ import {
 import { ConfigurationError } from '@domain/errors'
 import {
   defaultSettings,
+  legacySummaryPromptMode,
   mergeSettings,
   type Settings,
   type SettingsPatch
 } from '@domain/Settings'
 import type { MeetingLanguage } from '@domain/MeetingLanguage'
+
+/**
+ * 要約プロンプトの選び方（ADR-047）を持たない設定を読み替える。
+ *
+ * 既定値（`default`）で補うと、書き換えたプロンプトを持つ人の要約が黙って既定に戻る。
+ * 選び方を足す前と同じく、本文が既定の全文と一致するかで決める。項目の追加なので
+ * 形式の番号は上げない（ADR-035）。
+ */
+const withLegacyPromptMode = (settings: Settings, stored: SettingsPatch): Settings =>
+  stored.summarization?.promptMode === undefined
+    ? {
+        ...settings,
+        summarization: {
+          ...settings.summarization,
+          promptMode: legacySummaryPromptMode(settings.summarization.promptTemplate)
+        }
+      }
+    : settings
 
 /** settings.json の形式の番号。破壊的に変えたときだけ上げる（ADR-035）。 */
 const SCHEMA_VERSION = 1
@@ -44,10 +63,8 @@ export class JsonSettingsRepository implements SettingsRepositoryPort {
     // 未作成・壊れた JSON は既定値で続行する。設定ファイルのせいで起動できない
     // 状態を作らない。
     this.stored = await readStoredJson(this.filePath, isPlainObject)
-    this.cache = mergeSettings(
-      defaultSettings(this.language),
-      this.stored.kind === 'ok' ? (this.stored.value as SettingsPatch) : {}
-    )
+    const stored = this.stored.kind === 'ok' ? (this.stored.value as SettingsPatch) : {}
+    this.cache = withLegacyPromptMode(mergeSettings(defaultSettings(this.language), stored), stored)
     return this.cache
   }
 
