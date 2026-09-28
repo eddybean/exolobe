@@ -27,6 +27,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # scripts/build-whisper.sh が取得する whisper.cpp のバージョン。release.yml と揃える。
+  WHISPER_VERSION: v1.9.4
+
 jobs:
   test:
     # macOS ランナーが必須。テストは実際の /usr/bin/afconvert を通してエンコードを
@@ -39,9 +43,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
+
+      # npm の tarball キャッシュ（setup-node の cache: npm）では、postinstall が
+      # 落とす Electron 本体や node-llama-cpp のバイナリは毎回取り直しになり、
+      # npm ci が CI の半分以上を占めていた。node_modules ごと保存し、lockfile が
+      # 変わらない限り npm ci を飛ばす。postinstall でパッチ済みの Electron.app も
+      # そのまま入っている。キーを変えるときは release.yml と揃える。
+      - name: node_modules のキャッシュを復元
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
 
       - name: 依存関係をインストール
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: 型チェック
@@ -55,3 +71,19 @@ jobs:
 
       - name: ビルド
         run: npx electron-vite build
+
+      # Release はタグ上で走るが、タグの実行から読めるキャッシュは「そのタグ自身」と
+      # 既定ブランチのものだけで、前のタグが保存した分は見えない。main への push で
+      # whisper-cli のキャッシュを作っておき、Release がそれを引けるようにする。
+      # キーは release.yml と揃えること（ずれると Release が毎回ビルドし直す）。
+      - name: whisper-cli のキャッシュを復元（Release 用）
+        if: github.event_name == 'push'
+        id: whisper-cache
+        uses: actions/cache@v4
+        with:
+          path: resources/bin/whisper-cli
+          key: whisper-${{ runner.os }}-${{ runner.arch }}-${{ env.WHISPER_VERSION }}-${{ hashFiles('scripts/build-whisper.sh') }}
+
+      - name: whisper-cli をビルド（Release 用）
+        if: github.event_name == 'push' && steps.whisper-cache.outputs.cache-hit != 'true'
+        run: npm run build:whisper

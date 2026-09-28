@@ -1,0 +1,88 @@
+name: Bump version
+
+# 版上げの PR を作る。マージされると tag-release.yml がタグを打って Release を起動する。
+#
+# main は PR 必須のルールセットで守られており、GITHUB_TOKEN はそれを迂回できない。
+# そのため直接 main へ push せず、release/vX.Y.Z ブランチから PR を出す。
+# 実行できるのはリポジトリに Write 以上の権限を持つ人だけ（workflow_dispatch の仕様）。
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: '上げる桁'
+        required: true
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+concurrency:
+  group: bump-version
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  bump:
+    # 書き換えるのは package.json と package-lock.json だけで、macOS は要らない。
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: 版を上げてブランチを push
+        id: bump
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # --no-git-tag-version: タグはマージ後の main のコミットに打つ（tag-release.yml）。
+          # ここで打つと、PR がマージされなかったときに main に無いコミットを指すタグが残る。
+          TAG=$(npm version "$BUMP" --no-git-tag-version)
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "::error::タグ $TAG は既にあります"
+            exit 1
+          fi
+
+          BRANCH="release/$TAG"
+          git switch -c "$BRANCH"
+          git commit -am "${TAG#v}"
+          git push origin "$BRANCH"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      # GITHUB_TOKEN による push や PR 作成は他のワークフローを起動しない（連鎖を防ぐ仕様）。
+      # PR のマージに要る必須チェック test を付けるため、CI を明示的に起動する。
+      # workflow_dispatch だけはこの制限の例外。チェックはコミットに付くので PR 側にも出る。
+      - name: CI を起動
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.bump.outputs.branch }}
+        run: gh workflow run ci.yml --ref "$BRANCH"
+
+      # PR の作成はリポジトリ設定「Allow GitHub Actions to create and approve pull requests」が
+      # 必要。無効なら作れないので、作成用のリンクを実行結果に残して手で開けるようにする。
+      - name: PR を作成
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.bump.outputs.tag }}
+          BRANCH: ${{ steps.bump.outputs.branch }}
+        run: |
+          BODY="マージすると tag-release.yml が \`$TAG\` のタグを打ち、Release のビルドを起動します。"
+          if URL=$(gh pr create --base main --head "$BRANCH" --title "${TAG#v}" --body "$BODY"); then
+            echo "PR: $URL" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::PR を作成できませんでした（Actions による PR 作成が無効の可能性）。"
+            echo "PR を手で作成してください: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$BRANCH?expand=1" >> "$GITHUB_STEP_SUMMARY"
+          fi

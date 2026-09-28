@@ -1,0 +1,48 @@
+name: Tag release
+
+# bump-version.yml が作った版上げの PR がマージされたら、そのコミットにタグを打ち、
+# Release を起動する。
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: タグを打って Release を起動
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v$(node -p 'require("./package.json").version')"
+
+          # release/v* からの PR で入ったコミットだけを扱う。手元で npm version して
+          # main とタグを直接 push する従来の手順では、ここで先にタグを打つと
+          # 利用者のタグの push とぶつかる。
+          HEADS=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[].head.ref')
+          if ! grep -qx "release/$TAG" <<<"$HEADS"; then
+            echo "release/$TAG からの PR ではないので何もしません。"
+            exit 0
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "タグ $TAG は既にあります。"
+            exit 0
+          fi
+
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
+
+          # GITHUB_TOKEN で push したタグは release.yml の push トリガーを起動しないので、
+          # workflow_dispatch で明示的に起動する（タグを ref にするのでタグのコミットを取り出す）。
+          gh workflow run release.yml --ref "$TAG" -f tag="$TAG"
+          echo "Release を起動しました: $TAG" >> "$GITHUB_STEP_SUMMARY"

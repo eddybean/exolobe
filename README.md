@@ -1,7 +1,7 @@
 # Exolobe
 
 [![CI](https://github.com/eddybean/exolobe/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/eddybean/exolobe/actions/workflows/ci.yml)
-[![Release](https://github.com/eddybean/exolobe/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/eddybean/exolobe/actions/workflows/release.yml)
+[![Release](https://github.com/eddybean/exolobe/actions/workflows/release.yml/badge.svg)](https://github.com/eddybean/exolobe/actions/workflows/release.yml)
 
 Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし・話者識別・要約までを
 この Mac の中だけで**行うデスクトップアプリ。音声もテキストも外部には送信しません。
@@ -41,6 +41,17 @@ Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし�
 | 空き容量 | 約 10GB（モデル用） |
 
 ## インストール方法
+
+### Homebrew
+
+```sh
+brew install --cask eddybean/tap/exolobe
+```
+
+自前の tap（[eddybean/homebrew-tap](https://github.com/eddybean/homebrew-tap)）から入れます。
+下の `xattr` の操作は cask が行うので不要です。
+
+### .dmg
 
 [Releases ページ](https://github.com/eddybean/exolobe/releases/latest) から最新の
 `.dmg` をダウンロードし、`Exolobe.app` を「アプリケーション」フォルダへドラッグします。
@@ -259,8 +270,12 @@ OMR_EVAL_UPDATE_BASELINE=1 npm run eval:transcription  # 施策を採ったら�
 
 ### リリース
 
-`v` から始まるタグを push すると [GitHub Actions](.github/workflows/release.yml) が
-macOS ランナーで .dmg をビルドし、Release に添付します。
+GitHub の Actions タブから **Bump version** を手動で実行します（patch / minor / major を選ぶ）。
+版を上げた PR（`release/vX.Y.Z`）ができるので、CI が通ったらマージします。マージされると
+[Tag release](.github/workflows/tag-release.yml) がタグを打ち、[Release](.github/workflows/release.yml)
+が macOS ランナーで .dmg をビルドして Release に添付します。
+
+手元から出すこともできます（`v` から始まるタグの push で Release が動く）。
 
 ```bash
 npm version patch      # package.json の version を上げてタグを作る

@@ -35,9 +35,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
+
+      # タグ上で保存したキャッシュは次のタグから見えないので、main の CI が作った分を
+      # 読むだけにする（ここで保存しても使われず、後処理の時間だけがかかる）。
+      # キーは ci.yml と揃える。
+      - name: node_modules のキャッシュを復元
+        id: node-modules-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
 
       - name: 依存関係をインストール
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: 型チェック
@@ -46,17 +56,27 @@ jobs:
       - name: テスト
         run: npm test
 
-      # whisper.cpp のビルドは数分かかるため、バージョンが変わらない限り使い回す。
+      # whisper.cpp のビルドは時間がかかるため、main の CI が作ったものを使い回す。
+      # 対象は whisper-cli だけにする。resources/bin ごとにすると、キーに表れない
+      # micwatch / calendarevents の古いものが復元され、build-*.sh が「既にある」と
+      # 判断して作り直さない。キーは ci.yml と揃える。
       - name: whisper-cli のキャッシュを復元
         id: whisper-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
-          path: resources/bin
+          path: resources/bin/whisper-cli
           key: whisper-${{ runner.os }}-${{ runner.arch }}-${{ env.WHISPER_VERSION }}-${{ hashFiles('scripts/build-whisper.sh') }}
 
       - name: whisper-cli をビルド
         if: steps.whisper-cache.outputs.cache-hit != 'true'
         run: npm run build:whisper
+
+      # 見つからなければアプリは黙って開始忘れの見張り・カレンダー連携を無効にする
+      # （resolve*Binary.ts）ため、同梱漏れは画面からは気付けない。数秒で済むので毎回作る。
+      - name: micwatch / calendarevents をビルド
+        run: |
+          npm run build:micwatch
+          npm run build:calendarevents
 
       - name: アプリをビルド
         run: npx electron-vite build
@@ -103,6 +123,10 @@ jobs:
           echo "アプリ: $APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
           codesign --display --entitlements - "$APP" | head -40
+          # 同梱バイナリが欠けてもアプリは起動してしまうので、ここで止める。
+          for bin in whisper-cli micwatch calendarevents; do
+            test -x "$APP/Contents/Resources/bin/$bin" || { echo "::error::$bin が同梱されていません"; exit 1; }
+          done
 
       - name: チェックサムを作成
         working-directory: release
@@ -141,3 +165,44 @@ jobs:
               --notes "$BODY" \
               --generate-notes
           fi
+
+      # 公式の homebrew/cask は公証されていないアプリを受け付けないので、自前の tap に置く。
+      # 書き込みは tap だけに効く deploy key で行い、fork など鍵の無い実行では飛ばす。
+      - name: Homebrew の cask を更新
+        env:
+          TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TAP_KEY" ]; then
+            echo "::warning::HOMEBREW_TAP_DEPLOY_KEY が無いため cask を更新しません。"
+            exit 0
+          fi
+
+          VERSION="${TAG#v}"
+          SHA=$(shasum -a 256 "release/exolobe-$VERSION-arm64.dmg" | cut -d' ' -f1)
+
+          # ssh-keyscan の結果を信じると経路上で差し替えられうるので、GitHub が公開している
+          # ホスト鍵を固定する。
+          mkdir -p ~/.ssh
+          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' >> ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          ssh-add - <<<"$TAP_KEY"
+
+          git clone --depth 1 git@github.com:eddybean/homebrew-tap.git tap
+          cd tap
+          sed -E -i '' \
+            -e "s/^  version \".*\"/  version \"$VERSION\"/" \
+            -e "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" \
+            Casks/exolobe.rb
+
+          # 同じタグで Release を作り直したときなど、中身が変わらなければ何もしない。
+          if git diff --quiet; then
+            echo "cask は既に $VERSION です。"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am "exolobe $VERSION"
+          git push origin HEAD
+          echo "Homebrew の cask を $VERSION に更新しました。" >> "$GITHUB_STEP_SUMMARY"
