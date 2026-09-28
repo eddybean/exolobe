@@ -10,8 +10,12 @@
 # package.json の postinstall で先に `install-electron` を実行してから本スクリプトを呼ぶ。
 set -euo pipefail
 
-APP="node_modules/electron/dist/Electron.app"
+# OMR_DEV_ELECTRON_APP はテスト用（tests/scripts/info-plist-strings.test.ts）。
+APP="${OMR_DEV_ELECTRON_APP:-node_modules/electron/dist/Electron.app}"
 PLIST="$APP/Contents/Info.plist"
+# 説明文は配布版と同じ build/lproj の InfoPlist.strings から取る（ADR-043）。
+# ここに文言を書き写すと、配布版と開発版で食い違っても気づけない。
+LPROJ="$(cd "$(dirname "$0")/.." && pwd)/build/lproj"
 
 if [ ! -f "$PLIST" ]; then
   echo "[patch-dev-electron] $PLIST が見つかりません。スキップします。"
@@ -23,10 +27,20 @@ set_string() {
     || /usr/libexec/PlistBuddy -c "Add :$1 string $2" "$PLIST"
 }
 
-set_string NSMicrophoneUsageDescription "会議中のあなたの発言を録音するためにマイクを使用します。"
-set_string NSAudioCaptureUsageDescription "会議相手の音声を録音するためにシステム音声を取得します。"
+english() {
+  plutil -extract "$1" raw -o - "$LPROJ/en.lproj/InfoPlist.strings"
+}
+
+# 基底は英語（配布版の CFBundleDevelopmentRegion と同じ）。言語ごとの文言は .lproj から引かれる。
+set_string NSMicrophoneUsageDescription "$(english NSMicrophoneUsageDescription)"
+set_string NSAudioCaptureUsageDescription "$(english NSAudioCaptureUsageDescription)"
 # カレンダー連携（ADR-040）。説明文が無いまま EventKit の許可を求めると、TCC がプロセスを落とす。
-set_string NSCalendarsFullAccessUsageDescription "録音の開始時刻に重なる予定から、タイトルと参加者名を埋めるためにカレンダーを読みます。"
+set_string NSCalendarsFullAccessUsageDescription "$(english NSCalendarsFullAccessUsageDescription)"
+
+for dir in "$LPROJ"/*.lproj; do
+  mkdir -p "$APP/Contents/Resources/$(basename "$dir")"
+  cp "$dir/InfoPlist.strings" "$APP/Contents/Resources/$(basename "$dir")/InfoPlist.strings"
+done
 
 # TCC は署名の identifier ごとに権限を記録するため、Info.plist 変更後は必ず再署名する。
 codesign --force --sign - --timestamp=none "$APP" >/dev/null 2>&1 \

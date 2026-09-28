@@ -63,6 +63,30 @@ describe('parseWhisperJson', () => {
     expect(parseWhisperJson(raw, 'self').map((s) => s.text)).toEqual(['来週の予定を確認します'])
   })
 
+  /** 英語の会議でも無音から同じ種類の定型句が生まれる。大文字小文字は揺れるので問わない。 */
+  it('英語の定型のハルシネーションも除去する', () => {
+    const raw = whisperJson([
+      { from: 0, to: 2000, text: ' Thank you for watching!' },
+      { from: 2000, to: 4000, text: 'Thanks for watching.' },
+      { from: 4000, to: 6000, text: 'Please subscribe to my channel.' },
+      { from: 6000, to: 8000, text: "Let's review next week's schedule." }
+    ])
+
+    expect(parseWhisperJson(raw, 'self').map((s) => s.text)).toEqual([
+      "Let's review next week's schedule."
+    ])
+  })
+
+  it('英語でも、定型句を含むだけの本物の発話と短い汎用語は消さない', () => {
+    const raw = whisperJson([
+      { from: 0, to: 2000, text: 'Thank you for watching the demo, everyone.' },
+      { from: 2000, to: 4000, text: 'Thank you.' },
+      { from: 4000, to: 6000, text: 'Bye.' }
+    ])
+
+    expect(parseWhisperJson(raw, 'remote')).toHaveLength(3)
+  })
+
   it('ブロックリストの語を含むだけの本物の発話は消さない', () => {
     // 完全一致だけを落とすので、会議で実際に交わされる言葉は残る。
     const raw = whisperJson([
@@ -104,7 +128,7 @@ describe('parseWhisperJson', () => {
 
   it('JSON として壊れていれば利用者向けメッセージで失敗する', () => {
     expect(() => parseWhisperJson('{ broken', 'self')).toThrow(
-      '文字起こし結果を読み取れませんでした。'
+      'transcriptionOutputUnreadable'
     )
   })
 
@@ -309,14 +333,16 @@ describe('describeFailure', () => {
       'error: unknown argument: --vad\n'
     )
 
-    expect(message).toContain('無音区間の除外（VAD）に対応していません')
-    expect(message).toContain('v1.7.6 以降')
+    expect(message).toEqual({
+      code: 'whisperVadUnsupported',
+      binaryPath: '/usr/local/bin/whisper-cli'
+    })
   })
 
   it('バイナリが無ければ setup を案内する', () => {
     const message = describeFailure('whisper-cli', new Error('spawn ENOENT'), '')
 
-    expect(message).toContain("'npm run setup' を実行してください。")
+    expect(message).toEqual({ code: 'whisperNotFound', binaryPath: 'whisper-cli' })
   })
 })
 
@@ -705,6 +731,6 @@ describe('WhisperCppTranscriber', () => {
 
     await expect(
       transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
-    ).rejects.toThrow('文字起こしモデルが設定されていません。設定画面でモデルを選んでください。')
+    ).rejects.toThrow('transcriptionModelNotConfigured')
   })
 })

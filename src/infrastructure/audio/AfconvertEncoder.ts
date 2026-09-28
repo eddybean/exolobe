@@ -47,7 +47,7 @@ export class AfconvertEncoder implements AudioEncoderPort {
     try {
       await execFileAsync(AFCONVERT, args)
     } catch (error: unknown) {
-      throw new EncodeError(`音声のエンコードに失敗しました: ${toMessage(error)}`, { cause: error })
+      throw new EncodeError({ code: 'encodeFailed', detail: toMessage(error) }, { cause: error })
     }
   }
 }

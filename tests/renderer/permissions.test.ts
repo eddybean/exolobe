@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setLocale } from '@renderer/i18n/locale'
 import { calendarPermissionView, inputCheckView, micPermissionView } from '@renderer/permissions'
 
 /**
@@ -107,5 +108,52 @@ describe('inputCheckView', () => {
     })
 
     expect(system?.message).toBe('録音中はテストできません。')
+  })
+})
+
+describe('英語の UI', () => {
+  afterEach(() => setLocale('ja'))
+
+  it('マイクの許可を英語で組み立てる', () => {
+    setLocale('en')
+
+    expect(micPermissionView('granted')).toEqual({ label: 'Allowed', ok: true, action: undefined })
+    expect(micPermissionView('not-determined')).toEqual({
+      label: 'Not yet allowed',
+      ok: false,
+      action: 'request'
+    })
+    expect(micPermissionView('denied')).toEqual({
+      label: 'Not allowed',
+      ok: false,
+      action: 'open-settings'
+    })
+  })
+
+  it('カレンダーの許可を英語で組み立てる', () => {
+    setLocale('en')
+
+    expect(calendarPermissionView('write-only')).toEqual({
+      label: 'Only adding events is allowed',
+      ok: false,
+      action: 'open-settings'
+    })
+    expect(calendarPermissionView('unavailable')).toEqual({
+      label: 'Not available in this environment',
+      ok: false,
+      action: undefined
+    })
+  })
+
+  it('テスト録音の行を英語の語順で組み立てる', () => {
+    setLocale('en')
+
+    const view = inputCheckView({ system: { kind: 'heard' }, mic: { kind: 'silent' } })
+
+    expect(view.map((row) => [row.subject, row.ok])).toEqual([
+      ['The other side’s voice (system audio)', true],
+      ['Your voice (microphone)', false]
+    ])
+    expect(view[1]?.message).toContain('speaking')
   })
 })

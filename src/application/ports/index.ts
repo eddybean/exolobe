@@ -1,5 +1,7 @@
 import type { CalendarEvent } from '@domain/CalendarEvent'
+import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
+import type { MeetingLanguage } from '@domain/MeetingLanguage'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { Bookmark } from '@domain/MeetingNotes'
 import type { PipelineStep, Recording } from '@domain/Recording'
@@ -177,6 +179,8 @@ export interface SummarizationPort {
     /** 録音中に書いたメモと印（ADR-042）。無ければ空文字。 */
     notes?: string
     promptTemplate: string
+    /** 会議の言語。前置きの指示や分割要約の指示をこの言語で書く（ADR-043）。 */
+    language: MeetingLanguage
     signal?: AbortSignal
   }): Promise<string>
 }
@@ -303,6 +307,7 @@ export interface ProgressReporterPort {
     step: PipelineStep
     status: 'running' | 'done' | 'failed'
     error?: string
+    reason?: ErrorReason
     /** running の途中経過（0〜1）。割合を出せるステップだけが付ける。 */
     fraction?: number
   }): void

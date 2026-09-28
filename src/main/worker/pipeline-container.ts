@@ -35,6 +35,7 @@ import {
 } from '@infrastructure/transcription/WhisperCppTranscriber'
 import { resolveWhisperBinary } from '@infrastructure/transcription/resolveWhisperBinary'
 import type { DiarizationSettings, TranscriptionSettings } from '@domain/Settings'
+import type { Locale } from '@shared/i18n/locale'
 
 /**
  * パイプライン用の依存を組み立てる。
@@ -44,9 +45,10 @@ import type { DiarizationSettings, TranscriptionSettings } from '@domain/Setting
  */
 export const createPipeline = async (
   userDataPath: string,
+  uiLocale: Locale,
   progress: ProgressReporterPort
 ): Promise<ProcessRecording> => {
-  const settings = new JsonSettingsRepository(join(userDataPath, 'settings.json'))
+  const settings = new JsonSettingsRepository(join(userDataPath, 'settings.json'), uiLocale)
   const locator = new SettingsStorageLocator(settings)
   const current = await settings.load()
   const bundled = bundledWhisper()
@@ -55,6 +57,7 @@ export const createPipeline = async (
 
   return new ProcessRecording({
     settings,
+    fallbackLanguage: uiLocale,
     progress,
     system: new NodeSystemResourceProbe(),
     repository: new FileRecordingRepository(locator),
@@ -92,8 +95,11 @@ export const createPipeline = async (
  * パイプラインと同じワーカーで動くが、要るのは埋め込みモデルとデコーダだけ。
  * whisper も LLM も読まない ―― 名前を付けるたびに 5GB を読み込んでいては使えない。
  */
-export const createVoiceExtractor = async (userDataPath: string): Promise<ExtractVoices> => {
-  const settings = new JsonSettingsRepository(join(userDataPath, 'settings.json'))
+export const createVoiceExtractor = async (
+  userDataPath: string,
+  uiLocale: Locale
+): Promise<ExtractVoices> => {
+  const settings = new JsonSettingsRepository(join(userDataPath, 'settings.json'), uiLocale)
   const locator = new SettingsStorageLocator(settings)
   const current = await settings.load()
 

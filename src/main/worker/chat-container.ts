@@ -12,6 +12,7 @@ import {
   SettingsStorageLocator
 } from '@infrastructure/settings/JsonSettingsRepository'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
+import type { Locale } from '@shared/i18n/locale'
 
 export interface ChatServices {
   readonly ask: AskChat
@@ -30,14 +31,15 @@ export interface ChatServices {
  */
 export const createChat = async (
   userDataPath: string,
+  uiLocale: Locale,
   finder?: RecordingFinderPort
 ): Promise<ChatServices> => {
   const settingsPath = join(userDataPath, 'settings.json')
   // ワーカーは長く生きるので、キャッシュを持つリポジトリを使い回すと、利用者が
   // 保存先やモデルを変えても古い値で動き続ける。読むたびにファイルから取り直す。
   const settings: SettingsRepositoryPort = {
-    load: () => new JsonSettingsRepository(settingsPath).load(),
-    save: (patch) => new JsonSettingsRepository(settingsPath).save(patch)
+    load: () => new JsonSettingsRepository(settingsPath, uiLocale).load(),
+    save: (patch) => new JsonSettingsRepository(settingsPath, uiLocale).save(patch)
   }
   const current = await settings.load()
   const locator = new SettingsStorageLocator(settings)

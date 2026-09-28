@@ -1,7 +1,7 @@
 import { basename } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell, systemPreferences, type FileFilter } from 'electron'
 import type { PipelineStep, Recording } from '@domain/Recording'
-import { ConfigurationError, toMessage } from '@domain/errors'
+import { ConfigurationError, RecordingStateError, reasonOf, type ErrorReason } from '@domain/errors'
 import { IMPORTABLE_EXTENSIONS } from '@domain/AudioImport'
 import { findPackage, formatBytes } from '@domain/ModelCatalog'
 import { DEFAULT_SEARCH_LIMIT, searchIndexTransition } from '@domain/SemanticSearch'
@@ -50,6 +50,8 @@ import { probeSystemAudio } from '../systemAudioProbe'
 import { PipelineClient } from '../worker/PipelineClient'
 import { ChatClient } from '../worker/ChatClient'
 import { SearchClient } from '../worker/SearchClient'
+import { modelText } from '@shared/i18n/models'
+import { appLocale, describe, text } from '../i18n'
 
 /** 無音を判定する間隔。会議の沈黙は分単位なので、1 秒ごとで十分細かい。 */
 const SILENCE_SAMPLE_INTERVAL_MS = 1_000
@@ -121,7 +123,7 @@ export const registerIpcHandlers = (
     const window = getWindow()
     const options = {
       type: 'warning' as const,
-      buttons: [params.confirmLabel ?? '削除', 'キャンセル'],
+      buttons: [params.confirmLabel ?? text().dialog.delete, text().dialog.cancel],
       defaultId: 1,
       cancelId: 1,
       message: params.message,
@@ -345,7 +347,7 @@ export const registerIpcHandlers = (
       send(IPC.startAlert, alert)
 
       notifyMeetingStart({
-        message: startAlertMessage(alert),
+        message: startAlertMessage(alert, appLocale()),
         onStart: () => controller.request('start'),
         onShowWindow: focusWindow
       })
@@ -405,7 +407,7 @@ export const registerIpcHandlers = (
         recordingId,
         step: 'mix',
         status: 'failed',
-        error: toMessage(error)
+        error: describe(error)
       } satisfies ProgressEventDto)
     } finally {
       send(IPC.recordingsChanged)
@@ -415,7 +417,7 @@ export const registerIpcHandlers = (
   const controller: TransportController = {
     async start(title?: string): Promise<RecordingDto> {
       if (probingSystemAudio) {
-        throw new Error('テスト録音の途中です。数秒待ってから録音を始めてください。')
+        throw new Error(text().error.probeInProgressStart)
       }
       // 録音を始めたら促す必要はない。子プロセスも止めて無駄に動かさない。
       stopStartWatch()
@@ -459,7 +461,7 @@ export const registerIpcHandlers = (
 
     async stop(): Promise<RecordingDto> {
       const activeId = active?.recordingId
-      if (!activeId) throw new Error('録音中ではありません。')
+      if (!activeId) throw new RecordingStateError({ code: 'notRecording' })
 
       stopSilenceWatch()
       const { recording } = await container.stopRecording.execute(activeId)
@@ -475,7 +477,7 @@ export const registerIpcHandlers = (
 
     async discard(): Promise<void> {
       const activeId = active?.recordingId
-      if (!activeId) throw new Error('録音中ではありません。')
+      if (!activeId) throw new RecordingStateError({ code: 'notRecording' })
 
       stopSilenceWatch()
       // パイプラインにはかけない。処理中の録音を消すと、処理側の書き戻しで一覧に戻りうる。
@@ -521,10 +523,10 @@ export const registerIpcHandlers = (
    */
   handle(IPC.probeSystemAudio, async (durationMs: unknown) => {
     if (typeof durationMs !== 'number' || durationMs < 500 || durationMs > 10_000) {
-      throw new Error('テスト録音の長さが正しくありません。')
+      throw new Error('Invalid test recording duration.')
     }
-    if (active) throw new Error('録音中はテストできません。録音を止めてからお試しください。')
-    if (probingSystemAudio) throw new Error('テスト録音の途中です。')
+    if (active) throw new Error(text().error.probeWhileRecording)
+    if (probingSystemAudio) throw new Error(text().error.probeInProgress)
 
     probingSystemAudio = true
     try {
@@ -540,7 +542,7 @@ export const registerIpcHandlers = (
 
   handle(IPC.openPrivacySettings, async (pane: unknown) => {
     const url = privacySettingsUrl(pane)
-    if (url === undefined) throw new Error('開けない設定画面です。')
+    if (url === undefined) throw new Error('Unknown settings pane.')
     await shell.openExternal(url)
   })
 
@@ -551,7 +553,7 @@ export const registerIpcHandlers = (
       controller.request('toggle')
     )
     if (!registered) {
-      console.warn(`[shortcut] ${RECORDING_SHORTCUT.label} は他のアプリが使っているため登録できませんでした。`)
+      console.warn(`[shortcut] ${RECORDING_SHORTCUT.label} is used by another app and could not be registered.`)
     }
   }
   void applyShortcut()
@@ -562,7 +564,7 @@ export const registerIpcHandlers = (
   })
 
   handle(IPC.getRecording, async (id: unknown): Promise<RecordingDetailDto> => {
-    const detail = await container.getRecordingDetail.execute(asString(id, '録音 ID'))
+    const detail = await container.getRecordingDetail.execute(asString(id, 'recordingId'))
 
     return {
       recording: recordingDto(detail.recording),
@@ -589,7 +591,7 @@ export const registerIpcHandlers = (
 
   handle(IPC.retryStep, async (id: unknown, step: unknown): Promise<RecordingDto> => {
     const recording = await pipeline.run({
-      recordingId: asString(id, '録音 ID'),
+      recordingId: asString(id, 'recordingId'),
       only: [asStep(step)]
     })
     send(IPC.recordingsChanged)
@@ -620,7 +622,7 @@ export const registerIpcHandlers = (
         send(IPC.recordingsChanged)
         void runPipeline(recording.id)
       } catch (error: unknown) {
-        failed.push({ fileName: basename(filePath), reason: toMessage(error) })
+        failed.push({ fileName: basename(filePath), reason: describe(error) })
       }
     }
 
@@ -633,10 +635,10 @@ export const registerIpcHandlers = (
 
   handle(IPC.chooseAudioFilesToImport, async (): Promise<ImportAudioResultDto> => {
     const result = await dialog.showOpenDialog({
-      title: '取り込む音声ファイルを選択',
+      title: text().dialog.importTitle,
       properties: ['openFile', 'multiSelections'],
-      buttonLabel: '取り込む',
-      filters: AUDIO_IMPORT_FILTERS
+      buttonLabel: text().dialog.importButton,
+      filters: audioImportFilters()
     })
     if (result.canceled || result.filePaths.length === 0) return { imported: [], failed: [] }
 
@@ -645,7 +647,7 @@ export const registerIpcHandlers = (
 
   handle(IPC.updateNote, async (id: unknown, note: unknown): Promise<void> => {
     await container.updateNote.execute({
-      recordingId: asString(id, '録音 ID'),
+      recordingId: asString(id, 'recordingId'),
       note: typeof note === 'string' ? note : ''
     })
     searchSync.request()
@@ -653,14 +655,14 @@ export const registerIpcHandlers = (
 
   handle(IPC.addBookmark, async (id: unknown, atMs: unknown): Promise<void> => {
     if (typeof atMs !== 'number' || !Number.isFinite(atMs)) {
-      throw new Error('印の時刻が不正です。')
+      throw new Error('Invalid bookmark time.')
     }
-    await container.addBookmark.execute({ recordingId: asString(id, '録音 ID'), atMs })
+    await container.addBookmark.execute({ recordingId: asString(id, 'recordingId'), atMs })
   })
 
   handle(IPC.updateSummary, async (id: unknown, summary: unknown): Promise<void> => {
     await container.updateSummary.execute({
-      recordingId: asString(id, '録音 ID'),
+      recordingId: asString(id, 'recordingId'),
       summary: typeof summary === 'string' ? summary : ''
     })
     // 一覧は要約の 1 行目を出し、意味検索は要約も索引に持つ。どちらも直した内容に揃える。
@@ -670,19 +672,19 @@ export const registerIpcHandlers = (
 
   /** 再要約は今の要約を丸ごと置き換える。手で直した内容も戻せない。 */
   handle(IPC.confirmResummarize, async (id: unknown): Promise<boolean> => {
-    const detail = await container.getRecordingDetail.execute(asString(id, '録音 ID'))
+    const detail = await container.getRecordingDetail.execute(asString(id, 'recordingId'))
 
     return confirm({
-      message: `「${detail.recording.title}」を要約し直しますか？`,
-      detail: '今の要約は新しい要約で置き換えられます。手で直した内容も失われ、元に戻せません。',
-      confirmLabel: '再要約'
+      message: text().dialog.resummarizeMessage(detail.recording.title),
+      detail: text().dialog.resummarizeDetail,
+      confirmLabel: text().dialog.resummarize
     })
   })
 
   handle(IPC.renameRecording, async (id: unknown, title: unknown): Promise<RecordingDto> => {
     const recording = await container.renameRecording.execute({
-      recordingId: asString(id, '録音 ID'),
-      title: asString(title, 'タイトル')
+      recordingId: asString(id, 'recordingId'),
+      title: asString(title, 'title', { code: 'titleRequired' })
     })
     send(IPC.recordingsChanged)
     return recordingDto(recording)
@@ -690,9 +692,9 @@ export const registerIpcHandlers = (
 
   handle(IPC.renameSpeaker, async (id: unknown, speakerId: unknown, label: unknown) => {
     const params = {
-      recordingId: asString(id, '録音 ID'),
-      speakerId: asString(speakerId, '話者 ID'),
-      label: asString(label, '話者名')
+      recordingId: asString(id, 'recordingId'),
+      speakerId: asString(speakerId, 'speakerId'),
+      label: asString(label, 'label', { code: 'speakerNameRequired' })
     }
     const speakers = await container.renameSpeaker.execute(params)
     // 索引の文字起こしチャンクは「話者名: 発言」なので、名前が変われば作り直す。
@@ -705,7 +707,7 @@ export const registerIpcHandlers = (
 
   handle(IPC.editSegmentText, async (id: unknown, segment: unknown, text: unknown) => {
     const segments = await container.editSegmentText.execute({
-      recordingId: asString(id, '録音 ID'),
+      recordingId: asString(id, 'recordingId'),
       ...asSegmentRef(segment),
       text: typeof text === 'string' ? text : ''
     })
@@ -717,23 +719,23 @@ export const registerIpcHandlers = (
 
   /** 削除は取り消せず、音声・文字起こし・要約・メモがまとめて消える。 */
   handle(IPC.confirmDeleteRecording, async (id: unknown): Promise<boolean> => {
-    const detail = await container.getRecordingDetail.execute(asString(id, '録音 ID'))
+    const detail = await container.getRecordingDetail.execute(asString(id, 'recordingId'))
 
     return confirm({
-      message: `「${detail.recording.title}」を削除しますか？`,
-      detail: '音声・文字起こし・要約・メモがすべて削除されます。この操作は取り消せません。'
+      message: text().dialog.deleteRecordingMessage(detail.recording.title),
+      detail: text().dialog.deleteRecordingDetail
     })
   })
 
   handle(IPC.deleteRecording, async (id: unknown): Promise<void> => {
-    await container.deleteRecording.execute(asString(id, '録音 ID'))
+    await container.deleteRecording.execute(asString(id, 'recordingId'))
     send(IPC.recordingsChanged)
     // 本文を消したのに、そのベクトルが残り続けないようにする。
     searchSync.request()
   })
 
   handle(IPC.revealRecording, async (id: unknown): Promise<void> => {
-    const detail = await container.getRecordingDetail.execute(asString(id, '録音 ID'))
+    const detail = await container.getRecordingDetail.execute(asString(id, 'recordingId'))
     shell.showItemInFolder(detail.audioPath)
   })
 
@@ -751,8 +753,8 @@ export const registerIpcHandlers = (
 
   handle(IPC.renameFolder, async (id: unknown, name: unknown): Promise<FolderDto> => {
     const folder = await container.renameFolder.execute({
-      folderId: asString(id, 'フォルダ ID'),
-      name: asString(name, 'フォルダ名')
+      folderId: asString(id, 'folderId'),
+      name: asString(name, 'name', { code: 'folderNameRequired' })
     })
     send(IPC.foldersChanged)
     return toFolderDto(folder)
@@ -760,14 +762,14 @@ export const registerIpcHandlers = (
 
   handle(IPC.moveFolder, async (id: unknown, parentId: unknown): Promise<void> => {
     await container.moveFolder.execute({
-      folderId: asString(id, 'フォルダ ID'),
+      folderId: asString(id, 'folderId'),
       parentId: typeof parentId === 'string' ? parentId : undefined
     })
     send(IPC.foldersChanged)
   })
 
   handle(IPC.deleteFolder, async (id: unknown): Promise<void> => {
-    await container.deleteFolder.execute({ folderId: asString(id, 'フォルダ ID') })
+    await container.deleteFolder.execute({ folderId: asString(id, 'folderId') })
     send(IPC.foldersChanged)
     send(IPC.recordingsChanged)
   })
@@ -776,7 +778,7 @@ export const registerIpcHandlers = (
     IPC.moveRecordingToFolder,
     async (id: unknown, folderId: unknown): Promise<RecordingDto> => {
       const recording = await container.moveRecordingToFolder.execute({
-        recordingId: asString(id, '録音 ID'),
+        recordingId: asString(id, 'recordingId'),
         folderId: typeof folderId === 'string' ? folderId : undefined
       })
       send(IPC.recordingsChanged)
@@ -822,23 +824,23 @@ export const registerIpcHandlers = (
       if (modelId === 'summarization-model') await chat.shutdown()
       return settings
     } catch (error: unknown) {
-      const message = toMessage(error)
+      // 中止は失敗ではない。文言ではなく理由で見分ける（文言は UI の言語で変わる）。
       send(IPC.modelProgress, {
         id: modelId,
         receivedBytes: 0,
-        status: message.includes('中止') ? 'cancelled' : 'failed',
-        error: message
+        status: reasonOf(error)?.code === 'downloadAborted' ? 'cancelled' : 'failed',
+        error: describe(error)
       } satisfies ModelProgressDto)
       throw error
     }
   }
 
   handle(IPC.downloadModel, async (id: unknown) =>
-    acquireModel(asString(id, 'モデル ID'), container.downloadModel)
+    acquireModel(asString(id, 'modelId'), container.downloadModel)
   )
 
   handle(IPC.updateModel, async (id: unknown) => {
-    const modelId = asString(id, 'モデル ID')
+    const modelId = asString(id, 'modelId')
     // 読み込み中のモデルファイルを入れ替えないよう、先にワーカーを終わらせる。
     if (modelId === 'search-model') await search.shutdown()
     if (modelId === 'summarization-model') await chat.shutdown()
@@ -846,7 +848,7 @@ export const registerIpcHandlers = (
   })
 
   handle(IPC.cancelModelDownload, async (id: unknown) => {
-    container.cancelModelDownload.execute(asString(id, 'モデル ID'))
+    container.cancelModelDownload.execute(asString(id, 'modelId'))
   })
 
   /**
@@ -854,18 +856,18 @@ export const registerIpcHandlers = (
    * 誤操作の代償が大きいので、録音削除と同じく OS のダイアログで確認する。
    */
   handle(IPC.confirmDeleteModel, async (id: unknown): Promise<boolean> => {
-    const modelId = asString(id, 'モデル ID')
+    const modelId = asString(id, 'modelId')
     const model = findPackage(modelId)
-    if (!model) throw new ConfigurationError(`不明なモデルです: ${modelId}`)
+    if (!model) throw new ConfigurationError({ code: 'unknownModel', id: modelId })
 
     return confirm({
-      message: `「${model.label}」を削除しますか？`,
-      detail: `もう一度使うには ${formatBytes(model.bytes)} のダウンロードが必要になります。`
+      message: text().dialog.deleteModelMessage(modelText(model.id, appLocale()).label),
+      detail: text().dialog.deleteModelDetail(formatBytes(model.bytes))
     })
   })
 
   handle(IPC.deleteModel, async (id: unknown) => {
-    const modelId = asString(id, 'モデル ID')
+    const modelId = asString(id, 'modelId')
     // 読み込み中のモデルファイルを消さないよう、先にワーカーを終わらせる。
     if (modelId === 'search-model') await search.shutdown()
     if (modelId === 'summarization-model') await chat.shutdown()
@@ -930,13 +932,13 @@ export const registerIpcHandlers = (
 
   handle(IPC.searchRecordings, async (query: unknown): Promise<SearchHitDto[]> => {
     // 異常に長い入力でモデルの 1 回分の入力を超えないよう、ここで抑える。
-    const text = asString(query, '検索する文章').slice(0, 500)
+    const queryText = asString(query, 'query').slice(0, 500)
     const { search: config } = await container.settings.load()
     if (!config.enabled) {
-      throw new ConfigurationError('意味検索が無効です。設定画面で有効にしてください。')
+      throw new Error(text().error.searchDisabled)
     }
 
-    const hits = await search.search(text, DEFAULT_SEARCH_LIMIT)
+    const hits = await search.search(queryText, DEFAULT_SEARCH_LIMIT)
     // 要約などが走っている間は、答えたらすぐにモデルの分のメモリを返す。
     if (pipeline.isBusy()) search.releaseWhenIdle()
     return hits
@@ -944,8 +946,8 @@ export const registerIpcHandlers = (
 
   handle(IPC.searchTranscripts, async (query: unknown): Promise<TranscriptHitDto[]> => {
     // 意味検索と違いモデルを読まないので、設定の有効・無効に関わらず答えられる。
-    const text = asString(query, '検索する語').slice(0, 200)
-    const hits = await container.searchTranscripts.execute({ query: text })
+    const queryText = asString(query, 'query').slice(0, 200)
+    const hits = await container.searchTranscripts.execute({ query: queryText })
     return hits.map((hit) => ({ ...hit, startedAt: hit.startedAt.toISOString() }))
   })
 
@@ -963,7 +965,7 @@ export const registerIpcHandlers = (
       modelInstalled,
       semanticSearchAvailable: settings.search.enabled && settings.search.modelPath !== '',
       ...(pipeline.isBusy() || active !== undefined
-        ? { busyReason: '録音や処理が終わるまで待ってください。' }
+        ? { busyReason: text().error.chatWaitForProcessing }
         : {})
     }
   }
@@ -996,7 +998,7 @@ export const registerIpcHandlers = (
         droppedCount: 0,
         truncated: false,
         aborted: false,
-        error: '録音の処理中です。終わってからもう一度お試しください。'
+        error: text().error.chatBusy
       })
       return
     }
@@ -1009,7 +1011,7 @@ export const registerIpcHandlers = (
         droppedCount: 0,
         truncated: false,
         aborted: false,
-        error: 'チャットが無効です。設定画面で有効にしてください。'
+        error: text().error.chatDisabled
       })
       return
     }
@@ -1028,7 +1030,7 @@ export const registerIpcHandlers = (
       done({
         text: answer.text,
         citations: answer.citations,
-        ...(answer.scopeLabel === undefined ? {} : { scopeLabel: answer.scopeLabel }),
+        ...(answer.scope === undefined ? {} : { scope: answer.scope }),
         droppedCount: answer.droppedCount,
         truncated: answer.truncated,
         aborted: cancelled.delete(requestId)
@@ -1040,7 +1042,7 @@ export const registerIpcHandlers = (
         droppedCount: 0,
         truncated: false,
         aborted: cancelled.delete(requestId),
-        error: toMessage(error)
+        error: describe(error)
       })
     } finally {
       // 索引が待たされていた分をここで進める。
@@ -1049,7 +1051,7 @@ export const registerIpcHandlers = (
   })
 
   handle(IPC.cancelChat, async (id: unknown): Promise<void> => {
-    const requestId = asString(id, '依頼 ID')
+    const requestId = asString(id, 'requestId')
     cancelled.add(requestId)
     chat.cancel(requestId)
   })
@@ -1059,13 +1061,11 @@ export const registerIpcHandlers = (
     const status = await searchStatus()
 
     return confirm({
-      message: '意味検索のインデックスを削除しますか？',
+      message: text().dialog.deleteSearchIndexMessage,
       detail: [
-        `${status.indexedCount} 件分、約 ${formatBytes(status.bytes)} が削除されます。`,
-        '録音・文字起こし・要約・メモは削除されません。',
-        status.enabled
-          ? '意味検索が有効な間は、次に録音を処理したときなどに作り直されます。'
-          : ''
+        text().dialog.deleteSearchIndexSize(status.indexedCount, formatBytes(status.bytes)),
+        text().dialog.deleteSearchIndexKeeps,
+        status.enabled ? text().dialog.deleteSearchIndexRebuild : ''
       ]
         .filter(Boolean)
         .join('\n')
@@ -1082,30 +1082,25 @@ export const registerIpcHandlers = (
   /** 消しても録音と付けた名前は残る。何が起きるかを取り違えないよう明示する。 */
   handle(IPC.confirmRemoveVoiceprint, async (name: unknown): Promise<boolean> =>
     confirm({
-      message: `「${asString(name, '話者名')}」の声を忘れますか？`,
-      detail: [
-        'この声で自動的に名前が入らなくなります。',
-        '録音と、すでに付けた話者名はそのまま残ります。',
-        'もう一度どこかの録音で同じ名前を付ければ、また覚えます。'
-      ].join('\n'),
-      confirmLabel: '忘れる'
+      message: text().dialog.forgetVoiceMessage(asString(name, 'name')),
+      detail: text().dialog.forgetVoiceDetail.join('\n'),
+      confirmLabel: text().dialog.forget
     })
   )
 
   handle(IPC.removeVoiceprint, async (name: unknown): Promise<VoiceprintDto[]> => {
-    await container.removeVoiceprint.execute(asString(name, '話者名'))
+    await container.removeVoiceprint.execute(asString(name, 'name'))
     return container.listVoiceprints.execute()
   })
 
   handle(IPC.confirmClearVoiceprints, async (): Promise<boolean> => {
     const entries = await container.listVoiceprints.execute()
     return confirm({
-      message: '覚えた声をすべて忘れますか？',
-      detail: [
-        `${entries.length} 人分の声が削除されます。`,
-        '録音と、すでに付けた話者名はそのまま残ります。'
-      ].join('\n'),
-      confirmLabel: 'すべて忘れる'
+      message: text().dialog.forgetAllMessage,
+      detail: [text().dialog.forgetAllCount(entries.length), text().dialog.forgetAllKeeps].join(
+        '\n'
+      ),
+      confirmLabel: text().dialog.forgetAll
     })
   })
 
@@ -1116,18 +1111,18 @@ export const registerIpcHandlers = (
 
   handle(IPC.chooseStorageDir, async (): Promise<string | undefined> => {
     const result = await dialog.showOpenDialog({
-      title: '録音の保存先を選択',
+      title: text().dialog.storageTitle,
       properties: ['openDirectory', 'createDirectory'],
-      buttonLabel: 'この場所に保存'
+      buttonLabel: text().dialog.storageButton
     })
     return result.canceled ? undefined : result.filePaths[0]
   })
 
   handle(IPC.chooseFile, async (kind: unknown): Promise<string | undefined> => {
     const result = await dialog.showOpenDialog({
-      title: 'モデルファイルを選択',
+      title: text().dialog.modelTitle,
       properties: ['openFile'],
-      filters: FILE_FILTERS[asFileKind(kind)]
+      filters: fileFilters()[asFileKind(kind)]
     })
     return result.canceled ? undefined : result.filePaths[0]
   })
@@ -1148,8 +1143,8 @@ export const registerIpcHandlers = (
 }
 
 /** 取り込みのファイル選択で見せる拡張子。対応形式の定義は domain に 1 つだけ置く。 */
-const AUDIO_IMPORT_FILTERS: FileFilter[] = [
-  { name: '音声ファイル', extensions: [...IMPORTABLE_EXTENSIONS] }
+const audioImportFilters = (): FileFilter[] => [
+  { name: text().dialog.audioFiles, extensions: [...IMPORTABLE_EXTENSIONS] }
 ]
 
 /**
@@ -1159,27 +1154,29 @@ const AUDIO_IMPORT_FILTERS: FileFilter[] = [
 const MAX_IMPORT_FILES = 50
 
 const asFilePaths = (value: unknown): string[] => {
-  if (!Array.isArray(value)) throw new Error('取り込むファイルが指定されていません。')
+  if (!Array.isArray(value)) throw new Error('Missing argument: file paths')
 
   const paths = value.filter((item): item is string => typeof item === 'string' && item.length > 0)
-  if (paths.length === 0) throw new Error('取り込むファイルが指定されていません。')
+  if (paths.length === 0) throw new Error('Missing argument: file paths')
   if (paths.length > MAX_IMPORT_FILES) {
-    throw new Error(`一度に取り込めるのは ${MAX_IMPORT_FILES} 件までです。`)
+    throw new Error(text().error.tooManyImports(MAX_IMPORT_FILES))
   }
 
   return paths
 }
 
-const FILE_FILTERS: Record<'whisper-model' | 'llm-model' | 'onnx-model', FileFilter[]> = {
-  'whisper-model': [{ name: 'whisper モデル', extensions: ['bin'] }],
-  'llm-model': [{ name: 'GGUF モデル', extensions: ['gguf'] }],
-  'onnx-model': [{ name: 'ONNX モデル', extensions: ['onnx'] }]
-}
+type FileKind = 'whisper-model' | 'llm-model' | 'onnx-model'
+
+const fileFilters = (): Record<FileKind, FileFilter[]> => ({
+  'whisper-model': [{ name: text().dialog.whisperModel, extensions: ['bin'] }],
+  'llm-model': [{ name: text().dialog.ggufModel, extensions: ['gguf'] }],
+  'onnx-model': [{ name: text().dialog.onnxModel, extensions: ['onnx'] }]
+})
 
 /**
  * ハンドラの共通ラッパー。例外はそのまま renderer へ投げると
  * 'Error invoking remote method' に包まれて読めなくなるため、
- * 利用者向けメッセージだけを持つ Error に詰め替える。
+ * UI の言語の文言だけを持つ Error に詰め替える。
  */
 const handle = (
   channel: string,
@@ -1189,7 +1186,7 @@ const handle = (
     try {
       return await handler(...args)
     } catch (error: unknown) {
-      throw new Error(toMessage(error))
+      throw new Error(describe(error))
     }
   })
 }
@@ -1199,16 +1196,16 @@ const asChatRequest = (
   value: unknown
 ): { requestId: string; question: string; history: ChatTurnDto[] } => {
   if (typeof value !== 'object' || value === null) {
-    throw new Error('チャットの依頼が指定されていません。')
+    throw new Error('Missing argument: chat request')
   }
   const params = value as Record<string, unknown>
   const rawHistory = params['history']
   const history = Array.isArray(rawHistory) ? rawHistory : []
 
   return {
-    requestId: asString(params['requestId'], '依頼 ID'),
+    requestId: asString(params['requestId'], 'requestId'),
     // 異常に長い入力で 1 回分の入力を超えないよう、ここで抑える。
-    question: asString(params['question'], '質問').slice(0, 1_000),
+    question: asString(params['question'], 'question').slice(0, 1_000),
     history: history
       .filter(
         (turn): turn is ChatTurnDto =>
@@ -1222,20 +1219,25 @@ const asChatRequest = (
   }
 }
 
-const asString = (value: unknown, label: string): string => {
+/**
+ * IPC の引数検査。ここで落ちるのは renderer の不具合なので、利用者向けに訳さない。
+ * 利用者が空欄のまま確定できる値（タイトルなど）だけは、入力を促す理由を渡して訳させる。
+ */
+const asString = (value: unknown, name: string, whenEmpty?: ErrorReason): string => {
   if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`${label}が指定されていません。`)
+    if (whenEmpty) throw new ConfigurationError(whenEmpty)
+    throw new Error(`Missing argument: ${name}`)
   }
   return value
 }
 
 const asSegmentRef = (value: unknown): { index: number; startMs: number } => {
   if (typeof value !== 'object' || value === null) {
-    throw new Error('直すセグメントが指定されていません。')
+    throw new Error('Missing argument: segment')
   }
   const { index, startMs } = value as { index?: unknown; startMs?: unknown }
   if (!Number.isInteger(index) || (index as number) < 0 || typeof startMs !== 'number') {
-    throw new Error('直すセグメントの指定が不正です。')
+    throw new Error('Invalid argument: segment')
   }
   return { index: index as number, startMs }
 }
@@ -1250,21 +1252,21 @@ const PIPELINE_STEP_NAMES: readonly string[] = [
 
 const asStep = (value: unknown): PipelineStep => {
   if (typeof value !== 'string' || !PIPELINE_STEP_NAMES.includes(value)) {
-    throw new Error('再実行するステップの指定が不正です。')
+    throw new Error('Invalid argument: step')
   }
   return value as PipelineStep
 }
 
 const asFolderCreateParams = (value: unknown): { name: string; parentId?: string } => {
   if (typeof value !== 'object' || value === null || !('name' in value)) {
-    throw new Error('フォルダ名が指定されていません。')
+    throw new ConfigurationError({ code: 'folderNameRequired' })
   }
   const candidate = value as { name: unknown; parentId?: unknown }
-  const name = asString(candidate.name, 'フォルダ名')
+  const name = asString(candidate.name, 'name', { code: 'folderNameRequired' })
   return typeof candidate.parentId === 'string' ? { name, parentId: candidate.parentId } : { name }
 }
 
-const asFileKind = (value: unknown): keyof typeof FILE_FILTERS => {
+const asFileKind = (value: unknown): FileKind => {
   if (value === 'whisper-model' || value === 'llm-model' || value === 'onnx-model') return value
-  throw new Error('選択するファイルの種類が不正です。')
+  throw new Error('Invalid argument: file kind')
 }

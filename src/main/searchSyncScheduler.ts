@@ -1,4 +1,4 @@
-import { toMessage } from '@domain/errors'
+import { describe } from './i18n'
 import type { SearchSyncStateDto } from '@shared/ipc'
 
 export type SearchSyncState = SearchSyncStateDto
@@ -67,7 +67,7 @@ export const createSearchSyncScheduler = (params: {
         setState(params.isBusy() ? { state: 'waiting' } : { state: 'idle' })
       }
     } catch (error: unknown) {
-      if (mine === generation) setState({ state: 'error', message: toMessage(error) })
+      if (mine === generation) setState({ state: 'error', message: describe(error) })
     } finally {
       running = false
     }

@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
+import { modelText } from '@shared/i18n/models'
 import type { ManagedAssetStatusDto, ModelProgressDto } from '@shared/ipc'
 import { messageOf } from '../errorMessage'
 import { formatBytes } from '../format'
+import { locale } from '../i18n/locale'
+import { modelManagerText } from '../i18n/modelManager'
 
 type ProgressMap = Record<string, ModelProgressDto | undefined>
 type ErrorMap = Record<string, string | undefined>
@@ -120,6 +123,8 @@ const ModelRow = ({
   onCancel: () => void
   onDelete: () => void
 }): ReactElement => {
+  const t = modelManagerText()
+  const text = modelText(asset.id, locale())
   const downloading = progress?.status === 'downloading'
   const total = progress?.totalBytes ?? asset.bytes
   const percent =
@@ -129,21 +134,18 @@ const ModelRow = ({
     <li className={asset.installed ? 'models__item models__item--done' : 'models__item'}>
       <div className="models__info">
         <div className="models__row">
-          <strong>{asset.label}</strong>
+          <strong>{text.label}</strong>
           <span className="models__size">{formatBytes(asset.bytes)}</span>
           {asset.installed &&
             (asset.updateAvailable ? (
-              <span className="badge badge--update">更新あり</span>
+              <span className="badge badge--update">{t.updateBadge}</span>
             ) : (
-              <span className="badge badge--ready">取得済み</span>
+              <span className="badge badge--ready">{t.readyBadge}</span>
             ))}
         </div>
-        <p className="models__description">{asset.description}</p>
+        <p className="models__description">{text.description}</p>
         {asset.installed && asset.updateAvailable && !downloading && (
-          <p className="models__hint">
-            このバージョンのアプリは新しい版のモデルを使います。更新すると{' '}
-            {formatBytes(asset.bytes)} をダウンロードし、古いファイルと置き換えます。
-          </p>
+          <p className="models__hint">{t.updateHint(formatBytes(asset.bytes))}</p>
         )}
 
         {downloading && (
@@ -152,7 +154,7 @@ const ModelRow = ({
               <div className="models__bar-fill" style={{ width: `${percent}%` }} />
             </div>
             <span className="models__percent">
-              {percent}%（{formatBytes(progress.receivedBytes)} / {formatBytes(total)}）
+              {t.percentOf(percent, formatBytes(progress.receivedBytes), formatBytes(total))}
             </span>
           </div>
         )}
@@ -162,30 +164,28 @@ const ModelRow = ({
             {error ?? progress?.error}
           </p>
         )}
-        {progress?.status === 'cancelled' && (
-          <p className="models__hint">中止しました。もう一度押すと途中から再開します。</p>
-        )}
+        {progress?.status === 'cancelled' && <p className="models__hint">{t.cancelled}</p>}
       </div>
 
       <div className="models__actions">
         {downloading && (
           <button type="button" onClick={onCancel}>
-            中止
+            {t.cancel}
           </button>
         )}
         {!downloading && !asset.installed && (
           <button type="button" onClick={onDownload}>
-            ダウンロード
+            {t.download}
           </button>
         )}
         {!downloading && asset.installed && asset.updateAvailable && (
           <button type="button" onClick={onUpdate} disabled={deleting}>
-            更新
+            {t.update}
           </button>
         )}
         {!downloading && asset.installed && (
           <button type="button" className="danger" onClick={onDelete} disabled={deleting}>
-            {deleting ? '削除中…' : '削除'}
+            {deleting ? t.deleting : t.delete}
           </button>
         )}
       </div>

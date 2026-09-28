@@ -13,6 +13,7 @@ import {
   FakeSettingsRepository,
   FakeSystemResource
 } from './fakes'
+import { chatPrompts } from '@domain/ChatPrompt'
 
 /** 2026-09-13 は日曜。先週は 08-31〜09-06。 */
 const NOW = new Date('2026-09-13T10:00:00+09:00')
@@ -83,6 +84,19 @@ describe('AskChat — 期間で絞る', () => {
     askChat = await build()
   })
 
+  it('英語の問いには英語の指示文で答えさせる', async () => {
+    await ask(askChat, 'What are the open TODOs?')
+
+    expect(chat.calls[0]?.system).toBe(chatPrompts('en').system)
+    expect(chat.calls[0]?.prompt).toContain('in English')
+  })
+
+  it('日本語の問いには日本語の指示文で答えさせる', async () => {
+    await ask(askChat, '先週のTODOをまとめて')
+
+    expect(chat.calls[0]?.system).toBe(chatPrompts('ja').system)
+  })
+
   it('「先週の」は先週の録音だけを文脈に載せる', async () => {
     await ask(askChat, '先週のTODOをまとめて')
     const prompt = chat.calls[0]?.prompt ?? ''
@@ -94,7 +108,7 @@ describe('AskChat — 期間で絞る', () => {
   it('絞った期間を答えと一緒に返す', async () => {
     const answer = await ask(askChat, '先週のTODOをまとめて')
 
-    expect(answer.scopeLabel).toContain('先週')
+    expect(answer.scope).toEqual({ rangeLabel: expect.stringContaining('先週'), count: 1 })
     expect(answer.citations.map((c) => c.recordingId)).toEqual(['rec-last'])
   })
 

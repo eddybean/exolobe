@@ -3,7 +3,7 @@ import {
   type SpeakerEmbeddingSession,
   type SpeakerEmbeddingSessionFactory
 } from './SherpaOnnxSpeakerEmbedder'
-import { loadSherpa, missingModelMessage, sherpaThreads } from './sherpaModule'
+import { loadSherpa, missingModel, sherpaThreads } from './sherpaModule'
 
 /**
  * sherpa-onnx（ネイティブアドオン）で声紋抽出のセッションを作る。
@@ -13,11 +13,15 @@ import { loadSherpa, missingModelMessage, sherpaThreads } from './sherpaModule'
  */
 export class SherpaOnnxEmbeddingSessionFactory implements SpeakerEmbeddingSessionFactory {
   async create(config: { embeddingModelPath: string }): Promise<SpeakerEmbeddingSession> {
-    const missing = missingModelMessage('話者埋め込みモデル', config.embeddingModelPath)
+    const missing = missingModel('embedding', config.embeddingModelPath)
     if (missing) throw new SpeakerEmbeddingError(missing)
 
     const sherpa = await loadSherpa(
-      (message, cause) => new SpeakerEmbeddingError(message, { cause })
+      (detail, cause) =>
+        new SpeakerEmbeddingError(
+          { code: 'sherpaLoadFailed', detail, forDiarization: false },
+          { cause }
+        )
     )
     const extractor = new sherpa.SpeakerEmbeddingExtractor({
       model: config.embeddingModelPath,

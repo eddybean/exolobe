@@ -60,7 +60,7 @@ export class AssetDownloader {
 
     try {
       if (!response.body) {
-        throw new DownloadError('ダウンロードの応答が空でした。')
+        throw new DownloadError({ code: 'downloadEmpty' })
       }
 
       // ReadableStream の非同期イテレーションは型定義に無いため reader を直接使う。
@@ -81,14 +81,17 @@ export class AssetDownloader {
 
         if (params.signal?.aborted) {
           await reader.cancel()
-          throw new DownloadError('ダウンロードを中止しました。')
+          throw new DownloadError({ code: 'downloadAborted' })
         }
       }
     } catch (error: unknown) {
       // 途中までの内容は再開に使えるので残す。
       throw error instanceof DownloadError
         ? error
-        : new DownloadError(`ダウンロードに失敗しました: ${toMessage(error)}`, { cause: error })
+        : new DownloadError(
+            { code: 'downloadFailed', detail: toMessage(error) },
+            { cause: error }
+          )
     } finally {
       await handle.close()
     }
@@ -98,9 +101,7 @@ export class AssetDownloader {
       if (actual !== params.sha256.toLowerCase()) {
         // 壊れたまま残すと再開のたびに同じ失敗を繰り返すため捨てる。
         await rm(partPath, { force: true })
-        throw new DownloadError(
-          'ダウンロードしたファイルが壊れています。通信環境を確認してもう一度お試しください。'
-        )
+        throw new DownloadError({ code: 'downloadCorrupted' })
       }
     }
 
@@ -122,15 +123,17 @@ export class AssetDownloader {
       response = await this.fetchImpl(url, init)
     } catch (error: unknown) {
       throw new DownloadError(
-        `ダウンロードに失敗しました: ${toMessage(error)}。ネットワーク接続を確認してください。`,
+        { code: 'downloadNetwork', detail: toMessage(error) },
         { cause: error }
       )
     }
 
     if (!response.ok) {
-      throw new DownloadError(
-        `ダウンロードに失敗しました（${response.status} ${response.statusText}）。`
-      )
+      throw new DownloadError({
+        code: 'downloadHttp',
+        status: response.status,
+        statusText: response.statusText
+      })
     }
 
     return response

@@ -34,8 +34,6 @@ export interface ModelStorePort {
 export interface ManagedAssetStatus {
   /** ModelPackage の ID。取得・削除などの操作はこの単位で行う。 */
   readonly id: string
-  readonly label: string
-  readonly description: string
   readonly bytes: number
   readonly optional: boolean
   readonly installed: boolean
@@ -86,8 +84,6 @@ export class GetModelStatus {
 
         return {
           id: pkg.id,
-          label: pkg.label,
-          description: pkg.description,
           bytes: pkg.bytes,
           optional: pkg.optional,
           installed,
@@ -182,7 +178,7 @@ export class DeleteModel {
   async execute(id: string): Promise<Settings> {
     const pkg = packageOf(id)
 
-    await ensureModelsIdle(this.recordings, '削除')
+    await ensureModelsIdle(this.recordings, 'delete')
 
     for (const asset of pkg.assets) {
       await this.store.remove(asset)
@@ -218,7 +214,7 @@ export class UpdateModel {
   }): Promise<Settings> {
     packageOf(params.id)
 
-    await ensureModelsIdle(this.recordings, '更新')
+    await ensureModelsIdle(this.recordings, 'update')
 
     return new DownloadModel(this.settings, this.store).execute(params)
   }
@@ -230,19 +226,15 @@ export class UpdateModel {
  */
 const ensureModelsIdle = async (
   recordings: RecordingRepositoryPort,
-  action: '削除' | '更新'
+  action: 'delete' | 'update'
 ): Promise<void> => {
   const list = await recordings.list()
 
   if (list.some((recording) => recording.status === 'recording')) {
-    throw new ModelInUseError(
-      `録音中はモデルを${action}できません。録音を停止してから操作してください。`
-    )
+    throw new ModelInUseError({ code: 'modelBusyRecording', action })
   }
   if (list.some((recording) => isProcessing(recording.steps))) {
-    throw new ModelInUseError(
-      `処理中の録音があるためモデルを${action}できません。完了してから操作してください。`
-    )
+    throw new ModelInUseError({ code: 'modelBusyProcessing', action })
   }
 }
 
@@ -258,7 +250,7 @@ export class CancelModelDownload {
 
 const packageOf = (id: string): ModelPackage => {
   const pkg = findPackage(id)
-  if (!pkg) throw new ConfigurationError(`不明なモデルです: ${id}`)
+  if (!pkg) throw new ConfigurationError({ code: 'unknownModel', id })
   return pkg
 }
 

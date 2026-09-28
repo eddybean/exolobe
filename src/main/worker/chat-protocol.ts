@@ -1,5 +1,6 @@
 import type { ChatTurn } from '@application/ports'
 import type { ChatAnswerDto } from '@shared/ipc'
+import type { WorkerErrorPayload } from './workerError'
 
 /** main ↔ チャットワーカー間のメッセージ。 */
 
@@ -18,7 +19,7 @@ export type ChatWorkerRequest =
 export type ChatWorkerResponse =
   | { readonly type: 'chat-chunk'; readonly id: string; readonly text: string }
   | { readonly type: 'chat-done'; readonly id: string; readonly answer: ChatAnswerDto }
-  | { readonly type: 'error'; readonly id: string; readonly message: string }
+  | ({ readonly type: 'error'; readonly id: string } & WorkerErrorPayload)
   /** 話題語での絞り込みを main に頼む。埋め込みモデルをこのプロセスに載せないため。 */
   | {
       readonly type: 'find-candidates'

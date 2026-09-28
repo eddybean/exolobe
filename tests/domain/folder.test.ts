@@ -15,7 +15,7 @@ describe('createFolder', () => {
   })
 
   it('空の名前は許さない', () => {
-    expect(() => createFolder({ id: 'f1', name: '   ' })).toThrow('フォルダ名を入力してください。')
+    expect(() => createFolder({ id: 'f1', name: '   ' })).toThrow('folderNameRequired')
   })
 })
 

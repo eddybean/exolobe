@@ -168,9 +168,7 @@ export class FileModelStore implements ModelStorePort {
     }
 
     if (!(await this.exists(finalPath))) {
-      throw new ModelStoreError(
-        `モデルの取得に失敗しました（${asset.label}）。展開後のファイルが見つかりません。`
-      )
+      throw new ModelStoreError({ code: 'modelExtractMissing', assetId: asset.id })
     }
 
     await this.recordInstalled(asset, finalPath)
@@ -226,9 +224,10 @@ export class FileModelStore implements ModelStorePort {
     try {
       await execFileAsync(command, [...args])
     } catch (error: unknown) {
-      throw new ModelStoreError(`モデルの展開に失敗しました: ${toMessage(error)}`, {
-        cause: error
-      })
+      throw new ModelStoreError(
+        { code: 'modelExtractFailed', detail: toMessage(error) },
+        { cause: error }
+      )
     }
   }
 }

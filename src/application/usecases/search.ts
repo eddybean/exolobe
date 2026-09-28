@@ -74,7 +74,7 @@ const ensureEmbeddingMemory = async (
     readonly system: SystemResourcePort
     readonly embedder: TextEmbedderPort
   },
-  label: string
+  task: 'search' | 'searchIndex'
 ): Promise<void> => {
   if (deps.embedder.loaded) return
 
@@ -87,7 +87,7 @@ const ensureEmbeddingMemory = async (
 
   const shortage = insufficientMemory({
     snapshot: await deps.system.memory(),
-    demand: { bytes: estimateEmbeddingBytes({ modelFileBytes }), label },
+    demand: { bytes: estimateEmbeddingBytes({ modelFileBytes }), task },
     protection: settings.memoryProtection
   })
   if (shortage) throw new AppError(shortage)
@@ -159,7 +159,7 @@ export class SyncSearchIndex {
       pending.push({ recording, documents, fingerprint: current })
     }
 
-    if (pending.length > 0) await ensureEmbeddingMemory(this.deps, '意味検索の索引作成')
+    if (pending.length > 0) await ensureEmbeddingMemory(this.deps, 'searchIndex')
 
     let indexed = 0
     let aborted = false
@@ -220,7 +220,7 @@ export class SearchRecordings {
     if (!params.query.trim()) return []
 
     const { repository, artifacts, index, embedder } = this.deps
-    await ensureEmbeddingMemory(this.deps, '意味検索')
+    await ensureEmbeddingMemory(this.deps, 'search')
     const vector = await embedder.embed(focusQuery(params.query))
 
     const recordings = new Map(

@@ -75,6 +75,7 @@
             <tr><td><a href="#adr-040">ADR-040</a></td><td>カレンダー連携</td><td>EventKit を同梱の Swift ヘルパーで読み、録音タイトルの初期値と話者名の候補にだけ使う</td></tr>
             <tr><td><a href="#adr-041">ADR-041</a></td><td>会議の予定を加味した開始忘れの防止</td><td>会議 URL 付きの予定の時間帯は早めに促し、利用者が選んだときだけ自動で録音を始める</td></tr>
             <tr><td><a href="#adr-042">ADR-042</a></td><td>録音中のメモと印</td><td>メモは行ごとの時刻を note.md に埋め、印は bookmarks.json に持ち、どちらも要約の入力に含める</td></tr>
+            <tr><td><a href="#adr-043">ADR-043</a></td><td>多言語対応（日本語・英語）</td><td>UI の言語は起動時に macOS の優先言語で決め、会議の言語は文字起こしの言語設定で決める。domain は文言でなく理由のコードを返す</td></tr>
           </tbody>
         </table>
       </div>
@@ -779,7 +780,7 @@
 
         <p>ad-hoc 署名で配布した場合、利用者側で一度だけ次の操作が必要です。</p>
         <pre><code>xattr -dr com.apple.quarantine "/Applications/Exolobe.app"</code></pre>
-        <p>この手順は Release の説明文に自動で記載されるほか、.dmg 内の「はじめにお読みください.txt」にも同梱しています（Release ページを経由せず.dmg だけを受け取った人にも届くようにするため）。</p>
+        <p>この手順は Release の説明文に自動で記載されるほか、.dmg 内の「はじめにお読みください.txt」（英語版は「READ ME FIRST.txt」）にも同梱しています（Release ページを経由せず.dmg だけを受け取った人にも届くようにするため）。</p>
 
         <h4>開発時の注意</h4>
         <p>
@@ -3775,6 +3776,156 @@
         </ul>
       </div>
 
+      <h2 id="adr-043">ADR-043 多言語対応（日本語・英語）（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-043</span>
+          <p class="adr__title">UI の言語は起動時に macOS の優先言語で決め、会議の言語は文字起こしの言語設定で決める。domain は文言ではなく理由のコードを返し、文言は外側の層が型付きの表から引く</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          画面・メニュー・通知・エラーの文言が日本語でコードに直接書かれていた（Issue #102）。英語圏にも出すなら、
+          機能が増えるほど文言を外に出す作業が高くつく。あわせて、文言が <code>src/domain</code> や
+          <code>src/application</code> にもあり（エラーの文、話者の既定名、要約・チャットのプロンプト）、
+          ステップの失敗は日本語の文のまま <code>meta.json</code> に保存されていた。
+        </p>
+        <p>
+          UI の言語と会議の言語は別物である。英語 UI で日本語の会議を録る人もいれば、その逆もある。
+          要約のプロンプトや話者の既定名は録った会議に合わせるべきで、画面の言語から推してはいけない。
+        </p>
+
+        <h4>決定</h4>
+        <ul>
+          <li>
+            <strong>UI の言語</strong>は日本語と英語。main が起動時に <code>app.getPreferredSystemLanguages()</code>
+            を先頭から見て、最初に対応している言語を採る（macOS が Bundle の <code>.lproj</code> を選ぶ規則と同じ）。
+            どれにも当たらなければ英語。アプリの中では切り替えず、言語を変えたら再起動で反映する。
+            renderer へは起動引数（<code>--omr-locale</code>）、ワーカーへは環境変数 <code>OMR_UI_LOCALE</code> で渡す。
+            開発中に別の言語の画面を確かめるときは <code>OMR_LOCALE=en</code> で上書きできる。
+          </li>
+          <li>
+            <strong>文言の表</strong>はライブラリを使わず、型付きの自前の表にする。領域ごとに <code>ja</code> と
+            <code>en</code> を並べ、<code>const en: typeof ja</code> と書いてキーの書き忘れ・余分を型検査で落とす。
+            語順や単複が変わる文は関数にする。main 専用は <code>src/main/i18n.ts</code>、renderer 専用は
+            <code>src/renderer/i18n/</code>、両方で使うもの（失敗の理由・モデル名・ステップ名）は
+            <code>src/shared/i18n/</code> に置く。
+          </li>
+          <li>
+            <strong>domain・application・infrastructure は文言を持たない。</strong>失敗は
+            <code>ErrorReason</code>（コードと表示に要る値）を持つ <code>AppError</code> で投げ、<code>message</code>
+            にはコードだけを入れる。文言は main が IPC で返す直前、または renderer が表示するときに UI の言語で引く。
+            ワーカーは UI の言語を知らなくてよいよう、失敗を理由のまま main へ運ぶ。
+          </li>
+          <li>
+            ステップの失敗は <code>meta.json</code> に<strong>文言ではなく理由を保存する</strong>（<code>StepState.reason</code>）。
+            <a href="#adr-035">ADR-035</a> の「項目の追加」なのでスキーマ番号は上げない。<code>error</code> には理由のコード、
+            理由の無い失敗（ネイティブ由来など）は元のメッセージを残す。知らないコード（新しい版が保存した理由）や
+            以前の版が保存した日本語の文は、<code>error</code> をそのまま表示する。
+          </li>
+          <li>
+            <strong>会議の言語</strong>は文字起こしの言語設定が <code>ja</code> / <code>en</code> ならそれ、
+            <code>auto</code> などプロンプトを用意していない値なら UI の言語にする。これで次を決める:
+            要約プロンプト、話者の既定名（自分／参加者A と Me／Participant A）、要約に渡すメモと印の見出し、
+            whisper に渡す用語集の区切り（読点かカンマか）。
+          </li>
+          <li>
+            要約プロンプトは設定に全文で保存されていて、既定かどうかの印が無い。同梱の既定プロンプト（どの言語のものでも）と
+            一致すれば「利用者が書いていない」とみなし、会議の言語の既定に差し替える。書き換えたプロンプトは言語が違っても書いたとおりに使う。
+          </li>
+          <li>
+            話者の既定名は、どの言語の採番（参加者A / Participant A）も既定とみなす。言語を変えて話者識別をやり直したとき、
+            前の言語の採番を利用者が付けた名前と取り違えると、声紋の引き当て（<a href="#adr-031">ADR-031</a>）に譲れなくなる。
+          </li>
+          <li>
+            新しく入れた人の文字起こしの言語の既定は UI の言語にする。<code>settings.json</code> は全体を保存するので、
+            一度でも保存した人の言語は OS の言語を変えても動かない。
+          </li>
+          <li>
+            <strong>チャット</strong>は録音をまたいで答えるので、会議の言語ではなく<strong>問いの言語</strong>（かなか漢字を含むか）で
+            指示文と文脈の注記を切り替える。英語の指示文も「文脈だけを根拠にする」「<code>[1]</code> で引用する」という
+            <a href="#adr-032">ADR-032</a> の出力の契約を日本語版と同じに持つ。何を見て答えたかは文言ではなく
+            期間と件数で返し、画面が UI の言語で組む。
+          </li>
+          <li>
+            <strong>許可ダイアログ</strong>の文言は、基底の Info.plist（<code>electron-builder.yml</code> の <code>extendInfo</code>）を英語にし、
+            <code>build/lproj/&lt;言語&gt;.lproj/InfoPlist.strings</code> に言語ごとの文言を置く。
+            <code>CFBundleDevelopmentRegion</code> を <code>en</code>、<code>electronLanguages</code> を en / ja に絞る
+            （Electron の数十言語の <code>.lproj</code> が残っていると、例えばドイツ語の人に Electron 由来のメニューだけがドイツ語で出る）。
+            開発用 Electron.app へのパッチも同じ InfoPlist.strings から入れる。
+          </li>
+          <li>
+            IPC の引数検査の失敗（renderer の不具合でしか起きない）は訳さず、英語の開発者向けの文にする。
+            ただしタイトル・話者名・フォルダ名のように利用者が空欄のまま確定できる値は、入力を促す理由を返して訳す。
+          </li>
+        </ul>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>論点</th><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>文言の表</td>
+                <td>i18next などのライブラリ</td>
+                <td>不採用</td>
+                <td>キーの取りこぼしを型検査で拾うには追加の設定が要り、依存も増える。扱う言語は 2 つで、単複の切り替え程度は関数で足りる</td>
+              </tr>
+              <tr>
+                <td>UI の言語の決め方</td>
+                <td>設定画面で選ぶ</td>
+                <td>見送り</td>
+                <td>macOS のアプリの慣習に合わせた。許可ダイアログは OS の言語でしか出せないので、設定で別の言語を選ぶと画面とダイアログが食い違う</td>
+              </tr>
+              <tr>
+                <td>UI の言語の決め方</td>
+                <td>起動中に切り替える</td>
+                <td>不採用</td>
+                <td>メニュー・トレイ・通知を作り直す仕組みが要る。OS の言語の変更は頻繁ではなく、再起動で足りる</td>
+              </tr>
+              <tr>
+                <td>失敗の保存</td>
+                <td>main が UI の言語で文にしてから保存する</td>
+                <td>不採用</td>
+                <td>OS の言語を変えると過去の失敗だけが元の言語で残る。ワーカーにも UI の言語を持ち込むことになる</td>
+              </tr>
+              <tr>
+                <td>会議の言語</td>
+                <td>UI の言語に従わせる</td>
+                <td>不採用</td>
+                <td>英語 UI で日本語の会議を録る人の要約が英語になる</td>
+              </tr>
+              <tr>
+                <td>会議の言語</td>
+                <td>自動判定のときは whisper の判定結果を使う</td>
+                <td>見送り</td>
+                <td>判定結果を保存していないので、要約だけを再実行したときに同じ言語にならない。要るなら <code>transcript.json</code> に言語を持たせてから</td>
+              </tr>
+              <tr>
+                <td>チャットの言語</td>
+                <td>会議の言語の設定に従わせる</td>
+                <td>不採用</td>
+                <td>チャットは言語の違う録音をまたぐ。利用者が書いた言語で答えるのが自然で、英語の問いに日本語の指示文を渡すと答えも日本語に寄る</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>残した判断</h4>
+        <ul>
+          <li>
+            チャットの日付・話者・節の解釈（<code>DateExpression.ts</code> / <code>ChatQuery.ts</code>）と、意味検索の問いの言い回しの除去
+            （<code>focusQuery</code>）は日本語の言い回しだけを読む。英語の問いでは期間や話者で絞れず、新しい順と意味検索で答える。
+            英語の言い回しは別に扱う。
+          </li>
+          <li>意味検索のチャンク長（160 字）は日本語で決めた値で、英語の会議では 1 チャンクに入る語が少なくなる。</li>
+          <li>
+            文字起こしの評価（<code>npm run eval:transcription</code>）は日本語の合成音声だけ。英語の定型句のブロックリストは完全一致で、
+            日本語の会議の結果は変わらない。
+          </li>
+        </ul>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -3827,6 +3978,14 @@
             <tr>
               <td><a href="#adr-041">ADR-041</a> 予定の時間帯の別の通話でも自動で始まる</td>
               <td>取り消しが頻繁に起きるとき。予定の開始から一定時間内に限る、会議アプリのプロセスを確かめる、などを足す</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-043">ADR-043</a> UI の言語を OS の優先言語だけで決める</td>
+              <td>OS と別の言語で使いたいという要求が出たとき。許可ダイアログだけは OS の言語のまま残ることを承知で設定を足す</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-043">ADR-043</a> 自動判定の会議の言語を UI の言語で決める</td>
+              <td>自動判定で録る人が要約の言語の取り違えに困ったとき。whisper の判定結果を <code>transcript.json</code> に残して使う</td>
             </tr>
             <tr>
               <td><a href="#adr-027">ADR-027</a> アプリが起動している間しか見張らない</td>

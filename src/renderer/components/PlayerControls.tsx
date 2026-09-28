@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import { formatDuration } from '../format'
 import { formatPlaybackRate, volumeLevel } from '../library/playback'
+import { editableText } from '../i18n/editable'
 
 /**
  * 独自の再生の操作。再生・停止、位置と全長、速度、音量を 1 行に並べる。
@@ -34,14 +35,15 @@ export const PlayerControls = ({
   onToggleMute: () => void
 }): ReactElement => {
   const level = volumeLevel(volume, muted)
+  const t = editableText().player
 
   return (
     <div className="player-controls">
       <button
         type="button"
         className="player-controls__play"
-        aria-label={playing ? '一時停止' : '再生'}
-        title={disabled ? 'エンコードが終わると再生できます' : `${playing ? '一時停止' : '再生'}（Space）`}
+        aria-label={playing ? t.pause : t.play}
+        title={disabled ? t.playDisabledHint : t.toggleHint(playing ? t.pause : t.play)}
         disabled={disabled}
         // 押してもフォーカスを奪わない。ボタンにフォーカスが残ると、次の Space が
         // ボタンの押下になり、Space の再生・停止と挙動が食い違う。
@@ -56,8 +58,8 @@ export const PlayerControls = ({
       <button
         type="button"
         className="player-controls__rate"
-        aria-label={`再生速度 ${formatPlaybackRate(rate)}（押すたびに切り替え）`}
-        title="再生速度（押すたびに切り替え）"
+        aria-label={t.rateAriaLabel(formatPlaybackRate(rate))}
+        title={t.rateHint}
         disabled={disabled}
         onMouseDown={(event) => event.preventDefault()}
         onClick={onChangeRate}
@@ -68,8 +70,8 @@ export const PlayerControls = ({
         <button
           type="button"
           className="player-controls__mute"
-          aria-label={level === 'muted' ? 'ミュートを解除' : 'ミュート'}
-          title={level === 'muted' ? 'ミュートを解除' : 'ミュート'}
+          aria-label={level === 'muted' ? t.unmute : t.mute}
+          title={level === 'muted' ? t.unmute : t.mute}
           disabled={disabled}
           onMouseDown={(event) => event.preventDefault()}
           onClick={onToggleMute}
@@ -79,7 +81,7 @@ export const PlayerControls = ({
         <input
           type="range"
           className="player-controls__volume-slider"
-          aria-label="音量"
+          aria-label={t.volume}
           min={0}
           max={1}
           step={0.05}

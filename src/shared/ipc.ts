@@ -1,9 +1,11 @@
+import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
 import type { Bookmark } from '@domain/MeetingNotes'
 import type { PipelineStep, Recording, RecordingStatus } from '@domain/Recording'
 import type { Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
+import type { Locale } from './i18n/locale'
 
 /**
  * main / renderer 間の契約。
@@ -20,7 +22,7 @@ export interface RecordingDto {
   readonly startedAt: string
   readonly durationMs: number
   readonly status: RecordingStatus
-  readonly steps: Record<PipelineStep, { status: string; error?: string }>
+  readonly steps: Record<PipelineStep, { status: string; error?: string; reason?: ErrorReason }>
   readonly slug: string
   readonly summaryPreview?: string
   /** 分類先フォルダの id。未設定なら未分類。 */
@@ -119,10 +121,9 @@ export interface ModelProgressDto {
   readonly error?: string
 }
 
+/** 名前と説明は renderer が UI の言語で引く（ADR-043、`@shared/i18n/models`）。 */
 export interface ManagedAssetStatusDto {
   readonly id: string
-  readonly label: string
-  readonly description: string
   readonly bytes: number
   readonly optional: boolean
   readonly installed: boolean
@@ -160,6 +161,8 @@ export interface ProgressEventDto {
    */
   readonly status: 'queued' | 'running' | 'done' | 'failed'
   readonly error?: string
+  /** 失敗の理由。文言は renderer が UI の言語で引く（ADR-043）。 */
+  readonly reason?: ErrorReason
   /** running の途中経過（0〜1）。割合を出せるステップ（いまは文字起こし）だけが付ける。 */
   readonly fraction?: number
 }
@@ -233,11 +236,17 @@ export interface ChatCitationDto {
   readonly truncated: boolean
 }
 
+/** チャットが絞った範囲。期間は問いの言い回しをそのまま使う（利用者が書いた言葉）。 */
+export interface ChatScopeDto {
+  readonly rangeLabel: string
+  readonly count: number
+}
+
 export interface ChatAnswerDto {
   readonly text: string
   readonly citations: readonly ChatCitationDto[]
-  /** 「先週（08/31〜09/06）の 3 件」。何を見て答えたかを利用者に示す。 */
-  readonly scopeLabel?: string
+  /** 何を見て答えたか。文言（「先週（08/31〜09/06）の 3 件」）は画面が UI の言語で組む。 */
+  readonly scope?: ChatScopeDto
   readonly usedTranscript: boolean
   readonly droppedCount: number
   /** 生成の上限に達して書ききれなかったか。 */
@@ -260,7 +269,7 @@ export interface ChatDoneDto {
   readonly requestId: string
   readonly text: string
   readonly citations: readonly ChatCitationDto[]
-  readonly scopeLabel?: string
+  readonly scope?: ChatScopeDto
   readonly droppedCount: number
   /** 生成の上限に達して書ききれなかったか。 */
   readonly truncated: boolean
@@ -347,6 +356,8 @@ export const toFolderDto = (folder: Folder): FolderDto => ({
 
 /** preload が contextBridge で公開する API の形。renderer はこれだけを見る。 */
 export interface RendererApi {
+  /** UI の言語。main が起動時に決め、アプリが動いている間は変わらない（ADR-043）。 */
+  readonly locale: Locale
   listRecordings(): Promise<RecordingDto[]>
   getRecording(id: string): Promise<RecordingDetailDto>
   startRecording(title?: string): Promise<RecordingDto>

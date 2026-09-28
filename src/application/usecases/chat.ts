@@ -15,10 +15,11 @@ import {
   type ChatCitation,
   type ChatSourceMaterial
 } from '@domain/ChatContext'
-import { DEFAULT_CHAT_PROMPT, DEFAULT_CHAT_SYSTEM_PROMPT, renderChatPrompt } from '@domain/ChatPrompt'
+import { chatPrompts, renderChatPrompt } from '@domain/ChatPrompt'
 import { hasTopic, planChatQuery, type ChatQueryPlan } from '@domain/ChatQuery'
 import { AppError, ConfigurationError } from '@domain/errors'
 import { estimateSummarizationBytes, insufficientMemory } from '@domain/MemoryGuard'
+import { questionLanguageOf } from '@domain/MeetingLanguage'
 import type { Recording } from '@domain/Recording'
 
 /**
@@ -31,8 +32,11 @@ import type { Recording } from '@domain/Recording'
 export interface ChatAnswer {
   readonly text: string
   readonly citations: readonly ChatCitation[]
-  /** 「先週（08/31〜09/06）の 2 件」。何を見て答えたかを利用者に示す。 */
-  readonly scopeLabel?: string
+  /**
+   * 何を見て答えたか（「先週（08/31〜09/06）」の 2 件）。期間は問いの言い回しをそのまま使い、
+   * 件数と組み合わせた文言は画面が UI の言語で作る（ADR-043）。
+   */
+  readonly scope?: { readonly rangeLabel: string; readonly count: number }
   readonly usedTranscript: boolean
   readonly droppedCount: number
   /** 生成の上限に達して書ききれなかったか。 */
@@ -78,7 +82,7 @@ const ensureChatMemory = async (deps: AskChatDeps, modelPath: string): Promise<v
         modelFileBytes,
         contextSize: settings.summarization.contextSize
       }),
-      label: 'チャットの回答'
+      task: 'chat'
     },
     protection: settings.memoryProtection
   })
@@ -148,9 +152,7 @@ export class AskChat {
   }): Promise<ChatAnswer> {
     const settings = await this.deps.settings.load()
     if (!settings.summarization.modelPath) {
-      throw new ConfigurationError(
-        'チャットに使うモデルが設定されていません。設定画面で要約モデルを取得してください。'
-      )
+      throw new ConfigurationError({ code: 'chatModelNotConfigured' })
     }
 
     const plan = planChatQuery(params.question, this.deps.clock.now())
@@ -175,7 +177,11 @@ export class AskChat {
       chosen.map((recording) => loadMaterial(this.deps.artifacts, recording, plan.needsTranscript))
     )
 
+    // チャットは録音をまたぐので、会議の言語ではなく問いの言語で答えさせる（ADR-043）。
+    const language = questionLanguageOf(params.question)
+    const prompts = chatPrompts(language)
     const context = buildChatContext({
+      language,
       materials,
       scope: plan.speakerScope,
       useTranscript: plan.needsTranscript,
@@ -189,9 +195,9 @@ export class AskChat {
     await ensureChatMemory(this.deps, settings.summarization.modelPath)
 
     const completion = await this.deps.chat.complete({
-      system: DEFAULT_CHAT_SYSTEM_PROMPT,
+      system: prompts.system,
       history: params.history,
-      prompt: renderChatPrompt(DEFAULT_CHAT_PROMPT, {
+      prompt: renderChatPrompt(prompts.prompt, language, {
         context: context.text,
         question: params.question
       }),
@@ -206,7 +212,7 @@ export class AskChat {
       citations: context.citations,
       ...(plan.rangeLabel === undefined
         ? {}
-        : { scopeLabel: `${plan.rangeLabel}の ${context.citations.length} 件` }),
+        : { scope: { rangeLabel: plan.rangeLabel, count: context.citations.length } }),
       usedTranscript: context.citations.some((citation) => citation.source === 'transcript'),
       droppedCount: dropped,
       truncated: completion.truncated

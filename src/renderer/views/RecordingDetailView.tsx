@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { PIPELINE_STEPS, transcriptEditBlocker, type PipelineStep } from '@domain/Recording'
 import type { RecordingDetailDto } from '@shared/ipc'
-import { STEP_LABELS, formatDateTime, formatDuration } from '../format'
+import { stepLabel } from '@shared/i18n/steps'
+import { formatDateTime, formatDuration } from '../format'
 import { CopyButton } from '../components/CopyButton'
 import { Markdown } from '../components/Markdown'
 import { EditableTitle } from '../components/EditableTitle'
@@ -24,7 +25,7 @@ import { formatNoteStamp } from '@domain/MeetingNotes'
 import { FlagIcon } from '../components/FlagIcon'
 import { isPlaybackToggleKey, nextPlaybackRate, playerMode } from '../library/playback'
 import { voiceLearnedNotice } from '../library/voiceLearning'
-import { canEditSummary, resummarizeState, type ResummarizeState } from '../resummarize'
+import { canEditSummary, resummarizeState } from '../resummarize'
 import { speakerNameSuggestions } from '../speakerSuggestions'
 import { failureTooltip, failuresIn, queuedIn, type StepFailure } from '../stepFailure'
 import {
@@ -34,29 +35,14 @@ import {
   showsPipelineProgress,
   type ProgressSamples
 } from '../pipelineProgress'
+import { reasonText } from '../i18n/failure'
+import { detailText } from '../i18n/detail'
+import { locale } from '../i18n/locale'
 
 /** メモの自動保存までの待ち時間。打鍵のたびに書かないため。 */
 const NOTE_SAVE_DELAY_MS = 600
 
 type Tab = 'summary' | 'note'
-
-/** 再要約ボタンのツールチップ。押せないときは、その理由をその場で読めるようにする。 */
-const RESUMMARIZE_HINT: Readonly<Record<ResummarizeState, string>> = {
-  ready: '話者名や本文を直したあとなど、要約を作り直す',
-  summarizing: '要約を作り直しています',
-  queued: '順番が来ると要約し直します',
-  busy: '他の処理が終わると要約し直せます',
-  unavailable: '文字起こしができると要約し直せます'
-}
-
-/** 再要約ボタンの文言。受け付けた後は、押せないことより「待っている」ことを見せる。 */
-const RESUMMARIZE_LABELS: Readonly<Record<ResummarizeState, string>> = {
-  ready: '再要約',
-  summarizing: '要約中…',
-  queued: '要約待ち…',
-  busy: '再要約',
-  unavailable: '再要約'
-}
 
 /**
  * 詳細画面。上に全幅の再生と話者ごとの発言の帯、下の左に話者付き文字起こし、右に要約とメモを置く。
@@ -346,7 +332,8 @@ export const RecordingDetailView = ({
     [recordingId, onChanged]
   )
 
-  const editBlocker = transcriptEditBlocker(detail.recording.steps)
+  const blocker = transcriptEditBlocker(detail.recording.steps)
+  const editBlocker = blocker && reasonText(blocker)
 
   // 失敗は、そのステップが作るはずだったものの欄に出す。何が欠けているかがその場で分かる。
   const transcriptFailures = failuresIn('transcript', detail.recording.steps)
@@ -425,6 +412,7 @@ export const RecordingDetailView = ({
 
   const summaryEditable = canEditSummary(detail.recording.steps)
   const editingSummary = summaryDraft !== undefined
+  const t = detailText()
 
   return (
     <section className="detail">
@@ -435,7 +423,7 @@ export const RecordingDetailView = ({
             <p className="detail__meta">
               {formatDateTime(detail.recording.startedAt)}
               {detail.recording.durationMs > 0 &&
-                ` ・ ${formatDuration(detail.recording.durationMs)}`}
+                `${t.metaSeparator}${formatDuration(detail.recording.durationMs)}`}
             </p>
             {showsPipelineProgress(detail.recording.status) && (
               <PipelinePill recording={detail.recording} />
@@ -444,10 +432,10 @@ export const RecordingDetailView = ({
         </div>
         <div className="detail__actions">
           <button type="button" onClick={() => void window.recorder.revealRecording(recordingId)}>
-            Finder で表示
+            {t.header.revealInFinder}
           </button>
           <button type="button" className="danger" onClick={onDelete}>
-            削除
+            {t.header.delete}
           </button>
         </div>
       </header>
@@ -517,8 +505,8 @@ export const RecordingDetailView = ({
       <div className="detail__body">
         <div className="panel">
           <div className="panel__header">
-            <h3>文字起こし</h3>
-            <CopyButton text={detail.transcriptText} label="文字起こしをコピー" />
+            <h3>{t.transcript.heading}</h3>
+            <CopyButton text={detail.transcriptText} label={t.transcript.copyLabel} />
           </div>
 
           <StepFailures
@@ -530,7 +518,7 @@ export const RecordingDetailView = ({
           {detail.segments.length === 0 ? (
             transcriptFailures.length === 0 &&
             transcriptQueued.length === 0 && (
-              <p className="panel__empty">まだ文字起こしがありません。</p>
+              <p className="panel__empty">{t.transcript.empty}</p>
             )
           ) : (
             <ol className="segments" ref={segmentsRef}>
@@ -553,7 +541,7 @@ export const RecordingDetailView = ({
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => seek(segment.startMs)}
                     disabled={!audioReady}
-                    title={audioReady ? 'この位置から再生' : 'エンコードが終わると再生できます'}
+                    title={audioReady ? t.transcript.seekTitle : t.transcript.seekDisabledTitle}
                   >
                     {formatDuration(segment.startMs)}
                   </button>
@@ -564,9 +552,9 @@ export const RecordingDetailView = ({
                     onCommit={(label) => renameSpeaker(segment.speakerId, label)}
                   />
                   {bookmarked.has(index) && (
-                    <span className="segment__bookmark" title="録音中に印をつけた発言">
+                    <span className="segment__bookmark" title={t.transcript.bookmarkTitle}>
                       <FlagIcon />
-                      録音中に印
+                      {t.transcript.bookmarkText}
                     </span>
                   )}
                   <EditableSegmentText
@@ -588,14 +576,14 @@ export const RecordingDetailView = ({
                 className={tab === 'summary' ? 'tabs__tab tabs__tab--active' : 'tabs__tab'}
                 onClick={() => setTab('summary')}
               >
-                要約
+                {t.tabs.summary}
               </button>
               <button
                 type="button"
                 className={tab === 'note' ? 'tabs__tab tabs__tab--active' : 'tabs__tab'}
                 onClick={() => setTab('note')}
               >
-                メモ
+                {t.tabs.note}
               </button>
             </div>
 
@@ -607,7 +595,7 @@ export const RecordingDetailView = ({
                   onClick={() => setSummaryDraft(undefined)}
                   disabled={summarySaving}
                 >
-                  キャンセル
+                  {t.summary.cancel}
                 </button>
                 <button
                   type="button"
@@ -615,7 +603,7 @@ export const RecordingDetailView = ({
                   onClick={() => void saveSummary()}
                   disabled={summarySaving}
                 >
-                  {summarySaving ? '保存中…' : '保存'}
+                  {summarySaving ? t.summary.saving : t.summary.save}
                 </button>
               </div>
             ) : tab === 'summary' ? (
@@ -625,9 +613,9 @@ export const RecordingDetailView = ({
                   className="copy"
                   onClick={() => setSummaryDraft(detail.summary ?? '')}
                   disabled={!summaryEditable}
-                  title={summaryEditable ? '要約を手で直す' : '要約が終わると直せます'}
+                  title={summaryEditable ? t.summary.editHint : t.summary.editDisabledHint}
                 >
-                  編集
+                  {t.summary.edit}
                 </button>
                 {/* 話者名を直しても要約は古いままなので、作り直す手段をここに置く。 */}
                 <button
@@ -635,14 +623,14 @@ export const RecordingDetailView = ({
                   className="copy"
                   onClick={() => void requestResummarize()}
                   disabled={resummarize !== 'ready'}
-                  title={RESUMMARIZE_HINT[resummarize]}
+                  title={t.resummarize.hint[resummarize]}
                 >
-                  {RESUMMARIZE_LABELS[resummarize]}
+                  {t.resummarize.label[resummarize]}
                 </button>
-                {detail.summary && <CopyButton text={detail.summary} label="要約をコピー" />}
+                {detail.summary && <CopyButton text={detail.summary} label={t.summary.copyLabel} />}
               </div>
             ) : (
-              <span className="panel__hint">{noteSaved ? '保存済み' : '保存中…'}</span>
+              <span className="panel__hint">{noteSaved ? t.note.saved : t.note.saving}</span>
             )}
           </div>
 
@@ -651,8 +639,8 @@ export const RecordingDetailView = ({
               className="note"
               value={summaryDraft}
               onChange={(event) => setSummaryDraft(event.target.value)}
-              placeholder="要約を Markdown で書けます"
-              aria-label="要約の編集"
+              placeholder={t.summary.placeholder}
+              aria-label={t.summary.ariaLabel}
             />
           ) : tab === 'summary' ? (
             <>
@@ -667,25 +655,25 @@ export const RecordingDetailView = ({
                 </div>
               ) : (
                 summaryFailures.length === 0 &&
-                summaryQueued.length === 0 && <p className="panel__empty">まだ要約がありません。</p>
+                summaryQueued.length === 0 && <p className="panel__empty">{t.summary.empty}</p>
               )}
             </>
           ) : (
             <>
               {moments.length > 0 && (
-                <ul className="moments" aria-label="メモと印の時刻">
+                <ul className="moments" aria-label={t.note.momentAriaLabel}>
                   {moments.map((moment, index) => (
                     <li key={`${moment.kind}-${moment.atMs}-${index}`}>
                       <button
                         type="button"
                         className="moments__item"
                         onClick={() => jumpTo(moment.atMs)}
-                        title={audioReady ? 'この位置の発言へ移動して再生' : 'この位置の発言へ移動'}
+                        title={audioReady ? t.note.momentSeekTitle : t.note.momentGoTitle}
                       >
                         <span className="moments__time">{formatNoteStamp(moment.atMs)}</span>
                         {moment.kind === 'bookmark' && <FlagIcon />}
                         <span className="moments__text">
-                          {moment.kind === 'bookmark' ? '印' : moment.text}
+                          {moment.kind === 'bookmark' ? t.note.bookmarkText : moment.text}
                         </span>
                       </button>
                     </li>
@@ -696,7 +684,7 @@ export const RecordingDetailView = ({
                 className="note"
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
-                placeholder="この会議についてのメモを書けます（自動保存されます）"
+                placeholder={t.note.placeholder}
               />
             </>
           )}
@@ -704,15 +692,6 @@ export const RecordingDetailView = ({
       </div>
     </section>
   )
-}
-
-/** 状態ごとの短い表記。色だけに頼らず文字でも読めるようにする。 */
-const STEP_STATE_LABELS: Readonly<Record<string, string>> = {
-  pending: '待機',
-  queued: '順番待ち',
-  running: '処理中',
-  done: '完了',
-  failed: '失敗'
 }
 
 /**
@@ -731,6 +710,7 @@ const PipelinePill = ({
   const { samples, receivedAtMs } = useProgressSamples()
   const sample = samples[recording.id]
   const remainingMs = sample ? estimateRemainingMs(sample, receivedAtMs) : undefined
+  const t = detailText()
 
   // 外側を押す・Esc で閉じる。開いたままだと本文の先頭を覆い続ける。
   useEffect(() => {
@@ -765,24 +745,25 @@ const PipelinePill = ({
       </button>
 
       {open && (
-        <section className="pipeline-pop" aria-label="処理状況">
+        <section className="pipeline-pop" aria-label={t.pipeline.popupAriaLabel}>
           <p className="pipeline-pop__header">
-            <strong>処理中</strong>
-            <span>ウィンドウを閉じても続きます</span>
+            <strong>{t.pipeline.processing}</strong>
+            <span>{t.pipeline.continuesInBackground}</span>
           </p>
           <ol className="pipeline__steps">
             {PIPELINE_STEPS.map((step) => {
               const status = recording.steps[step]?.status ?? 'pending'
               const fraction =
                 status === 'running' && sample?.step === step ? sample.fraction : undefined
+              const label = stepLabel(step, locale())
 
               return (
                 <li key={step} className={`pipeline__step pipeline__step--${status}`}>
                   <span className="pipeline__mark" aria-hidden="true" />
-                  <span className="pipeline__label">{STEP_LABELS[step]}</span>
+                  <span className="pipeline__label">{label}</span>
                   <span className="pipeline__state">
                     {fraction === undefined
-                      ? STEP_STATE_LABELS[status]
+                      ? t.pipeline.stepState[status]
                       : `${Math.round(fraction * 100)}%`}
                   </span>
 
@@ -790,7 +771,7 @@ const PipelinePill = ({
                     <div
                       className="pipeline__bar"
                       role="progressbar"
-                      aria-label={`${STEP_LABELS[step]}の進み具合`}
+                      aria-label={t.pipeline.stepProgressAriaLabel(label)}
                       aria-valuemin={0}
                       aria-valuemax={100}
                       aria-valuenow={Math.round(fraction * 100)}
@@ -825,12 +806,14 @@ const StepFailures = ({
 }): ReactElement | null => {
   if (failures.length === 0 && queued.length === 0) return null
 
+  const t = detailText().failures
+
   return (
     <ul className="failures">
       {queued.length > 0 && (
         <li className="failure failure--queued">
           <p className="failure__message" role="status">
-            {queued.map((step) => step.label).join('・')}の順番を待っています
+            {t.queuedMessage(t.joinLabels(queued.map((step) => step.label)))}
           </p>
         </li>
       )}
@@ -844,7 +827,7 @@ const StepFailures = ({
             className="failure__retry"
             onClick={() => onRetry(failure.step as PipelineStep)}
           >
-            再実行
+            {t.retry}
           </button>
         </li>
       ))}

@@ -16,6 +16,7 @@ import type {
 import {
   PIPELINE_STEPS,
   failStep,
+  failureFields,
   overallStatus,
   startStep,
   succeedStep,
@@ -26,7 +27,13 @@ import {
   type StepStates
 } from '@domain/Recording'
 import { diarizationTarget, mixInputs, transcriptionTargets } from '@domain/RecordingSource'
-import { PipelineStepError, RecordingNotFoundError, toMessage } from '@domain/errors'
+import {
+  PipelineStepError,
+  RecordingNotFoundError,
+  reasonOf,
+  toMessage,
+  type ErrorReason
+} from '@domain/errors'
 import {
   estimateSummarizationBytes,
   estimateTranscriptionBytes,
@@ -34,11 +41,15 @@ import {
   type MemoryDemand
 } from '@domain/MemoryGuard'
 import { findAsset } from '@domain/ModelCatalog'
-import type { Settings } from '@domain/Settings'
+import { meetingLanguageOf, type MeetingLanguage } from '@domain/MeetingLanguage'
+import { summaryPromptFor, type Settings } from '@domain/Settings'
 import {
   REMOTE_SPEAKER_ID,
   SELF_SPEAKER_ID,
+  defaultRemoteGroupLabel,
   defaultRemoteLabel,
+  defaultSelfLabel,
+  isDefaultRemoteLabel,
   isRemoteSpeakerId,
   remoteSpeakerId,
   type Speaker
@@ -61,6 +72,11 @@ export interface ProcessRecordingDeps {
   readonly encoder: AudioEncoderPort
   readonly progress: ProgressReporterPort
   readonly system: SystemResourcePort
+  /**
+   * 文字起こしの言語が自動判定のときの会議の言語。UI の言語を渡す（ADR-043）。
+   * 話者の既定名・要約プロンプト・メモの見出しをこれで決める。
+   */
+  readonly fallbackLanguage: MeetingLanguage
 }
 
 /** 各ステップが必要とする先行ステップ。先行が失敗したステップは実行せずスキップする。 */
@@ -94,19 +110,12 @@ const TRACK_CONSUMERS: readonly PipelineStep[] = ['mix', 'transcribe', 'diarize'
 const intermediatesDisposable = (steps: StepStates): boolean =>
   INTERMEDIATE_CONSUMERS.every((step) => steps[step].status === 'done')
 
-const STEP_LABELS: Readonly<Record<PipelineStep, string>> = {
-  mix: 'ミックス',
-  transcribe: '文字起こし',
-  diarize: '話者識別',
-  summarize: '要約',
-  encode: 'エンコード'
-}
-
 interface StepContext {
   readonly recording: Recording
   readonly settings: Settings
   /** トラックを読むステップを含まない実行では undefined（片付け済みでも動けるように）。 */
   readonly tracks: RecordingSource | undefined
+  readonly language: MeetingLanguage
 }
 
 /**
@@ -143,7 +152,8 @@ export class ProcessRecording {
       : undefined
 
     const settings = await this.deps.settings.load()
-    const context: StepContext = { recording, settings, tracks }
+    const language = meetingLanguageOf(settings.transcription.language, this.deps.fallbackLanguage)
+    const context: StepContext = { recording, settings, tracks, language }
 
     let steps = recording.steps
     for (const step of PIPELINE_STEPS) {
@@ -168,14 +178,14 @@ export class ProcessRecording {
    * 残すと「まだこれから動く」と読めてしまうため。中間 WAV は再実行しても
    * 同じ理由で断られる＝二度と使わないので、ここで捨てる。
    */
-  private async abort(recording: Recording, reason: string): Promise<Recording> {
+  private async abort(recording: Recording, reason: ErrorReason): Promise<Recording> {
     let steps = recording.steps
     for (const step of PIPELINE_STEPS) {
       this.deps.progress.report({
         recordingId: recording.id,
         step,
         status: 'failed',
-        error: reason
+        ...failureFields(reason)
       })
       steps = failStep(steps, step, reason)
     }
@@ -193,11 +203,7 @@ export class ProcessRecording {
   ): Promise<StepStates> {
     const blocker = STEP_DEPENDENCIES[step].find((dep) => steps[dep].status === 'failed')
     if (blocker) {
-      return failStep(
-        steps,
-        step,
-        `前のステップ（${STEP_LABELS[blocker]}）が失敗したため実行しませんでした。`
-      )
+      return failStep(steps, step, { code: 'stepBlocked', blocker })
     }
 
     const { recording } = context
@@ -209,7 +215,7 @@ export class ProcessRecording {
         recordingId: recording.id,
         step,
         status: 'failed',
-        error: shortage
+        ...failureFields(shortage)
       })
       return failStep(steps, step, shortage)
     }
@@ -227,9 +233,14 @@ export class ProcessRecording {
       this.deps.progress.report({ recordingId: recording.id, step, status: 'done' })
       return succeedStep(running, step)
     } catch (error: unknown) {
-      const message = toMessage(error)
-      this.deps.progress.report({ recordingId: recording.id, step, status: 'failed', error: message })
-      return failStep(running, step, message)
+      const failure = reasonOf(error) ?? toMessage(error)
+      this.deps.progress.report({
+        recordingId: recording.id,
+        step,
+        status: 'failed',
+        ...failureFields(failure)
+      })
+      return failStep(running, step, failure)
     }
   }
 
@@ -242,7 +253,7 @@ export class ProcessRecording {
   private async checkMemory(
     step: PipelineStep,
     { settings }: StepContext
-  ): Promise<string | undefined> {
+  ): Promise<ErrorReason | undefined> {
     if (settings.memoryProtection === 'off') return undefined
 
     const demand = await this.demandOf(step, settings)
@@ -268,7 +279,7 @@ export class ProcessRecording {
         if (modelFileBytes === undefined) return undefined
         return {
           bytes: estimateTranscriptionBytes({ modelFileBytes }),
-          label: STEP_LABELS.transcribe
+          task: 'transcribe'
         }
       }
       case 'summarize': {
@@ -282,7 +293,7 @@ export class ProcessRecording {
             modelFileBytes,
             contextSize: settings.summarization.contextSize
           }),
-          label: STEP_LABELS.summarize
+          task: 'summarize'
         }
       }
       default:
@@ -344,8 +355,7 @@ export class ProcessRecording {
    * 素材ごとに文字起こしし、話者 ID を付けて 1 本にまとめる。
    * どの WAV を誰として起こすかは transcriptionTargets が決める。
    */
-  private async transcribe({ recording, settings, tracks }: StepContext): Promise<void> {
-    const { language } = settings.transcription
+  private async transcribe({ recording, settings, tracks, language }: StepContext): Promise<void> {
 
     // 直列に回す。whisper を 2 本同時に走らせてもメモリを食うだけで速くならない。
     const targets = transcriptionTargets(await this.requireTracks(recording, tracks))
@@ -354,7 +364,7 @@ export class ProcessRecording {
       tracked.push(
         await this.deps.transcriber.transcribe({
           wavPath: target.wavPath,
-          language,
+          language: settings.transcription.language,
           speakerId: target.speakerId,
           // 利用者が知りたいのはステップ全体の進み具合なので、トラック内の割合を
           // 全体へ換算する。トラックの長さはほぼ揃う（同じ会議の 2 系統）ので等分でよい。
@@ -373,12 +383,12 @@ export class ProcessRecording {
     const segments = mergeTracks(tracked)
     await this.deps.artifacts.writeTranscript(recording, {
       segments,
-      speakers: buildSpeakers(segments, previous?.speakers)
+      speakers: buildSpeakers(segments, language, previous?.speakers)
     })
   }
 
   /** 相手側を話者クラスタに分割し、文字起こしを上書きする。 */
-  private async diarize({ recording, settings, tracks }: StepContext): Promise<void> {
+  private async diarize({ recording, settings, tracks, language }: StepContext): Promise<void> {
     if (!settings.diarization.enabled) return
 
     const existing = await this.requireTranscript(recording)
@@ -393,7 +403,7 @@ export class ProcessRecording {
 
     await this.deps.artifacts.writeTranscript(recording, {
       segments,
-      speakers: buildSpeakers(segments, existing.speakers, known)
+      speakers: buildSpeakers(segments, language, existing.speakers, known)
     })
   }
 
@@ -442,19 +452,21 @@ export class ProcessRecording {
     }
   }
 
-  private async summarize({ recording, settings }: StepContext): Promise<void> {
+  private async summarize({ recording, settings, language }: StepContext): Promise<void> {
     const { segments, speakers } = await this.requireTranscript(recording)
     // メモは録音後にも書き足せる。再要約でも毎回読み直す（ADR-042）。
     const notes = summaryNotes({
       note: await this.deps.artifacts.readNote(recording),
       marks: await this.deps.artifacts.readBookmarks(recording),
       segments,
-      speakers
+      speakers,
+      language
     })
     const summary = await this.deps.summarizer.summarize({
       transcript: toMarkdown(segments, speakers),
       notes,
-      promptTemplate: settings.summarization.promptTemplate
+      promptTemplate: summaryPromptFor(settings.summarization.promptTemplate, language),
+      language
     })
 
     await this.deps.artifacts.writeSummary(recording, summary)
@@ -480,7 +492,7 @@ export class ProcessRecording {
   ): Promise<RecordingSource> {
     const tracks = loaded ?? (await this.deps.artifacts.readTracks(recording))
     if (!tracks) {
-      throw new PipelineStepError('録音データが見つかりません。')
+      throw new PipelineStepError({ code: 'recordingDataMissing' })
     }
     return tracks
   }
@@ -490,7 +502,7 @@ export class ProcessRecording {
   ): Promise<{ segments: TranscriptSegment[]; speakers: Speaker[] }> {
     const transcript = await this.deps.artifacts.readTranscript(recording)
     if (!transcript) {
-      throw new PipelineStepError('文字起こしがまだありません。先に文字起こしを実行してください。')
+      throw new PipelineStepError({ code: 'transcriptRequiredFirst' })
     }
     return transcript
   }
@@ -512,6 +524,7 @@ export class ProcessRecording {
  */
 const buildSpeakers = (
   segments: readonly TranscriptSegment[],
+  language: MeetingLanguage,
   existing: readonly Speaker[] = [],
   known: ReadonlyMap<string, string> = new Map()
 ): Speaker[] => {
@@ -524,7 +537,7 @@ const buildSpeakers = (
     speakers.push({
       id: SELF_SPEAKER_ID,
       kind: 'self',
-      label: named.get(SELF_SPEAKER_ID) ?? '自分'
+      label: named.get(SELF_SPEAKER_ID) ?? defaultSelfLabel(language)
     })
     seen.add(SELF_SPEAKER_ID)
   }
@@ -534,21 +547,25 @@ const buildSpeakers = (
     seen.add(segment.speakerId)
 
     if (isRemoteSpeakerId(segment.speakerId)) {
-      const fallback =
-        segment.speakerId === REMOTE_SPEAKER_ID ? '参加者' : defaultRemoteLabel(remoteIndex)
-      if (segment.speakerId !== REMOTE_SPEAKER_ID) remoteIndex += 1
+      const grouped = segment.speakerId === REMOTE_SPEAKER_ID
+      const index = remoteIndex
+      const fallback = grouped
+        ? defaultRemoteGroupLabel(language)
+        : defaultRemoteLabel(index, language)
+      if (!grouped) remoteIndex += 1
 
       // 既に付いている名前が既定の採番そのものなら、利用者が付けたものではない。
       // そこだけ声紋の引き当てに譲る（声紋帳が育った後で話者識別をやり直せば、
-      // 過去の録音にも名前が入る）。
+      // 過去の録音にも名前が入る）。別の言語で付けた採番も既定とみなす。
       const given = named.get(segment.speakerId)
+      const userGiven =
+        given !== undefined &&
+        given !== fallback &&
+        (grouped || !isDefaultRemoteLabel(given, index))
       speakers.push({
         id: segment.speakerId,
         kind: 'remote',
-        label:
-          given !== undefined && given !== fallback
-            ? given
-            : (known.get(segment.speakerId) ?? fallback)
+        label: userGiven ? given : (known.get(segment.speakerId) ?? fallback)
       })
     } else {
       speakers.push({

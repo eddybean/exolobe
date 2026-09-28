@@ -1,4 +1,6 @@
 import type { VoiceprintDto } from '@shared/ipc'
+import { libraryText } from '../i18n/library'
+import { intlLocale } from '../i18n/locale'
 
 /**
  * 声紋帳の 1 件に添える説明。
@@ -7,7 +9,7 @@ import type { VoiceprintDto } from '@shared/ipc'
  * 決める材料はこれで足りる。類似度や次元数を見せても判断は変わらない。
  */
 export const voiceprintSummary = (voiceprint: VoiceprintDto): string =>
-  `${voiceprint.samples} 件の録音から学習 ・ ${formatDay(voiceprint.updatedAt)}`
+  libraryText().voiceprint.summary(voiceprint.samples, formatDay(voiceprint.updatedAt))
 
 /**
  * 名前での絞り込み。並びは受け取ったまま（覚えた順）を保つ。
@@ -26,7 +28,7 @@ export const filterVoiceprints = (
 }
 
 /** 設定画面に常時出す件数。一覧を開かなくても規模が分かるようにする。 */
-export const voiceprintCountLabel = (count: number): string => `${count} 人を覚えています`
+export const voiceprintCountLabel = (count: number): string => libraryText().voiceprint.count(count)
 
 /**
  * 比較用にならす。
@@ -41,7 +43,7 @@ const formatDay = (iso: string): string => {
   const date = new Date(iso)
   const sameYear = date.getFullYear() === new Date().getFullYear()
 
-  return new Intl.DateTimeFormat('ja-JP', {
+  return new Intl.DateTimeFormat(intlLocale(), {
     ...(sameYear ? {} : { year: 'numeric' }),
     month: 'long',
     day: 'numeric'

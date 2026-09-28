@@ -65,9 +65,7 @@ export class SherpaOnnxDiarizer implements DiarizationPort {
 
   async diarize(params: { wavPath: string; maxSpeakers: number }): Promise<SpeakerTurn[]> {
     if (!this.config.segmentationModelPath || !this.config.embeddingModelPath) {
-      throw new DiarizationError(
-        '話者識別モデルが設定されていません。設定画面でモデルを選ぶか、話者識別を無効にしてください。'
-      )
+      throw new DiarizationError({ code: 'diarizationModelNotConfigured' })
     }
 
     const audio = await readWav(params.wavPath)
@@ -80,11 +78,11 @@ export class SherpaOnnxDiarizer implements DiarizationPort {
       // サンプルレートが違っても推論自体は通ってしまい、時刻だけが実際とずれた
       // 結果になる。黙って壊れた話者ターンを書き込むより、このステップを落とす。
       if (audio.sampleRate !== session.sampleRate) {
-        throw new DiarizationError(
-          `話者識別モデルは ${session.sampleRate} Hz の音声を前提としています` +
-            `（この録音は ${audio.sampleRate} Hz）。設定でサンプルレートを ` +
-            `${session.sampleRate} Hz にして録音し直すか、話者識別を無効にしてください。`
-        )
+        throw new DiarizationError({
+          code: 'diarizationSampleRate',
+          modelRate: session.sampleRate,
+          recordingRate: audio.sampleRate
+        })
       }
 
       // sherpa-onnx は [-1, 1] の Float32 を受け取る。
@@ -102,7 +100,10 @@ export class SherpaOnnxDiarizer implements DiarizationPort {
       return limitSpeakers(turns, params.maxSpeakers)
     } catch (error: unknown) {
       if (error instanceof DiarizationError) throw error
-      throw new DiarizationError(`話者識別に失敗しました: ${toMessage(error)}`, { cause: error })
+      throw new DiarizationError(
+        { code: 'diarizationFailed', detail: toMessage(error) },
+        { cause: error }
+      )
     } finally {
       // 失敗しても必ずセッションを閉じる。ネイティブが確保したメモリを抱えたまま
       // 次のステップ（要約は数 GB を使う）へ進ませない。

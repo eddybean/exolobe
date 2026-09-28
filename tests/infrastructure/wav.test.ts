@@ -75,7 +75,7 @@ describe('readWav', () => {
     const { writeFile } = await import('node:fs/promises')
     await writeFile(path, Buffer.from('this is not a wav file'))
 
-    await expect(readWav(path)).rejects.toThrow('WAV ファイルとして読み取れません')
+    await expect(readWav(path)).rejects.toThrow('wavUnreadable')
   })
 })
 
@@ -122,6 +122,6 @@ describe('wavDurationMs', () => {
     const path = join(dir, 'bogus.wav')
     await writeFile(path, Buffer.from('nope'))
 
-    await expect(wavDurationMs(path)).rejects.toThrow('WAV ファイルとして読み取れません')
+    await expect(wavDurationMs(path)).rejects.toThrow('wavUnreadable')
   })
 })

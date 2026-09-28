@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import type { VoiceprintDto } from '@shared/ipc'
 import { messageOf } from '../errorMessage'
 import { useModalKeys } from '../hooks/useModalKeys'
+import { voiceprintsText } from '../i18n/voiceprints'
 import {
   filterVoiceprints,
   voiceprintCountLabel,
@@ -26,6 +27,7 @@ export const VoiceprintSettings = ({
   /** 声紋帳は保存先ルートに置くので、保存先が決まるまでは読みにいけない。 */
   storageDir: string | null
 }): ReactElement => {
+  const t = voiceprintsText()
   const [entries, setEntries] = useState<VoiceprintDto[]>()
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
@@ -99,31 +101,25 @@ export const VoiceprintSettings = ({
     <div className="field">
       {/* tabIndex は、すべて忘れて「一覧を開く」が消えたときのフォーカスの逃がし先。 */}
       <span className="field__label" ref={labelRef} tabIndex={-1}>
-        覚えた声
+        {t.fieldLabel}
       </span>
 
       {storageDir === null ? (
-        <span className="voiceprints__empty">保存先を選ぶと、覚えた声をここに一覧します。</span>
+        <span className="voiceprints__empty">{t.needsStorage}</span>
       ) : entries === undefined ? (
-        <span className="voiceprints__empty">確認中…</span>
+        <span className="voiceprints__empty">{t.checking}</span>
       ) : entries.length === 0 ? (
-        <span className="voiceprints__empty">
-          まだありません。録音の詳細画面で話者に名前を付けると、その声を覚えます。
-        </span>
+        <span className="voiceprints__empty">{t.empty}</span>
       ) : (
         <div className="voiceprints__summary">
           <span className="voiceprints__count">{voiceprintCountLabel(entries.length)}</span>
           <button type="button" ref={openerRef} onClick={() => setOpen(true)}>
-            一覧を開く
+            {t.openList}
           </button>
         </div>
       )}
 
-      <span className="field__hint">
-        {enabled
-          ? '次の録音で同じ声が出てきたら、この名前を自動で当てはめます。違っていたら詳細画面で付け直してください。付け直した名前をそのまま覚え直します。'
-          : '話者識別が無効なので、いまは自動で当てはめません。覚えた声はそのまま残ります。'}
-      </span>
+      <span className="field__hint">{enabled ? t.hintEnabled : t.hintDisabled}</span>
 
       {/* モーダルが背後を覆うので、開いている間のエラーはモーダルの中に出す。 */}
       {!open && error && (
@@ -169,6 +165,7 @@ const VoiceprintListModal = ({
   onClearAll: () => void
   onClose: () => void
 }): ReactElement => {
+  const t = voiceprintsText()
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -180,7 +177,7 @@ const VoiceprintListModal = ({
 
   useModalKeys(panelRef, onClose)
 
-  const title = `覚えた声（${entries.length} 人）`
+  const title = t.modalTitle(entries.length)
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -197,13 +194,13 @@ const VoiceprintListModal = ({
         <input
           ref={inputRef}
           className="modal__input"
-          placeholder="名前で絞り込む"
+          placeholder={t.filterPlaceholder}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
 
         {shown.length === 0 ? (
-          <span className="voiceprints__empty">当てはまる名前はありません。</span>
+          <span className="voiceprints__empty">{t.noMatch}</span>
         ) : (
           <ul className="voiceprints voiceprints--scroll">
             {shown.map((entry) => (
@@ -211,7 +208,7 @@ const VoiceprintListModal = ({
                 <span className="voiceprints__name">{entry.name}</span>
                 <span className="voiceprints__meta">{voiceprintSummary(entry)}</span>
                 <button type="button" disabled={busy} onClick={() => onRemove(entry.name)}>
-                  忘れる
+                  {t.forget}
                 </button>
               </li>
             ))}
@@ -226,10 +223,10 @@ const VoiceprintListModal = ({
 
         <div className="modal__actions modal__actions--split">
           <button type="button" disabled={busy} onClick={onClearAll}>
-            すべて忘れる
+            {t.forgetAll}
           </button>
           <button type="button" onClick={onClose}>
-            閉じる
+            {t.close}
           </button>
         </div>
       </div>

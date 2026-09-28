@@ -12,10 +12,14 @@ import {
   FakeRecordingRepository,
   FakeSettingsRepository
 } from './fakes'
+import type { MeetingLanguage } from '@domain/MeetingLanguage'
 
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
 
-const build = (settings = new FakeSettingsRepository()) => {
+const build = (
+  settings = new FakeSettingsRepository(),
+  fallbackLanguage: MeetingLanguage = 'ja'
+) => {
   const repository = new FakeRecordingRepository()
   const capture = new FakeAudioCapture()
   const artifacts = new FakeArtifactStore()
@@ -29,7 +33,8 @@ const build = (settings = new FakeSettingsRepository()) => {
     artifacts,
     calendar,
     clock,
-    ids: new FakeIdGenerator()
+    ids: new FakeIdGenerator(),
+    fallbackLanguage
   }
 
   return {
@@ -64,17 +69,17 @@ describe('StartRecording', () => {
   })
 
   it('保存先が未設定なら開始できない', async () => {
-    const ctxUnconfigured = build(new FakeSettingsRepository(defaultSettings()))
+    const ctxUnconfigured = build(new FakeSettingsRepository(defaultSettings('ja')))
 
     await expect(ctxUnconfigured.start.execute({})).rejects.toThrow(
-      '保存先が設定されていません。設定画面から保存先を選んでください。'
+      'storageNotConfigured'
     )
     expect(ctxUnconfigured.capture.isActive()).toBe(false)
   })
 
   it('すでに録音中なら二重に開始しない', async () => {
     await ctx.start.execute({})
-    await expect(ctx.start.execute({})).rejects.toThrow('すでに録音中です。')
+    await expect(ctx.start.execute({})).rejects.toThrow('alreadyRecording')
     expect(ctx.capture.startCalls).toHaveLength(1)
   })
 
@@ -102,9 +107,9 @@ describe('StartRecording（カレンダー連携）', () => {
 
   const withCalendar = (enabled: boolean) =>
     new FakeSettingsRepository({
-      ...defaultSettings(),
+      ...defaultSettings('ja'),
       storageDir: '/storage',
-      recording: { ...defaultSettings().recording, calendarEnabled: enabled }
+      recording: { ...defaultSettings('ja').recording, calendarEnabled: enabled }
     })
 
   beforeEach(() => {
@@ -142,6 +147,23 @@ describe('StartRecording（カレンダー連携）', () => {
 
     expect(recording.title).toBe('2026-09-06 14:30 の会議')
     expect(recording.participants).toBeUndefined()
+  })
+
+  it('英語の会議なら既定のタイトルも英語にする', async () => {
+    ctx.calendar.events = []
+    await ctx.settings.save({ transcription: { language: 'en' } })
+
+    const recording = await ctx.start.execute({})
+
+    expect(recording.title).toBe('Meeting on 2026-09-06 14:30')
+  })
+
+  it('空白だけのタイトルは既定のタイトルにする', async () => {
+    ctx.calendar.events = []
+
+    const recording = await ctx.start.execute({ title: '   ' })
+
+    expect(recording.title).toBe('2026-09-06 14:30 の会議')
   })
 
   it('設定で無効ならカレンダーを問い合わせない', async () => {
@@ -202,11 +224,11 @@ describe('StopRecording', () => {
   })
 
   it('録音中でなければ停止できない', async () => {
-    await expect(ctx.stop.execute('rec-1')).rejects.toThrow('録音中ではありません。')
+    await expect(ctx.stop.execute('rec-1')).rejects.toThrow('notRecording')
   })
 
   it('存在しない録音 ID なら停止できない', async () => {
     await ctx.start.execute({})
-    await expect(ctx.stop.execute('unknown')).rejects.toThrow('録音が見つかりません: unknown')
+    await expect(ctx.stop.execute('unknown')).rejects.toThrow('recordingNotFound')
   })
 })

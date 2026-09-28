@@ -12,6 +12,7 @@ import type { FolderKey } from './library/folders'
 import { initialSettingsSection, type SettingsSectionId } from './settingsSections'
 import { messageOf } from './errorMessage'
 import { importSummary } from './library/fileDrop'
+import { appText } from './i18n/app'
 import { useChat } from './hooks/useChat'
 import { useFileDrop } from './hooks/useFileDrop'
 import { useLibraryWidth } from './hooks/useLibraryWidth'
@@ -199,8 +200,10 @@ export const App = (): ReactElement => {
   }, [refreshFolders])
 
   if (!setup) {
-    return <main className="app app--loading">読み込み中…</main>
+    return <main className="app app--loading">{appText().loading}</main>
   }
+
+  const t = appText()
 
   return (
     <div className="app">
@@ -211,21 +214,21 @@ export const App = (): ReactElement => {
             className={screen === 'library' ? 'nav__link nav__link--active' : 'nav__link'}
             onClick={() => setScreen('library')}
           >
-            録音
+            {t.navRecordings}
           </button>
           <button
             type="button"
             className={screen === 'chat' ? 'nav__link nav__link--active' : 'nav__link'}
             onClick={() => setScreen('chat')}
           >
-            チャット
+            {t.navChat}
           </button>
           <button
             type="button"
             className={screen === 'settings' ? 'nav__link nav__link--active' : 'nav__link'}
             onClick={() => setScreen('settings')}
           >
-            設定
+            {t.navSettings}
           </button>
         </div>
       </nav>
@@ -274,14 +277,12 @@ export const App = (): ReactElement => {
           >
             {drop.active && (
               <div className="drop-overlay" aria-hidden="true">
-                <p className="drop-overlay__label">音声ファイルをドロップすると取り込みます</p>
+                <p className="drop-overlay__label">{t.dropOverlayLabel}</p>
               </div>
             )}
             {importing && (
               <p className="library__import-status" role="status">
-                音声を取り込んでいます…
-                {importing.total > 0 && ` ${importing.done}/${importing.total}`}
-                {importing.fileName && `（${importing.fileName}）`}
+                {t.importingStatus(importing.done, importing.total, importing.fileName)}
               </p>
             )}
 
@@ -291,7 +292,7 @@ export const App = (): ReactElement => {
                 <button
                   type="button"
                   onClick={() => setImportError(undefined)}
-                  aria-label="取り込みのエラーを閉じる"
+                  aria-label={t.dismissImportError}
                 >
                   ✕
                 </button>
@@ -349,7 +350,7 @@ export const App = (): ReactElement => {
               />
             ) : (
               <section className="detail detail--empty">
-                <p>左のライブラリから録音を選ぶと、文字起こし・要約・メモを表示します。</p>
+                <p>{t.detailEmpty}</p>
               </section>
             )}
           </div>

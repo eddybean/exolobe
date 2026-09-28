@@ -1,3 +1,5 @@
+import type { ErrorReason } from '@domain/errors'
+
 /**
  * 手元の音声ファイルを取り込めるかの判定。
  *
@@ -55,9 +57,6 @@ const UNREADABLE_EXTENSIONS: readonly string[] = [
   'wv'
 ]
 
-/** 利用者向けに挙げる代表的な形式。全部並べても読まれないので、よく使うものだけ。 */
-const SUGGESTED = 'mp3・m4a・wav・flac・ogg・aiff・caf'
-
 const fileNameOf = (path: string): string => path.split('/').pop() ?? path
 
 /** 小文字の拡張子（ドット無し）。無ければ空文字。 */
@@ -77,19 +76,14 @@ export const importTitleOf = (path: string): string => {
 }
 
 /** 取り込めない理由。取り込めるなら undefined。 */
-export const unsupportedImportReason = (path: string): string | undefined => {
+export const unsupportedImportReason = (path: string): ErrorReason | undefined => {
   const extension = extensionOf(path)
-  const name = fileNameOf(path)
+  const fileName = fileNameOf(path)
 
-  if (extension === '') {
-    return `「${name}」は拡張子が無いため音声形式を判別できませんでした。${SUGGESTED} などの拡張子を付けてからお試しください。`
-  }
-  if ((IMPORTABLE_EXTENSIONS as readonly string[]).includes(extension)) {
-    return undefined
-  }
+  if (extension === '') return { code: 'importNoExtension', fileName }
+  if ((IMPORTABLE_EXTENSIONS as readonly string[]).includes(extension)) return undefined
   if (UNREADABLE_EXTENSIONS.includes(extension)) {
-    return `「${name}」は .${extension} 形式です。この形式の音声はまだ取り込めません。${SUGGESTED} などに変換してからお試しください。`
+    return { code: 'importUnreadableFormat', fileName, extension }
   }
-
-  return `「${name}」は音声ファイルとして扱えません。取り込めるのは ${SUGGESTED} などです。`
+  return { code: 'importNotAudio', fileName }
 }

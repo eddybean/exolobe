@@ -168,7 +168,9 @@ describe('SherpaOnnxDiarizer', () => {
 
     await expect(
       new SherpaOnnxDiarizer(config, factory).diarize({ wavPath, maxSpeakers: 6 })
-    ).rejects.toThrow(/16000 Hz/)
+    ).rejects.toMatchObject({
+      reason: { code: 'diarizationSampleRate', modelRate: 16_000, recordingRate: 48_000 }
+    })
     expect(factory.session.received).toBeUndefined()
   })
 

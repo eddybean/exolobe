@@ -1,4 +1,5 @@
 import type { ImportAudioResultDto } from '@shared/ipc'
+import { libraryListText } from '../i18n/libraryList'
 
 /**
  * ウィンドウへ落とされた音声ファイルを受け取るための判定。
@@ -46,12 +47,14 @@ export const importSummary = (result: ImportAudioResultDto): string | undefined 
   const { failed } = result
   if (failed.length === 0) return undefined
 
+  const t = libraryListText()
   const only = failed[0]
   if (failed.length === 1 && only) {
-    return `「${only.fileName}」を取り込めませんでした。${only.reason}`
+    return t.importFailedOne(only.fileName, only.reason)
   }
 
-  return `${failed.length} 件を取り込めませんでした: ${failed
-    .map((failure) => failure.fileName)
-    .join('、')}`
+  return t.importFailedMany(
+    failed.length,
+    failed.map((failure) => failure.fileName)
+  )
 }

@@ -3,6 +3,8 @@ import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import { autoStartedMessage, startAlertMessage } from '@shared/startAlert'
 import type { Transport } from '../hooks/useTransport'
 import { formatDuration } from '../format'
+import { locale } from '../i18n/locale'
+import { transportText } from '../i18n/transport'
 
 /**
  * 画面下部に常時固定される操作バー。
@@ -18,6 +20,7 @@ export const TransportBar = ({
 }): ReactElement => {
   const { state, elapsedMs, level, busy, warning, silenceAlert, startAlert, autoStarted } = transport
   const active = state.active
+  const t = transportText()
 
   return (
     <footer className="transport">
@@ -26,13 +29,13 @@ export const TransportBar = ({
         className={active ? 'transport__button transport__button--stop' : 'transport__button'}
         onClick={() => void (active ? transport.stop() : transport.start())}
         disabled={busy}
-        aria-label={active ? '録音を停止' : '録音を開始'}
+        aria-label={active ? t.stopRecording : t.startRecording}
       >
         <span className={active ? 'transport__icon transport__icon--stop' : 'transport__icon'} />
-        {busy ? '処理中…' : active ? '停止' : '録音'}
+        {busy ? t.processing : active ? t.stop : t.record}
       </button>
       {shortcutEnabled && (
-        <kbd className="transport__shortcut" title="どのアプリを見ていても録音を開始・停止できます">
+        <kbd className="transport__shortcut" title={t.shortcutHint}>
           {RECORDING_SHORTCUT.label}
         </kbd>
       )}
@@ -45,7 +48,7 @@ export const TransportBar = ({
             <span className="transport__title">{state.title}</span>
           </>
         ) : (
-          <span className="transport__idle">待機中</span>
+          <span className="transport__idle">{t.idle}</span>
         )}
       </div>
 
@@ -62,15 +65,12 @@ export const TransportBar = ({
           ここで気づけるよう、応答するまで出し続ける。 */}
       {active && silenceAlert && (
         <div className="transport__silence" role="alert">
-          <span>
-            {Math.round(silenceAlert.silentDurationMs / 60_000)} 分以上、音が入っていません。
-            録音を停止しますか？
-          </span>
+          <span>{t.silenceAlert(Math.round(silenceAlert.silentDurationMs / 60_000))}</span>
           <button type="button" onClick={() => void transport.stop()} disabled={busy}>
-            停止する
+            {t.stopButton}
           </button>
           <button type="button" onClick={transport.keepRecording}>
-            続ける
+            {t.keepRecording}
           </button>
         </div>
       )}
@@ -78,12 +78,12 @@ export const TransportBar = ({
       {/* 自動で始めた録音の取り消し口（ADR-041）。通知を見逃しても、録音中はここから破棄できる。 */}
       {active && autoStarted && autoStarted.recordingId === state.recordingId && (
         <div className="transport__start-alert" role="alert">
-          <span>{autoStartedMessage(autoStarted.eventTitle)}</span>
+          <span>{autoStartedMessage(autoStarted.eventTitle, locale())}</span>
           <button type="button" onClick={() => void transport.discard()} disabled={busy}>
-            停止して破棄
+            {t.stopAndDiscard}
           </button>
           <button type="button" onClick={transport.keepAutoStarted}>
-            続ける
+            {t.keepRecording}
           </button>
         </div>
       )}
@@ -92,24 +92,24 @@ export const TransportBar = ({
           ここで気づけるよう、応答するまで出し続ける。 */}
       {!active && startAlert && (
         <div className="transport__start-alert" role="alert">
-          <span>{`${startAlertMessage(startAlert)}録音を開始しますか？`}</span>
+          <span>{`${startAlertMessage(startAlert, locale())}${t.startAlertSuffix}`}</span>
           <button type="button" onClick={() => void transport.start()} disabled={busy}>
-            録音する
+            {t.startNow}
           </button>
           <button type="button" onClick={transport.skipRecording}>
-            今はしない
+            {t.skipForNow}
           </button>
         </div>
       )}
 
-      <div className="transport__meter" title="入力レベル（マイク／デスクトップ音声）">
+      <div className="transport__meter" title={t.meterTitle}>
         <div className="transport__meter-fill" style={{ width: `${Math.round(level * 100)}%` }} />
       </div>
 
       {transport.error && (
         <div className="transport__error" role="alert">
           <span>{transport.error}</span>
-          <button type="button" onClick={transport.dismissError} aria-label="エラーを閉じる">
+          <button type="button" onClick={transport.dismissError} aria-label={t.dismissError}>
             ✕
           </button>
         </div>

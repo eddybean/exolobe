@@ -55,12 +55,12 @@ describe('CreateFolder', () => {
   it('存在しない親フォルダは指定できない', async () => {
     await expect(
       new CreateFolder(deps).execute({ name: '子', parentId: 'unknown' })
-    ).rejects.toThrow('親フォルダが見つかりません。')
+    ).rejects.toThrow('parentFolderNotFound')
   })
 
   it('空の名前は拒否する', async () => {
     await expect(new CreateFolder(deps).execute({ name: '  ' })).rejects.toThrow(
-      'フォルダ名を入力してください。'
+      'folderNameRequired'
     )
   })
 })
@@ -77,7 +77,7 @@ describe('RenameFolder', () => {
   it('存在しないフォルダは変更できない', async () => {
     await expect(
       new RenameFolder(deps).execute({ folderId: 'unknown', name: '新名' })
-    ).rejects.toThrow('フォルダが見つかりません。')
+    ).rejects.toThrow('folderNotFound')
   })
 })
 
@@ -108,13 +108,13 @@ describe('MoveFolder', () => {
 
   it('自分自身を親にはできない', async () => {
     await expect(new MoveFolder(deps).execute({ folderId: 'a', parentId: 'a' })).rejects.toThrow(
-      '自分自身や子孫フォルダの下には移動できません。'
+      'folderMoveIntoSelf'
     )
   })
 
   it('自分の子孫を親にはできない（循環防止）', async () => {
     await expect(new MoveFolder(deps).execute({ folderId: 'a', parentId: 'c' })).rejects.toThrow(
-      '自分自身や子孫フォルダの下には移動できません。'
+      'folderMoveIntoSelf'
     )
   })
 })
@@ -127,7 +127,7 @@ describe('DeleteFolder', () => {
       { id: 'c', name: 'C', parentId: 'b' }
     ])
     await recordings.save({
-      ...createRecording({ id: 'rec-x', startedAt }),
+      ...createRecording({ id: 'rec-x', startedAt, title: '会議' }),
       folderId: 'b'
     })
   })
@@ -157,7 +157,7 @@ describe('DeleteFolder', () => {
 
   it('存在しないフォルダは削除できない', async () => {
     await expect(new DeleteFolder(deps).execute({ folderId: 'unknown' })).rejects.toThrow(
-      'フォルダが見つかりません。'
+      'folderNotFound'
     )
   })
 })
@@ -165,7 +165,7 @@ describe('DeleteFolder', () => {
 describe('MoveRecordingToFolder', () => {
   beforeEach(async () => {
     await folders.replaceAll([{ id: 'f1', name: '議事録' }])
-    await recordings.save(createRecording({ id: 'rec-x', startedAt }))
+    await recordings.save(createRecording({ id: 'rec-x', startedAt, title: '会議' }))
   })
 
   it('録音をフォルダへ割り当てる', async () => {
@@ -179,7 +179,7 @@ describe('MoveRecordingToFolder', () => {
   })
 
   it('folderId を省略すると未分類に戻す', async () => {
-    await recordings.save({ ...createRecording({ id: 'rec-x', startedAt }), folderId: 'f1' })
+    await recordings.save({ ...createRecording({ id: 'rec-x', startedAt, title: '会議' }), folderId: 'f1' })
 
     const recording = await new MoveRecordingToFolder(deps).execute({
       recordingId: 'rec-x',
@@ -192,12 +192,12 @@ describe('MoveRecordingToFolder', () => {
   it('存在しないフォルダへは割り当てられない', async () => {
     await expect(
       new MoveRecordingToFolder(deps).execute({ recordingId: 'rec-x', folderId: 'unknown' })
-    ).rejects.toThrow('フォルダが見つかりません。')
+    ).rejects.toThrow('folderNotFound')
   })
 
   it('存在しない録音は割り当てられない', async () => {
     await expect(
       new MoveRecordingToFolder(deps).execute({ recordingId: 'unknown', folderId: 'f1' })
-    ).rejects.toThrow('録音が見つかりません: unknown')
+    ).rejects.toThrow('recordingNotFound')
   })
 })

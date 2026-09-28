@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   MAX_HISTORY_TURNS,
   answerNotice,
@@ -10,6 +10,7 @@ import {
   type ChatMessage
 } from '@renderer/chat/messages'
 import type { ChatCitationDto } from '@shared/ipc'
+import { setLocale } from '@renderer/i18n/locale'
 
 const user = (id: string, text: string): ChatMessage => ({
   id,
@@ -120,7 +121,7 @@ describe('completeMessage', () => {
       requestId: 'req-1',
       text: '答え',
       citations,
-      scopeLabel: '先週（08/31〜09/06）の 1 件',
+      scope: { rangeLabel: '先週（08/31〜09/06）', count: 1 },
       droppedCount: 0,
       truncated: false,
       aborted: false
@@ -128,6 +129,28 @@ describe('completeMessage', () => {
 
     expect(next[0]?.citations).toEqual(citations)
     expect(next[0]?.scopeLabel).toBe('先週（08/31〜09/06）の 1 件')
+  })
+
+})
+
+describe('completeMessage — 英語の対象表記', () => {
+  afterEach(() => setLocale('ja'))
+
+  it('範囲の言い回しに件数を添えて組む', () => {
+    setLocale('en')
+    const messages = [assistant('req-1', '', { streaming: true })]
+
+    const next = completeMessage(messages, {
+      requestId: 'req-1',
+      text: 'answer',
+      citations: [],
+      scope: { rangeLabel: 'last week (08/31–09/06)', count: 3 },
+      droppedCount: 0,
+      truncated: false,
+      aborted: false
+    })
+
+    expect(next[0]?.scopeLabel).toBe('last week (08/31–09/06) — 3 recordings')
   })
 })
 
@@ -299,6 +322,42 @@ describe('withInlineSources', () => {
   })
 })
 
+describe('withInlineSources — 英語表示', () => {
+  afterEach(() => setLocale('ja'))
+
+  const enCitations: ChatCitationDto[] = [
+    {
+      recordingId: 'rec-1',
+      title: 'Weekly Sync',
+      startedAt: '2026-09-04T05:00:00.000Z',
+      source: 'summary',
+      truncated: false
+    }
+  ]
+
+  it('丸括弧と英語の日付表記で組む', () => {
+    setLocale('en')
+    expect(withInlineSources('- Update the job posting [1]', enCitations)).toBe(
+      '- Update the job posting (Weekly Sync September 4)'
+    )
+  })
+
+  it('3 件以上は先頭だけ出し、単数と複数で言い方を変える', () => {
+    setLocale('en')
+    const many: ChatCitationDto[] = Array.from({ length: 8 }, (_unused, i) => ({
+      recordingId: `rec-${i}`,
+      title: `Meeting ${i + 1}`,
+      startedAt: '2026-09-04T05:00:00.000Z',
+      source: 'summary',
+      truncated: false
+    }))
+
+    expect(withInlineSources('- Share the minutes [1][2][3][4][5][6][7][8]', many)).toBe(
+      '- Share the minutes (Meeting 1 September 4 and 7 more)'
+    )
+  })
+})
+
 describe('completeMessage — 空の最終テキスト', () => {
   it('最終テキストが空なら、流れてきた本文を残す', () => {
     // prompt() の戻り値が空でも断片は届いていることがある。
@@ -387,5 +446,19 @@ describe('answerNotice', () => {
 
   it('質問には何も言わない', () => {
     expect(answerNotice(user('u1', '先週のTODOは？'))).toBeUndefined()
+  })
+})
+
+describe('answerNotice — 英語表示', () => {
+  afterEach(() => setLocale('ja'))
+
+  it('上限で切れた回答は英語で伝える', () => {
+    setLocale('en')
+    expect(answerNotice(assistant('req-1', 'partial', { truncated: true }))).toContain('cut off')
+  })
+
+  it('本文も理由も無い回答は英語で伝える', () => {
+    setLocale('en')
+    expect(answerNotice(assistant('req-1', ''))).toContain('No answer')
   })
 })

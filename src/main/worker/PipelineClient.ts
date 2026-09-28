@@ -4,6 +4,9 @@ import { app, utilityProcess } from 'electron'
 import { PIPELINE_STEPS, type PipelineStep } from '@domain/Recording'
 import type { ProgressEventDto, RecordingDto } from '@shared/ipc'
 import { isWorkerResponse } from './protocol'
+import { UI_LOCALE_ENV } from '@shared/i18n/locale'
+import { appLocale, text } from '../i18n'
+import { errorFromWorker } from './workerError'
 
 /** utilityProcess のうち、このクラスが使う部分だけ。テストで差し替えられるようにする。 */
 export interface PipelineWorker {
@@ -64,7 +67,7 @@ export class PipelineClient {
       { recordingId: params.recordingId, steps: new Set(steps) }
     )
 
-    if (!recording) throw new Error('処理の結果を受け取れませんでした。')
+    if (!recording) throw new Error(text().error.pipelineNoResult)
     return recording
   }
 
@@ -170,7 +173,7 @@ export class PipelineClient {
 
       if (message.type === 'done') job.resolve(message.recording)
       else if (message.type === 'voices-done') job.resolve(undefined)
-      else job.reject(new Error(message.message))
+      else job.reject(errorFromWorker(message))
 
       this.finish(worker)
     })
@@ -186,9 +189,7 @@ export class PipelineClient {
         .catch(() => undefined)
         .then(() => {
           // 失われるのは実行中のジョブだけ。待っていたジョブは新しいワーカーで続ける。
-          this.current?.job.reject(
-            new Error('処理プロセスが終了しました。詳細画面から失敗したステップを再実行してください。')
-          )
+          this.current?.job.reject(new Error(text().error.pipelineExited))
           this.finish(worker)
         })
     })
@@ -223,6 +224,7 @@ const forkPipelineWorker = (): PipelineWorker =>
     env: {
       ...process.env,
       OMR_USER_DATA: app.getPath('userData'),
+      [UI_LOCALE_ENV]: appLocale(),
       // 同梱した whisper-cli の場所。開発中は空になり PATH 上の物が使われる。
       ...(app.isPackaged ? { OMR_RESOURCES: process.resourcesPath } : {})
     },

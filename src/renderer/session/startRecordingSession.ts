@@ -1,5 +1,6 @@
 import type { MicCapture } from '../audio/micCapture'
 import { messageOf } from '../errorMessage'
+import { audioText } from '../i18n/audio'
 
 /**
  * 録音開始時の方針を、React から切り離して表したもの。
@@ -52,7 +53,7 @@ export const startRecordingSession = async (params: {
     return { micCapture }
   } catch (micError: unknown) {
     return {
-      warning: `${messageOf(micError)} 相手の音声のみで録音を続けます。`
+      warning: audioText().micFallbackWarning(messageOf(micError))
     }
   }
 }

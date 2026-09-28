@@ -1,0 +1,18 @@
+Exolobe — Read Me First
+========================================
+
+1. Drag "Exolobe" on the left onto the Applications folder on the right.
+
+2. This build is not signed with an Apple Developer certificate, so macOS
+   Gatekeeper quarantines it and it will not open as is. Open Terminal
+   (Applications → Utilities → Terminal) and run the following command once:
+
+       xattr -dr com.apple.quarantine "/Applications/Exolobe.app"
+
+3. The first time you open Exolobe, it asks for permission to use the
+   microphone and system audio. The microphone records what you say; system
+   audio records what the other participants say. Recording does not work
+   unless you allow both.
+
+Recording, transcription, speaker identification, and summarization all run
+only on this Mac. Neither audio nor text is sent anywhere.

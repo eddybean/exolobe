@@ -134,7 +134,7 @@ describe('summaryNotes', () => {
   ]
 
   it('メモも印も無ければ空文字（プロンプトに何も足さない）', () => {
-    expect(summaryNotes({ note: '  \n', marks: [], segments, speakers })).toBe('')
+    expect(summaryNotes({ note: '  \n', marks: [], segments, speakers, language: 'ja' })).toBe('')
   })
 
   it('メモを見出しつきで渡す', () => {
@@ -142,7 +142,8 @@ describe('summaryNotes', () => {
       note: '- [00:03:10] エクスポートは次スプリント',
       marks: [],
       segments,
-      speakers
+      speakers,
+      language: 'ja'
     })
     expect(text).toContain('会議中のメモ')
     expect(text).toContain('- [00:03:10] エクスポートは次スプリント')
@@ -150,7 +151,7 @@ describe('summaryNotes', () => {
   })
 
   it('印は、押した時点で話されていた発言を添えて渡す（4B のモデルに時刻の突き合わせをさせない）', () => {
-    const text = summaryNotes({ note: '', marks: [{ atMs: 872_000 }], segments, speakers })
+    const text = summaryNotes({ note: '', marks: [{ atMs: 872_000 }], segments, speakers, language: 'ja' })
     expect(text).toContain('印')
     expect(text).toContain('田中「告知は 10 月 15 日で確定です」')
     expect(text).not.toContain('はじめます')
@@ -158,12 +159,27 @@ describe('summaryNotes', () => {
   })
 
   it('押すのが少し遅れても直前の発言を拾う', () => {
-    const text = summaryNotes({ note: '', marks: [{ atMs: 885_000 }], segments, speakers })
+    const text = summaryNotes({ note: '', marks: [{ atMs: 885_000 }], segments, speakers, language: 'ja' })
     expect(text).toContain('告知は 10 月 15 日で確定です')
   })
 
+  it('英語の会議には英語の見出しと説明を付け、発言は英語の引用符で添える', () => {
+    const text = summaryNotes({
+      note: '- [00:03:10] Export ships next sprint',
+      marks: [{ atMs: 872_000 }],
+      segments,
+      speakers,
+      language: 'en'
+    })
+    expect(text).toContain('## Notes taken during the meeting')
+    expect(text).toContain('## Moments marked as important')
+    expect(text).toContain('田中: “告知は 10 月 15 日で確定です”')
+    expect(text).not.toContain('会議中のメモ')
+    expect(text).not.toContain('利用者')
+  })
+
   it('近くに発言が無い印は時刻だけ渡す', () => {
-    const text = summaryNotes({ note: '', marks: [{ atMs: 400_000 }], segments, speakers })
+    const text = summaryNotes({ note: '', marks: [{ atMs: 400_000 }], segments, speakers, language: 'ja' })
     expect(text).toContain('[06:40]')
   })
 })

@@ -1,4 +1,4 @@
-import { formatBytes } from '@domain/ModelCatalog'
+import type { ErrorReason, MemoryTask } from '@domain/errors'
 
 /**
  * 重い推論に入る前のメモリ判定。
@@ -26,8 +26,8 @@ export interface MemorySnapshot {
 
 export interface MemoryDemand {
   readonly bytes: number
-  /** 利用者に見せるステップ名。「要約」「文字起こし」。 */
-  readonly label: string
+  /** 何のための見積もりか。断ったときに利用者へ伝える。 */
+  readonly task: MemoryTask
 }
 
 const GB = 1_024 ** 3
@@ -99,12 +99,12 @@ const EMBEDDING_COMPUTE_BYTES = 0.5 * GB
 export const estimateEmbeddingBytes = (params: { modelFileBytes: number }): number =>
   params.modelFileBytes * EMBEDDING_OVERHEAD_RATIO + EMBEDDING_COMPUTE_BYTES
 
-/** 足りなければ利用者向けの理由を返す。足りていれば undefined。 */
+/** 足りなければ理由を返す。足りていれば undefined。 */
 export const insufficientMemory = (params: {
   snapshot: MemorySnapshot
   demand: MemoryDemand
   protection: MemoryProtection
-}): string | undefined => {
+}): ErrorReason | undefined => {
   const { snapshot, demand, protection } = params
 
   if (protection === 'off') return undefined
@@ -114,10 +114,10 @@ export const insufficientMemory = (params: {
   const required = demand.bytes + headroomBytes(protection, snapshot.totalBytes)
   if (snapshot.availableBytes >= required) return undefined
 
-  return [
-    `メモリが不足しているため${demand.label}を実行しませんでした`,
-    `（必要 約${formatBytes(required)} / 空き 約${formatBytes(snapshot.availableBytes)}）。`,
-    '他のアプリを終了してから再実行してください。',
-    '設定の「メモリ保護」で判定の厳しさを変えられます。'
-  ].join('')
+  return {
+    code: 'insufficientMemory',
+    task: demand.task,
+    requiredBytes: required,
+    availableBytes: snapshot.availableBytes
+  }
 }

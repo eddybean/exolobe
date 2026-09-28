@@ -139,12 +139,12 @@ describe('TrackMixer', () => {
         ],
         outputPath: join(dir, 'mix.wav')
       })
-    ).rejects.toThrow('サンプルレートが一致しません')
+    ).rejects.toThrow('mixSampleRateMismatch')
   })
 
   it('トラックが 1 つも無ければ失敗する', async () => {
     await expect(mixer.mix({ tracks: [], outputPath: join(dir, 'mix.wav') })).rejects.toThrow(
-      'ミックスするトラックがありません。'
+      'mixNoTracks'
     )
   })
 })

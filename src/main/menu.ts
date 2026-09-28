@@ -1,5 +1,6 @@
 import { Menu, app, shell, type MenuItemConstructorOptions } from 'electron'
 import type { TransportController } from './ipc/handlers'
+import { text } from './i18n'
 
 /**
  * アプリケーションメニュー。
@@ -21,27 +22,27 @@ export const createApplicationMenu = (
     const template: MenuItemConstructorOptions[] = [
       { role: 'appMenu' },
       {
-        label: '録音',
+        label: text().menu.recording,
         submenu: [
           {
-            label: '録音を開始',
+            label: text().menu.start,
             accelerator: 'CmdOrCtrl+R',
             enabled: !active,
             click: () => controller.request('start')
           },
           {
-            label: '録音を停止',
+            label: text().menu.stop,
             accelerator: 'CmdOrCtrl+.',
             enabled: active,
             click: () => controller.request('stop')
           },
           { type: 'separator' },
-          { label: 'ウィンドウを表示', accelerator: 'CmdOrCtrl+0', click: showWindow }
+          { label: text().menu.showWindow, accelerator: 'CmdOrCtrl+0', click: showWindow }
         ]
       },
       { role: 'editMenu' },
       {
-        label: '表示',
+        label: text().menu.view,
         submenu: [
           { role: 'reload' },
           { role: 'toggleDevTools' },
@@ -58,7 +59,7 @@ export const createApplicationMenu = (
         role: 'help',
         submenu: [
           {
-            label: 'ドキュメントを開く',
+            label: text().menu.openDocs,
             click: () => {
               void shell.openExternal(
                 'https://github.com/eddybean/exolobe/tree/main/docs'

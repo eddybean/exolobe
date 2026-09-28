@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   applyProgressEvent,
   estimateRemainingMs,
@@ -7,6 +7,11 @@ import {
   showsPipelineProgress,
   type ProgressSamples
 } from '@renderer/pipelineProgress'
+import { setLocale } from '@renderer/i18n/locale'
+
+afterEach(() => {
+  setLocale('ja')
+})
 
 /**
  * 処理状況は、処理中だけタイトル下のピルとして出す。失敗は各欄に出すので、
@@ -167,5 +172,51 @@ describe('formatRemaining', () => {
 
   it('1 分未満はそう書く', () => {
     expect(formatRemaining(20_000)).toBe('残り 1 分未満')
+  })
+})
+
+describe('英語ロケール', () => {
+  it('いま動いているステップを英語のステップ名で出す', () => {
+    setLocale('en')
+    expect(pipelinePillLabel(running('diarize'), undefined, undefined)).toBe(
+      'Speaker identification'
+    )
+  })
+
+  it('割合を添えるときは語順を変える（動名詞の「〜中」を作らない）', () => {
+    setLocale('en')
+    const sample = { step: 'transcribe', fraction: 0.62, firstFraction: 0.1, firstAtMs: 0 }
+
+    expect(pipelinePillLabel(running('transcribe'), sample, undefined)).toBe('Transcription 62%')
+  })
+
+  it('残り時間も英語で添える', () => {
+    setLocale('en')
+    expect(pipelinePillLabel(running('diarize'), undefined, 4 * 60_000)).toBe(
+      'Speaker identification · about 4 min left'
+    )
+  })
+
+  it('どのステップも動いていなければ Queued', () => {
+    setLocale('en')
+    const queued = {
+      mix: { status: 'pending' },
+      transcribe: { status: 'pending' },
+      diarize: { status: 'pending' },
+      summarize: { status: 'pending' },
+      encode: { status: 'pending' }
+    }
+
+    expect(pipelinePillLabel(queued, undefined, undefined)).toBe('Queued')
+  })
+
+  it('残り時間を分単位で切り上げる', () => {
+    setLocale('en')
+    expect(formatRemaining(125_000)).toBe('about 3 min left')
+  })
+
+  it('1 分未満はそう書く', () => {
+    setLocale('en')
+    expect(formatRemaining(20_000)).toBe('Less than 1 min left')
   })
 })

@@ -83,9 +83,10 @@ export class SherpaOnnxSpeakerEmbedder implements SpeakerEmbeddingPort {
       }
       return result
     } catch (error: unknown) {
-      throw new SpeakerEmbeddingError(`声紋の抽出に失敗しました: ${toMessage(error)}`, {
-        cause: error
-      })
+      throw new SpeakerEmbeddingError(
+        { code: 'speakerEmbeddingFailed', detail: toMessage(error) },
+        { cause: error }
+      )
     } finally {
       session.dispose()
     }

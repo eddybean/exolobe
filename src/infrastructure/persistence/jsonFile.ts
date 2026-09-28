@@ -83,9 +83,7 @@ export const replaceVersionedJson = async (
   value: Record<string, unknown>
 ): Promise<void> => {
   if (previous.kind === 'ok' && schemaVersionOf(previous.value) > version) {
-    throw new StorageError(
-      `${basename(path)} は新しい版の Exolobe で保存されています。アプリを更新してください。`
-    )
+    throw new StorageError({ code: 'storageNewerVersion', fileName: basename(path) })
   }
   // 番号は先頭に置く。手で開いたときに最初に目に入るように。
   await replaceStoredJson(path, previous, {

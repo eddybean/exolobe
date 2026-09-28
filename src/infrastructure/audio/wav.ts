@@ -82,7 +82,7 @@ export class WavFileWriter {
   }
 
   async write(chunk: Buffer): Promise<void> {
-    if (this.closed) throw new WavFormatError('クローズ済みの WAV には書き込めません。')
+    if (this.closed) throw new WavFormatError({ code: 'wavClosed' })
     if (chunk.length === 0) return
 
     await this.handle.write(chunk, 0, chunk.length, HEADER_BYTES + this.dataBytes)
@@ -119,15 +119,15 @@ export const readWav = async (path: string): Promise<WavData> => {
   const raw = await readFile(path)
 
   if (raw.length < HEADER_BYTES || raw.toString('ascii', 0, 4) !== 'RIFF') {
-    throw new WavFormatError(`WAV ファイルとして読み取れません: ${path}`)
+    throw new WavFormatError({ code: 'wavUnreadable', path })
   }
   if (raw.toString('ascii', 8, 12) !== 'WAVE') {
-    throw new WavFormatError(`WAV ファイルとして読み取れません: ${path}`)
+    throw new WavFormatError({ code: 'wavUnreadable', path })
   }
 
   const bitsPerSample = raw.readUInt16LE(34)
   if (bitsPerSample !== 16) {
-    throw new WavFormatError(`16bit PCM のみ対応しています（${bitsPerSample}bit）: ${path}`)
+    throw new WavFormatError({ code: 'wavUnsupportedBits', bits: bitsPerSample, path })
   }
 
   const { offset, size } = findDataChunk(raw, path)
@@ -163,7 +163,7 @@ const findChunk = (
     cursor += 8 + size + (size % 2)
   }
 
-  throw new WavFormatError(`${id} チャンクが見つかりません: ${path}`)
+  throw new WavFormatError({ code: 'wavChunkMissing', chunk: id, path })
 }
 
 const findDataChunk = (raw: Buffer, path: string): { offset: number; size: number } =>
@@ -196,10 +196,10 @@ export const wavDurationMs = async (path: string): Promise<number> => {
     const raw = head.subarray(0, bytesRead)
 
     if (raw.length < HEADER_BYTES || raw.toString('ascii', 0, 4) !== 'RIFF') {
-      throw new WavFormatError(`WAV ファイルとして読み取れません: ${path}`)
+      throw new WavFormatError({ code: 'wavUnreadable', path })
     }
     if (raw.toString('ascii', 8, 12) !== 'WAVE') {
-      throw new WavFormatError(`WAV ファイルとして読み取れません: ${path}`)
+      throw new WavFormatError({ code: 'wavUnreadable', path })
     }
 
     const { channels, sampleRate, bitsPerSample } = readFormatChunk(raw, path)

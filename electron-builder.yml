@@ -30,6 +30,18 @@ extraResources:
     to: bin
     filter:
       - '**/*'
+  # 許可ダイアログの文言を UI の言語で出す（ADR-043）。Contents/Resources/<言語>.lproj に置く。
+  - from: build/lproj
+    to: .
+    filter:
+      - '**/*.strings'
+
+# Electron が持ち込む数十言語の .lproj を、対応している言語だけに絞る。macOS は .lproj の
+# 有無でアプリの言語を選ぶので、残したままだと例えばドイツ語の人に「ドイツ語のアプリ」と
+# 判定され、Electron のメニュー（編集・ウィンドウ）だけがドイツ語になる。
+electronLanguages:
+  - en
+  - ja
 
 # ネイティブモジュールは asar の中からは読み込めないため展開して置く。
 asarUnpack:
@@ -51,12 +63,16 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
+    # 対応していない言語の人に出す言語。UI の言語を決める規則（優先言語に無ければ英語）と揃える。
+    CFBundleDevelopmentRegion: en
+    # 許可の説明文。ここは基底（英語）で、言語ごとの文言は build/lproj の InfoPlist.strings に置く
+    # （ADR-043）。tests/scripts/info-plist-strings.test.ts が英語版との一致を確かめる。
     # Core Audio Process Tap の権限。署名済みバイナリでのみ有効になる。
-    NSAudioCaptureUsageDescription: 会議相手の音声を録音するためにシステム音声を取得します。
-    NSMicrophoneUsageDescription: 会議中のあなたの発言を録音するためにマイクを使用します。
+    NSAudioCaptureUsageDescription: Exolobe captures system audio to record what the other participants say in your meetings.
+    NSMicrophoneUsageDescription: Exolobe uses the microphone to record what you say in your meetings.
     # カレンダー連携（ADR-040）。同梱の calendarevents の問い合わせもアプリに帰属する。
     # macOS 14 以降は FullAccess のキーを見る（旧 NSCalendarsUsageDescription は 14 未満向けで不要）。
-    NSCalendarsFullAccessUsageDescription: 録音の開始時刻に重なる予定から、タイトルと参加者名を埋めるためにカレンダーを読みます。
+    NSCalendarsFullAccessUsageDescription: Exolobe reads your calendar to fill in the title and participant names from the event that overlaps when a recording starts.
     LSMinimumSystemVersion: '14.2'
 
 dmg:
@@ -75,7 +91,12 @@ dmg:
       y: 220
       type: link
       path: /Applications
-    - x: 270
+    # 日本語と英語の案内を並べる。どちらの言語の人も最初に目に入るように。
+    - x: 180
       y: 335
       type: file
       path: build/dmg/はじめにお読みください.txt
+    - x: 360
+      y: 335
+      type: file
+      path: build/dmg/READ ME FIRST.txt

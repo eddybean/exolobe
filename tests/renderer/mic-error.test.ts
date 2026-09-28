@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   MicDeviceMissingError,
   MicPermissionError,
   MicUnavailableError,
   describeMicFailure
 } from '@renderer/audio/micErrors'
+import { setLocale } from '@renderer/i18n/locale'
 
 /** getUserMedia が投げる DOMException を name だけ再現する。 */
 const domError = (name: string): Error => {
@@ -79,5 +80,23 @@ describe('describeMicFailure', () => {
   it('原因を cause として保持する', () => {
     const cause = domError('NotFoundError')
     expect(describeMicFailure(cause).cause).toBe(cause)
+  })
+})
+
+describe('英語の UI', () => {
+  afterEach(() => setLocale('ja'))
+
+  it('デバイス不明・権限拒否・未知の失敗を英語で組み立てる', () => {
+    setLocale('en')
+
+    const missing = describeMicFailure(domError('NotFoundError'))
+    expect(missing.message).toContain('No microphone was found')
+    expect(missing.message).not.toContain('Privacy')
+
+    const denied = describeMicFailure(domError('NotAllowedError'))
+    expect(denied.message).toContain('Privacy & Security')
+
+    const unknown = describeMicFailure(new Error('something is wrong'))
+    expect(unknown.message).toContain('something is wrong')
   })
 })

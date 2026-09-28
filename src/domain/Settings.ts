@@ -1,3 +1,5 @@
+import type { SettingsProblem } from '@domain/errors'
+import { meetingLanguageOf, type MeetingLanguage } from '@domain/MeetingLanguage'
 import { isMemoryProtection, type MemoryProtection } from '@domain/MemoryGuard'
 import { VOICEPRINT_MATCH_THRESHOLD } from '@domain/Voiceprint'
 
@@ -31,6 +33,59 @@ export const DEFAULT_SUMMARY_PROMPT = [
   '---',
   TRANSCRIPT_PLACEHOLDER
 ].join('\n')
+
+/** 英語の会議の既定。見出しの構成は日本語版と揃える（チャットが節を見出しの語で探すため）。 */
+export const DEFAULT_SUMMARY_PROMPT_EN = [
+  'You write meeting minutes. Write the minutes in English from the transcript below.',
+  '',
+  'Follow this Markdown heading structure exactly.',
+  '## Overview',
+  '## Decisions',
+  '## To-dos (include the owner and due date when known)',
+  '## Discussion',
+  '',
+  'Do not guess anything that is not in the transcript; write "Unknown" where something is unclear.',
+  '',
+  NOTES_PLACEHOLDER,
+  '',
+  '---',
+  TRANSCRIPT_PLACEHOLDER
+].join('\n')
+
+const DEFAULT_SUMMARY_PROMPTS: Readonly<Record<MeetingLanguage, string>> = {
+  ja: DEFAULT_SUMMARY_PROMPT,
+  en: DEFAULT_SUMMARY_PROMPT_EN
+}
+
+/**
+ * 同梱の既定プロンプトのままか。
+ *
+ * 保存される設定には既定かどうかの印が無く、全文が入っている。既定の全文と一致するものを
+ * 「利用者が書いていない」とみなす。編集欄を触っただけで末尾の空白が変わることがあるので、
+ * 前後の空白は無視する。
+ */
+export const isDefaultSummaryPrompt = (template: string): boolean =>
+  Object.values(DEFAULT_SUMMARY_PROMPTS).some((prompt) => prompt === template.trim())
+
+/**
+ * 会議の言語で使う要約プロンプト（ADR-043）。
+ *
+ * 既定のままなら会議の言語の既定に差し替える。日本語の既定には「日本語で」と書いてあり、
+ * 英語の会議の要約まで日本語になる。利用者が書き換えたプロンプトは、書いたとおりに使う。
+ */
+export const summaryPromptFor = (template: string, language: MeetingLanguage): string =>
+  isDefaultSummaryPrompt(template) ? DEFAULT_SUMMARY_PROMPTS[language] : template
+
+/**
+ * 設定から、要約に使うプロンプトを決める。設定画面の編集欄と要約の実行で同じものを見せるため。
+ *
+ * @param uiLanguage 文字起こしの言語が自動判定のときに従う UI の言語
+ */
+export const settingsSummaryPrompt = (settings: Settings, uiLanguage: MeetingLanguage): string =>
+  summaryPromptFor(
+    settings.summarization.promptTemplate,
+    meetingLanguageOf(settings.transcription.language, uiLanguage)
+  )
 
 /**
  * 話者分割のクラスタリングで「同じ人」とみなす距離の上限。
@@ -198,7 +253,11 @@ export type SettingsPatch = {
   readonly chat?: Partial<ChatSettings>
 }
 
-export const defaultSettings = (): Settings => ({
+/**
+ * 既定の設定。`language` は新しく入れた人の文字起こしの言語で、UI の言語を渡す（ADR-043）。
+ * settings.json は全体を保存するので、一度保存した人の言語は OS の言語を変えても動かない。
+ */
+export const defaultSettings = (language: MeetingLanguage): Settings => ({
   storageDir: null,
   memoryProtection: 'standard',
   recording: {
@@ -216,7 +275,7 @@ export const defaultSettings = (): Settings => ({
     provider: 'whisper-cpp',
     binaryPath: 'whisper-cli',
     modelPath: '',
-    language: 'ja',
+    language,
     vadEnabled: true,
     vadModelPath: '',
     glossary: []
@@ -228,7 +287,7 @@ export const defaultSettings = (): Settings => ({
     // 食うため 32K に留める。16kHz 1 時間の会議でも分割せず 1 回で要約でき、
     // 分割による文脈の途切れを避けられる。
     contextSize: 32_768,
-    promptTemplate: DEFAULT_SUMMARY_PROMPT
+    promptTemplate: DEFAULT_SUMMARY_PROMPTS[language]
   },
   diarization: {
     enabled: true,
@@ -279,54 +338,35 @@ export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings =>
   chat: mergeGroup(base.chat, patch.chat)
 })
 
-/** 保存前に呼ぶ。問題があればユーザー向けメッセージの配列を返す。 */
-export const validateSettings = (settings: Settings): string[] => {
-  const errors: string[] = []
+/** 保存前に呼ぶ。問題があれば、その種類を並べて返す（文言は表示側が引く）。 */
+export const validateSettings = (settings: Settings): SettingsProblem[] => {
+  const problems: SettingsProblem[] = []
 
-  if (!SUPPORTED_SAMPLE_RATES.includes(settings.audio.sampleRate)) {
-    errors.push(
-      `サンプルレートは ${SUPPORTED_SAMPLE_RATES.join(', ')} のいずれかを指定してください。`
-    )
-  }
-  if (settings.audio.bitrateKbps <= 0) {
-    errors.push('ビットレートは 1kbps 以上を指定してください。')
-  }
-  if (settings.recording.silenceDurationMs < 60_000) {
-    errors.push('無音を知らせるまでの時間は 1 分以上を指定してください。')
-  }
-  if (settings.recording.startAlertDelayMs < 30_000) {
-    errors.push('録音を促すまでの時間は 30 秒以上を指定してください。')
-  }
-  if (settings.diarization.maxSpeakers < 2) {
-    errors.push('話者数の上限は 2 以上を指定してください。')
-  }
+  if (!SUPPORTED_SAMPLE_RATES.includes(settings.audio.sampleRate)) problems.push('sampleRate')
+  if (settings.audio.bitrateKbps <= 0) problems.push('bitrate')
+  if (settings.recording.silenceDurationMs < 60_000) problems.push('silenceDuration')
+  if (settings.recording.startAlertDelayMs < 30_000) problems.push('startAlertDelay')
+  if (settings.diarization.maxSpeakers < 2) problems.push('maxSpeakers')
   if (
     settings.diarization.voiceprintThreshold <= 0 ||
     settings.diarization.voiceprintThreshold > 1
   ) {
-    errors.push('声紋の一致閾値は 0 より大きく 1 以下の値を指定してください。')
+    problems.push('voiceprintThreshold')
   }
   if (
     settings.diarization.clusteringThreshold <= 0 ||
     settings.diarization.clusteringThreshold > 1
   ) {
-    errors.push('話者を分ける近さは 0 より大きく 1 以下の値を指定してください。')
+    problems.push('clusteringThreshold')
   }
-  if (!isMemoryProtection(settings.memoryProtection)) {
-    errors.push('メモリ保護は「保守的」「標準」「オフ」のいずれかを指定してください。')
-  }
-  if (settings.summarization.contextSize < 1_024) {
-    errors.push('要約モデルのコンテキスト長は 1024 以上を指定してください。')
-  }
+  if (!isMemoryProtection(settings.memoryProtection)) problems.push('memoryProtection')
+  if (settings.summarization.contextSize < 1_024) problems.push('contextSize')
   if (!settings.summarization.promptTemplate.includes(TRANSCRIPT_PLACEHOLDER)) {
-    errors.push(
-      `要約プロンプトには文字起こしの差し込み位置 ${TRANSCRIPT_PLACEHOLDER} を含めてください。`
-    )
+    problems.push('promptPlaceholder')
   }
-
   if (settings.chat.maxRecordings < 1 || settings.chat.maxRecordings > 30) {
-    errors.push('チャットで参照する録音の件数は 1〜30 の範囲で指定してください。')
+    problems.push('chatMaxRecordings')
   }
 
-  return errors
+  return problems
 }

@@ -14,7 +14,7 @@ export const createFolder = (params: {
 }): Folder => {
   const name = params.name.trim()
   if (name.length === 0) {
-    throw new ConfigurationError('フォルダ名を入力してください。')
+    throw new ConfigurationError({ code: 'folderNameRequired' })
   }
 
   return {

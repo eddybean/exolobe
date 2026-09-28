@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import type { SearchHitDto } from '@shared/ipc'
 import { formatDateTime } from '../format'
+import { libraryListText } from '../i18n/libraryList'
 import { hitLocation } from '../library/semanticSearch'
 
 export type SemanticSearchState =
@@ -23,8 +24,9 @@ export const SemanticSearchResults = ({
   selectedId: string | undefined
   onSelect: (id: string) => void
 }): ReactElement => {
+  const t = libraryListText()
   if (state.kind === 'searching') {
-    return <p className="tree__empty">検索しています…</p>
+    return <p className="tree__empty">{t.semanticSearching}</p>
   }
   if (state.kind === 'error') {
     return (
@@ -34,11 +36,7 @@ export const SemanticSearchResults = ({
     )
   }
   if (state.hits.length === 0) {
-    return (
-      <p className="tree__empty">
-        近い内容の録音が見つかりませんでした。言い方を変えて試してください。
-      </p>
-    )
+    return <p className="tree__empty">{t.semanticNoHits}</p>
   }
 
   return (
@@ -56,9 +54,7 @@ export const SemanticSearchResults = ({
             title={hit.title}
           >
             <span className="semantic__title">{hit.title}</span>
-            <span className="semantic__meta">
-              {formatDateTime(hit.startedAt)} ・ {hitLocation(hit)}
-            </span>
+            <span className="semantic__meta">{t.joinMeta(formatDateTime(hit.startedAt), hitLocation(hit))}</span>
             {hit.excerpt && <span className="semantic__excerpt">{hit.excerpt}</span>}
           </button>
         </li>

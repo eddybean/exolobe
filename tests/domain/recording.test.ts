@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   PIPELINE_STEPS,
   createRecording,
+  defaultTitle,
   failStep,
   finishRecording,
   initialStepStates,
@@ -20,21 +21,29 @@ const startedAt = new Date('2026-09-06T14:30:00+09:00')
 
 describe('createRecording', () => {
   it('録音中の状態と全ステップ pending で開始する', () => {
-    const recording = createRecording({ id: 'r1', startedAt })
+    const recording = createRecording({ id: 'r1', startedAt, title: '会議' })
 
     expect(recording.status).toBe('recording')
     expect(recording.durationMs).toBe(0)
     expect(Object.values(recording.steps).every((s) => s.status === 'pending')).toBe(true)
   })
 
-  it('タイトル未指定なら開始日時から既定タイトルを付ける', () => {
-    expect(createRecording({ id: 'r1', startedAt }).title).toBe('2026-09-06 14:30 の会議')
+  it('渡されたタイトルを使う', () => {
+    expect(createRecording({ id: 'r1', startedAt, title: '週次定例' }).title).toBe('週次定例')
+  })
+})
+
+/** 既定のタイトルは会議の言語で付ける。一覧と要約の見出しに残る（ADR-043）。 */
+describe('defaultTitle', () => {
+  it('開始日時から付ける', () => {
+    expect(defaultTitle(startedAt, 'ja')).toBe('2026-09-06 14:30 の会議')
+    expect(defaultTitle(startedAt, 'en')).toBe('Meeting on 2026-09-06 14:30')
   })
 })
 
 describe('finishRecording', () => {
   it('録音時間を確定して処理中へ遷移する', () => {
-    const recording = finishRecording(createRecording({ id: 'r1', startedAt }), 65_000)
+    const recording = finishRecording(createRecording({ id: 'r1', startedAt, title: '会議' }), 65_000)
 
     expect(recording.status).toBe('processing')
     expect(recording.durationMs).toBe(65_000)
@@ -42,7 +51,7 @@ describe('finishRecording', () => {
 })
 
 describe('ステップの状態遷移', () => {
-  const processing = finishRecording(createRecording({ id: 'r1', startedAt }), 1000)
+  const processing = finishRecording(createRecording({ id: 'r1', startedAt, title: '会議' }), 1000)
 
   it('nextPendingStep は定義順に未実行のステップを返す', () => {
     expect(nextPendingStep(processing.steps)).toBe(PIPELINE_STEPS[0])
@@ -87,6 +96,30 @@ describe('ステップの状態遷移', () => {
   })
 })
 
+describe('failStep', () => {
+  it('理由の無い失敗は元のメッセージだけを残す', () => {
+    expect(failStep(initialStepStates(), 'mix', 'ENOENT').mix).toEqual({
+      status: 'failed',
+      error: 'ENOENT'
+    })
+  })
+
+  /**
+   * 文言ではなく理由を残し、表示のたびに UI の言語で引く（ADR-043）。error にはコードを残し、
+   * 理由を知らない古い版で開いても空欄にならないようにする。
+   */
+  it('理由のある失敗はコードと理由を残す', () => {
+    expect(
+      failStep(initialStepStates(), 'diarize', { code: 'stepBlocked', blocker: 'transcribe' })
+        .diarize
+    ).toEqual({
+      status: 'failed',
+      error: 'stepBlocked',
+      reason: { code: 'stepBlocked', blocker: 'transcribe' }
+    })
+  })
+})
+
 describe('interruptSteps', () => {
   it('実行中のまま残ったステップを失敗にし、他のステップには触れない', () => {
     const steps = startStep(
@@ -94,9 +127,13 @@ describe('interruptSteps', () => {
       'summarize'
     )
 
-    const interrupted = interruptSteps(steps, 'プロセスが終了しました')
+    const interrupted = interruptSteps(steps)
 
-    expect(interrupted.summarize).toEqual({ status: 'failed', error: 'プロセスが終了しました' })
+    expect(interrupted.summarize).toEqual({
+      status: 'failed',
+      error: 'stepInterrupted',
+      reason: { code: 'stepInterrupted' }
+    })
     expect(interrupted.mix).toEqual({ status: 'done' })
     expect(interrupted.diarize).toEqual({ status: 'failed', error: '前の失敗' })
     expect(interrupted.encode).toEqual({ status: 'pending' })
@@ -111,22 +148,22 @@ describe('transcriptEditBlocker', () => {
   })
 
   it('文字起こしの最中は理由を返す', () => {
-    expect(transcriptEditBlocker(startStep(initialStepStates(), 'transcribe'))).toBe(
-      '文字起こしが終わるまでお待ちください。'
+    expect(transcriptEditBlocker(startStep(initialStepStates(), 'transcribe'))).toEqual(
+      { code: 'transcriptEditBlocked', step: 'transcribe' }
     )
   })
 
   it('話者識別の最中は理由を返す', () => {
-    expect(transcriptEditBlocker(startStep(initialStepStates(), 'diarize'))).toBe(
-      '話者識別が終わるまでお待ちください。'
+    expect(transcriptEditBlocker(startStep(initialStepStates(), 'diarize'))).toEqual(
+      { code: 'transcriptEditBlocked', step: 'diarize' }
     )
   })
 })
 
 describe('tooShortRecording', () => {
   it('1 分に満たない録音は理由を返す', () => {
-    expect(tooShortRecording(59_999)).toBe(
-      '録音時間が 59 秒しかありません。1 分未満の録音は処理しません。'
+    expect(tooShortRecording(59_999)).toEqual(
+      { code: 'tooShortRecording', seconds: 59 }
     )
   })
 
@@ -135,8 +172,8 @@ describe('tooShortRecording', () => {
   })
 
   it('押し間違えて即停止した録音も理由を返す', () => {
-    expect(tooShortRecording(0)).toBe(
-      '録音時間が 0 秒しかありません。1 分未満の録音は処理しません。'
+    expect(tooShortRecording(0)).toEqual(
+      { code: 'tooShortRecording', seconds: 0 }
     )
   })
 

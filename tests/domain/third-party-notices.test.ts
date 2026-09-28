@@ -23,6 +23,17 @@ describe('第三者ソフトウェアの表記', () => {
     expect(grouped).toEqual([...THIRD_PARTY_NOTICES])
   })
 
+  /** 説明の文言は画面が UI の言語で引く（ADR-043）。原文のまま載せる法的な表記だけを持つ。 */
+  it('表記のデータに日本語の文言を持たない', () => {
+    const japanese = /[\u3040-\u30ff\u3400-\u9fff\uff08\uff09]/
+    const texts = [
+      ...THIRD_PARTY_NOTICES.flatMap((notice) => [notice.name, notice.requiredNotice ?? '']),
+      ...NOTICE_GROUPS.map((group) => group.id)
+    ]
+
+    expect(texts.filter((text) => japanese.test(text))).toEqual([])
+  })
+
   it('名前が重複しない', () => {
     const names = THIRD_PARTY_NOTICES.map((notice) => notice.name)
 

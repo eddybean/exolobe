@@ -49,7 +49,7 @@ beforeEach(async () => {
   embedder = new FakeTextEmbedder()
   system = new FakeSystemResource()
   settings = new FakeSettingsRepository({
-    ...defaultSettings(),
+    ...defaultSettings('ja'),
     storageDir: '/storage',
     search: { enabled: true, modelPath: MODEL_PATH }
   })
@@ -173,7 +173,7 @@ describe('SyncSearchIndex', () => {
   it('メモリが足りなければ埋め込まずに理由を伝える', async () => {
     system.snapshot = { totalBytes: 8 * 1_024 ** 3, availableBytes: 1 * 1_024 ** 3 }
 
-    await expect(sync().execute()).rejects.toThrow('メモリが不足しているため意味検索の索引作成を')
+    await expect(sync().execute()).rejects.toThrow('insufficientMemory')
     expect(embedder.calls).toEqual([])
   })
 
@@ -257,7 +257,7 @@ describe('SearchRecordings', () => {
     system.snapshot = { totalBytes: 8 * 1_024 ** 3, availableBytes: 1 * 1_024 ** 3 }
 
     await expect(search().execute({ query: '雨の話' })).rejects.toThrow(
-      'メモリが不足しているため意味検索を'
+      'insufficientMemory'
     )
     expect(embedder.calls).toEqual([])
   })

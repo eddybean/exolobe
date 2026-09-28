@@ -32,11 +32,16 @@ export const formatGlossary = (terms: readonly string[]): string => terms.join('
 /**
  * 用語集を whisper に渡す 1 文にする。用語が無ければ空文字（＝渡さない合図）。
  *
- * 読点でつなぐだけの列挙にする。説明文を添えると、その文体まで文字起こしに移る。
+ * 区切りでつなぐだけの列挙にする。説明文を添えると、その文体まで文字起こしに移る。
+ * 区切りの記号も文字起こしに移るので、英語の会議ではカンマとピリオドにする。自動判定では
+ * 従来どおり読点にし、日本語の会議の結果を変えない。
+ *
+ * @param language whisper に渡す文字起こしの言語（`auto` を含む）
  */
-export const glossaryPrompt = (terms: readonly string[]): string => {
+export const glossaryPrompt = (terms: readonly string[], language: string): string => {
+  const [separator, end] = language === 'en' ? [', ', '.'] : ['、', '。']
   const sentence = (included: readonly string[]): string =>
-    included.length === 0 ? '' : `${included.join('、')}。`
+    included.length === 0 ? '' : `${included.join(separator)}${end}`
 
   const accepted: string[] = []
   for (const term of terms) {

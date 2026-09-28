@@ -4,12 +4,13 @@ import {
   DEFAULT_CHAT_PROMPT,
   DEFAULT_CHAT_SYSTEM_PROMPT,
   QUESTION_PLACEHOLDER,
+  chatPrompts,
   renderChatPrompt
 } from '@domain/ChatPrompt'
 
 describe('renderChatPrompt', () => {
   it('文脈と質問を差し込み位置に入れる', () => {
-    const prompt = renderChatPrompt(DEFAULT_CHAT_PROMPT, {
+    const prompt = renderChatPrompt(DEFAULT_CHAT_PROMPT, 'ja', {
       context: '## [1] 2026-09-08（火） 週次定例\n（要約）\n- 見積もりは来週',
       question: '先週のTODOをまとめて'
     })
@@ -21,7 +22,7 @@ describe('renderChatPrompt', () => {
   })
 
   it('差し込み位置が無いテンプレートでも文脈と質問を落とさない', () => {
-    const prompt = renderChatPrompt('会議記録を読んで答えてください。', {
+    const prompt = renderChatPrompt('会議記録を読んで答えてください。', 'ja', {
       context: '文脈です',
       question: '質問です'
     })
@@ -31,7 +32,7 @@ describe('renderChatPrompt', () => {
   })
 
   it('文脈が空なら、記録が無いことをはっきり伝える', () => {
-    const prompt = renderChatPrompt(DEFAULT_CHAT_PROMPT, { context: '', question: '先週のTODO' })
+    const prompt = renderChatPrompt(DEFAULT_CHAT_PROMPT, 'ja', { context: '', question: '先週のTODO' })
 
     expect(prompt).toContain('該当する会議の記録はありません')
     expect(prompt).toContain('先週のTODO')
@@ -66,5 +67,39 @@ describe('出力の形の指示', () => {
 
   it('会議の名前や日付はモデルに書かせない（番号から画面で補う）', () => {
     expect(DEFAULT_CHAT_SYSTEM_PROMPT).toContain('会議の名前や日付は書かない')
+  })
+})
+
+/**
+ * 英語の問いには英語の指示文で答えさせる。出力の契約（文脈だけを根拠にする・[1] で引用する）は
+ * 言語が違っても同じでなければならない。画面の引用表示がそれに依存する（ADR-032）。
+ */
+describe('英語の指示文', () => {
+  const en = chatPrompts('en')
+
+  it('日本語の既定を返す', () => {
+    expect(chatPrompts('ja')).toEqual({
+      system: DEFAULT_CHAT_SYSTEM_PROMPT,
+      prompt: DEFAULT_CHAT_PROMPT
+    })
+  })
+
+  it('文脈だけを根拠にすることと、番号での引用を求める', () => {
+    expect(en.system).toContain('[1]')
+    expect(en.system).toMatch(/only/i)
+    expect(en.system).not.toMatch(/[\u3040-\u30ff]/)
+  })
+
+  it('両方の差し込み位置を持ち、英語で答えるよう求める', () => {
+    expect(en.prompt).toContain(CONTEXT_PLACEHOLDER)
+    expect(en.prompt).toContain(QUESTION_PLACEHOLDER)
+    expect(en.prompt).toContain('in English')
+  })
+
+  it('文脈が空なら、記録が無いことを英語で伝える', () => {
+    const prompt = renderChatPrompt(en.prompt, 'en', { context: '', question: 'TODOs?' })
+
+    expect(prompt).toContain('No meeting records match')
+    expect(prompt).not.toMatch(/[\u3040-\u30ff]/)
   })
 })

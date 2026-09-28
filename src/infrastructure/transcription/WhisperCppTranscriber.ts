@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { readFile, rm } from 'node:fs/promises'
 import type { TranscriptionPort } from '@application/ports'
-import { AppError, toMessage } from '@domain/errors'
+import { AppError, toMessage, type ErrorReason } from '@domain/errors'
 import { glossaryPrompt } from '@domain/Glossary'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 import { wavDurationMs } from '@infrastructure/audio/wav'
@@ -186,7 +186,7 @@ export const parseWhisperJson = (
   try {
     parsed = JSON.parse(raw) as unknown
   } catch (error: unknown) {
-    throw new TranscriptionError('文字起こし結果を読み取れませんでした。', { cause: error })
+    throw new TranscriptionError({ code: 'transcriptionOutputUnreadable' }, { cause: error })
   }
 
   const entries = (parsed as WhisperJson).transcription
@@ -424,15 +424,24 @@ const HALLUCINATIONS: readonly string[] = [
   'チャンネル登録よろしくお願いします',
   'チャンネル登録高評価よろしくお願いします',
   'この動画が良かったと思ったらチャンネル登録よろしくお願いします',
-  '次回の動画でお会いしましょう'
+  '次回の動画でお会いしましょう',
+  // 英語の会議でも無音から同じ種類の定型句が生まれる（ADR-043）。比較は小文字で行う。
+  'thank you for watching',
+  'thanks for watching',
+  'thank you so much for watching',
+  'thanks for watching and see you next time',
+  'please subscribe to my channel',
+  'please like and subscribe',
+  'see you in the next video'
 ]
 
 /** 末尾の句読点や感嘆符は揺れるだけで意味を持たないため、比較前に落とす。 */
 const stripTrailingPunctuation = (text: string): string =>
   text.replace(/[。．.、，,！!？?〜~…\s]+$/u, '')
 
+/** 英語は文頭の大文字が揺れる。日本語には影響しない。 */
 const isHallucination = (text: string): boolean =>
-  HALLUCINATIONS.includes(stripTrailingPunctuation(text))
+  HALLUCINATIONS.includes(stripTrailingPunctuation(text).trim().toLowerCase())
 
 /**
  * サンプルを 1 つも持たない WAV かどうか。
@@ -501,19 +510,21 @@ const defaultRunner: WhisperRunner = ({ binaryPath, argv, onStderr }) =>
     if (onStderr) child.stderr?.on('data', (chunk: Buffer | string) => onStderr(String(chunk)))
   })
 
-/** whisper-cli の失敗を利用者が次に何をすべきか分かる文言へ翻訳する。 */
-export const describeFailure = (binaryPath: string, error: unknown, stderr: string): string => {
+/** whisper-cli の失敗を、利用者が次に何をすべきか分かる理由へ翻訳する。 */
+export const describeFailure = (
+  binaryPath: string,
+  error: unknown,
+  stderr: string
+): ErrorReason => {
   const message = toMessage(error)
-  if (/ENOENT/.test(message)) {
-    return `文字起こしに必要な ${binaryPath} が見つかりません。'npm run setup' を実行してください。`
-  }
+  if (/ENOENT/.test(message)) return { code: 'whisperNotFound', binaryPath }
   if (/failed to initialize|load model|no such file/i.test(`${message}${stderr}`)) {
-    return 'whisper のモデルを読み込めませんでした。設定画面でモデルのパスを確認してください。'
+    return { code: 'whisperModelLoadFailed' }
   }
   if (/unknown argument: --vad|invalid argument: --vad/i.test(`${message}${stderr}`)) {
-    return `${binaryPath} が無音区間の除外（VAD）に対応していません。whisper.cpp を v1.7.6 以降に更新するか、設定画面で無音区間の除外を無効にしてください。`
+    return { code: 'whisperVadUnsupported', binaryPath }
   }
-  return `文字起こしに失敗しました: ${message}`
+  return { code: 'transcriptionFailed', detail: message }
 }
 
 /**
@@ -548,9 +559,7 @@ export class WhisperCppTranscriber implements TranscriptionPort {
     onProgress?: (fraction: number) => void
   }): Promise<TranscriptSegment[]> {
     if (!this.config.modelPath) {
-      throw new TranscriptionError(
-        '文字起こしモデルが設定されていません。設定画面でモデルを選んでください。'
-      )
+      throw new TranscriptionError({ code: 'transcriptionModelNotConfigured' })
     }
 
     // マイクの無い環境では mic.wav がヘッダだけで残る（ADR-017）。whisper-cli は
@@ -563,7 +572,7 @@ export class WhisperCppTranscriber implements TranscriptionPort {
     const outputPrefix = params.wavPath.replace(/\.wav$/, '')
     const jsonPath = `${outputPrefix}.json`
 
-    const prompt = glossaryPrompt(this.config.glossary ?? [])
+    const prompt = glossaryPrompt(this.config.glossary ?? [], params.language)
     const vadModelPath = this.config.vadModelPath ?? ''
 
     const argv = [

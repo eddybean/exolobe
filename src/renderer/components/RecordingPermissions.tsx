@@ -3,6 +3,7 @@ import type { MicPermissionDto, PrivacyPaneDto } from '@shared/ipc'
 import { playCheckTone } from '../audio/checkTone'
 import { startMicCapture } from '../audio/micCapture'
 import { messageOf } from '../errorMessage'
+import { permissionsText } from '../i18n/permissions'
 import { inputCheckView, micPermissionView, type InputCheckRow } from '../permissions'
 import { runInputCheck } from '../session/runInputCheck'
 
@@ -14,6 +15,7 @@ import { runInputCheck } from '../session/runInputCheck'
  * 状態は出さず、どこで確かめればよいかを案内する。
  */
 export const RecordingPermissions = (): ReactElement => {
+  const t = permissionsText()
   const [mic, setMic] = useState<MicPermissionDto>()
   const [error, setError] = useState<string>()
   const [testing, setTesting] = useState(false)
@@ -75,7 +77,7 @@ export const RecordingPermissions = (): ReactElement => {
   return (
     <section className="settings-card permissions" aria-labelledby="permissions-title">
       <h3 id="permissions-title" className="settings-card__title">
-        録音に必要な許可
+        {t.cardTitle}
       </h3>
 
       {error && (
@@ -86,8 +88,8 @@ export const RecordingPermissions = (): ReactElement => {
 
       <div className="permissions__row">
         <div className="permissions__subject">
-          <span className="permissions__name">マイク</span>
-          <span className="permissions__purpose">自分の声</span>
+          <span className="permissions__name">{t.micName}</span>
+          <span className="permissions__purpose">{t.micPurpose}</span>
         </div>
         {micView && (
           <span className={micView.ok ? 'permissions__state permissions__state--ok' : 'permissions__state permissions__state--ng'}>
@@ -96,38 +98,32 @@ export const RecordingPermissions = (): ReactElement => {
         )}
         {micView?.action === 'request' && (
           <button type="button" onClick={requestMic}>
-            許可する
+            {t.requestAllow}
           </button>
         )}
         {micView?.action === 'open-settings' && (
           <button type="button" onClick={() => openSettings('microphone')}>
-            システム設定を開く
+            {t.openSettings}
           </button>
         )}
       </div>
 
       <div className="permissions__row">
         <div className="permissions__subject">
-          <span className="permissions__name">システム音声</span>
-          <span className="permissions__purpose">相手の声</span>
+          <span className="permissions__name">{t.systemAudioName}</span>
+          <span className="permissions__purpose">{t.systemAudioPurpose}</span>
         </div>
-        <span className="permissions__state">アプリからは確認できません</span>
+        <span className="permissions__state">{t.systemAudioState}</span>
         <button type="button" onClick={() => openSettings('system-audio')}>
-          システム設定を開く
+          {t.openSettings}
         </button>
       </div>
-      {/* 文の間で改行すると JSX が空白を挟むので、文ごとに文字列で渡す。 */}
-      <p className="field__hint permissions__hint">
-        {'初めて録音するとき（下のテスト録音でも）に macOS が許可を求めます。許可が無くてもエラーにはならず、相手の声が無音のまま録音されます。'}
-        {'システム設定の「画面収録とシステムオーディオ録音」にある「システムオーディオ録音のみ」で、このアプリがオンになっていれば問題ありません。'}
-      </p>
+      <p className="field__hint permissions__hint">{t.hint}</p>
       <div className="permissions__test">
         <button type="button" onClick={runTest} disabled={testing}>
-          {testing ? 'テスト中…' : 'テスト録音'}
+          {testing ? t.testing : t.testButton}
         </button>
-        <span className="field__hint">
-          約 3 秒。確認音が鳴ります。マイクに向かって何か話してください。何も保存しません。
-        </span>
+        <span className="field__hint">{t.testHint}</span>
       </div>
 
       {testResult && (
@@ -140,13 +136,13 @@ export const RecordingPermissions = (): ReactElement => {
               <span className="permissions__result-head">
                 <span className="permissions__name">{row.subject}</span>
                 <span className={row.ok ? 'permissions__state permissions__state--ok' : 'permissions__state permissions__state--ng'}>
-                  {row.ok ? '入りました' : '入りませんでした'}
+                  {row.ok ? t.heard : t.notHeard}
                 </span>
               </span>
               {row.message && <span className="permissions__result-message">{row.message}</span>}
               {row.openSettings && (
                 <button type="button" onClick={() => row.openSettings && openSettings(row.openSettings)}>
-                  システム設定を開く
+                  {t.openSettings}
                 </button>
               )}
             </li>

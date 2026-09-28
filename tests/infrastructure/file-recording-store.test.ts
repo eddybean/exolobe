@@ -55,14 +55,14 @@ describe('FileRecordingRepository', () => {
 
   it('保存先が未設定でも一覧はエラーにせず空を返す（初回起動）', async () => {
     const unconfigured = new FileRecordingRepository({
-      root: () => Promise.reject(new ConfigurationError('保存先が設定されていません。'))
+      root: () => Promise.reject(new ConfigurationError({ code: 'storageNotConfigured' }))
     })
 
     expect(await unconfigured.list()).toEqual([])
   })
 
   it('新しい順に並べる', async () => {
-    const older = createRecording({ id: 'old', startedAt: new Date('2026-09-01T10:00:00+09:00') })
+    const older = createRecording({ id: 'old', startedAt: new Date('2026-09-01T10:00:00+09:00'), title: '会議' })
     await repository.save(older)
     await repository.save(recording)
 
@@ -148,7 +148,7 @@ describe('FileRecordingRepository', () => {
     const content = JSON.stringify({ schemaVersion: 2, id: 'rec-1', slug: recording.slug })
     await writeStored(recording.slug, 'meta.json', content)
 
-    await expect(repository.save(recording)).rejects.toThrow('アプリを更新してください')
+    await expect(repository.save(recording)).rejects.toThrow('storageNewerVersion')
     expect(await readFile(join(storage, recording.slug, 'meta.json'), 'utf8')).toBe(content)
   })
 
@@ -193,7 +193,7 @@ describe('FileRecordingArtifactStore', () => {
     await writeStored(recording.slug, 'transcript.json', content)
 
     await expect(artifacts.writeTranscript(recording, { segments, speakers })).rejects.toThrow(
-      'アプリを更新してください'
+      'storageNewerVersion'
     )
     expect(await readFile(join(storage, recording.slug, 'transcript.json'), 'utf8')).toBe(content)
   })
@@ -394,7 +394,7 @@ describe('FileRecordingArtifactStore — 話者の声紋', () => {
 
     await expect(
       artifacts.writeVoices(recording, { modelKey: 'campplus:192', speakers: [] })
-    ).rejects.toThrow('アプリを更新してください')
+    ).rejects.toThrow('storageNewerVersion')
     expect(await readFile(join(storage, recording.slug, 'voices.json'), 'utf8')).toBe(content)
   })
 
@@ -468,7 +468,7 @@ describe('FileRecordingArtifactStore — 録音中の印（ADR-042）', () => {
     await writeStored(recording.slug, 'bookmarks.json', content)
 
     await expect(artifacts.writeBookmarks(recording, [{ atMs: 0 }])).rejects.toThrow(
-      'アプリを更新してください'
+      'storageNewerVersion'
     )
     expect(await readFile(join(storage, recording.slug, 'bookmarks.json'), 'utf8')).toBe(content)
   })

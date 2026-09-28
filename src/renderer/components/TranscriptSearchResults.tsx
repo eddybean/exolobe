@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import type { TranscriptHitDto } from '@shared/ipc'
 import { formatDateTime, formatDuration } from '../format'
+import { libraryListText } from '../i18n/libraryList'
 import { splitHighlight } from '../library/transcriptSearch'
 
 export type TranscriptSearchState =
@@ -24,7 +25,8 @@ export const TranscriptSearchResults = ({
   selected: { recordingId: string; startMs: number } | undefined
   onSelect: (recordingId: string, startMs: number) => void
 }): ReactElement | null => {
-  if (state.kind === 'searching') return <p className="transcript-hits__note">本文を検索中…</p>
+  const t = libraryListText()
+  if (state.kind === 'searching') return <p className="transcript-hits__note">{t.searchingTranscript}</p>
   if (state.kind === 'error') {
     return (
       <p className="transcript-hits__note" role="alert">
@@ -36,7 +38,7 @@ export const TranscriptSearchResults = ({
 
   return (
     <section className="transcript-hits">
-      <h3 className="transcript-hits__heading">本文に一致（{state.hits.length} 件）</h3>
+      <h3 className="transcript-hits__heading">{t.transcriptHitsHeading(state.hits.length)}</h3>
       <ul className="transcript-hits__list">
         {state.hits.map((hit) => {
           const active =
@@ -51,8 +53,7 @@ export const TranscriptSearchResults = ({
               >
                 <span className="transcript-hit__title">{hit.title}</span>
                 <span className="transcript-hit__meta">
-                  {formatDateTime(hit.startedAt)} ・ {formatDuration(hit.startMs)} ・{' '}
-                  {hit.speakerLabel}
+                  {t.joinMeta(formatDateTime(hit.startedAt), formatDuration(hit.startMs), hit.speakerLabel)}
                 </span>
                 <span className="transcript-hit__excerpt">
                   {splitHighlight(hit.excerpt, hit.ranges).map((piece, index) =>

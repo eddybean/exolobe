@@ -5,14 +5,14 @@
  * 細かい項目が同列に並び、目当ての設定まで遠かった。項目ごとに分け、よく触る順に並べる。
  */
 export const SETTINGS_SECTIONS = [
-  { id: 'recording', label: '録音' },
-  { id: 'transcription', label: '文字起こし' },
-  { id: 'diarization', label: '話者識別' },
-  { id: 'summarization', label: '要約' },
-  { id: 'search', label: '意味検索' },
-  { id: 'models', label: 'モデル' },
-  { id: 'storage', label: '保存先と音声' },
-  { id: 'about', label: 'このアプリについて' }
+  { id: 'recording' },
+  { id: 'transcription' },
+  { id: 'diarization' },
+  { id: 'summarization' },
+  { id: 'search' },
+  { id: 'models' },
+  { id: 'storage' },
+  { id: 'about' }
 ] as const
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]['id']

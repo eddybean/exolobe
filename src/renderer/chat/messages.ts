@@ -1,4 +1,6 @@
 import type { ChatCitationDto, ChatDoneDto, ChatTurnDto } from '@shared/ipc'
+import { chatText } from '../i18n/chat'
+import { intlLocale } from '../i18n/locale'
 
 /**
  * チャットの表示状態を扱う純粋な計算。
@@ -68,7 +70,9 @@ export const completeMessage = (
           ...message,
           text: done.text.trim() === '' ? message.text : done.text,
           citations: done.citations,
-          ...(done.scopeLabel === undefined ? {} : { scopeLabel: done.scopeLabel }),
+          ...(done.scope === undefined
+            ? {}
+            : { scopeLabel: chatText().scopeLabel(done.scope.rangeLabel, done.scope.count) }),
           streaming: false,
           truncated: done.truncated,
           aborted: done.aborted,
@@ -91,7 +95,7 @@ export const toHistory = (messages: readonly ChatMessage[]): ChatTurnDto[] =>
 
 /** 出典の日付。時刻までは出さない —— 項目ごとに添えるので短いほど読める。 */
 const formatSourceDate = (iso: string): string =>
-  new Intl.DateTimeFormat('ja-JP', { month: 'long', day: 'numeric' }).format(new Date(iso))
+  new Intl.DateTimeFormat(intlLocale(), { month: 'long', day: 'numeric' }).format(new Date(iso))
 
 /**
  * 本文中の出典番号の並び。
@@ -124,6 +128,7 @@ export const withInlineSources = (
   citations: readonly ChatCitationDto[]
 ): string => {
   if (citations.length === 0) return text
+  const t = chatText()
 
   return text.replace(CITATION_RUN, (run) => {
     const found = [...run.matchAll(CITATION_NUMBER)].map(
@@ -137,9 +142,9 @@ export const withInlineSources = (
 
     if (named.length > MAX_INLINE_SOURCES) {
       const [first] = named
-      return first === undefined ? run : `（${label(first)} ほか${named.length - 1}件）`
+      return first === undefined ? run : t.inlineSourceMore(label(first), named.length - 1)
     }
-    return named.map((c) => `（${label(c)}）`).join('')
+    return named.map((c) => t.inlineSource(label(c))).join('')
   })
 }
 
@@ -153,12 +158,13 @@ export const answerNotice = (message: ChatMessage): string | undefined => {
   if (message.role !== 'assistant') return undefined
   if (message.streaming || message.error !== undefined || message.aborted === true) return undefined
 
+  const t = chatText()
   if (message.text.trim() === '') {
-    return 'モデルから答えが返りませんでした。もう一度お試しください。'
+    return t.noAnswer
   }
   // 黙って尻切れにすると、利用者はそれが全部だと思う。
   if (message.truncated === true) {
-    return '答えが長すぎたため、ここで打ち切られました。期間や聞き方を絞ると最後まで出ます。'
+    return t.truncatedNotice
   }
   return undefined
 }

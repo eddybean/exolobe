@@ -160,7 +160,7 @@ describe('AssetDownloader', () => {
         destPath: dest,
         sha256: sha256('model-body')
       })
-    ).rejects.toThrow('ダウンロードしたファイルが壊れています')
+    ).rejects.toThrow('downloadCorrupted')
 
     await expect(stat(dest)).rejects.toThrow()
     // 壊れた再開用ファイルを残すと次回も失敗し続けるため消す
@@ -195,7 +195,7 @@ describe('AssetDownloader', () => {
 
     await expect(
       downloader.download({ url: 'https://example.test/m.bin', destPath: dest })
-    ).rejects.toThrow('ダウンロードに失敗しました（404 Not Found）')
+    ).rejects.toThrow('downloadHttp')
   })
 
   it('中断されたら途中ファイルを残して再開できるようにする', async () => {
@@ -220,7 +220,7 @@ describe('AssetDownloader', () => {
         destPath: dest,
         signal: controller.signal
       })
-    ).rejects.toThrow('ダウンロードを中止しました。')
+    ).rejects.toThrow('downloadAborted')
 
     expect(await readFile(`${dest}.part`, 'utf8')).toBe('01234')
   })

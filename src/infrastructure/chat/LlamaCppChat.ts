@@ -52,9 +52,7 @@ export class LlamaCppChat implements ChatCompletionPort {
     signal?: AbortSignal
   }): Promise<ChatCompletion> {
     if (!this.config.modelPath) {
-      throw new ChatError(
-        'チャットに使うモデルが設定されていません。設定画面で要約モデルを取得してください。'
-      )
+      throw new ChatError({ code: 'chatModelNotConfigured' })
     }
 
     this.session ??= await this.factory.create(this.config)

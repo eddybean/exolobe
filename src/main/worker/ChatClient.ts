@@ -5,6 +5,9 @@ import type { ChatTurn } from '@application/ports'
 import type { ChatAnswerDto } from '@shared/ipc'
 import type { PipelineWorker } from './PipelineClient'
 import { isChatWorkerResponse, type ChatWorkerRequest } from './chat-protocol'
+import { UI_LOCALE_ENV } from '@shared/i18n/locale'
+import { appLocale, text } from '../i18n'
+import { errorFromWorker } from './workerError'
 
 interface Waiting {
   resolve: (answer: ChatAnswerDto) => void
@@ -131,7 +134,7 @@ export class ChatClient {
           waiting.resolve(message.answer)
           break
         case 'error':
-          waiting.reject(new Error(message.message))
+          waiting.reject(errorFromWorker(message))
           break
       }
       this.pending.delete(message.id)
@@ -188,7 +191,7 @@ export class ChatClient {
 
   private rejectPending(): void {
     for (const [, waiting] of this.pending) {
-      waiting.reject(new Error('チャット用のプロセスが終了しました。もう一度お試しください。'))
+      waiting.reject(new Error(text().error.chatExited))
     }
     this.pending.clear()
   }
@@ -202,6 +205,10 @@ export class ChatClient {
 const forkChatWorker = (): PipelineWorker =>
   utilityProcess.fork(join(__dirname, 'chat-worker.js'), [], {
     // ワーカーは electron API を持たないため、必要なパスは環境変数で渡す。
-    env: { ...process.env, OMR_USER_DATA: app.getPath('userData') },
+    env: {
+      ...process.env,
+      OMR_USER_DATA: app.getPath('userData'),
+      [UI_LOCALE_ENV]: appLocale()
+    },
     stdio: 'inherit'
   })

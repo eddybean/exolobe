@@ -1,3 +1,4 @@
+import type { MeetingLanguage } from '@domain/MeetingLanguage'
 import type { Speaker } from '@domain/Speaker'
 import { formatTimestamp } from '@domain/Transcript'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
@@ -97,6 +98,41 @@ export const noteMoments = (markdown: string): Array<{ atMs: number; text: strin
     return line.atMs === undefined || text === '' ? [] : [{ atMs: line.atMs, text }]
   })
 
+/**
+ * 要約の入力に足す見出しと説明。要約プロンプトと同じく会議の言語で書く（ADR-043）。
+ * 英語の要約プロンプトに日本語の節が混ざると、要約の一部が日本語で返ってくる。
+ */
+const NOTES_TEXT: Readonly<
+  Record<
+    MeetingLanguage,
+    {
+      readonly memoHeading: string
+      readonly memoGuide: string
+      readonly marksHeading: string
+      readonly marksGuide: string
+      readonly quote: (speaker: string, text: string) => string
+    }
+  >
+> = {
+  ja: {
+    memoHeading: '## 会議中のメモ',
+    memoGuide: '利用者が会議中に書いたメモです。ここにある論点は要約から落とさないでください。',
+    marksHeading: '## 重要だと印をつけた発言',
+    marksGuide:
+      '利用者が会議中に「ここは重要」と印をつけた箇所です。要約で優先して扱ってください。',
+    quote: (speaker, text) => `${speaker}「${text}」`
+  },
+  en: {
+    memoHeading: '## Notes taken during the meeting',
+    memoGuide:
+      'Notes the user wrote during the meeting. Do not leave the points raised here out of the minutes.',
+    marksHeading: '## Moments marked as important',
+    marksGuide:
+      'Places the user marked as important during the meeting. Give them priority in the minutes.',
+    quote: (speaker, text) => `${speaker}: “${text}”`
+  }
+}
+
 /** 印を押すのは聞いてから。押した時点で話し終わっていた発言も拾う。 */
 const MARK_LOOKBACK_MS = 15_000
 
@@ -111,18 +147,16 @@ export const summaryNotes = (params: {
   marks: readonly Bookmark[]
   segments: readonly TranscriptSegment[]
   speakers: readonly Speaker[]
+  language: MeetingLanguage
 }): string => {
+  const text = NOTES_TEXT[params.language]
   const labels = new Map(params.speakers.map((speaker) => [speaker.id, speaker.label]))
   const sections: string[] = []
 
   const memo = params.note.trim()
   if (memo) {
     sections.push(
-      [
-        '## 会議中のメモ',
-        '利用者が会議中に書いたメモです。ここにある論点は要約から落とさないでください。',
-        memo
-      ].join('\n')
+      [text.memoHeading, text.memoGuide, memo].join('\n')
     )
   }
 
@@ -132,15 +166,13 @@ export const summaryNotes = (params: {
       .map(({ atMs }) => {
         const spoken = params.segments
           .filter((segment) => segment.startMs <= atMs && segment.endMs >= atMs - MARK_LOOKBACK_MS)
-          .map((segment) => `${labels.get(segment.speakerId) ?? segment.speakerId}「${segment.text}」`)
+          .map((segment) =>
+            text.quote(labels.get(segment.speakerId) ?? segment.speakerId, segment.text)
+          )
         return `- [${formatTimestamp(atMs)}]${spoken.length > 0 ? ` ${spoken.join(' ')}` : ''}`
       })
     sections.push(
-      [
-        '## 重要だと印をつけた発言',
-        '利用者が会議中に「ここは重要」と印をつけた箇所です。要約で優先して扱ってください。',
-        ...lines
-      ].join('\n')
+      [text.marksHeading, text.marksGuide, ...lines].join('\n')
     )
   }
 

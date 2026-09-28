@@ -5,6 +5,9 @@ import type { SyncSearchIndexResult } from '@application/usecases/search'
 import type { SearchHitDto } from '@shared/ipc'
 import type { PipelineWorker } from './PipelineClient'
 import { isSearchWorkerResponse, type SearchWorkerRequest } from './search-protocol'
+import { UI_LOCALE_ENV } from '@shared/i18n/locale'
+import { appLocale, text } from '../i18n'
+import { errorFromWorker } from './workerError'
 
 interface Waiting {
   resolve: (value: unknown) => void
@@ -112,7 +115,7 @@ export class SearchClient {
           waiting.resolve(message.result)
           break
         case 'error':
-          waiting.reject(new Error(message.message))
+          waiting.reject(errorFromWorker(message))
           break
       }
       this.pending.delete(message.id)
@@ -152,7 +155,7 @@ export class SearchClient {
 
   private rejectPending(): void {
     for (const [, waiting] of this.pending) {
-      waiting.reject(new Error('検索用のプロセスが終了しました。もう一度お試しください。'))
+      waiting.reject(new Error(text().error.searchExited))
     }
     this.pending.clear()
   }
@@ -166,6 +169,10 @@ export class SearchClient {
 const forkSearchWorker = (): PipelineWorker =>
   utilityProcess.fork(join(__dirname, 'search-worker.js'), [], {
     // ワーカーは electron API を持たないため、必要なパスは環境変数で渡す。
-    env: { ...process.env, OMR_USER_DATA: app.getPath('userData') },
+    env: {
+      ...process.env,
+      OMR_USER_DATA: app.getPath('userData'),
+      [UI_LOCALE_ENV]: appLocale()
+    },
     stdio: 'inherit'
   })

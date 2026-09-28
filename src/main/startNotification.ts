@@ -1,5 +1,6 @@
 import { Notification } from 'electron'
 import { autoStartedMessage } from '@shared/startAlert'
+import { appLocale, text } from './i18n'
 
 /**
  * 「会議が始まっていそうなのに録音していない」ことを OS の通知で知らせる。
@@ -19,10 +20,10 @@ export const notifyMeetingStart = (params: {
   if (!Notification.isSupported()) return
 
   const notification = new Notification({
-    title: '録音していません',
-    body: `${params.message}会議が始まっているなら録音を開始してください。`,
-    actions: [{ type: 'button', text: '録音を開始' }],
-    closeButtonText: '今はしない'
+    title: text().notification.startTitle,
+    body: text().notification.startBody(params.message),
+    actions: [{ type: 'button', text: text().notification.start }],
+    closeButtonText: text().notification.notNow
   })
 
   notification.on('action', () => params.onStart())
@@ -45,10 +46,10 @@ export const notifyAutoStarted = (params: {
   if (!Notification.isSupported()) return
 
   const notification = new Notification({
-    title: '録音を開始しました',
-    body: autoStartedMessage(params.eventTitle),
-    actions: [{ type: 'button', text: '停止して破棄' }],
-    closeButtonText: '続ける'
+    title: text().notification.autoStartedTitle,
+    body: autoStartedMessage(params.eventTitle, appLocale()),
+    actions: [{ type: 'button', text: text().notification.stopAndDiscard }],
+    closeButtonText: text().notification.keepGoing
   })
 
   notification.on('action', () => params.onDiscard())

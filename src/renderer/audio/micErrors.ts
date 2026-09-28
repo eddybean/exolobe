@@ -1,3 +1,5 @@
+import { audioText } from '../i18n/audio'
+
 /**
  * マイク取得の失敗を、利用者が次に取るべき操作へつながる形に分類する。
  *
@@ -35,36 +37,26 @@ const NOT_ALLOWED = new Set(['NotAllowedError', 'PermissionDeniedError', 'Securi
 export const describeMicFailure = (error: unknown): MicError => {
   const name = error instanceof Error ? error.name : ''
   const options = { cause: error }
+  const t = audioText()
 
   if (NOT_FOUND.has(name)) {
-    return new MicDeviceMissingError(
-      // 録音を続けるかどうかは呼び出し側の方針なので、ここでは原因だけを述べる。
-      'マイクが見つかりません。Mac mini や Mac Studio には内蔵マイクが無いため、' +
-        '外付けマイクを接続してください。',
-      options
-    )
+    // 録音を続けるかどうかは呼び出し側の方針なので、ここでは原因だけを述べる。
+    return new MicDeviceMissingError(t.deviceMissing, options)
   }
 
   if (NOT_ALLOWED.has(name)) {
-    return new MicPermissionError(
-      'マイクの使用が許可されていません。「システム設定 > プライバシーとセキュリティ > マイク」で' +
-        'このアプリを許可してください。',
-      options
-    )
+    return new MicPermissionError(t.permissionDenied, options)
   }
 
   if (name === 'NotReadableError' || name === 'TrackStartError') {
-    return new MicUnavailableError(
-      'マイクを開始できませんでした。他のアプリが使用中でないか確認してください。',
-      options
-    )
+    return new MicUnavailableError(t.notReadable, options)
   }
 
-  return new MicUnavailableError(`マイクを使用できませんでした（${detailOf(error)}）。`, options)
+  return new MicUnavailableError(t.unavailable(detailOf(error)), options)
 }
 
 export const detailOf = (error: unknown): string => {
   if (error instanceof Error) return error.message || error.name
   if (typeof error === 'string') return error
-  return '原因不明'
+  return audioText().unknownDetail
 }

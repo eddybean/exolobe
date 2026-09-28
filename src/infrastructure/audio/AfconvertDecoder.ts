@@ -44,8 +44,7 @@ export class AfconvertDecoder implements AudioDecoderPort {
       await rm(params.outputPath, { force: true })
 
       throw new DecodeError(
-        `「${basename(params.inputPath)}」の音声を読み取れませんでした。` +
-          'ファイルが壊れているか、対応していない符号化方式かもしれません。',
+        { code: 'decodeFailed', fileName: basename(params.inputPath) },
         { cause: error }
       )
     }

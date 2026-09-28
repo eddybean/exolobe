@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { availableParallelism } from 'node:os'
-import { toMessage } from '@domain/errors'
+import { toMessage, type ErrorReason, type SherpaModel } from '@domain/errors'
 
 /**
  * sherpa-onnx-node（ネイティブアドオン）の読み込み口。
@@ -37,12 +37,12 @@ export const pickSherpaExports = (namespace: SherpaNamespace): SherpaExports => 
  * 自分のエラー型へ包む —— 利用者に出す文面が話者分割と声紋抽出で違うため。
  */
 export const loadSherpa = async (
-  wrap: (message: string, cause: unknown) => Error
+  wrap: (detail: string, cause: unknown) => Error
 ): Promise<SherpaExports> => {
   try {
     return pickSherpaExports((await import('sherpa-onnx-node')) as unknown as SherpaNamespace)
   } catch (error: unknown) {
-    throw wrap(`sherpa-onnx を読み込めませんでした（${toMessage(error)}）。`, error)
+    throw wrap(toMessage(error), error)
   }
 }
 
@@ -59,9 +59,7 @@ export const sherpaThreads = (cpuCount: number = availableParallelism()): number
  * モデルの存在を JS 側で先に確かめる。
  *
  * パスが不正なままネイティブへ渡すと原因の分からないエラーになり、利用者が
- * 何を直せばよいか分からなくなる。欠けていればメッセージを返す（見つかれば undefined）。
+ * 何を直せばよいか分からなくなる。欠けていれば理由を返す（見つかれば undefined）。
  */
-export const missingModelMessage = (label: string, path: string): string | undefined =>
-  existsSync(path)
-    ? undefined
-    : `${label}が見つかりません（${path}）。設定画面で取得し直すか、話者識別を無効にしてください。`
+export const missingModel = (model: SherpaModel, path: string): ErrorReason | undefined =>
+  existsSync(path) ? undefined : { code: 'sherpaModelMissing', model, path }

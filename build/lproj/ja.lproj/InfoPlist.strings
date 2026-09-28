@@ -1,0 +1,4 @@
+/* 許可ダイアログの文言（ADR-043）。 */
+"NSAudioCaptureUsageDescription" = "会議相手の音声を録音するためにシステム音声を取得します。";
+"NSMicrophoneUsageDescription" = "会議中のあなたの発言を録音するためにマイクを使用します。";
+"NSCalendarsFullAccessUsageDescription" = "録音の開始時刻に重なる予定から、タイトルと参加者名を埋めるためにカレンダーを読みます。";

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { useInlineEdit } from '../hooks/useInlineEdit'
+import { editableText } from '../i18n/editable'
 
 /**
  * クリックすると編集できるタイトル。
@@ -16,16 +17,12 @@ export const EditableTitle = ({
     value,
     onCommit
   )
+  const t = editableText().title
 
   if (!editing) {
     return (
       <h2 className="detail__title">
-        <button
-          type="button"
-          className="detail__title-button"
-          onClick={start}
-          title="クリックしてタイトルを変更"
-        >
+        <button type="button" className="detail__title-button" onClick={start} title={t.hint}>
           {value}
           <span className="detail__title-hint" aria-hidden="true">
             ✎
@@ -42,7 +39,7 @@ export const EditableTitle = ({
         className="detail__title-input"
         value={draft}
         readOnly={saving}
-        aria-label="タイトル"
+        aria-label={t.ariaLabel}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={onKeyDown}

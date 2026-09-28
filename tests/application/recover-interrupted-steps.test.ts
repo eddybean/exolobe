@@ -19,7 +19,7 @@ const stuck = (id: string): Recording => {
     PIPELINE_STEPS.reduce((acc, step) => succeedStep(acc, step), initialStepStates()),
     'summarize'
   )
-  return { ...finishRecording(createRecording({ id, startedAt }), 120_000), steps }
+  return { ...finishRecording(createRecording({ id, startedAt, title: '会議' }), 120_000), steps }
 }
 
 describe('RecoverInterruptedSteps', () => {
@@ -31,14 +31,14 @@ describe('RecoverInterruptedSteps', () => {
 
     const saved = await repository.find('r1')
     expect(saved?.steps.summarize.status).toBe('failed')
-    expect(saved?.steps.summarize.error).toMatch(/再実行/)
+    expect(saved?.steps.summarize.reason).toEqual({ code: 'stepInterrupted' })
     expect(saved?.status).toBe('failed')
   })
 
   it('実行中のステップが無い録音は書き直さない（利用者の編集と競らないように）', async () => {
     const repository = new FakeRecordingRepository()
     const ready: Recording = {
-      ...finishRecording(createRecording({ id: 'r2', startedAt }), 120_000),
+      ...finishRecording(createRecording({ id: 'r2', startedAt, title: '会議' }), 120_000),
       steps: PIPELINE_STEPS.reduce((acc, step) => succeedStep(acc, step), initialStepStates()),
       status: 'ready'
     }

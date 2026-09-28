@@ -11,7 +11,7 @@ export interface FolderDeps {
 
 const findFolderOrThrow = async (folders: Folder[], folderId: string): Promise<Folder> => {
   const folder = folders.find((candidate) => candidate.id === folderId)
-  if (!folder) throw new ConfigurationError('フォルダが見つかりません。')
+  if (!folder) throw new ConfigurationError({ code: 'folderNotFound' })
   return folder
 }
 
@@ -30,7 +30,7 @@ export class CreateFolder {
     const current = await this.deps.folders.list()
     if (params.parentId !== undefined) {
       const parentExists = current.some((folder) => folder.id === params.parentId)
-      if (!parentExists) throw new ConfigurationError('親フォルダが見つかりません。')
+      if (!parentExists) throw new ConfigurationError({ code: 'parentFolderNotFound' })
     }
 
     const folder = createFolder({
@@ -53,7 +53,7 @@ export class RenameFolder {
 
     const name = params.name.trim()
     if (name.length === 0) {
-      throw new ConfigurationError('フォルダ名を入力してください。')
+      throw new ConfigurationError({ code: 'folderNameRequired' })
     }
 
     const updated = current.map((folder) =>
@@ -77,7 +77,7 @@ export class MoveFolder {
         params.parentId === params.folderId ||
         isDescendant(current, params.folderId, params.parentId)
       if (invalid) {
-        throw new ConfigurationError('自分自身や子孫フォルダの下には移動できません。')
+        throw new ConfigurationError({ code: 'folderMoveIntoSelf' })
       }
     }
 

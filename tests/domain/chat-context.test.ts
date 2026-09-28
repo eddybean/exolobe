@@ -101,6 +101,7 @@ describe('contextBudgetChars', () => {
 describe('buildChatContext — 素材の選び方', () => {
   it('既定では要約を使い、引用にもそう記録する', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [material({ recordingId: 'rec-1', summary: '## 決定事項\n- 見積もりは来週' })],
       scope: 'all',
       useTranscript: false,
@@ -114,6 +115,7 @@ describe('buildChatContext — 素材の選び方', () => {
 
   it('要約が無い録音は文字起こしにフォールバックする', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [material({ recordingId: 'rec-1' })],
       scope: 'all',
       useTranscript: false,
@@ -126,6 +128,7 @@ describe('buildChatContext — 素材の選び方', () => {
 
   it('話者を絞るときは要約があっても文字起こしを使う', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [material({ recordingId: 'rec-1', summary: '## 決定事項\n- 見積もりは来週' })],
       scope: 'self',
       useTranscript: true,
@@ -139,6 +142,7 @@ describe('buildChatContext — 素材の選び方', () => {
 
   it('見出しに番号・日付・曜日・タイトルを入れる', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [material({ recordingId: 'rec-1', summary: '要約' })],
       scope: 'all',
       useTranscript: false,
@@ -154,6 +158,7 @@ describe('buildChatContext — 予算', () => {
 
   it('長い 1 件が予算を食い尽くさず、他の録音も載る', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [
         material({ recordingId: 'rec-long', title: '長い会議', summary: long(5_000) }),
         material({ recordingId: 'rec-short', title: '短い会議', summary: '短い要約です' })
@@ -171,6 +176,7 @@ describe('buildChatContext — 予算', () => {
 
   it('切り詰めた録音には省略の印を付ける', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [material({ recordingId: 'rec-1', summary: long(5_000) })],
       scope: 'all',
       useTranscript: false,
@@ -188,6 +194,7 @@ describe('buildChatContext — 予算', () => {
     )
 
     const context = buildChatContext({
+      language: 'ja',
       materials,
       scope: 'all',
       useTranscript: false,
@@ -214,6 +221,7 @@ describe('buildChatContext — 予算', () => {
     })
 
     const context = buildChatContext({
+      language: 'ja',
       materials: [newer, older],
       scope: 'all',
       useTranscript: false,
@@ -226,6 +234,7 @@ describe('buildChatContext — 予算', () => {
 
   it('素材が無ければ空の文脈を返す', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [],
       scope: 'all',
       useTranscript: false,
@@ -240,6 +249,7 @@ describe('buildChatContext — 予算', () => {
 describe('buildChatContext — 引用', () => {
   it('文字起こしの引用には先頭セグメントの開始時刻を入れる', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [material({ recordingId: 'rec-1' })],
       scope: 'self',
       useTranscript: true,
@@ -251,6 +261,7 @@ describe('buildChatContext — 引用', () => {
 
   it('要約の引用には時刻を入れない', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [material({ recordingId: 'rec-1', summary: '要約' })],
       scope: 'all',
       useTranscript: false,
@@ -280,6 +291,7 @@ describe('buildChatContext — 要約の節で絞る', () => {
 
   const build = (section?: 'todo' | 'decision' | 'overview' | 'discussion') =>
     buildChatContext({
+      language: 'ja',
       materials: [withSummary],
       scope: 'all',
       useTranscript: false,
@@ -315,6 +327,7 @@ describe('buildChatContext — 要約の節で絞る', () => {
 
   it('その節が要約に無ければ全体を載せる', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [material({ recordingId: 'rec-1', summary: '## 概要\n雑談だけだった。' })],
       scope: 'all',
       useTranscript: false,
@@ -327,6 +340,7 @@ describe('buildChatContext — 要約の節で絞る', () => {
 
   it('文字起こしを使うときは節で絞らない', () => {
     const context = buildChatContext({
+      language: 'ja',
       materials: [material({ recordingId: 'rec-1', summary })],
       scope: 'self',
       useTranscript: true,
@@ -342,6 +356,7 @@ describe('buildChatContext — 予算が尽きている場合', () => {
   it('予算が 0 なら何も載せず、全件を落としたと数える', () => {
     // 中身の無い見出しだけを渡すと、モデルは「その会議には何も無かった」と読む。
     const context = buildChatContext({
+      language: 'ja',
       materials: [
         material({ recordingId: 'rec-1', summary: '## 決定事項\n- 合意した' }),
         material({ recordingId: 'rec-2', summary: '## 決定事項\n- 決めた' })
@@ -354,5 +369,49 @@ describe('buildChatContext — 予算が尽きている場合', () => {
     expect(context.citations).toHaveLength(0)
     expect(context.droppedCount).toBe(2)
     expect(context.text).not.toContain('合意した')
+  })
+})
+
+/** 英語の問いには、文脈の見出しと注記も英語で渡す（指示文と文脈の言語を揃える）。 */
+describe('buildChatContext — 英語の問い', () => {
+  it('曜日と素材の注記を英語にする', () => {
+    const context = buildChatContext({
+      language: 'en',
+      materials: [material({ recordingId: 'rec-1', summary: '## Decisions\n- Ship next week' })],
+      scope: 'all',
+      useTranscript: false,
+      budgetChars: 10_000
+    })
+
+    expect(context.text).toMatch(/^## \[1\] \d{4}-\d{2}-\d{2} \((Sun|Mon|Tue|Wed|Thu|Fri|Sat)\) /)
+    expect(context.text).toContain('(summary)')
+    expect(context.text).not.toContain('（要約）')
+  })
+
+  it('話者で絞った文字起こしは、誰の発言に絞ったかを英語で添える', () => {
+    const context = buildChatContext({
+      language: 'en',
+      materials: [material({ recordingId: 'rec-1' })],
+      scope: 'self',
+      useTranscript: true,
+      budgetChars: 10_000
+    })
+
+    expect(context.text).toContain('(your remarks only, transcript)')
+  })
+
+  it('英語の見出しの要約からも名指しの節を取り出す', () => {
+    const summary = '## Overview\nWeekly sync\n## To-dos\n- [ ] Send the estimate\n## Discussion\nPricing'
+    const context = buildChatContext({
+      language: 'en',
+      materials: [material({ recordingId: 'rec-1', summary })],
+      scope: 'all',
+      useTranscript: false,
+      budgetChars: 10_000,
+      section: 'todo'
+    })
+
+    expect(context.text).toContain('Send the estimate')
+    expect(context.text).not.toContain('Pricing')
   })
 })
