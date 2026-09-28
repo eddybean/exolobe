@@ -56,6 +56,9 @@ import { MicUsageProbe } from '@infrastructure/mic/MicUsageProbe'
 import { resolveMicWatchBinary } from '@infrastructure/mic/resolveMicWatchBinary'
 import { EventKitCalendar } from '@infrastructure/calendar/EventKitCalendar'
 import { resolveCalendarBinary } from '@infrastructure/calendar/resolveCalendarBinary'
+import type { AppleIntelligenceStatus } from '@domain/AppleIntelligence'
+import { appleIntelligenceStatus } from '@infrastructure/summarization/AppleLmSessionFactory'
+import { resolveAppleLmBinary } from '@infrastructure/summarization/resolveAppleLmBinary'
 import { FileModelStore } from '@infrastructure/download/FileModelStore'
 import { FileSearchIndex, SEARCH_INDEX_DIR } from '@infrastructure/search/FileSearchIndex'
 import { NodeFileInfoProbe } from '@infrastructure/system/NodeFileInfoProbe'
@@ -83,6 +86,8 @@ export interface Container {
   readonly micUsage: MicUsageProbe
   /** 録音開始時の予定の問い合わせと、設定画面での許可の確認に使う（ADR-040）。 */
   readonly calendar: EventKitCalendar
+  /** 要約に Apple Intelligence を選べるか（ADR-046）。要約そのものはパイプラインのワーカーが呼ぶ。 */
+  readonly appleIntelligence: () => Promise<AppleIntelligenceStatus>
   readonly startRecording: StartRecording
   readonly stopRecording: StopRecording
   readonly importAudioFile: ImportAudioFile
@@ -160,6 +165,10 @@ export const createContainer = (): Container => {
   const calendar = new EventKitCalendar(
     resolveCalendarBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath })
   )
+  const appleLm = resolveAppleLmBinary({
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath
+  })
   // モデルは再取得できるキャッシュなので、録音の保存先とは分けて置く。
   const models = new FileModelStore(join(userData, 'models'))
   // 意味検索の索引も再生成できるキャッシュ。書き込みは検索ワーカーが行い、
@@ -177,6 +186,7 @@ export const createContainer = (): Container => {
     createSystemAudioSource,
     micUsage,
     calendar,
+    appleIntelligence: () => appleIntelligenceStatus(appleLm),
     startRecording: new StartRecording({
       settings,
       repository,

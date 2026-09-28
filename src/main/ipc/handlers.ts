@@ -544,6 +544,10 @@ export const registerIpcHandlers = (
   // カレンダーは Electron に API が無いので、同梱の calendarevents に問い合わせる（ADR-040）。
   handle(IPC.getCalendarPermission, async () => container.calendar.permission())
   handle(IPC.requestCalendarPermission, async () => container.calendar.requestPermission())
+  handle(
+    IPC.getAppleIntelligenceAvailability,
+    async () => (await container.appleIntelligence()).availability
+  )
   /**
    * テスト録音のシステム音声の側。録音と同時に取り込みを 2 本走らせると、同じ音を
    * 取り合って録音の側が欠けかねないので、録音中とテスト同士の重なりは断る。

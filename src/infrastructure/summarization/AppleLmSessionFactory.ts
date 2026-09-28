@@ -1,10 +1,7 @@
 import { spawn } from 'node:child_process'
 import type { AppleIntelligenceStatus } from '@domain/AppleIntelligence'
-import { AppError } from '@domain/errors'
-import type { LlmSession, LlmSessionFactory } from './LlamaCppSummarizer'
+import { SummarizationError, type LlmSession, type LlmSessionFactory } from './LlamaCppSummarizer'
 import { RESPOND_EXIT, isReportedAvailability, parseAppleLmStatus } from './appleLmProtocol'
-
-export class AppleIntelligenceError extends AppError {}
 
 /** status は OS に可否を聞くだけ。固まっても設定画面を待たせない。 */
 const STATUS_TIMEOUT_MS = 10_000
@@ -69,7 +66,7 @@ export class AppleLmSessionFactory implements LlmSessionFactory {
   async create(): Promise<LlmSession> {
     const binaryPath = this.binaryPath
     if (binaryPath === undefined) {
-      throw new AppleIntelligenceError({
+      throw new SummarizationError({
         code: 'appleIntelligenceUnavailable',
         availability: 'missing'
       })
@@ -86,7 +83,7 @@ const respond = async (binaryPath: string, prompt: string): Promise<string> => {
   try {
     completed = await run(binaryPath, ['respond'], prompt, RESPOND_TIMEOUT_MS)
   } catch (error: unknown) {
-    throw new AppleIntelligenceError(
+    throw new SummarizationError(
       { code: 'appleIntelligenceFailed', detail: String(error) },
       { cause: error }
     )
@@ -99,19 +96,19 @@ const respond = async (binaryPath: string, prompt: string): Promise<string> => {
   switch (code) {
     case RESPOND_EXIT.unavailable: {
       const reported = detail.split('\n')[0]
-      throw new AppleIntelligenceError({
+      throw new SummarizationError({
         code: 'appleIntelligenceUnavailable',
         availability:
           isReportedAvailability(reported) && reported !== 'available' ? reported : 'unavailable'
       })
     }
     case RESPOND_EXIT.rejected:
-      throw new AppleIntelligenceError({ code: 'appleIntelligenceRejected' })
+      throw new SummarizationError({ code: 'appleIntelligenceRejected' })
     case RESPOND_EXIT.unsupportedLanguage:
-      throw new AppleIntelligenceError({ code: 'appleIntelligenceUnsupportedLanguage' })
+      throw new SummarizationError({ code: 'appleIntelligenceUnsupportedLanguage' })
     default:
       // 打ち切り（code が null）もここに来る。
-      throw new AppleIntelligenceError({
+      throw new SummarizationError({
         code: 'appleIntelligenceFailed',
         detail: detail || `exit ${String(code)}`
       })

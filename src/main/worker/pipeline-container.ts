@@ -26,15 +26,25 @@ import {
   JsonSettingsRepository,
   SettingsStorageLocator
 } from '@infrastructure/settings/JsonSettingsRepository'
+import {
+  AppleLmSessionFactory,
+  appleIntelligenceStatus
+} from '@infrastructure/summarization/AppleLmSessionFactory'
 import { LlamaCppSummarizer } from '@infrastructure/summarization/LlamaCppSummarizer'
 import { NodeLlamaSessionFactory } from '@infrastructure/summarization/NodeLlamaSessionFactory'
+import { resolveAppleLmBinary } from '@infrastructure/summarization/resolveAppleLmBinary'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import {
   WhisperCppTranscriber,
   droppedSegmentLogger
 } from '@infrastructure/transcription/WhisperCppTranscriber'
 import { resolveWhisperBinary } from '@infrastructure/transcription/resolveWhisperBinary'
-import type { DiarizationSettings, TranscriptionSettings } from '@domain/Settings'
+import {
+  summarizationProviderOf,
+  type DiarizationSettings,
+  type Settings,
+  type TranscriptionSettings
+} from '@domain/Settings'
 import type { Locale } from '@shared/i18n/locale'
 
 /**
@@ -78,14 +88,7 @@ export const createPipeline = async (
     diarizer: createDiarizer(current.diarization),
     embedder: createEmbedder(current.diarization),
     voiceprints: new FileVoiceprintRepository(locator),
-    summarizer: new LlamaCppSummarizer(
-      {
-        modelPath: current.summarization.modelPath,
-        contextSize: current.summarization.contextSize,
-        protection: current.memoryProtection
-      },
-      new NodeLlamaSessionFactory()
-    )
+    summarizer: await createSummarizer(current)
   })
 }
 
@@ -110,6 +113,44 @@ export const createVoiceExtractor = async (
     decoder: new AfconvertDecoder()
   })
 }
+
+/**
+ * 設定で選んだモデルで要約する（ADR-046）。どちらも分割・統合は LlamaCppSummarizer が担い、
+ * 応答の入れ物だけが違う。
+ */
+const createSummarizer = async (current: Settings): Promise<LlamaCppSummarizer> => {
+  if (summarizationProviderOf(current) === 'llama-cpp') {
+    return new LlamaCppSummarizer(
+      {
+        modelPath: current.summarization.modelPath,
+        contextSize: current.summarization.contextSize,
+        protection: current.memoryProtection
+      },
+      new NodeLlamaSessionFactory()
+    )
+  }
+
+  const resourcesPath = process.env['OMR_RESOURCES']
+  const binaryPath = resolveAppleLmBinary({
+    packaged: resourcesPath !== undefined,
+    resourcesPath: resourcesPath ?? ''
+  })
+  // コンテキスト長はモデルに聞く（設定の contextSize は Gemma 用）。使えなければ最初の応答が
+  // 理由つきで失敗するので、分割の大きさは macOS 27 の値で仮に決めておけば足りる。
+  const status = await appleIntelligenceStatus(binaryPath)
+  return new LlamaCppSummarizer(
+    {
+      // modelPath は node-llama-cpp 用。空だと「モデル未設定」で止まるので、名前だけ入れる。
+      modelPath: 'apple-intelligence',
+      contextSize: status.contextSize ?? APPLE_INTELLIGENCE_CONTEXT_SIZE,
+      protection: current.memoryProtection
+    },
+    new AppleLmSessionFactory(binaryPath)
+  )
+}
+
+/** macOS 27 の Apple Intelligence のコンテキスト長。applelm が答えられないときの仮の値。 */
+const APPLE_INTELLIGENCE_CONTEXT_SIZE = 8_192
 
 /**
  * パッケージ済みアプリに同梱した whisper-cli。
