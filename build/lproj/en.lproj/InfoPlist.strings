@@ -1,0 +1,4 @@
+/* 許可ダイアログの文言（ADR-043）。基底の Info.plist（electron-builder.yml の extendInfo）と同じにする。 */
+"NSAudioCaptureUsageDescription" = "Exolobe captures system audio to record what the other participants say in your meetings.";
+"NSMicrophoneUsageDescription" = "Exolobe uses the microphone to record what you say in your meetings.";
+"NSCalendarsFullAccessUsageDescription" = "Exolobe reads your calendar to fill in the title and participant names from the event that overlaps when a recording starts.";
