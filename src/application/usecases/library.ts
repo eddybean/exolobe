@@ -12,6 +12,7 @@ import type { Bookmark } from '@domain/MeetingNotes'
 import {
   isConfigured,
   mergeSettings,
+  summarizationProviderOf,
   validateSettings,
   type Settings,
   type SettingsPatch
@@ -375,7 +376,10 @@ export class GetSetupState {
       settings,
       needsStorageDir: !isConfigured(settings),
       needsTranscriptionModel: settings.transcription.modelPath.length === 0,
-      needsSummarizationModel: settings.summarization.modelPath.length === 0
+      // Apple Intelligence はダウンロードの要らない OS のモデルなので、Gemma を取らせない。
+      needsSummarizationModel:
+        summarizationProviderOf(settings) === 'llama-cpp' &&
+        settings.summarization.modelPath.length === 0
     }
   }
 }

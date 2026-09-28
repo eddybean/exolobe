@@ -16,6 +16,7 @@ export type SettingsProblem =
   | 'updateCheck'
   | 'memoryProtection'
   | 'contextSize'
+  | 'summarizationProvider'
   | 'promptPlaceholder'
   | 'chatMaxRecordings'
 

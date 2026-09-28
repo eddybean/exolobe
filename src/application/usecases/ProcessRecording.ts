@@ -42,7 +42,7 @@ import {
 } from '@domain/MemoryGuard'
 import { findAsset } from '@domain/ModelCatalog'
 import { meetingLanguageOf, type MeetingLanguage } from '@domain/MeetingLanguage'
-import { summaryPromptFor, type Settings } from '@domain/Settings'
+import { summarizationProviderOf, summaryPromptFor, type Settings } from '@domain/Settings'
 import {
   REMOTE_SPEAKER_ID,
   SELF_SPEAKER_ID,
@@ -283,6 +283,8 @@ export class ProcessRecording {
         }
       }
       case 'summarize': {
+        // Apple Intelligence のモデルは OS のプロセスで動き、このアプリのメモリには載らない。
+        if (summarizationProviderOf(settings) === 'apple-intelligence') return undefined
         const modelFileBytes = await this.modelBytes(
           settings.summarization.modelPath,
           'summarization-model'

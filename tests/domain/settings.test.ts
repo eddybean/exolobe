@@ -6,6 +6,7 @@ import {
   NOTES_PLACEHOLDER,
   TRANSCRIPT_PLACEHOLDER,
   appearanceOf,
+  summarizationProviderOf,
   updateCheckIntervalOf,
   isDefaultSummaryPrompt,
   settingsSummaryPrompt,
@@ -216,6 +217,40 @@ describe('appearance', () => {
 /**
  * 新しい版の確認の間隔（ADR-044）。週 1 回を既定にし、1 日から「確認しない」まで選べる。
  */
+describe('summarization.provider', () => {
+  it('既定は node-llama-cpp（Gemma）', () => {
+    expect(defaultSettings('ja').summarization.provider).toBe('llama-cpp')
+  })
+
+  it('Apple Intelligence に切り替えても、モデルのパスは残す（戻したときに取り直させない）', () => {
+    const gemma = mergeSettings(defaultSettings('ja'), { summarization: { modelPath: '/m/gemma.gguf' } })
+    const apple = mergeSettings(gemma, { summarization: { provider: 'apple-intelligence' } })
+
+    expect(apple.summarization.provider).toBe('apple-intelligence')
+    expect(apple.summarization.modelPath).toBe('/m/gemma.gguf')
+  })
+
+  it('未知の値は保存前に弾く', () => {
+    const settings = mergeSettings(defaultSettings('ja'), {
+      summarization: { provider: 'cloud' as never }
+    })
+
+    expect(validateSettings(settings)).toEqual(['summarizationProvider'])
+  })
+
+  it('読み込んだ値が未知なら node-llama-cpp として扱う', () => {
+    const unknown = mergeSettings(defaultSettings('ja'), {
+      summarization: { provider: 'cloud' as never }
+    })
+    const apple = mergeSettings(defaultSettings('ja'), {
+      summarization: { provider: 'apple-intelligence' }
+    })
+
+    expect(summarizationProviderOf(unknown)).toBe('llama-cpp')
+    expect(summarizationProviderOf(apple)).toBe('apple-intelligence')
+  })
+})
+
 describe('updateCheck', () => {
   it('既定は週 1 回', () => {
     expect(defaultSettings('ja').updateCheck).toBe('weekly')

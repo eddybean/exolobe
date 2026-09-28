@@ -558,6 +558,17 @@ describe('GetSetupState', () => {
     expect(state.needsTranscriptionModel).toBe(false)
     expect(state.needsSummarizationModel).toBe(false)
   })
+
+  it('Apple Intelligence で要約するなら、要約モデルは求めない', async () => {
+    const settings = new FakeSettingsRepository({
+      ...defaultSettings('ja'),
+      summarization: { ...defaultSettings('ja').summarization, provider: 'apple-intelligence' }
+    })
+
+    const state = await new GetSetupState(settings).execute()
+
+    expect(state.needsSummarizationModel).toBe(false)
+  })
 })
 
 describe('声紋帳の管理', () => {
