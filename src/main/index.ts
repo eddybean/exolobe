@@ -4,6 +4,7 @@ import { createContainer } from './container'
 import { registerIpcHandlers } from './ipc/handlers'
 import { createApplicationMenu } from './menu'
 import { createTray } from './tray'
+import { claimSingleInstance } from './singleInstance'
 
 /**
  * アプリのエントリポイント。
@@ -69,25 +70,28 @@ const showWindow = (): void => {
   mainWindow.focus()
 }
 
-void app.whenReady().then(() => {
-  const container = createContainer()
+// 2 つ目の起動では何も始めない。コンテナを作るだけでワーカーや監視が動き出すため、判定は最初に行う。
+if (claimSingleInstance(app, showWindow)) {
+  void app.whenReady().then(() => {
+    const container = createContainer()
 
-  mainWindow = createWindow()
-  const controller = registerIpcHandlers(container, () => mainWindow, showWindow)
+    mainWindow = createWindow()
+    const controller = registerIpcHandlers(container, () => mainWindow, showWindow)
 
-  // どちらも「ウィンドウを見ていなくても録音を止められる」ための導線。
-  tray = createTray(controller, showWindow)
-  createApplicationMenu(controller, showWindow)
+    // どちらも「ウィンドウを見ていなくても録音を止められる」ための導線。
+    tray = createTray(controller, showWindow)
+    createApplicationMenu(controller, showWindow)
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) showWindow()
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) showWindow()
+    })
   })
-})
 
-// 登録したショートカットは終了時に外す（Electron が求める後始末）。
-app.on('will-quit', () => globalShortcut.unregisterAll())
+  // 登録したショートカットは終了時に外す（Electron が求める後始末）。
+  app.on('will-quit', () => globalShortcut.unregisterAll())
 
-app.on('window-all-closed', () => {
-  // 録音とバックグラウンド処理を続けたいので、macOS の慣習どおり終了しない。
-  if (process.platform !== 'darwin') app.quit()
-})
+  app.on('window-all-closed', () => {
+    // 録音とバックグラウンド処理を続けたいので、macOS の慣習どおり終了しない。
+    if (process.platform !== 'darwin') app.quit()
+  })
+}
