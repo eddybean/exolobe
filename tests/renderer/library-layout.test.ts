@@ -37,6 +37,19 @@ describe('ライブラリ画面の構成', () => {
     expect(rule).toMatch(/text-overflow:\s*ellipsis/)
   })
 
+  it('2 行目のフォルダ名は幅を決めて省略し、日時と長さは削らない', () => {
+    // 長いフォルダ名が日時と長さを押し出すと、行を見分ける手掛かりが消える。
+    expect(ruleFor('.tree__meta')).toMatch(/display:\s*flex/)
+    expect(ruleFor('.tree__meta-when')).toMatch(/flex-shrink:\s*0/)
+
+    const folder = ruleFor('.tree__folder')
+    expect(folder).toMatch(/max-width:\s*\d+(\.\d+)?em/)
+    expect(folder).toMatch(/min-width:\s*0/)
+    expect(folder).toMatch(/white-space:\s*nowrap/)
+    expect(folder).toMatch(/overflow:\s*hidden/)
+    expect(folder).toMatch(/text-overflow:\s*ellipsis/)
+  })
+
   it('長いタイトルは折り返さず省略する', () => {
     const rule = ruleFor('.tree__title')
 

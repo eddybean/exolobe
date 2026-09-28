@@ -3,6 +3,7 @@ import {
   acceptedDrop,
   filterByQuery,
   folderChipRows,
+  folderNameLookup,
   folderPathLabel,
   recordingsInFolder,
   resolveFolderKey
@@ -139,6 +140,22 @@ describe('folderPathLabel', () => {
   it('フォルダに入っていなければ「未分類」', () => {
     expect(folderPathLabel(folders, undefined)).toBe('未分類')
     expect(folderPathLabel(folders, 'deleted')).toBe('未分類')
+  })
+})
+
+describe('folderNameLookup', () => {
+  it('一覧の行に添える、直属のフォルダ名（親は辿らない）', () => {
+    const nameOf = folderNameLookup(folders)
+
+    expect(nameOf('x')).toBe('案件X')
+    expect(nameOf('customers')).toBe('顧客')
+  })
+
+  it('フォルダに入っていない・消えたフォルダを指すなら何も出さない', () => {
+    const nameOf = folderNameLookup(folders)
+
+    expect(nameOf(undefined)).toBeUndefined()
+    expect(nameOf('deleted')).toBeUndefined()
   })
 })
 

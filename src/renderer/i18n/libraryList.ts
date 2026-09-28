@@ -39,6 +39,7 @@ const ja = {
   semanticSearching: '検索しています…',
   semanticNoHits: '近い内容の録音が見つかりませんでした。言い方を変えて試してください。',
   /** 一覧の 2 行目などで、複数の断片を並べるときの区切り。 */
+  metaSeparator: ' ・ ',
   joinMeta: (...parts: readonly string[]): string => parts.join(' ・ '),
   allFolders: 'すべて',
   unfiledFolder: '未分類',
@@ -110,6 +111,7 @@ const en: typeof ja = {
     `Matches in transcript (${count} ${count === 1 ? 'result' : 'results'})`,
   semanticSearching: 'Searching…',
   semanticNoHits: 'No similar recordings found. Try rephrasing your search.',
+  metaSeparator: ' · ',
   joinMeta: (...parts: readonly string[]): string => parts.join(' · '),
   allFolders: 'All Recordings',
   unfiledFolder: 'Unfiled',
