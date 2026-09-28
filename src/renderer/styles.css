@@ -1458,41 +1458,49 @@ code {
 }
 
 /*
-  本文と「直す」ボタンを 1 つの桁に収める。ボタンは右端に固定する —— 本文に続けて
-  置くと、行末いっぱいの発言で見えないボタンだけが折り返して空行ができる。
+  ペンは本文の末尾の文字に続けて置く。右端に固定すると、見えていないときも
+  その幅だけ本文が狭くなる。
 */
 .segment__body {
   min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
 }
 
 /* 編集中は編集欄とその下の操作の案内を縦に積む。 */
 .segment__body--editing {
+  display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0;
 }
 
-.segment__body .segment__text {
-  flex: 1;
-  min-width: 0;
+/* 本文そのものも押せる。選んでコピーする操作は妨げない（segmentEdit.ts）。 */
+.segment__text--editable {
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.segment__text--editable:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* 末尾の文字とペンの間では折り返さない。ペンだけが次の行に落ちて空行に見えるのを防ぐ。 */
+.segment__text-tail {
+  white-space: nowrap;
 }
 
 /*
-  全行に並ぶと本文が読みにくいので、ふだんは隠して行に触れたときだけ見せる。
-  display: none にしないのは、キーボードで辿り着けるようにするため。
+  全行で濃く並ぶと本文が読みにくいので、ふだんは薄く見せて行に触れたときに濃くする。
+  隠しきらないのは、直せることに気付けるようにするため。
 */
 .segment__edit {
-  opacity: 0;
-  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.35;
   border: none;
   background: transparent;
-  padding: 0;
-  font-size: 11px;
+  padding: 0 2px;
+  margin-left: 4px;
   color: var(--text-muted);
-  vertical-align: baseline;
+  vertical-align: -1px;
 }
 
 .segment:hover .segment__edit {
@@ -1504,13 +1512,14 @@ code {
 }
 
 .segment__edit:hover {
-  text-decoration: underline;
+  color: var(--text);
   background: transparent;
 }
 
-.segment__edit:disabled {
+/* 行に触れても濃くしない（押せないものを押せるように見せない）。 */
+.segment .segment__edit:disabled {
   cursor: default;
-  text-decoration: none;
+  opacity: 0.35;
 }
 
 /* 長い発言でもスクロールさせずに全文を見ながら直せるよう、中身に合わせて伸ばす。 */
