@@ -78,6 +78,7 @@
             <tr><td><a href="#adr-043">ADR-043</a></td><td>多言語対応（日本語・英語）</td><td>UI の言語は起動時に macOS の優先言語で決め、会議の言語は文字起こしの言語設定で決める。domain は文言でなく理由のコードを返す</td></tr>
             <tr><td><a href="#adr-044">ADR-044</a></td><td>新しい版の通知</td><td>GitHub Releases を週 1 回（設定で毎日〜確認しない）確かめ、入れ方に応じた更新の手順を知らせるだけ。アプリは自分を入れ替えない</td></tr>
             <tr><td><a href="#adr-045">ADR-045</a></td><td>同梱バイナリの最低対応 OS と CI のランナー</td><td>同梱バイナリは <code>LSMinimumSystemVersion</code> 向けにビルドし、配布前に検査する。CI は macOS 27 SDK のある <code>xcode-27</code> で動かす</td></tr>
+            <tr><td><a href="#adr-046">ADR-046</a></td><td>要約のモデルに Apple Intelligence を選べる</td><td>既定は Gemma のまま。macOS 27 以降で、精度が劣ることを見せたうえで選んだ人だけが使う。分割・統合は共用し、同梱の <code>applelm</code> が 1 回ずつ応答する</td></tr>
           </tbody>
         </table>
       </div>
@@ -4116,6 +4117,111 @@
         </ul>
       </div>
 
+      <h2 id="adr-046">ADR-046 要約のモデルに Apple Intelligence を選べる（2026-09）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-046</span>
+          <p class="adr__title">macOS 27 の Apple Intelligence（FoundationModels）を要約のモデルとして設定で選べるようにする。既定は Gemma のままにし、選んでいる間は精度が劣ることを設定画面に出し続ける</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          macOS 27 で Apple Intelligence の端末内モデルが強化され、コンテキスト長が 8192 トークンになり、日本語にも対応した。
+          OS に入っているのでダウンロードが要らず、このアプリのメモリも使わない。一方で、要約の質が Gemma 4 E4B に大きく劣るなら
+          入れる意味が無いので、先に同じ条件で比べた。
+        </p>
+
+        <h4>比較（2026-09-28、M4、合成の会議 4 本）</h4>
+        <p>
+          アプリと同じ <code>LlamaCppSummarizer</code>（分割 → 統合、防御の前置き、既定のプロンプト）にモデルだけを差し替え、
+          どちらも貪欲法で生成した。文字起こしは whisper らしい誤り（同音異義・字幕の定型句・反復）を混ぜた合成で、
+          評価の道具とデータはリポジトリの外（<code>online-meeting-recorder-eval/summarization</code>）にある。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>会議</th><th>Gemma</th><th>Apple</th><th>決定・ToDo・数値の拾い方（Gemma / Apple）</th></tr></thead>
+            <tbody>
+              <tr><td>日本語 約 2,600 字</td><td>102 秒</td><td>15 秒（1 回）</td><td>8/8 / 7/8</td></tr>
+              <tr><td>日本語 約 1 万字</td><td>117 秒</td><td>72 秒（3 回）</td><td>14/14 / 13/14</td></tr>
+              <tr><td>英語 約 1.2 万字</td><td>74 秒</td><td>38 秒（3 回）</td><td>10/12 / 10/12</td></tr>
+              <tr><td>日本語 約 2.7 万字（70 分）</td><td>162 秒</td><td>252 秒（5 回）</td><td>22/23 / 22/23</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          キーワードでの拾い方はほぼ並ぶが、読むと差ははっきりしている。Apple は決定事項に ToDo や提案を混ぜ、ToDo の期限を
+          担当者ごとに 1 つへ潰して取り違える。長い会議では部分要約の箇条書きをほぼそのまま並べ（6,658 字。Gemma は 2,541 字）、
+          概要と議論の流れが同じ文の繰り返しになる。速さは 30 分程度までなら数倍だが、長い会議では部分要約を順に呼ぶぶん Gemma より遅い。
+        </p>
+
+        <h4>決定</h4>
+        <ul>
+          <li>
+            <strong>既定は Gemma のまま。Apple Intelligence は選んだ人だけが使う。</strong>設定の
+            <code>summarization.provider</code>（元から <code>'llama-cpp'</code> だけの項目）に <code>'apple-intelligence'</code> を足す。
+            知らない値は <code>llama-cpp</code> として読む（<a href="#adr-035">ADR-035</a>）。選んでいる間は、精度が劣ることと
+            長い会議での崩れ方を設定画面に出し続ける。
+          </li>
+          <li>
+            <strong>分割・統合・防御の前置きは共用し、応答の入れ物だけを差し替える。</strong><code>LlamaCppSummarizer</code> の
+            セッションを、同梱の <code>applelm</code>（Swift、<code>native/applelm</code>）を 1 回ずつ起こすものにする。
+            8192 トークンに履歴を溜めないよう、呼ぶたびに新しいセッションにする。コンテキスト長はジョブの開始時に
+            <code>applelm status</code> から取る。
+          </li>
+          <li>
+            <strong>部分要約が統合の段に収まらなければ、もう一段まとめ直す。</strong>8192 トークンでは 2 時間を超える会議で
+            部分要約の合計が溢れる。縮まなくなったら打ち切り、段数は 3 までにする（Gemma にも同じく効く）。
+          </li>
+          <li>
+            <strong>macOS 27 未満では使えないことにする。</strong>評価したのは 27 のモデル（26 はコンテキストが 4096）。
+            <code>applelm</code> は FoundationModels を弱リンクにし、最低対応 OS（14.2）でも起動して <code>unsupported-os</code> を返す。
+          </li>
+          <li>
+            <strong>安全フィルタは <code>permissiveContentTransformations</code>。</strong>要約は与えた文章の書き換えで、
+            既定のフィルタでは会議に普通に出る話題で応答ごと拒まれることがある。拒まれたら理由として保存し、Gemma への切り替えを案内する。
+          </li>
+          <li>
+            <strong>Apple Intelligence を選んでいれば、要約前のメモリ見積もりと初回セットアップでの Gemma の要求をしない。</strong>
+            モデルは OS のプロセスで動く。Gemma のパスは消さずに残し、戻したときに取り直させない。
+          </li>
+          <li><strong>チャットは Gemma のまま。</strong>ライブラリ全体を文脈に入れるには 8192 トークンは狭い。</li>
+        </ul>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>論点</th><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>入れるか</td>
+                <td>質が劣るので入れない</td>
+                <td>不採用</td>
+                <td>30 分程度の会議なら事実はおおむね拾え、ダウンロードもメモリも要らない。Gemma を入れられない・入れたくない人の選択肢になる</td>
+              </tr>
+              <tr>
+                <td>既定</td>
+                <td>Apple Intelligence を既定にする</td>
+                <td>不採用</td>
+                <td>長い会議で要約として崩れる。黙って質の低い方に倒さない</td>
+              </tr>
+              <tr>
+                <td>呼び出し方</td>
+                <td>Private Cloud Compute も使う</td>
+                <td>不採用</td>
+                <td>音声もテキストも外に出さない（<a href="#adr-003">ADR-003</a>）</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>残した判断</h4>
+        <ul>
+          <li>長い会議での崩れはプロンプト（統合の段で箇条書きを要約させ直す指示）で減らせる可能性があるが、試していない。</li>
+          <li>macOS 14〜26 の実機で <code>unsupported-os</code> が返ることは確かめていない（弱リンクと <code>minos</code> まで）。</li>
+          <li>評価は合成の会議 4 本だけ。実際の会議での差は、利用者の声を見て見直す。</li>
+        </ul>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -4180,6 +4286,10 @@
             <tr>
               <td><a href="#adr-044">ADR-044</a> 新しい版を知らせるだけで、自分では入れ替えない</td>
               <td>Developer ID を取ったとき。electron-updater で自動更新に切り替え、確認先（GitHub Releases）はそのまま使う</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-046">ADR-046</a> 要約の既定は Gemma で、Apple Intelligence は選んだ人だけ</td>
+              <td>OS のモデルが長い会議でも要約として崩れなくなったとき（コンテキストが広がる・統合の指示で直る）。評価の道具で比べ直す</td>
             </tr>
             <tr>
               <td><a href="#adr-045">ADR-045</a> CI を <code>xcode-27</code>（プレビュー）で動かす</td>

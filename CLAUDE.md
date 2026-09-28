@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Exolobe** — macOS 向けの Web 会議録音アプリ（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜045）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜046）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -108,6 +108,7 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 | utilityProcess（`chat-worker`） | ライブラリ全体へのチャット（要約と同じ Gemma を使う）。生成は 1 件ずつ、2 分使われなければ終了（ADR-033） |
 | 子プロセス（`micwatch`） | 他アプリのマイク使用を見張り、録音の開始忘れを知らせる（録音中は動かさない、ADR-027） |
 | 子プロセス（`calendarevents`） | 録音開始時に EventKit で重なる予定を引く。呼ぶたびに起動して終わる（ADR-040） |
+| 子プロセス（`applelm`） | 要約のモデルに Apple Intelligence を選んだとき、パイプラインのワーカーが 1 回の応答ごとに起動する。設定画面の可否の表示は main が `status` で聞く（ADR-046） |
 
 パイプラインのワーカーは `PipelineClient` が必要時に fork し、ジョブが片付いたら終了させて次の依頼で
 作り直す。要約も話者識別も数 GB を使うネイティブコードで、プロセスごと終わらせるのが
@@ -219,6 +220,11 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
 - 新しい版の通知（ADR-044）は**知らせるだけ**で、アプリは自分を入れ替えない（ad-hoc 署名では electron-updater が使えない）。
   GitHub Releases の 404（非公開の間）や通信の失敗は**「更新なし」として扱い、画面に出さない**。配布ページの URL は
   main だけが持ち、renderer から URL を受け取って開かない。
+- 要約のモデルに Apple Intelligence を選べる（ADR-046）が、**既定は Gemma のまま**にする。評価で決定事項と ToDo の
+  混同・期限の取り違えが多く、1 時間を超える会議では要約として崩れた。選んでいる間は設定画面に精度の注意を出し続ける。分割・統合・防御の前置きは
+  `LlamaCppSummarizer` を共用し、`applelm` は 1 回の応答だけを受け持つ（コンテキストが 8192 トークンしかないので、
+  呼ぶたびに新しいセッションにする）。**macOS 27 未満では使えないことにする** — 評価したのは 27 のモデル。
+  チャットは Gemma のまま（ライブラリ全体を文脈に入れるには狭い）。
 - 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、
   外したときに「自分が言っていない発言」が残る（ADR-030）。変換は取り込み時に `afconvert` で
   16kHz モノラルにし、`--mix` を外さない（片チャンネルを捨てると話者が丸ごと消える）。
