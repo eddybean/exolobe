@@ -35,7 +35,10 @@ jobs:
   test:
     # macOS ランナーが必須。テストは実際の /usr/bin/afconvert を通してエンコードを
     # 検証しており、postinstall も PlistBuddy と codesign を使う。
-    runs-on: macos-15
+    # xcode-27 なのは、Apple のモデルでの要約（FoundationModels）に macOS 27 SDK が要るため。
+    # 同梱バイナリの最低対応 OS は build-*.sh が指定するので、ランナーの OS には引きずられない。
+    # release.yml と揃える（キャッシュしたバイナリを Release が読むため）。
+    runs-on: xcode-27
 
     steps:
       - uses: actions/checkout@v4
@@ -82,8 +85,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: resources/bin/whisper-cli
-          key: whisper-${{ runner.os }}-${{ runner.arch }}-${{ env.WHISPER_VERSION }}-${{ hashFiles('scripts/build-whisper.sh') }}
+          key: whisper-${{ runner.os }}-${{ runner.arch }}-${{ env.WHISPER_VERSION }}-${{ hashFiles('scripts/build-whisper.sh', 'scripts/min-macos.sh') }}
 
       - name: whisper-cli をビルド（Release 用）
         if: github.event_name == 'push' && steps.whisper-cache.outputs.cache-hit != 'true'
         run: npm run build:whisper
+
+      # 最低対応 OS を上げずにキャッシュへ載ったものが Release まで残らないよう、ここで止める。
+      - name: whisper-cli の最低対応 OS を確認（Release 用）
+        if: github.event_name == 'push'
+        run: bash scripts/check-min-macos.sh resources/bin/whisper-cli

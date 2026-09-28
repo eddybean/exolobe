@@ -10,14 +10,17 @@ WHISPER_VERSION="${WHISPER_VERSION:-v1.9.4}"
 BUILD_DIR="${TMPDIR:-/tmp}/omr-whisper-build"
 OUT_DIR="$(cd "$(dirname "$0")/.." && pwd)/resources/bin"
 
+source "$(dirname "$0")/min-macos.sh"
+
 # Core ML を含まない古いビルドが残っていると、エンコーダを取得しても黙って
 # Metal のまま動いてしまう。リンク先を見て作り直しが要るかを判断する。
+# 最低対応 OS が違うもの（対象 OS を指定する前のビルド）も作り直す。
 if [ -x "$OUT_DIR/whisper-cli" ] && [ "${FORCE:-0}" != "1" ]; then
-  if otool -L "$OUT_DIR/whisper-cli" | grep -q CoreML; then
+  if otool -L "$OUT_DIR/whisper-cli" | grep -q CoreML && built_for_min_macos "$OUT_DIR/whisper-cli"; then
     echo "[build-whisper] resources/bin/whisper-cli は既にあります（FORCE=1 で再ビルド）。"
     exit 0
   fi
-  echo "[build-whisper] 既存のバイナリが Core ML 無しのため作り直します。"
+  echo "[build-whisper] 既存のバイナリが Core ML 無し、または最低対応 OS が違うため作り直します。"
 fi
 
 for tool in git cmake; do
@@ -38,6 +41,7 @@ git clone --depth 1 --branch "$WHISPER_VERSION" https://github.com/ggml-org/whis
 echo "[build-whisper] Metal / Core ML 有効でビルドしています..."
 cmake -S "$BUILD_DIR" -B "$BUILD_DIR/build" \
   -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET="$MIN_MACOS" \
   -DGGML_METAL=ON \
   -DWHISPER_COREML=ON \
   -DWHISPER_COREML_ALLOW_FALLBACK=ON \

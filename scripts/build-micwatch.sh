@@ -9,7 +9,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT_DIR="$ROOT/resources/bin"
 SOURCE="$ROOT/native/micwatch/main.swift"
 
-if [ -x "$OUT_DIR/micwatch" ] && [ "${FORCE:-0}" != "1" ]; then
+source "$ROOT/scripts/min-macos.sh"
+
+if [ -x "$OUT_DIR/micwatch" ] && built_for_min_macos "$OUT_DIR/micwatch" && [ "${FORCE:-0}" != "1" ]; then
   echo "[build-micwatch] resources/bin/micwatch は既にあります（FORCE=1 で再ビルド）。"
   exit 0
 fi
@@ -21,7 +23,8 @@ fi
 
 mkdir -p "$OUT_DIR"
 echo "[build-micwatch] ビルドしています..."
-swiftc -O -framework CoreAudio -o "$OUT_DIR/micwatch" "$SOURCE"
+# arm64 固定なのは配布物が Apple Silicon 向けだけだから（release.yml）。
+swiftc -O -target "arm64-apple-macos$MIN_MACOS" -framework CoreAudio -o "$OUT_DIR/micwatch" "$SOURCE"
 chmod +x "$OUT_DIR/micwatch"
 
 echo "[build-micwatch] 完了: $OUT_DIR/micwatch"
