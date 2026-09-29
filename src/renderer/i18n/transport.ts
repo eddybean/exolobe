@@ -18,7 +18,7 @@ const ja = {
   startAlertSuffix: '録音を開始しますか？',
   startNow: '録音する',
   skipForNow: '今はしない',
-  meterTitle: '入力レベル（マイク／デスクトップ音声）',
+  meterTitle: '入力レベルの推移（上：デスクトップ音声＝相手 / 下：マイク＝自分、直近 10 秒）',
   dismissError: 'エラーを閉じる'
 }
 
@@ -38,7 +38,7 @@ const en: typeof ja = {
   startAlertSuffix: ' Start recording?',
   startNow: 'Record',
   skipForNow: 'Not Now',
-  meterTitle: 'Input level (microphone / system audio)',
+  meterTitle: 'Input level, last 10 seconds (top: system audio = them / bottom: microphone = you)',
   dismissError: 'Dismiss error'
 }
 

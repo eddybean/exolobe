@@ -2,6 +2,7 @@ import type { ReactElement } from 'react'
 import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import { autoStartedMessage, startAlertMessage } from '@shared/startAlert'
 import type { Transport } from '../hooks/useTransport'
+import { LevelTimeline } from './LevelTimeline'
 import { formatDuration } from '../format'
 import { locale } from '../i18n/locale'
 import { transportText } from '../i18n/transport'
@@ -18,7 +19,7 @@ export const TransportBar = ({
   /** グローバルショートカットが有効なら、ボタンの横にキーを添えて存在を知らせる。 */
   shortcutEnabled: boolean
 }): ReactElement => {
-  const { state, elapsedMs, level, busy, warning, silenceAlert, startAlert, autoStarted } = transport
+  const { state, elapsedMs, busy, warning, silenceAlert, startAlert, autoStarted } = transport
   const active = state.active
   const t = transportText()
 
@@ -102,9 +103,7 @@ export const TransportBar = ({
         </div>
       )}
 
-      <div className="transport__meter" title={t.meterTitle}>
-        <div className="transport__meter-fill" style={{ width: `${Math.round(level * 100)}%` }} />
-      </div>
+      <LevelTimeline active={active} readHistory={transport.levelHistory} title={t.meterTitle} />
 
       {transport.error && (
         <div className="transport__error" role="alert">

@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AutoStartedDto, SilenceAlertDto, StartAlertDto, TransportStateDto } from '@shared/ipc'
 import { startMicCapture, type MicCapture } from '../audio/micCapture'
 import { messageOf } from '../errorMessage'
-import { combinedLevel, readTrackLevels } from '../session/readInputLevel'
+import {
+  LEVEL_HISTORY_CAPACITY,
+  LEVEL_SAMPLE_INTERVAL_MS,
+  pushLevel,
+  type LevelSample
+} from '../session/levelHistory'
+import { readTrackLevels } from '../session/readInputLevel'
 import { startRecordingSession } from '../session/startRecordingSession'
 
 export interface TrackLevels {
@@ -15,9 +21,13 @@ const SILENT: TrackLevels = { mic: undefined, system: 0 }
 export interface Transport {
   readonly state: TransportStateDto
   readonly elapsedMs: number
-  readonly level: number
   /** 録音中の画面で 2 トラックを分けて出すためのレベル。マイクが取れていなければ mic は undefined。 */
   readonly levels: TrackLevels
+  /**
+   * 直近 10 秒ほどの入力レベル。波形は state を介さず自前のタイマーで読んで描く
+   * （100ms ごとに React を再描画しないため）。
+   */
+  levelHistory(): readonly LevelSample[]
   readonly busy: boolean
   /** 録音を開始できなかった、あるいは停止に失敗した。 */
   readonly error: string | undefined
@@ -53,6 +63,7 @@ export const useTransport = (sampleRate: number): Transport => {
   const [state, setState] = useState<TransportStateDto>({ active: false })
   const [elapsedMs, setElapsedMs] = useState(0)
   const [levels, setLevels] = useState<TrackLevels>(SILENT)
+  const history = useRef<readonly LevelSample[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [warning, setWarning] = useState<string>()
@@ -89,6 +100,7 @@ export const useTransport = (sampleRate: number): Transport => {
     if (!state.active || state.startedAtMs === undefined) {
       setElapsedMs(0)
       setLevels(SILENT)
+      history.current = []
       return
     }
 
@@ -98,8 +110,13 @@ export const useTransport = (sampleRate: number): Transport => {
     // 積み増して順序が入れ替わらないよう、1 回ずつに限る。
     let reading = false
 
+    // 波形のために 100ms で読むが、画面の数字とライブ画面のメーターは 200ms のまま。
+    let tick = 0
+
     const timer = window.setInterval(() => {
-      setElapsedMs(Date.now() - startedAtMs)
+      tick += 1
+      const redraw = tick % 2 === 0
+      if (redraw) setElapsedMs(Date.now() - startedAtMs)
       if (reading) return
 
       reading = true
@@ -109,15 +126,19 @@ export const useTransport = (sampleRate: number): Transport => {
       }).then((next) => {
         reading = false
         // 取得は非同期なので、録音が終わった後の結果でメーターを戻さない。
-        if (!stopped) setLevels(next)
+        if (stopped) return
+        history.current = pushLevel(history.current, next, LEVEL_HISTORY_CAPACITY)
+        if (redraw) setLevels(next)
       })
-    }, 200)
+    }, LEVEL_SAMPLE_INTERVAL_MS)
 
     return () => {
       stopped = true
       window.clearInterval(timer)
     }
   }, [state.active, state.startedAtMs])
+
+  const levelHistory = useCallback(() => history.current, [])
 
   const releaseMic = useCallback(async (): Promise<void> => {
     const current = mic.current
@@ -230,8 +251,8 @@ export const useTransport = (sampleRate: number): Transport => {
   return {
     state,
     elapsedMs,
-    level: combinedLevel(levels),
     levels,
+    levelHistory,
     busy,
     error,
     warning,
