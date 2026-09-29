@@ -1,15 +1,3 @@
-/**
- * 音量メーターに出す入力レベルの決め方。
- *
- * メーターは「今この録音に音が入っているか」を示すものなので、マイクだけでなく
- * デスクトップ音声も含めた大きい方を出す。相手だけが喋っている時間はマイクが
- * 無音なので、マイクしか見ないと「録れていない」と誤解させてしまう。
- */
-export const combinedLevel = (levels: {
-  readonly mic: number | undefined
-  readonly system: number
-}): number => Math.max(levels.mic ?? 0, levels.system)
-
 export interface LevelSources {
   /** レンダラーで取得しているマイクの peak。マイクを取れていなければ undefined。 */
   readonly micLevel: (() => number) | undefined
