@@ -17,7 +17,7 @@ describe('updateGuidance', () => {
   it('Homebrew で入れた人には brew の更新コマンドを案内する', () => {
     expect(
       updateGuidance(status({ available: { version: '0.3.0', installSource: 'homebrew' } }))
-    ).toEqual({ kind: 'homebrew', version: '0.3.0', command: 'brew upgrade --cask exolobe' })
+    ).toEqual({ kind: 'homebrew', version: '0.3.0', command: 'brew update && brew upgrade --cask exolobe' })
   })
 
   it('DMG で入れた人には配布ページを案内する', () => {
