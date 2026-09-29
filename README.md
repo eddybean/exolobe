@@ -71,7 +71,7 @@ xattr -dr com.apple.quarantine "/Applications/Exolobe.app"
 
 新しい版が出ると、画面上部の右端に「新しい版」の札が出ます。押すと設定の
 「このアプリについて」に更新の手順が出ます（アプリが自分で更新を入れることはありません）。
-Homebrew で入れた場合は `brew upgrade --cask exolobe`、.dmg で入れた場合は
+Homebrew で入れた場合は `brew update && brew upgrade --cask exolobe`、.dmg で入れた場合は
 Releases ページから新しい .dmg を取得してアプリを入れ替えてください。録音とモデルはそのまま残ります。
 
 ## 使い始める

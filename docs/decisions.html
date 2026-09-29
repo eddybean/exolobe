@@ -3959,7 +3959,8 @@
           <li>
             <strong>知らせるだけで、アプリは自分を入れ替えない。</strong>ナビの右端に「新しい版」の札を出し、押すと設定の
             「このアプリについて」で手順を見せる。Homebrew（<code>/opt/homebrew/Caskroom/exolobe</code> か
-            <code>/usr/local/Caskroom/exolobe</code> がある）なら <code>brew upgrade --cask exolobe</code> を、
+            <code>/usr/local/Caskroom/exolobe</code> がある）なら <code>brew update &amp;&amp; brew upgrade --cask exolobe</code> を
+            （tap のクローンが古いと <code>upgrade</code> だけでは「既に最新」と返るため <code>update</code> を前に付ける）、
             それ以外は配布ページを案内する。Homebrew で入れた人が DMG で上書きすると、brew の記録と実体の版が食い違うため。
             cask に <code>auto_updates true</code> は付けない。
           </li>

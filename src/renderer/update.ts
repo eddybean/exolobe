@@ -1,7 +1,12 @@
 import type { UpdateStatusDto } from '@shared/ipc'
 
-/** Homebrew の cask の更新。cask 名は配布する tap の cask に合わせる。 */
-export const BREW_UPGRADE_COMMAND = 'brew upgrade --cask exolobe'
+/**
+ * Homebrew の cask の更新。cask 名は配布する tap の cask に合わせる。
+ *
+ * `brew update` を前に付けるのは、tap の手元のクローンが古いと brew は入っている版を最新と
+ * みなし、`upgrade` だけでは「既に最新」と返すため（自動の update は 24 時間に 1 回まで）。
+ */
+export const BREW_UPGRADE_COMMAND = 'brew update && brew upgrade --cask exolobe'
 
 export type UpdateGuidance =
   | { readonly kind: 'homebrew'; readonly version: string; readonly command: string }
