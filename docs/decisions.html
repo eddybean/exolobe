@@ -54,7 +54,7 @@
             <tr><td><a href="#adr-019">ADR-019</a></td><td>ウィンドウ外からの録音操作</td><td>メニューバーアイコンとアプリメニューの二本立て</td></tr>
             <tr><td><a href="#adr-020">ADR-020</a></td><td>無音区間の文字起こし</td><td>whisper の VAD で発話区間だけを渡す</td></tr>
             <tr><td><a href="#adr-021">ADR-021</a></td><td>要約の推論バックエンド（MLX 化）</td><td>見送り。GGUF / node-llama-cpp を継続</td></tr>
-            <tr><td><a href="#adr-022">ADR-022</a></td><td>文字起こしモデルの見直し</td><td>継続。whisper large-v3-turbo（q5_0）のまま</td></tr>
+            <tr><td><a href="#adr-022">ADR-022</a></td><td>文字起こしモデルの見直し</td><td>継続。whisper large-v3-turbo（q5_0）のまま。large-v3 も比べて見送り</td></tr>
             <tr><td><a href="#adr-023">ADR-023</a></td><td>モデルの削除とアンインストール時のクリーンアップ</td><td>設定画面から個別削除。自動クリーンアップは見送り</td></tr>
             <tr><td><a href="#adr-024">ADR-024</a></td><td>メモリ不足時の重い推論</td><td>実行前に確認し、足りなければそのステップだけ失敗させる</td></tr>
             <tr><td><a href="#adr-025">ADR-025</a></td><td>録りっぱなしの防止</td><td>main で無音を見張り、知らせるだけで自動停止はしない</td></tr>
@@ -1400,6 +1400,43 @@
           同じ turbo の q5_0 を q8_0 や fp16 へ上げる案もありますが、q5_0 からの
           WER 改善はごく小さい一方でダウンロードは 574MB から 900MB 前後に増えます。
           <a href="#adr-011">ADR-011</a> の「アプリが入手を引き受ける」体験を重くするだけなので採りません。
+        </p>
+
+        <h4>large-v3（turbo でない版）も見送る（2026-09 追記）</h4>
+        <p>
+          turbo はデコーダを 32 層から 4 層へ削った蒸留版なので、削る前の large-v3 なら
+          雑音や声の重なりに強いのではないかと考え、実際に比べました。どちらも q5_0、アプリと同じ
+          <code>WhisperCppTranscriber</code>（VAD 有り、用語集なし）、所要時間を揃えるため Core ML 無しです。
+          評価データはリポジトリの外に置いた公開コーパス（各 100 発話）と、<code>eval:transcription</code> の合成音声です。
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>データ</th><th>turbo</th><th>large-v3</th><th>large-v3 が良い / 悪い</th><th>p（Wilcoxon）</th></tr></thead>
+            <tbody>
+              <tr><td>FLEURS（Wikipedia の朗読）</td><td>6.0%</td><td>5.4%</td><td>30 / 16</td><td>0.04</td></tr>
+              <tr><td>Common Voice 8.0（一般の人の朗読）</td><td>10.0%</td><td>9.6%</td><td>13 / 10</td><td>0.80</td></tr>
+              <tr><td>ReazonSpeech（テレビの話し言葉）</td><td>11.9%</td><td>12.7%</td><td>14 / 29</td><td>0.09</td></tr>
+              <tr><td><strong>全体（300 発話）</strong></td><td><strong>8.4%</strong></td><td><strong>8.2%</strong></td><td>57 / 55</td><td><strong>0.57</strong></td></tr>
+              <tr><td>合成音声・声の重なり（crosstalk）</td><td>40.0%</td><td>43.3%</td><td>4 / 4</td><td>0.53</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          数字は CER。large-v3 が勝つのは固有名詞や難しい漢字を含む朗読（「咆哮」「人質」「カタルーニャ」）で、
+          これは用語集で補える種類の誤りです。会議に近い話し言葉と声の重なりでは、むしろ悪くなりました。
+          turbo には無かった誤りも出ています — 「そっか。」が「おはようございます」になる作り話、
+          「あなたは？」が空になる取りこぼし、同じ文を 0.1 秒のセグメントでもう 1 度出す重複
+          （<a href="#adr-038">ADR-038</a> の繰り返しの条件に届かず素通りする）。
+          長尺（発話を雑音・BGM・打鍵の間で並べた約 10 分）でも差は一定しませんでした
+          （FLEURS 4.2% → 8.3%、ReazonSpeech 16.7% → 16.0%）。
+        </p>
+        <p>
+          一方で処理時間は 1 本ずつのクリップで 1.8 倍、長尺と合成音声で 2.6〜3 倍に延び、ダウンロードは
+          574MB から 1.08GB に増えます。Core ML のエンコーダもモデルごとに別で（1.2GB）、
+          エンコーダしか速くならないので、デコーダが 32 層ある large-v3 では turbo ほど効きません。
+          <strong>精度の差が有意でないまま、遅く大きくなるだけなので採りません。</strong>
+          比べたのは実際の会議の録音ではなく、声の重なりは合成音声の 20 発話だけです。
+          実録音の評価セットができたときに、雑音と声の重なりで差が出るかを見直します。
         </p>
       </div>
 
