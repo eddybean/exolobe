@@ -17,6 +17,16 @@ export const pushLevel = (
 ): readonly LevelSample[] => [...history, sample].slice(-capacity)
 
 /**
+ * 2 つのサンプルをトラックごとに大きい方で束ねる。
+ * デスクトップ音声の peak は読み出すたびに消費されるので、メーターを 100ms より
+ * 粗く更新するとき、間の読み出しを捨てると音の到着周期しだいで表示が常に 0 になる。
+ */
+export const mergeLevels = (a: LevelSample, b: LevelSample): LevelSample => ({
+  mic: a.mic === undefined || b.mic === undefined ? (a.mic ?? b.mic) : Math.max(a.mic, b.mic),
+  system: Math.max(a.system, b.system)
+})
+
+/**
  * peak（0〜1）を、中央線から伸ばす棒の高さ（px）にする。
  * 話し声の peak は小さく出るので平方根で持ち上げる（litSegments と同じ）。
  * 無音でも minPx は残し、録れていない状態と見分けられるようにする。

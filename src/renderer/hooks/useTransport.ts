@@ -5,6 +5,7 @@ import { messageOf } from '../errorMessage'
 import {
   LEVEL_HISTORY_CAPACITY,
   LEVEL_SAMPLE_INTERVAL_MS,
+  mergeLevels,
   pushLevel,
   type LevelSample
 } from '../session/levelHistory'
@@ -111,12 +112,15 @@ export const useTransport = (sampleRate: number): Transport => {
     let reading = false
 
     // 波形のために 100ms で読むが、画面の数字とライブ画面のメーターは 200ms のまま。
+    // メーターは間の読み出しも束ねて出す（システム音声の peak は読むたびに消えるため、
+    // 捨てると音の到着周期しだいで常に 0 が表示される）。
     let tick = 0
+    let reads = 0
+    let pending: LevelSample | undefined
 
     const timer = window.setInterval(() => {
       tick += 1
-      const redraw = tick % 2 === 0
-      if (redraw) setElapsedMs(Date.now() - startedAtMs)
+      if (tick % 2 === 0) setElapsedMs(Date.now() - startedAtMs)
       if (reading) return
 
       reading = true
@@ -128,7 +132,12 @@ export const useTransport = (sampleRate: number): Transport => {
         // 取得は非同期なので、録音が終わった後の結果でメーターを戻さない。
         if (stopped) return
         history.current = pushLevel(history.current, next, LEVEL_HISTORY_CAPACITY)
-        if (redraw) setLevels(next)
+        pending = pending === undefined ? next : mergeLevels(pending, next)
+        reads += 1
+        if (reads % 2 === 0) {
+          setLevels(pending)
+          pending = undefined
+        }
       })
     }, LEVEL_SAMPLE_INTERVAL_MS)
 

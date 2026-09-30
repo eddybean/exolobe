@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { barHeight, pushLevel, type LevelSample } from '@renderer/session/levelHistory'
+import { barHeight, mergeLevels, pushLevel, type LevelSample } from '@renderer/session/levelHistory'
 
 const sample = (system: number, mic: number | undefined = 0): LevelSample => ({ system, mic })
 
@@ -40,5 +40,19 @@ describe('barHeight', () => {
   it('範囲外の値は 0〜1 に丸める', () => {
     expect(barHeight(3, 13, 0.6)).toBe(13)
     expect(barHeight(-1, 13, 0.6)).toBe(0.6)
+  })
+})
+
+describe('mergeLevels', () => {
+  it('間に挟まった山を落とさないよう、トラックごとに大きい方を採る', () => {
+    expect(mergeLevels(sample(0.6, 0.1), sample(0, 0.4))).toEqual(sample(0.6, 0.4))
+  })
+
+  it('片方だけマイクが取れていれば、その値を使う', () => {
+    expect(mergeLevels(sample(0, undefined), sample(0, 0.3)).mic).toBe(0.3)
+  })
+
+  it('どちらもマイクが取れていなければ undefined のまま', () => {
+    expect(mergeLevels(sample(0, undefined), sample(0, undefined)).mic).toBeUndefined()
   })
 })
