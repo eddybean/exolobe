@@ -49,10 +49,10 @@ describe('mergeLevels', () => {
   })
 
   it('片方だけマイクが取れていれば、その値を使う', () => {
-    expect(mergeLevels(sample(0, undefined), sample(0, 0.3)).mic).toBe(0.3)
+    expect(mergeLevels({ system: 0, mic: undefined }, sample(0, 0.3)).mic).toBe(0.3)
   })
 
   it('どちらもマイクが取れていなければ undefined のまま', () => {
-    expect(mergeLevels(sample(0, undefined), sample(0, undefined)).mic).toBeUndefined()
+    expect(mergeLevels({ system: 0, mic: undefined }, { system: 0, mic: undefined }).mic).toBeUndefined()
   })
 })
