@@ -69,6 +69,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: 整形の確認
+        run: npm run fmt:check
+
       - name: テスト
         run: npm test
 

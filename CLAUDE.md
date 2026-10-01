@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev          # electron-vite dev（開発起動）
 npm run typecheck    # tsc --noEmit（strict + noUncheckedIndexedAccess + exactOptionalPropertyTypes）
 npm run lint         # oxlint
+npm run fmt          # oxfmt で整形（CI は npm run fmt:check）
 npm test             # vitest run
 npm run test:watch
 npm run build        # typecheck + electron-vite build
@@ -58,7 +59,11 @@ npx vitest run -t "テスト名の一部"
 - `npm run lint` は **oxlint**（`.oxlintrc.json`）。TypeScript 7 が従来の JS コンパイラ
   API を公開しなくなり typescript-eslint が動かないため、ESLint ではなく oxlint を使う。
   `react/set-state-in-effect` と一部の `jsx-a11y` は既知の未対応として警告に留めてある
-  （エラーではないので lint は通る）。CI は typecheck / lint / test / build を回す。
+  （エラーではないので lint は通る）。CI は typecheck / lint / fmt:check / test / build を回す。
+- 整形は **oxfmt**（`.oxfmtrc.json`）。Vite+（`vp fmt` の中身も oxfmt）は `vite` を Vite 8 系の
+  `@voidzero-dev/vite-plus-core` に差し替える前提で、electron-vite 5 の peerDependencies
+  （`vite ^5 || ^6 || ^7`）と合わないため入れていない。electron-vite が Vite 8 に対応したら見直す。
+  一括整形のコミットは `.git-blame-ignore-revs` に載せてある（`git config blame.ignoreRevsFile .git-blame-ignore-revs`）。
 - `dev` / `typecheck` / `test` の前に `scripts/check-node-modules.mjs` が走り、
   `node_modules` が `package-lock.json` と食い違っていれば止める。worktree を別ブランチに
   使い回すと lockfile だけが進み、古い依存（例: Electron 33 のまま）が型エラーなど
