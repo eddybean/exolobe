@@ -38,11 +38,14 @@ npx vitest run -t "テスト名の一部"
 
 注意点:
 
-- **macOS 必須**。テストは実際の `/usr/bin/afconvert` を通し、`postinstall` は
+- **開発は macOS が前提**。テストは実際の `/usr/bin/afconvert` を通し、`postinstall` は
   PlistBuddy と codesign を使う。CI は `xcode-27` ランナー（macOS 27 SDK が要るため、ADR-045）。
+- Windows 対応を進めている（ADR-048）。CI の `test-windows` が Windows でも typecheck / lint / fmt:check /
+  test / build を回す。macOS のコマンドや `#!/bin/sh` の偽バイナリを実際に使うテストは
+  `describe.skipIf(notMacOS)`（`tests/platform.ts`）で囲み、パスの期待値は `/` で書かず `join` で組む。
 - 同梱バイナリ（`scripts/build-*.sh`）の最低対応 OS は `electron-builder.yml` の `LSMinimumSystemVersion` から
   `scripts/min-macos.sh` が読む。指定しないとビルドした機械の OS になり、古い macOS で起動しない（ADR-045）。
-- `postinstall`（`scripts/patch-dev-electron.sh`）は開発用 Electron.app に
+- `postinstall`（`scripts/postinstall.mjs` が macOS でだけ `scripts/patch-dev-electron.sh` を呼ぶ）は開発用 Electron.app に
   `NSAudioCaptureUsageDescription` / `NSMicrophoneUsageDescription` を注入して ad-hoc 再署名する。
   これが無いと開発中に音声キャプチャの権限を取れない。`npm ci` し直したら再実行される。
 - whisper-cli は「設定のパス（既定値 `whisper-cli` 以外）→ 同梱バイナリ → PATH」の順に解決する。

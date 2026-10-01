@@ -98,3 +98,43 @@ jobs:
       - name: whisper-cli の最低対応 OS を確認（Release 用）
         if: github.event_name == 'push'
         run: bash scripts/check-min-macos.sh resources/bin/whisper-cli
+
+  # Windows 版に向けて、OS に依存しない部分が Windows でも壊れていないことを確かめる（ADR-048）。
+  # macOS のコマンドを実際に呼ぶテストは tests/platform.ts の notMacOS で飛ばしている。
+  # whisper-cli のキャッシュは作らない（Windows 版の配布物はまだ無い）。
+  test-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # キーに runner.os を含むので、macOS の node_modules とは混ざらない。
+      - name: node_modules のキャッシュを復元
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
+
+      - name: 依存関係をインストール
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: 型チェック
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: 整形の確認
+        run: npm run fmt:check
+
+      - name: テスト
+        run: npm test
+
+      - name: ビルド
+        run: npx electron-vite build
