@@ -23,24 +23,17 @@ files:
   - package.json
   - '!**/*.map'
 
-# whisper-cli は whisper.cpp が macOS 版 CLI を配布していないため、
-# scripts/build-whisper.sh でビルドしたものをここから同梱する。
-extraResources:
-  - from: resources/bin
-    to: bin
-    filter:
-      - '**/*'
-  # 許可ダイアログの文言を UI の言語で出す（ADR-043）。Contents/Resources/<言語>.lproj に置く。
-  - from: build/lproj
-    to: .
-    filter:
-      - '**/*.strings'
+# 同梱バイナリは OS ごとに分け、互いの配布物に混ぜない（ADR-048）。resources/bin は
+# ビルドした機械の OS のものしか作られないが、別 OS の成果物が紛れても入らないよう拡張子で絞る。
 
 # Electron が持ち込む数十言語の .lproj を、対応している言語だけに絞る。macOS は .lproj の
 # 有無でアプリの言語を選ぶので、残したままだと例えばドイツ語の人に「ドイツ語のアプリ」と
 # 判定され、Electron のメニュー（編集・ウィンドウ）だけがドイツ語になる。
+# Windows では同じ設定が locales/*.pak を絞る。英語の .pak は en-US という名前なので並べておく
+# （Chromium が最後に頼る言語で、消すと起動できない）。Windows の配布物ではまだ確かめていない。
 electronLanguages:
   - en
+  - en-US
   - ja
 
 # ネイティブモジュールは asar の中からは読み込めないため展開して置く。
@@ -52,6 +45,20 @@ asarUnpack:
 
 mac:
   category: public.app-category.productivity
+  # whisper-cli は whisper.cpp が macOS 版 CLI を配布していないため、
+  # scripts/build-whisper.sh でビルドしたものをここから同梱する。
+  extraResources:
+    - from: resources/bin
+      to: bin
+      filter:
+        - '**/*'
+        - '!**/*.exe'
+        - '!**/*.dll'
+    # 許可ダイアログの文言を UI の言語で出す（ADR-043）。Contents/Resources/<言語>.lproj に置く。
+    - from: build/lproj
+      to: .
+      filter:
+        - '**/*.strings'
   # scripts/build-icon.mjs が生成する。同じ寸法定義からメニューバー用の
   # アイコン（src/main/trayIcon.ts）も出しているので、意匠を変えるなら両方作り直す。
   icon: build/icon.icns
@@ -100,3 +107,22 @@ dmg:
       y: 335
       type: file
       path: build/dmg/READ ME FIRST.txt
+
+# Windows 版（ADR-048）。最初の版は x64 のみ・署名なし。アイコンは build/icon.png から作らせる。
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # whisper-cli（Vulkan 版）と補助プログラムの exe、それらが読む dll。
+  extraResources:
+    - from: resources/bin
+      to: bin
+      filter:
+        - '*.exe'
+        - '*.dll'
+
+nsis:
+  # 管理者権限を求めず、利用者ごとに入れる。インストール先を選ばせ、スタートメニューに置く。
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
