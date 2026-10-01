@@ -1,0 +1,5 @@
+# C ランタイム（vcruntime140.dll）を exe に組み込む。Windows に最初から入っているとは限らず、
+# 入っていない機体では補助プログラムが起動しない（UCRT は Windows 10 以降に入っている）。
+# scripts/build-rust-helper.mjs は、この設定が効くよう crate のディレクトリで cargo を呼ぶ。
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

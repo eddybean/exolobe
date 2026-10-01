@@ -4456,6 +4456,17 @@
             変換とチャンネルの混ぜ合わせは Source Reader に任せた（左右に別の音を入れたステレオで、両方が残ることを確かめた）。
             読める形式は afconvert と違い、webm / mkv / mov / wma / avi を読み、ogg / opus / aiff / caf を読まない（実機で確認）。
             webm の Opus のように、ストアの拡張機能が入っているかで変わるものもある。</li>
+          <li>whisper-cli は whisper.cpp の公式のリリース資産を使わず、自前でビルドする（x64 の Vulkan 版が無く、資産の付いたビルド番号も
+            v1.9.x のタグと同じコミットではない）。バックエンドを DLL に分け（GGML_BACKEND_DL）、実行時に読み込む。Vulkan を静的に組み込むと、
+            GPU ドライバの無い機体では vulkan-1.dll が無くて whisper-cli.exe 自体が起動しないため。CPU も命令セットごとの DLL を作り、
+            実行する機体で選ばせる（GGML_CPU_ALL_VARIANTS）。同梱は whisper-cli.exe・whisper.dll・ggml の DLL で約 66MB（大半は ggml-vulkan.dll の 55MB）。
+            Visual C++ ランタイム（msvcp140 / vcruntime140）は Windows に入っているとは限らないので、DLL を横に置く。
+            Rust の補助プログラムは単体の exe なので、ランタイムを静的に組み込む。</li>
+          <li>30 分の日本語（Windows の音声合成で docs の文を読み上げたもの、188 発話）を large-v3-turbo q5_0 で文字起こしした（2026-10、Windows 11）。
+            Vulkan（RTX 5090）は VAD 有りで 33 秒・無しで 21 秒、CPU（ggml-vulkan.dll を除いた状態、既定の 4 スレッド）は 461 秒・621 秒。
+            CPU でも実時間の約 4 倍速く、文字誤り率はどちらも 0.04 前後で差が無く、取りこぼしは 0。CPU は 8 スレッドにすると 302 秒になった。
+            スレッド数の既定（whisper-cli の 4）を変えるかは、要約・メモリの見積もりと一緒に実機で決める。
+            文字起こしの評価の合成音声は macOS の say で作るので、Windows では手元の録音（OMR_EVAL_EXTRA_DIR）だけで測り、基準は取り直さない。</li>
           <li>システム音声は WASAPI のプロセス loopback（Windows 10 2004 以降）の除外モードで、main の PID 以下の木（このアプリの音）を除いて録る。
             実機で、他のプロセスが鳴らした 1 kHz は振幅 0.48 で入り、除いた木から鳴らした音は背景と同じ水準に収まった。
             テスト録音は自分の確認音が入るかで判定するので、そのときだけ除かない。補助プログラムは stdin が閉じたら止まるので、

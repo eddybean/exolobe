@@ -18,9 +18,9 @@
  */
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { basename, join, resolve } from 'node:path'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir, release } from 'node:os'
+import { basename, dirname, join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { findAsset } from '@domain/ModelCatalog'
 import { int16Buffer, readWav, WavFileWriter } from '@infrastructure/audio/wav'
@@ -40,17 +40,29 @@ const HERE = resolve('tests/eval/transcription')
 const CACHE = join(HERE, '.cache')
 const BASELINE = join(HERE, 'baseline.json')
 
-const modelDir =
-  process.env.OMR_EVAL_MODEL_DIR ?? join(homedir(), 'Library', 'Application Support', 'Exolobe', 'models')
+/**
+ * 合成音声は macOS の say で作るので、macOS でだけ使う。Windows では手元の録音（OMR_EVAL_EXTRA_DIR）だけで測り、
+ * 基準（baseline.json、macOS の合成音声の結果）は取り直さない（ADR-048）。
+ */
+const macOS = process.platform === 'darwin'
+
+/** アプリがモデルを置く場所（userData/models）。 */
+const defaultModelDir = macOS
+  ? join(homedir(), 'Library', 'Application Support', 'Exolobe', 'models')
+  : join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'Exolobe', 'models')
+const modelDir = process.env.OMR_EVAL_MODEL_DIR ?? defaultModelDir
 const modelFile = findAsset('transcription-model')?.fileName ?? ''
 const vadFile = findAsset('vad-model')?.fileName ?? ''
-const bundledCli = resolve('resources/bin/whisper-cli')
+const bundledCli = resolve(macOS ? 'resources/bin/whisper-cli' : 'resources/bin/whisper-cli.exe')
 const whisperCli = process.env.OMR_EVAL_WHISPER_CLI ?? (existsSync(bundledCli) ? bundledCli : 'whisper-cli')
 
 const hash = (value: string): string => createHash('sha1').update(value).digest('hex').slice(0, 12)
 
 const readEnvironment = (): EvalEnvironment => {
-  const macos = execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim()
+  // 基準と同じ項目名（macos）のまま、Windows では OS と版を入れる。食い違えば基準と条件が違うと表に出る。
+  const macos = macOS
+    ? execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim()
+    : `${process.platform} ${release()}`
   // --version はモデルを読まずに版だけを stderr に出す。
   const versionOutput = (() => {
     try {
@@ -71,6 +83,12 @@ const assertPrerequisites = (): void => {
         `${join(modelDir, file)} がありません。アプリでモデルを取得するか OMR_EVAL_MODEL_DIR を指定してください。`
       )
     }
+  }
+  if (!macOS) {
+    if (process.env.OMR_EVAL_EXTRA_DIR === undefined) {
+      throw new Error('macOS 以外では合成音声を作れません。OMR_EVAL_EXTRA_DIR に録音と正解を置いてください。')
+    }
+    return
   }
   const installed = execFileSync('say', ['-v', '?'], { encoding: 'utf8' })
   const missing = VOICES.filter((voice) => !installed.includes(voice))
@@ -152,10 +170,16 @@ const extraInputs = (dir: string | undefined): EvalInput[] =>
           const reference = JSON.parse(readFileSync(join(dir, `${name}.json`), 'utf8')) as {
             said: Utterance[]
           }
-          return { name: `extra:${name}`, wavPath: join(dir, file), said: reference.said }
+          // 文字起こしは WAV の隣に同じ名前の .json を書いてから消すので、そのままだと正解の <名前>.json を
+          // 上書きして消してしまう。キャッシュに写したものを渡す。
+          const copied = join(CACHE, 'extra', file)
+          mkdirSync(dirname(copied), { recursive: true })
+          copyFileSync(join(dir, file), copied)
+          return { name: `extra:${name}`, wavPath: copied, said: reference.said }
         })
 
 const evaluate = async (input: EvalInput, config: CaseResult['config']): Promise<CaseResult> => {
+  const started = Date.now()
   const dropped: Record<DropReason, number> = {
     'non-speech': 0,
     boilerplate: 0,
@@ -176,6 +200,11 @@ const evaluate = async (input: EvalInput, config: CaseResult['config']): Promise
     language: 'ja',
     speakerId: 'remote'
   })
+  // 速さは表（基準との差）に入れない。機体や GPU で大きく変わり、施策の良し悪しと混ざるため。
+  const audioSeconds = input.said.at(-1)?.endMs ?? 0
+  console.log(
+    `${input.name} ${config}: ${((Date.now() - started) / 1000).toFixed(1)} 秒（音声 ${(audioSeconds / 1000).toFixed(0)} 秒まで）`
+  )
 
   return {
     scenario: input.name,
@@ -195,7 +224,7 @@ const evaluate = async (input: EvalInput, config: CaseResult['config']): Promise
 it('合成音声を文字起こしして基準と比べる', async () => {
   assertPrerequisites()
   const environment = readEnvironment()
-  const synthetic = await syntheticInputs(environment)
+  const synthetic = macOS ? await syntheticInputs(environment) : []
   const extra = extraInputs(process.env.OMR_EVAL_EXTRA_DIR)
 
   const results: CaseResult[] = []
@@ -222,7 +251,7 @@ it('合成音声を文字起こしして基準と比べる', async () => {
   writeFileSync(join(CACHE, 'report.md'), `${report}\n`)
   console.log(`\n${report}\n\n(${join(CACHE, 'report.md')} にも書き出した)`)
 
-  if (process.env.OMR_EVAL_UPDATE_BASELINE === '1') {
+  if (process.env.OMR_EVAL_UPDATE_BASELINE === '1' && macOS) {
     // 手元の録音（extra）は本文の手掛かりになる名前を含みうるので、基準には入れない。
     const next: EvalReport = {
       environment,

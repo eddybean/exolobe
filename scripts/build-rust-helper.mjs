@@ -27,8 +27,10 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     process.exit(0)
   }
   // --locked で Cargo.lock の版から外れないようにする（CI と手元で同じものを作る）。
+  // crate のディレクトリで呼ぶ。.cargo/config.toml（C ランタイムの静的リンク）は作業ディレクトリから探されるため。
   const cargo = spawnSync('cargo', ['build', '--release', '--locked', '--manifest-path', manifest], {
-    stdio: 'inherit'
+    stdio: 'inherit',
+    cwd: dirname(manifest)
   })
   if (cargo.error !== undefined || cargo.status !== 0) {
     console.error(`[build:${name}] cargo build に失敗しました。Rust（rustup か mise）が入っているか確かめてください。`)

@@ -30,6 +30,8 @@ concurrency:
 env:
   # scripts/build-whisper.sh が取得する whisper.cpp のバージョン。release.yml と揃える。
   WHISPER_VERSION: v1.9.4
+  # Windows の whisper-cli のビルドに使う Vulkan SDK（LunarG）の版。
+  VULKAN_SDK_VERSION: 1.4.363.0
 
 jobs:
   test:
@@ -72,14 +74,6 @@ jobs:
       - name: 整形の確認
         run: npm run fmt:check
 
-      # 補助プログラム（Rust）。ランナーに rustup と cargo が入っている。テストより先に作り、
-      # audioconv の実物を通すテスト（Media Foundation）も走らせる。syscapture の取り込みは
-      # 音声デバイスが要るので CI では走らせない（tests/manual）。
-      - name: 補助プログラムのビルド
-        run: |
-          npm run build:syscapture
-          npm run build:audioconv
-
       - name: テスト
         run: npm test
 
@@ -109,7 +103,6 @@ jobs:
 
   # Windows 版に向けて、OS に依存しない部分が Windows でも壊れていないことを確かめる（ADR-048）。
   # macOS のコマンドを実際に呼ぶテストは tests/platform.ts の notMacOS で飛ばしている。
-  # whisper-cli のキャッシュは作らない（Windows 版の配布物はまだ無い）。
   test-windows:
     runs-on: windows-latest
 
@@ -141,8 +134,47 @@ jobs:
       - name: 整形の確認
         run: npm run fmt:check
 
+      # 補助プログラム（Rust）。ランナーに rustup と cargo が入っている。テストより先に作り、
+      # audioconv の実物を通すテスト（Media Foundation）も走らせる。syscapture の取り込みは
+      # 音声デバイスが要るので CI では走らせない（tests/manual）。
+      - name: 補助プログラムのビルド
+        run: |
+          npm run build:syscapture
+          npm run build:audioconv
+
       - name: テスト
         run: npm test
 
       - name: ビルド
         run: npx electron-vite build
+
+      # macOS と同じく main への push で whisper-cli（Vulkan と CPU、ADR-048）のキャッシュを作り、Release が引く。
+      # バックエンドを DLL に分けているので、whisper-cli.exe と DLL（ランタイムを含む）をまとめて運ぶ。
+      # キーに runner.os を含むので macOS のものとは混ざらない。release.yml の Windows のジョブとキーを揃えること。
+      - name: whisper-cli のキャッシュを復元（Release 用）
+        if: github.event_name == 'push'
+        id: whisper-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            resources/bin/whisper-cli.exe
+            resources/bin/whisper.dll
+            resources/bin/ggml*.dll
+            resources/bin/msvcp140.dll
+            resources/bin/vcruntime140*.dll
+          key: whisper-${{ runner.os }}-${{ runner.arch }}-${{ env.WHISPER_VERSION }}-${{ hashFiles('scripts/build-whisper.mjs') }}
+
+      # Vulkan のシェーダを組み込むのに要る（ビルドのときだけ。利用者の機体には GPU ドライバの vulkan-1.dll があればよい）。
+      - name: Vulkan SDK を入れる（Release 用）
+        if: github.event_name == 'push' && steps.whisper-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'vulkansdk.exe'
+          curl.exe -L -o $installer "https://sdk.lunarg.com/sdk/download/$env:VULKAN_SDK_VERSION/windows/vulkansdk-windows-X64-$env:VULKAN_SDK_VERSION.exe"
+          & $installer --accept-licenses --default-answer --confirm-command install
+          Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:/VulkanSDK/$env:VULKAN_SDK_VERSION"
+          Add-Content $env:GITHUB_PATH "C:/VulkanSDK/$env:VULKAN_SDK_VERSION/Bin"
+
+      - name: whisper-cli をビルド（Release 用）
+        if: github.event_name == 'push' && steps.whisper-cache.outputs.cache-hit != 'true'
+        run: npm run build:whisper

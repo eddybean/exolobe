@@ -22,7 +22,7 @@ npm run test:watch
 npm run build        # typecheck + electron-vite build
 npm run package      # build + whisper-cli / micwatch / calendarevents / applelm のビルド + electron-builder
 npm run setup        # macOS: whisper-cli を Homebrew で導入し、補助プログラムをビルド / Windows: 道具の有無を確かめる
-npm run build:whisper  # whisper.cpp を Core ML 有効でビルド（配布版はこちら）
+npm run build:whisper  # whisper.cpp をビルド（macOS: Metal と Core ML / Windows: Vulkan と CPU、Vulkan SDK が要る）。配布版はこちら
 npm run build:micwatch # micwatch（Swift）をビルド
 npm run build:calendarevents # calendarevents（Swift、カレンダー連携）をビルド
 npm run build:applelm # applelm（Swift、Apple Intelligence での要約）をビルド
@@ -334,7 +334,15 @@ npm run dev
   `npm run build:syscapture` / `npm run build:audioconv` で作る（cargo が要る）。
   実機での取り込みは `npm run test:manual` で確かめる（CI のランナーには音声デバイスが無い）。
 - マイク使用の見張りの補助プログラムはまだ無いので、使えないのが正しい。
-  whisper-cli は `npm run setup` の案内どおり whisper.cpp のリリースを展開し、設定画面でパスを指定すれば試せる。
+- whisper-cli は `npm run build:whisper` で `resources/bin` に作る（Vulkan SDK が要る。`npm run setup` も SDK があれば呼ぶ）。
+  開発中の Windows は、macOS と違って `resources/bin` の whisper-cli を使う（Homebrew に当たる入れ方が無いため）。
+  バックエンドは DLL に分かれている（`ggml-vulkan.dll` / `ggml-cpu-*.dll`）。CPU だけで確かめるときは、
+  `ggml-vulkan.dll` を除いた複製のフォルダの whisper-cli を `OMR_EVAL_WHISPER_CLI` や設定のパスで指す。
+- 文字起こしの評価は、Windows では手元の録音だけで回る（`OMR_EVAL_EXTRA_DIR`、合成音声は macOS の `say` で作るため）。
+  基準（`baseline.json`）は macOS の合成音声の結果なので、Windows では取り直さない。
+- 補助プログラム（Rust）は C ランタイムを静的に組み込む（`native/*/.cargo/config.toml`）。whisper-cli は DLL に
+  分かれているので、Visual C++ ランタイムの DLL を `resources/bin` に一緒に置く。どちらも、ランタイムが入っていない
+  機体で起動しないのを避けるため。依存は `dumpbin /dependents` で確かめる。
 - 保存先が exFAT など所有者を記録しないドライブだと、git が `dubious ownership` で止まる（`gh` も巻き込まれる）。
   `git config --global --add safe.directory <パス>` を足すか、`gh` は `-R eddybean/exolobe` を付けて呼ぶ。
 
