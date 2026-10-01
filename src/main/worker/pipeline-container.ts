@@ -3,8 +3,8 @@ import { join } from 'node:path'
 import type { DiarizationPort, ProgressReporterPort, SpeakerEmbeddingPort } from '@application/ports'
 import { ExtractVoices } from '@application/usecases/ExtractVoices'
 import { ProcessRecording } from '@application/usecases/ProcessRecording'
-import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
-import { AfconvertEncoder } from '@infrastructure/audio/AfconvertEncoder'
+import { resolveAudioConvBinary } from '@infrastructure/audio/resolveAudioConvBinary'
+import { audioConvertersFor } from '../audioConverters'
 import { TrackMixer } from '@infrastructure/audio/TrackMixer'
 import { NullDiarizer, SherpaOnnxDiarizer } from '@infrastructure/diarization/SherpaOnnxDiarizer'
 import { SherpaOnnxEmbeddingSessionFactory } from '@infrastructure/diarization/SherpaOnnxEmbeddingSessionFactory'
@@ -55,7 +55,7 @@ export const createPipeline = async (
     repository: new FileRecordingRepository(locator),
     artifacts: new FileRecordingArtifactStore(locator, join(userDataPath, 'work')),
     mixer: new TrackMixer(),
-    encoder: new AfconvertEncoder(),
+    encoder: audioConverters().encoder,
     transcriber: new WhisperCppTranscriber({
       binaryPath: resolveWhisperBinary({
         configured: current.transcription.binaryPath,
@@ -89,7 +89,7 @@ export const createVoiceExtractor = async (userDataPath: string, uiLocale: Local
     repository: new FileRecordingRepository(locator),
     artifacts: new FileRecordingArtifactStore(locator, join(userDataPath, 'work')),
     embedder: createEmbedder(current.diarization),
-    decoder: new AfconvertDecoder()
+    decoder: audioConverters().decoder
   })
 }
 
@@ -125,6 +125,18 @@ const createSummarizer = async (current: Settings): Promise<LlamaCppSummarizer> 
       protection: current.memoryProtection
     },
     new AppleLmSessionFactory(binaryPath)
+  )
+}
+
+/**
+ * OS の変換器（macOS は afconvert、Windows は audioconv.exe）。ワーカーは electron を持たないので、
+ * 配布版かどうかは main が渡す OMR_RESOURCES の有無で見分ける（開発時はリポジトリの resources/bin）。
+ */
+const audioConverters = (): ReturnType<typeof audioConvertersFor> => {
+  const resourcesPath = process.env['OMR_RESOURCES']
+  return audioConvertersFor(
+    process.platform,
+    resolveAudioConvBinary({ packaged: resourcesPath !== undefined, resourcesPath: resourcesPath ?? '' })
   )
 }
 
