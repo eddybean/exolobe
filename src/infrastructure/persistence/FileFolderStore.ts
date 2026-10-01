@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import type { FolderRepositoryPort } from '@application/ports'
 import type { Folder } from '@domain/Folder'
+import { ConfigurationError } from '@domain/errors'
 import type { StorageLocator } from './FileRecordingStore'
 import { omitKeys, readStoredJson, replaceStoredJson } from './jsonFile'
 
@@ -22,7 +23,12 @@ export class FileFolderRepository implements FolderRepositoryPort {
   constructor(private readonly locator: StorageLocator) {}
 
   async list(): Promise<Folder[]> {
-    const stored = await readStoredJson(await this.path(), Array.isArray)
+    // 一覧はアプリ起動直後に初期設定画面の裏でも読まれる。保存先が無い＝フォルダも無いので、
+    // 録音の一覧（FileRecordingRepository.list）と同じく空として扱う。書き込みは従来どおり投げる。
+    const root = await this.rootOrUndefined()
+    if (root === undefined) return []
+
+    const stored = await readStoredJson(join(root, FOLDERS_FILE), Array.isArray)
     return stored.kind === 'ok' ? stored.value.filter(isFolderRecord) : []
   }
 
@@ -44,6 +50,15 @@ export class FileFolderRepository implements FolderRepositoryPort {
       }),
       ...unreadable
     ])
+  }
+
+  private async rootOrUndefined(): Promise<string | undefined> {
+    try {
+      return await this.locator.root()
+    } catch (error: unknown) {
+      if (error instanceof ConfigurationError) return undefined
+      throw error
+    }
   }
 
   private async path(): Promise<string> {

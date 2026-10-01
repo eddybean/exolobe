@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FileFolderRepository, type StorageLocator } from '@infrastructure/persistence/FileFolderStore'
+import { ConfigurationError } from '@domain/errors'
 
 let storage: string
 let locator: StorageLocator
@@ -21,6 +22,22 @@ afterEach(async () => {
 describe('FileFolderRepository', () => {
   it('保存先が空なら空の一覧を返す', async () => {
     expect(await repository.list()).toEqual([])
+  })
+
+  it('保存先が未設定でも一覧はエラーにせず空を返す（初回起動）', async () => {
+    const unconfigured = new FileFolderRepository({
+      root: () => Promise.reject(new ConfigurationError({ code: 'storageNotConfigured' }))
+    })
+
+    expect(await unconfigured.list()).toEqual([])
+  })
+
+  it('保存先が未設定のまま書き込もうとしたら設定を促すエラーにする', async () => {
+    const unconfigured = new FileFolderRepository({
+      root: () => Promise.reject(new ConfigurationError({ code: 'storageNotConfigured' }))
+    })
+
+    await expect(unconfigured.replaceAll([{ id: 'f1', name: '議事録' }])).rejects.toBeInstanceOf(ConfigurationError)
   })
 
   it('フォルダの一覧を保存して読み戻せる', async () => {
