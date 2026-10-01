@@ -31,6 +31,7 @@
     "build:micwatch": "bash scripts/build-micwatch.sh",
     "build:calendarevents": "bash scripts/build-calendarevents.sh",
     "build:applelm": "bash scripts/build-applelm.sh",
+    "build:syscapture": "node scripts/build-syscapture.mjs",
     "package": "npm run build && npm run build:whisper && npm run build:micwatch && npm run build:calendarevents && npm run build:applelm && electron-builder --config electron-builder.yml"
   },
   "dependencies": {

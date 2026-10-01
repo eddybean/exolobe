@@ -1,0 +1,30 @@
+[package]
+name = "syscapture"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Exolobe の Windows 版でシステム音声（相手の声）を WASAPI のプロセス loopback で取り込み、PCM を stdout に流す"
+
+[dependencies]
+windows-core = "0.62"
+
+[dependencies.windows]
+version = "0.62"
+features = [
+  "Win32_Foundation",
+  "Win32_Media_Audio",
+  "Win32_Media_KernelStreaming",
+  "Win32_Media_Multimedia",
+  "Win32_Security",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Threading",
+  "Win32_System_Variant"
+]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

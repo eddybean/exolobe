@@ -138,3 +138,8 @@ jobs:
 
       - name: ビルド
         run: npx electron-vite build
+
+      # 補助プログラム（Rust）がビルドできることだけを確かめる。ランナーに rustup と cargo が入っている。
+      # 実際の取り込みは音声デバイスが要るので、CI では走らせない（tests/manual）。
+      - name: syscapture のビルド
+        run: npm run build:syscapture

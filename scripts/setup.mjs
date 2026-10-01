@@ -4,7 +4,7 @@
  * macOS は従来どおり setup.sh（Homebrew と sw_vers が前提）に任せる。Windows には Homebrew も
  * bash も前提にできないので、ここで道具の有無を確かめて、足りないものを知らせるだけにする。
  * 何かが欠けてもアプリはその機能だけを無効にして起動するので、準備は止めない（ADR-048）。
- * whisper-cli と補助プログラムのビルドは、Windows 版ができたらここから呼ぶ。
+ * 補助プログラム（Rust）は cargo があればここでビルドする。whisper-cli のビルドは Windows 版ができたらここから呼ぶ。
  */
 import { spawnSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
@@ -66,6 +66,10 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
   }
   for (const item of windowsSetupReport({ env: process.env, onPath: onWindowsPath })) {
     console.log(`[setup] ${item.level === 'ok' ? 'OK' : '注意'}: ${item.message}`)
+  }
+  // 補助プログラムは cargo があればここで作る。無ければ上で知らせたとおり、その機能だけが無効になる。
+  if (onWindowsPath('cargo')) {
+    spawnSync(process.execPath, ['scripts/build-syscapture.mjs'], { stdio: 'inherit' })
   }
   console.log()
   console.log("[setup] 完了しました。'npm run dev' でアプリを起動できます。")
