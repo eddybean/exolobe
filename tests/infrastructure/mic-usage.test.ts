@@ -26,6 +26,7 @@ describe('parseMicUsageLine', () => {
 describe('resolveMicWatchBinary', () => {
   it('配布版は Resources/bin の同梱物を使う', () => {
     const path = resolveMicWatchBinary({
+      platform: 'darwin',
       packaged: true,
       resourcesPath: '/Apps/Meeting Recorder.app/Contents/Resources',
       cwd: '/repo',
@@ -37,6 +38,7 @@ describe('resolveMicWatchBinary', () => {
 
   it('開発時はリポジトリの resources/bin を使う', () => {
     const path = resolveMicWatchBinary({
+      platform: 'darwin',
       packaged: false,
       resourcesPath: '/ignored',
       cwd: '/repo',
@@ -48,6 +50,7 @@ describe('resolveMicWatchBinary', () => {
 
   it('同梱物が無ければ undefined を返す（機能だけ無効になる）', () => {
     const path = resolveMicWatchBinary({
+      platform: 'darwin',
       packaged: false,
       resourcesPath: '/ignored',
       cwd: '/repo',
