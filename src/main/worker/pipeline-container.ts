@@ -145,13 +145,17 @@ const APPLE_INTELLIGENCE_CONTEXT_SIZE = 8_192
 
 /**
  * パッケージ済みアプリに同梱した whisper-cli。
- * 開発中は存在しないので undefined を返し、PATH 上の whisper-cli にフォールバックする。
+ * 開発中の macOS は undefined を返し、PATH 上の whisper-cli（Homebrew 版）にフォールバックする。
+ * 開発中の Windows には Homebrew のような入れ方が無いので、`npm run build:whisper` が作る
+ * リポジトリの resources/bin を見る（無ければ PATH）。
  */
 const bundledWhisper = (): string | undefined => {
   const resourcesPath = process.env['OMR_RESOURCES']
-  if (!resourcesPath) return undefined
+  if (resourcesPath) return resolveBundledBinary('whisper-cli', { packaged: true, resourcesPath })
 
-  return resolveBundledBinary('whisper-cli', { packaged: true, resourcesPath })
+  return process.platform === 'win32'
+    ? resolveBundledBinary('whisper-cli', { packaged: false, resourcesPath: '' })
+    : undefined
 }
 
 /**

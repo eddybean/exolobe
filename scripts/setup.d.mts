@@ -17,4 +17,6 @@ export interface SetupReportItem {
 export declare const windowsSetupReport: (probe: {
   readonly env: Readonly<Record<string, string | undefined>>
   readonly onPath: (name: string) => boolean
+  /** npm run build:whisper が resources/bin に作った whisper-cli.exe があるか。 */
+  readonly whisperBuilt: boolean
 }) => readonly SetupReportItem[]

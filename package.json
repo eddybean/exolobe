@@ -27,13 +27,14 @@
     "setup": "node scripts/setup.mjs",
     "postinstall": "install-electron && node scripts/postinstall.mjs",
     "build:icon": "node scripts/build-icon.mjs",
-    "build:whisper": "bash scripts/build-whisper.sh",
+    "build:whisper": "node scripts/build-whisper.mjs",
     "build:micwatch": "bash scripts/build-micwatch.sh",
     "build:calendarevents": "bash scripts/build-calendarevents.sh",
     "build:applelm": "bash scripts/build-applelm.sh",
     "build:syscapture": "node scripts/build-rust-helper.mjs syscapture",
     "build:audioconv": "node scripts/build-rust-helper.mjs audioconv",
-    "package": "npm run build && npm run build:whisper && npm run build:micwatch && npm run build:calendarevents && npm run build:applelm && electron-builder --config electron-builder.yml"
+    "package": "npm run build && npm run build:whisper && npm run build:micwatch && npm run build:calendarevents && npm run build:applelm && electron-builder --config electron-builder.yml",
+    "package:win": "npm run build && npm run build:whisper && npm run build:syscapture && npm run build:audioconv && electron-builder --win --config electron-builder.yml"
   },
   "dependencies": {
     "audiotee": "^0.0.7",
