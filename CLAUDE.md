@@ -27,6 +27,7 @@ npm run build:micwatch # micwatch（Swift）をビルド
 npm run build:calendarevents # calendarevents（Swift、カレンダー連携）をビルド
 npm run build:applelm # applelm（Swift、Apple Intelligence での要約）をビルド
 npm run build:syscapture # syscapture（Rust、Windows のシステム音声の取り込み）をビルド。Windows 専用
+npm run build:audioconv  # audioconv（Rust、Windows の録音の保存と音声の取り込み、Media Foundation）をビルド。Windows 専用
 npm run eval:transcription  # 文字起こしの評価（合成音声、数分。CI では走らない）
 ```
 
@@ -164,8 +165,8 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   チャンクの位置と 8 ビット量子化したベクトルだけ。削除済み録音の分は同期時に消える）
 - 設定 → `userData/settings.json`、録音中の中間 WAV と `tracks.json` → `userData/work/`
   （パイプライン完了時に消える）
-- 同梱バイナリ → `resources/bin/`（`whisper-cli` / `micwatch` / `calendarevents` / `applelm` / `ggml-metal.metal`、Windows は `syscapture.exe`）。
-  ソースは `native/micwatch/` と `native/calendarevents/` と `native/applelm/`（Swift）、`native/syscapture/`（Rust）。配置は `scripts/build-*` が行う。パスの解決は
+- 同梱バイナリ → `resources/bin/`（`whisper-cli` / `micwatch` / `calendarevents` / `applelm` / `ggml-metal.metal`、Windows は `syscapture.exe` / `audioconv.exe`）。
+  ソースは `native/micwatch/` と `native/calendarevents/` と `native/applelm/`（Swift）、`native/syscapture/` と `native/audioconv/`（Rust）。配置は `scripts/build-*` が行う。パスの解決は
   `resolve*Binary.ts` が開発時とパッケージ時で切り替える（ADR-016）
 
 ディレクトリ名は `slugForRecording()` が `YYYY-MM-DD_HHmm-<id先頭8桁>` で作る。
@@ -239,9 +240,12 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   判定しない（`settings.json` は全体を保存するので、既定の文面を直すと触っていない人まで「書き換えた」ことになる）。
   既定の本文は画面で編集させず、既定の文面は `DEFAULT_SUMMARY_PROMPT(_EN)` を書き換えれば全員に届く。
   `isDefaultSummaryPrompt` は `promptMode` を持たない前の設定の読み替えにだけ使う。
+- 取り込める拡張子は**変換器ごとに** `src/domain/AudioImport.ts` に持ち（afconvert / Media Foundation）、デコーダと組で
+  `src/main/audioConverters.ts` が OS に応じて選ぶ。一覧を変えたら、実機でその形式を変換して確かめる（ADR-048）。
 - 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、
   外したときに「自分が言っていない発言」が残る（ADR-030）。変換は取り込み時に `afconvert` で
-  16kHz モノラルにし、`--mix` を外さない（片チャンネルを捨てると話者が丸ごと消える）。
+  16kHz モノラルにし、`--mix` を外さない（片チャンネルを捨てると話者が丸ごと消える）。Windows の audioconv も
+  チャンネルを混ぜて 1ch にする（Source Reader に 1ch を求める。片チャンネルだけを取り出す形に変えない）。
 
 ### 調査はサブエージェントに投げる
 
@@ -326,9 +330,10 @@ npm run setup        # whisper-cli・cargo などの有無を確かめて知ら�
 npm run dev
 ```
 
-- システム音声の取り込み（`syscapture.exe`）は `npm run setup` か `npm run build:syscapture` で作る（cargo が要る）。
+- システム音声の取り込み（`syscapture.exe`）と録音の保存・音声の取り込み（`audioconv.exe`）は `npm run setup` か
+  `npm run build:syscapture` / `npm run build:audioconv` で作る（cargo が要る）。
   実機での取り込みは `npm run test:manual` で確かめる（CI のランナーには音声デバイスが無い）。
-- 音声の変換・マイク使用の見張りの補助プログラムはまだ無いので、使えないのが正しい。
+- マイク使用の見張りの補助プログラムはまだ無いので、使えないのが正しい。
   whisper-cli は `npm run setup` の案内どおり whisper.cpp のリリースを展開し、設定画面でパスを指定すれば試せる。
 - 保存先が exFAT など所有者を記録しないドライブだと、git が `dubious ownership` で止まる（`gh` も巻き込まれる）。
   `git config --global --add safe.directory <パス>` を足すか、`gh` は `-R eddybean/exolobe` を付けて呼ぶ。

@@ -7,7 +7,7 @@ import type {
   RecordingRepositoryPort,
   SettingsRepositoryPort
 } from '@application/ports'
-import { importTitleOf, unsupportedImportReason } from '@domain/AudioImport'
+import { type ImportFormats, importTitleOf, unsupportedImportReason } from '@domain/AudioImport'
 import { createRecording, finishRecording, tooShortRecording, type Recording } from '@domain/Recording'
 import { ConfigurationError, TooShortRecordingError, UnsupportedAudioFormatError } from '@domain/errors'
 import { isConfigured } from '@domain/Settings'
@@ -20,6 +20,8 @@ export interface ImportAudioFileDeps {
   readonly files: FileInfoPort
   readonly clock: ClockPort
   readonly ids: IdGeneratorPort
+  /** decoder が読める形式。変換器ごとに違うので、decoder と組で結線から渡す。 */
+  readonly formats: ImportFormats
 }
 
 /** 変換後の WAV の名前。system.wav / mic.wav と同じ階層に並ぶパイプラインの入力。 */
@@ -43,7 +45,7 @@ export class ImportAudioFile {
     }
 
     // 拡張子で断れるものはディスクに触る前に断る。
-    const unsupported = unsupportedImportReason(params.filePath)
+    const unsupported = unsupportedImportReason(params.filePath, this.deps.formats)
     if (unsupported) {
       throw new UnsupportedAudioFormatError(unsupported)
     }

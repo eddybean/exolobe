@@ -41,7 +41,9 @@ import {
   GetModelStatus,
   UpdateModel
 } from '@application/usecases/models'
-import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
+import type { ImportFormats } from '@domain/AudioImport'
+import { resolveAudioConvBinary } from '@infrastructure/audio/resolveAudioConvBinary'
+import { audioConvertersFor } from './audioConverters'
 import { AudioTeeSource } from '@infrastructure/audio/AudioTeeSource'
 import { SysCaptureSource } from '@infrastructure/audio/SysCaptureSource'
 import { resolveSysCaptureBinary } from '@infrastructure/audio/resolveSysCaptureBinary'
@@ -78,6 +80,8 @@ import { JsonSettingsRepository, SettingsStorageLocator } from '@infrastructure/
 export interface Container {
   readonly settings: JsonSettingsRepository
   readonly recorder: DualTrackRecorder
+  /** 取り込める音声の拡張子。OS の変換器で決まる（ADR-048）。 */
+  readonly importFormats: ImportFormats
   /** テスト録音用に、録音とは別のシステム音声の取り込みを作る。 */
   readonly createSystemAudioSource: () => SystemAudioSource
   readonly micUsage: MicUsageProbe
@@ -158,6 +162,11 @@ export const createContainer = (): Container => {
         )
       : new AudioTeeSource(resolveAudioTeeBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath }))
   const recorder = new DualTrackRecorder(createSystemAudioSource({ excludeOwnAudio: true }))
+  // 取り込みの変換。録音の保存（エンコード）はパイプラインのワーカーが同じ関数で選ぶ。
+  const converters = audioConvertersFor(
+    process.platform,
+    resolveAudioConvBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath })
+  )
   // 録音していない間だけ動かす見張り。同梱物が無ければ available が false になり、
   // 開始忘れの通知だけが無効になる。
   const micUsage = new MicUsageProbe(
@@ -187,6 +196,7 @@ export const createContainer = (): Container => {
   return {
     settings,
     recorder,
+    importFormats: converters.importFormats,
     createSystemAudioSource: () => createSystemAudioSource({ excludeOwnAudio: false }),
     micUsage,
     calendar,
@@ -209,10 +219,11 @@ export const createContainer = (): Container => {
       settings,
       repository,
       artifacts,
-      decoder: new AfconvertDecoder(),
+      decoder: converters.decoder,
       files: new NodeFileInfoProbe(),
       clock: { now: () => new Date() },
-      ids: { next: () => randomUUID() }
+      ids: { next: () => randomUUID() },
+      formats: converters.importFormats
     }),
     listRecordings: new ListRecordings(library),
     searchTranscripts: new SearchTranscripts(library),

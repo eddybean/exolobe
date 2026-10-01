@@ -2,7 +2,7 @@ import { basename } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, nativeTheme, shell, systemPreferences, type FileFilter } from 'electron'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import { ConfigurationError, RecordingStateError, reasonOf, type ErrorReason } from '@domain/errors'
-import { IMPORTABLE_EXTENSIONS } from '@domain/AudioImport'
+import type { ImportFormats } from '@domain/AudioImport'
 import { findPackage, formatBytes } from '@domain/ModelCatalog'
 import { DEFAULT_SEARCH_LIMIT, searchIndexTransition } from '@domain/SemanticSearch'
 import type { Settings, SettingsPatch } from '@domain/Settings'
@@ -644,7 +644,7 @@ export const registerIpcHandlers = (
       title: text().dialog.importTitle,
       properties: ['openFile', 'multiSelections'],
       buttonLabel: text().dialog.importButton,
-      filters: audioImportFilters()
+      filters: audioImportFilters(container.importFormats)
     })
     if (result.canceled || result.filePaths.length === 0) return { imported: [], failed: [] }
 
@@ -1154,9 +1154,9 @@ export const registerIpcHandlers = (
   return controller
 }
 
-/** 取り込みのファイル選択で見せる拡張子。対応形式の定義は domain に 1 つだけ置く。 */
-const audioImportFilters = (): FileFilter[] => [
-  { name: text().dialog.audioFiles, extensions: [...IMPORTABLE_EXTENSIONS] }
+/** 取り込みのファイル選択で見せる拡張子。取り込みの判定と同じ一覧（変換器ごとに domain が持つ）を使う。 */
+const audioImportFilters = (formats: ImportFormats): FileFilter[] => [
+  { name: text().dialog.audioFiles, extensions: [...formats.importable] }
 ]
 
 /**

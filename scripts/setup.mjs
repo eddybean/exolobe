@@ -69,7 +69,9 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
   }
   // 補助プログラムは cargo があればここで作る。無ければ上で知らせたとおり、その機能だけが無効になる。
   if (onWindowsPath('cargo')) {
-    spawnSync(process.execPath, ['scripts/build-syscapture.mjs'], { stdio: 'inherit' })
+    for (const helper of ['syscapture', 'audioconv']) {
+      spawnSync(process.execPath, ['scripts/build-rust-helper.mjs', helper], { stdio: 'inherit' })
+    }
   }
   console.log()
   console.log("[setup] 完了しました。'npm run dev' でアプリを起動できます。")

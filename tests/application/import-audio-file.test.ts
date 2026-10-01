@@ -1,3 +1,4 @@
+import { AFCONVERT_IMPORT_FORMATS } from '@domain/AudioImport'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ImportAudioFile } from '@application/usecases/ImportAudioFile'
 import { MINIMUM_RECORDING_MS } from '@domain/Recording'
@@ -30,7 +31,8 @@ const build = (settings = new FakeSettingsRepository()) => {
     decoder,
     files,
     clock: new FakeClock(now),
-    ids: new FakeIdGenerator()
+    ids: new FakeIdGenerator(),
+    formats: AFCONVERT_IMPORT_FORMATS
   }
 
   return { ...deps, importAudioFile: new ImportAudioFile(deps) }
