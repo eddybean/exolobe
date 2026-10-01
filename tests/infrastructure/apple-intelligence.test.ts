@@ -6,6 +6,7 @@ import { AppError } from '@domain/errors'
 import { AppleLmSessionFactory, appleIntelligenceStatus } from '@infrastructure/summarization/AppleLmSessionFactory'
 import { parseAppleLmStatus } from '@infrastructure/summarization/appleLmProtocol'
 import { resolveAppleLmBinary } from '@infrastructure/summarization/resolveAppleLmBinary'
+import { notMacOS } from '../platform'
 
 describe('parseAppleLmStatus', () => {
   it('使えるときはコンテキスト長も読む', () => {
@@ -44,10 +45,10 @@ describe('resolveAppleLmBinary', () => {
     const exists = () => true
 
     expect(resolveAppleLmBinary({ packaged: false, resourcesPath: '', cwd: '/repo', exists })).toBe(
-      '/repo/resources/bin/applelm'
+      join('/repo', 'resources', 'bin', 'applelm')
     )
     expect(resolveAppleLmBinary({ packaged: true, resourcesPath: '/App/Resources', exists })).toBe(
-      '/App/Resources/bin/applelm'
+      join('/App/Resources', 'bin', 'applelm')
     )
   })
 
@@ -56,7 +57,7 @@ describe('resolveAppleLmBinary', () => {
   })
 })
 
-describe('applelm を呼ぶ', () => {
+describe.skipIf(notMacOS)('applelm を呼ぶ', () => {
   let dir: string
 
   beforeEach(async () => {

@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { resolveAudioTeeBinary, toUnpackedPath } from '@infrastructure/audio/resolveAudioTeeBinary'
 
@@ -20,7 +21,7 @@ describe('toUnpackedPath', () => {
 
 describe('resolveAudioTeeBinary', () => {
   const resourcesPath = '/App.app/Contents/Resources'
-  const expected = `${resourcesPath}/app.asar.unpacked/node_modules/audiotee/bin/audiotee`
+  const expected = join(resourcesPath, 'app.asar.unpacked', 'node_modules', 'audiotee', 'bin', 'audiotee')
 
   it('パッケージ済みなら unpacked のバイナリを指す', () => {
     expect(

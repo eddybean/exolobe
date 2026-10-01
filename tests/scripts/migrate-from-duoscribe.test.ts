@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { notMacOS } from '../platform'
 
 /**
  * 旧名 Duoscribe の userData を Exolobe へ移す使い捨てのスクリプト。
@@ -28,7 +29,7 @@ const writeSettings = (dir: string, settings: unknown): void =>
 
 const readSettings = (dir: string): unknown => JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'))
 
-describe('migrate-from-duoscribe.sh', () => {
+describe.skipIf(notMacOS)('migrate-from-duoscribe.sh', () => {
   it('Duoscribe の userData を中身ごと Exolobe へ移す', () => {
     mkdirSync(join(appSupport, 'Duoscribe', 'models'), { recursive: true })
     writeFileSync(join(appSupport, 'Duoscribe', 'models', 'installed.json'), '{}')

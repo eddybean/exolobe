@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { EventKitCalendar } from '@infrastructure/calendar/EventKitCalendar'
 import { parseCalendarEvents, parseCalendarPermission } from '@infrastructure/calendar/calendarProtocol'
 import { resolveCalendarBinary } from '@infrastructure/calendar/resolveCalendarBinary'
+import { notMacOS } from '../platform'
 
 const helperEvent = {
   title: '週次定例',
@@ -103,13 +104,13 @@ describe('resolveCalendarBinary', () => {
       exists: () => true
     })
 
-    expect(path).toBe('/Apps/Exolobe.app/Contents/Resources/bin/calendarevents')
+    expect(path).toBe(join('/Apps/Exolobe.app/Contents/Resources', 'bin', 'calendarevents'))
   })
 
   it('開発時はリポジトリの resources/bin を使う', () => {
     const path = resolveCalendarBinary({ packaged: false, resourcesPath: '/ignored', cwd: '/repo', exists: () => true })
 
-    expect(path).toBe('/repo/resources/bin/calendarevents')
+    expect(path).toBe(join('/repo', 'resources', 'bin', 'calendarevents'))
   })
 
   it('同梱物が無ければ undefined を返す（連携だけ無効になる）', () => {
@@ -125,7 +126,7 @@ describe('resolveCalendarBinary', () => {
 })
 
 /** calendarevents の代役。実際に spawn して、引数・終了コード・時間切れの扱いを確かめる。 */
-describe('EventKitCalendar', () => {
+describe.skipIf(notMacOS)('EventKitCalendar', () => {
   let dir: string
 
   beforeEach(async () => {

@@ -21,6 +21,7 @@ import { WavFileWriter, int16Buffer, readWav } from '@infrastructure/audio/wav'
 import { FileRecordingArtifactStore, FileRecordingRepository } from '@infrastructure/persistence/FileRecordingStore'
 import { JsonSettingsRepository } from '@infrastructure/settings/JsonSettingsRepository'
 import { FakeCalendar, FakeProgressReporter, FakeSummarizer, FakeTranscriber } from '../application/fakes'
+import { notMacOS } from '../platform'
 
 /**
  * 録音開始から保存までを、実際のファイル I/O・WAV 処理・afconvert を通して確認する。
@@ -140,7 +141,7 @@ const speechLike = (seconds: number): number[] => {
   })
 }
 
-describe('録音から保存までの一連の流れ', () => {
+describe.skipIf(notMacOS)('録音から保存までの一連の流れ', () => {
   it('録音・ミックス・文字起こし・要約・エンコードが実ファイルで通る', async () => {
     const ctx = await build()
 
@@ -241,7 +242,7 @@ describe('録音から保存までの一連の流れ', () => {
  * 取り込みは実際の afconvert を通す。拡張子の判定・変換・ミックス・エンコードの
  * 結線が噛み合っていることを、Fake で差し替えずに確かめる。
  */
-describe('音声ファイルの取り込み', () => {
+describe.skipIf(notMacOS)('音声ファイルの取り込み', () => {
   /** 取り込み元になる 2ch の WAV を書く。録音とは違うサンプルレートにして変換を効かせる。 */
   const writeSource = async (name: string, seconds: number): Promise<string> => {
     const path = join(inbox, name)
