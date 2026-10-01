@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { type BundledBinaryParams, resolveBundledBinary } from '@infrastructure/system/resolveBundledBinary'
 
 /**
  * 同梱した applelm の場所を解決する（ADR-046）。
@@ -11,15 +10,5 @@ import { join } from 'node:path'
  * 見つからなければ undefined を返す。Apple Intelligence を選べなくなるだけで、
  * Gemma での要約は動く。
  */
-export const resolveAppleLmBinary = (params: {
-  packaged: boolean
-  resourcesPath: string
-  cwd?: string
-  exists?: (path: string) => boolean
-}): string | undefined => {
-  const exists = params.exists ?? existsSync
-  const root = params.packaged ? params.resourcesPath : join(params.cwd ?? process.cwd(), 'resources')
-  const path = join(root, 'bin', 'applelm')
-
-  return exists(path) ? path : undefined
-}
+export const resolveAppleLmBinary = (params: BundledBinaryParams): string | undefined =>
+  resolveBundledBinary('applelm', params)
