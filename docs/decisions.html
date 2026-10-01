@@ -4449,7 +4449,13 @@
           <li>メモリの見積もり（<a href="#adr-024">ADR-024</a>）の係数は Mac の統合メモリで測った値。Windows の VRAM が別にある機体では合わないので、実機で測り直す。</li>
           <li>文字起こしの評価は macOS の <code>say</code> で音声を作っている。Windows では録音済みの音声（<code>OMR_EVAL_EXTRA_DIR</code>）で測る。</li>
           <li>新しい版の通知（<a href="#adr-044">ADR-044</a>）は OS 共通の Release を見るので、片方の OS だけの修正版でも両方に知らせる。</li>
-          <li>Windows の Media Foundation で HE-AAC が使えないことは、実機で確かめていない。</li>
+          <li>録音の保存と取り込みは Media Foundation（補助プログラム audioconv）で行う。Windows 11 の AAC エンコーダは
+            サンプルレートごとに使えるビットレートが決まっていて（16kHz は 12〜32kbps、44.1k/48k は 48kbps 以上、8kHz は不可）、
+            同じ組み合わせで HE-AAC の候補も混ざる。エンコーダに出せる形式を問い合わせ、AAC-LC の中から指定に一番近いものを選ぶ。
+            扱えないレートは近いレートに変えて保存する。macOS から持ち込んだ設定の HE-AAC は、保存を止めずに AAC-LC で保存する。
+            変換とチャンネルの混ぜ合わせは Source Reader に任せた（左右に別の音を入れたステレオで、両方が残ることを確かめた）。
+            読める形式は afconvert と違い、webm / mkv / mov / wma / avi を読み、ogg / opus / aiff / caf を読まない（実機で確認）。
+            webm の Opus のように、ストアの拡張機能が入っているかで変わるものもある。</li>
           <li>システム音声は WASAPI のプロセス loopback（Windows 10 2004 以降）の除外モードで、main の PID 以下の木（このアプリの音）を除いて録る。
             実機で、他のプロセスが鳴らした 1 kHz は振幅 0.48 で入り、除いた木から鳴らした音は背景と同じ水準に収まった。
             テスト録音は自分の確認音が入るかで判定するので、そのときだけ除かない。補助プログラムは stdin が閉じたら止まるので、
