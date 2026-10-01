@@ -11,6 +11,7 @@ import { StopRecording } from '@application/usecases/StopRecording'
 import { GetRecordingDetail, ListRecordings } from '@application/usecases/library'
 import { REMOTE_SPEAKER_ID, SELF_SPEAKER_ID } from '@domain/Speaker'
 import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
+import { AFCONVERT_IMPORT_FORMATS } from '@domain/AudioImport'
 import { AfconvertEncoder } from '@infrastructure/audio/AfconvertEncoder'
 import { DualTrackRecorder, type SystemAudioSource } from '@infrastructure/audio/DualTrackRecorder'
 import { TrackMixer } from '@infrastructure/audio/TrackMixer'
@@ -101,7 +102,8 @@ const build = async (options: { summarizerError?: Error } = {}) => {
       decoder: new AfconvertDecoder(),
       files: new NodeFileInfoProbe(),
       clock: { now: () => new Date('2026-09-06T14:30:00+09:00') },
-      ids: { next: () => 'rec-1' }
+      ids: { next: () => 'rec-1' },
+      formats: AFCONVERT_IMPORT_FORMATS
     }),
     process: new ProcessRecording({
       settings,

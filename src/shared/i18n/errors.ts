@@ -6,6 +6,7 @@ import {
   type MemoryTask,
   type SettingsProblem
 } from '@domain/errors'
+import { SUGGESTED_IMPORT_FORMATS } from '@domain/AudioImport'
 import { formatBytes } from '@domain/ModelCatalog'
 import { SUPPORTED_SAMPLE_RATES, TRANSCRIPT_PLACEHOLDER } from '@domain/Settings'
 import { appleIntelligenceUnavailableText } from './appleIntelligence'
@@ -23,8 +24,8 @@ type ReasonMessages = {
   readonly [C in ErrorCode]: (reason: Extract<ErrorReason, { code: C }>) => string
 }
 
-/** 取り込めない形式を案内するときに挙げる代表的な形式。全部並べても読まれないので、よく使うものだけ。 */
-const SUGGESTED_FORMATS = ['mp3', 'm4a', 'wav', 'flac', 'ogg', 'aiff', 'caf']
+/** 取り込めない形式を案内するときに挙げる形式。どの OS でも読めるものに限る（domain に 1 つだけ置く）。 */
+const SUGGESTED_FORMATS = SUGGESTED_IMPORT_FORMATS
 
 const MEMORY_TASKS: Readonly<Record<Locale, Readonly<Record<MemoryTask, string>>>> = {
   ja: {
