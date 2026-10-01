@@ -26,6 +26,7 @@ npm run build:whisper  # whisper.cpp を Core ML 有効でビルド（配布版�
 npm run build:micwatch # micwatch（Swift）をビルド
 npm run build:calendarevents # calendarevents（Swift、カレンダー連携）をビルド
 npm run build:applelm # applelm（Swift、Apple Intelligence での要約）をビルド
+npm run build:syscapture # syscapture（Rust、Windows のシステム音声の取り込み）をビルド。Windows 専用
 npm run eval:transcription  # 文字起こしの評価（合成音声、数分。CI では走らない）
 ```
 
@@ -115,6 +116,7 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 | utilityProcess（`search-worker`） | 意味検索（bge-m3 の埋め込み・索引の同期）。依頼は並行に受け、3 分使われなければ終了 |
 | utilityProcess（`chat-worker`） | ライブラリ全体へのチャット（要約と同じ Gemma を使う）。生成は 1 件ずつ、2 分使われなければ終了（ADR-033） |
 | 子プロセス（`micwatch`） | 他アプリのマイク使用を見張り、録音の開始忘れを知らせる（録音中は動かさない、ADR-027） |
+| 子プロセス（`syscapture`） | Windows でシステム音声を WASAPI のプロセス loopback で取り込み、PCM を stdout に流す。このアプリの音は除き、stdin が閉じたら止まる（ADR-048） |
 | 子プロセス（`calendarevents`） | 録音開始時に EventKit で重なる予定を引く。呼ぶたびに起動して終わる（ADR-040） |
 | 子プロセス（`applelm`） | 要約のモデルに Apple Intelligence を選んだとき、パイプラインのワーカーが 1 回の応答ごとに起動する。設定画面の可否の表示は main が `status` で聞く（ADR-046） |
 
@@ -162,8 +164,8 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   チャンクの位置と 8 ビット量子化したベクトルだけ。削除済み録音の分は同期時に消える）
 - 設定 → `userData/settings.json`、録音中の中間 WAV と `tracks.json` → `userData/work/`
   （パイプライン完了時に消える）
-- 同梱バイナリ → `resources/bin/`（`whisper-cli` / `micwatch` / `calendarevents` / `applelm` / `ggml-metal.metal`）。
-  ソースは `native/micwatch/` と `native/calendarevents/` と `native/applelm/`、配置は `scripts/build-*.sh` が行う。パスの解決は
+- 同梱バイナリ → `resources/bin/`（`whisper-cli` / `micwatch` / `calendarevents` / `applelm` / `ggml-metal.metal`、Windows は `syscapture.exe`）。
+  ソースは `native/micwatch/` と `native/calendarevents/` と `native/applelm/`（Swift）、`native/syscapture/`（Rust）。配置は `scripts/build-*` が行う。パスの解決は
   `resolve*Binary.ts` が開発時とパッケージ時で切り替える（ADR-016）
 
 ディレクトリ名は `slugForRecording()` が `YYYY-MM-DD_HHmm-<id先頭8桁>` で作る。
@@ -324,9 +326,10 @@ npm run setup        # whisper-cli・cargo などの有無を確かめて知ら�
 npm run dev
 ```
 
-- **補助プログラムがまだ無い**ので、システム音声の録音・音声の変換・マイク使用の見張りは使えないのが正しい。
+- システム音声の取り込み（`syscapture.exe`）は `npm run setup` か `npm run build:syscapture` で作る（cargo が要る）。
+  実機での取り込みは `npm run test:manual` で確かめる（CI のランナーには音声デバイスが無い）。
+- 音声の変換・マイク使用の見張りの補助プログラムはまだ無いので、使えないのが正しい。
   whisper-cli は `npm run setup` の案内どおり whisper.cpp のリリースを展開し、設定画面でパスを指定すれば試せる。
-- 初回起動（保存先が未設定）で端末に出る `folders:list` の「保存先が設定されていません」は macOS でも出る既知の挙動。
 - 保存先が exFAT など所有者を記録しないドライブだと、git が `dubious ownership` で止まる（`gh` も巻き込まれる）。
   `git config --global --add safe.directory <パス>` を足すか、`gh` は `-R eddybean/exolobe` を付けて呼ぶ。
 
@@ -346,6 +349,9 @@ agent-browser connect 9222
 - `electron out/main/index.js` で起動すると、「このアプリについて」の版は Electron の版になる
   （package.json の無い `out/main` がアプリのパスになるため）。`npm run dev` なら正しい。
 - ウィンドウ枠ごと撮る `screencapture` に当たるものは無い。ページの描画は `agent-browser screenshot` で撮る。
+- **agent-browser の出力をパイプに通さない**（`| head` など）。最初の呼び出しで起動する常駐プロセスがパイプを
+  握ったままになり、コマンドが返らない。見たいときはファイルへリダイレクトしてから読む。
+- `npm install -g agent-browser` を mise の Node で入れたら `mise reshim` する。しないと PATH に出てこない。
 
 Windows でしか走らないテスト（WASAPI・Media Foundation・`.exe` の補助プログラムを実際に使うもの）は
 `tests/platform.ts` の `notWindows` で `describe.skipIf(notWindows)` と囲む。macOS 専用の `notMacOS` と対にする。

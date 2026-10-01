@@ -6,6 +6,8 @@ dist/
 
 # パッケージ時に scripts/build-whisper.sh が生成する
 resources/bin/
+# Rust の補助プログラム（native/*）のビルド成果物
+native/*/target/
 release/
 
 .playwright-mcp
