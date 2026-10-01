@@ -1,0 +1,25 @@
+[package]
+name = "micwatch"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Exolobe の Windows 版で、他のアプリがマイクを使っているかを見張り、状態が変わったら 1 か 0 を 1 行出す（macOS 版は main.swift）"
+
+[dependencies.windows]
+version = "0.62"
+features = [
+  "Win32_Foundation",
+  "Win32_Media_Audio",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Threading"
+]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
