@@ -35,6 +35,7 @@ import {
   type UpdateStatusDto
 } from '@shared/ipc'
 import { localeFromArgv } from '@shared/i18n/locale'
+import { toAppPlatform } from '@shared/platform'
 
 /**
  * renderer に渡す唯一の窓口。
@@ -50,6 +51,7 @@ const subscribe = <T>(channel: string, listener: (payload: T) => void): (() => v
 
 const api: RendererApi = {
   locale: localeFromArgv(process.argv),
+  platform: toAppPlatform(process.platform),
   listRecordings: () => ipcRenderer.invoke(IPC.listRecordings) as Promise<RecordingDto[]>,
   getRecording: (id) => ipcRenderer.invoke(IPC.getRecording, id) as Promise<RecordingDetailDto>,
   startRecording: (title) => ipcRenderer.invoke(IPC.startRecording, title) as Promise<RecordingDto>,

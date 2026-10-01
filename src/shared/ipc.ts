@@ -8,6 +8,7 @@ import type { Settings, SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 import type { Locale } from './i18n/locale'
+import type { AppPlatform } from './platform'
 
 /**
  * main / renderer 間の契約。
@@ -378,6 +379,8 @@ export const toFolderDto = (folder: Folder): FolderDto => ({
 export interface RendererApi {
   /** UI の言語。main が起動時に決め、アプリが動いている間は変わらない（ADR-043）。 */
   readonly locale: Locale
+  /** アプリが動いている OS（ADR-048）。 */
+  readonly platform: AppPlatform
   listRecordings(): Promise<RecordingDto[]>
   getRecording(id: string): Promise<RecordingDetailDto>
   startRecording(title?: string): Promise<RecordingDto>

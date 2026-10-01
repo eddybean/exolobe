@@ -11,7 +11,7 @@ import type { RecordingDetailDto } from '@shared/ipc'
 import { EditableTitle } from '../components/EditableTitle'
 import { FlagIcon } from '../components/FlagIcon'
 import type { Transport } from '../hooks/useTransport'
-import { BOOKMARK_SHORTCUT_LABEL, isBookmarkKey } from '../keyboard'
+import { bookmarkShortcutLabel, isBookmarkKey } from '../keyboard'
 import { litSegments } from '../library/liveNotes'
 import { liveText } from '../i18n/live'
 import { intlLocale, locale } from '../i18n/locale'
@@ -106,7 +106,7 @@ export const RecordingLiveView = ({
   // メモを書いている最中でも印をつけられるよう、入力欄ではなく window で受ける。
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (!isBookmarkKey(event)) return
+      if (!isBookmarkKey(event, window.recorder.platform)) return
       event.preventDefault()
       addBookmark()
     }
@@ -170,7 +170,7 @@ export const RecordingLiveView = ({
                 <FlagIcon />
                 {t.bookmark.button}
               </button>
-              <kbd className="live__kbd">{BOOKMARK_SHORTCUT_LABEL}</kbd>
+              <kbd className="live__kbd">{bookmarkShortcutLabel(window.recorder.platform)}</kbd>
             </div>
             <p className="live__hint">{t.bookmark.hint}</p>
             {bookmarks.length > 0 && (

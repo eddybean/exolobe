@@ -7,6 +7,8 @@ import './styles.css'
 // 最初の描画より前に言語を決める。文言はモジュールから同期的に引くため（ADR-043）。
 setLocale(window.recorder.locale)
 document.documentElement.lang = window.recorder.locale
+// タイトルバーの余白など、OS で変わる見た目を CSS から引き分けるため（ADR-048）。
+document.documentElement.dataset['platform'] = window.recorder.platform
 
 const container = document.getElementById('root')
 if (!container) throw new Error('#root not found.')
