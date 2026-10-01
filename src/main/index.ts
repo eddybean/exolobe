@@ -39,7 +39,9 @@ const createWindow = (): BrowserWindow => {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    titleBarStyle: 'hiddenInset',
+    // macOS は信号機ボタンだけを残してナビゲーションをタイトルバーに重ねる。hiddenInset は macOS 専用で、
+    // Windows に渡すと最小化・閉じるのボタンごと消えるので、Windows は標準の枠のままにする（ADR-048）。
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
