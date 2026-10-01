@@ -11,6 +11,9 @@
  *   env -u ELECTRON_RUN_AS_NODE HOME=<出力先> ./node_modules/.bin/electron out/main/index.js \
  *     --remote-debugging-port=9222 --user-data-dir=<出力先>/userData
  * 撮り方は CLAUDE.md の「UI の変更を実機で確かめる」を参照。
+ *
+ * 音声（無音の m4a）は afconvert で作るため macOS でだけ書き出す。それ以外の OS では音声無しになり、
+ * 再生バーは鳴らないが、一覧・文字起こし・要約の画面は確かめられる（ADR-048）。
  */
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -118,8 +121,9 @@ const slugFor = (startedAt, id) => {
 /**
  * root の下に library（録音の保存先）と userData（設定）を作る。
  * @param {string} root
+ * @param {{ audio?: boolean }} [options] audio は既定で macOS のときだけ true
  */
-export const writeScreenshotFixtures = async (root) => {
+export const writeScreenshotFixtures = async (root, { audio: withAudio = process.platform === 'darwin' } = {}) => {
   const random = seededRandom(7)
   const pick = (items) => items[Math.floor(random() * items.length)]
   const between = (min, max) => min + Math.floor(random() * (max - min + 1))
@@ -156,7 +160,7 @@ export const writeScreenshotFixtures = async (root) => {
     })
     json(join(dir, 'transcript.json'), { schemaVersion: 1, speakers, segments })
     writeFileSync(join(dir, 'summary.md'), summary)
-    if (audio) writeSilentAudio(join(dir, 'audio.m4a'), durationMs, root)
+    if (audio && withAudio) writeSilentAudio(join(dir, 'audio.m4a'), durationMs, root)
   }
 
   // 画面の主役。4 人の発言が帯に散らばって見えるよう、冒頭の後ろを乱数で埋める。

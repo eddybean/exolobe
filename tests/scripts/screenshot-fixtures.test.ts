@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, stat } from 'node:fs/promises'
+import { access, mkdtemp, readFile, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -16,8 +16,9 @@ let library: string
 
 const locator = { root: async (): Promise<string> => library }
 
-// 音声は afconvert で作るので、架空データの書き出し自体が macOS でしか動かない。
-describe.skipIf(notMacOS)('writeScreenshotFixtures', () => {
+// 音声は afconvert で作るので macOS でしか作れない。それ以外の OS では音声無しで書き出し、
+// 一覧・文字起こし・要約の画面だけを確かめる（Windows で UI を確かめるため、ADR-048）。
+describe('writeScreenshotFixtures', () => {
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), 'screenshot-fixtures-'))
     library = join(root, 'library')
@@ -49,7 +50,7 @@ describe.skipIf(notMacOS)('writeScreenshotFixtures', () => {
     expect(folders.find((folder) => folder.name === 'Acme 社')?.parentId).toBe('f-client')
   })
 
-  it('画面の主役の録音は 4 話者の文字起こし・要約・再生できる音声を持つ', async () => {
+  it('画面の主役の録音は 4 話者の文字起こしと要約を持つ', async () => {
     const [main] = await new FileRecordingRepository(locator).list()
     if (!main) throw new Error('録音がありません')
     const artifacts = new FileRecordingArtifactStore(locator, join(root, 'work'))
@@ -57,7 +58,22 @@ describe.skipIf(notMacOS)('writeScreenshotFixtures', () => {
     const transcript = await artifacts.readTranscript(main)
     expect(transcript?.speakers.map((speaker) => speaker.label)).toEqual(['自分', '田中さん', '佐藤さん', '鈴木さん'])
     expect(await artifacts.readSummary(main)).toContain('## 決定事項')
+  })
+
+  it.skipIf(notMacOS)('macOS では画面の主役の録音が再生できる音声を持つ', async () => {
+    const [main] = await new FileRecordingRepository(locator).list()
+    if (!main) throw new Error('録音がありません')
+
     expect((await stat(join(library, main.slug, 'audio.m4a'))).size).toBeGreaterThan(0)
+  })
+
+  it('音声を作らない指定では afconvert を呼ばずに書き出せる', async () => {
+    const noAudio = await mkdtemp(join(tmpdir(), 'screenshot-fixtures-'))
+    await writeScreenshotFixtures(noAudio, { audio: false })
+    const [main] = await new FileRecordingRepository({ root: async () => join(noAudio, 'library') }).list()
+    if (!main) throw new Error('録音がありません')
+
+    await expect(access(join(noAudio, 'library', main.slug, 'audio.m4a'))).rejects.toThrow()
   })
 
   it('同じ内容を何度でも作れる（撮り直しで画面が変わらない）', async () => {
