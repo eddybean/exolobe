@@ -88,6 +88,10 @@ const showWindow = (): void => {
 
 // 2 つ目の起動では何も始めない。コンテナを作るだけでワーカーや監視が動き出すため、判定は最初に行う。
 if (claimSingleInstance(app, showWindow)) {
+  // Windows の通知は AppUserModelId でアプリを見分ける。electron-builder が NSIS のショートカットに付ける
+  // appId と揃えないと、通知の差出人が Electron になったり、通知そのものが出なかったりする。
+  if (process.platform === 'win32') app.setAppUserModelId('io.github.eddybean.exolobe')
+
   void app.whenReady().then(async () => {
     setAppLocale(resolveLocale(preferredLanguages()))
     const container = createContainer()
@@ -110,7 +114,7 @@ if (claimSingleInstance(app, showWindow)) {
   app.on('will-quit', () => globalShortcut.unregisterAll())
 
   app.on('window-all-closed', () => {
-    // 録音とバックグラウンド処理を続けたいので、macOS の慣習どおり終了しない。
-    if (process.platform !== 'darwin') app.quit()
+    // 録音とバックグラウンド処理を続けたいので、どの OS でも終了しない。終了はトレイ（とメニュー）から。
+    // Windows の慣習どおり終了させると、ウィンドウを閉じただけで録音が止まる（ADR-048）。
   })
 }

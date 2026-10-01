@@ -1,6 +1,14 @@
 import { Menu, app, shell, type MenuItemConstructorOptions } from 'electron'
 import type { TransportController } from './ipc/handlers'
 import { text } from './i18n'
+import { toAppPlatform, type AppPlatform } from '@shared/platform'
+
+/**
+ * 先頭のメニュー。appMenu（アプリ名のメニュー）は macOS にしか無く、Windows では何も出ない。
+ * Windows は終了の項目を持つファイルメニューにする（ADR-048）。
+ */
+export const leadingMenuRole = (platform: AppPlatform): 'appMenu' | 'fileMenu' =>
+  platform === 'windows' ? 'fileMenu' : 'appMenu'
 
 /**
  * アプリケーションメニュー。
@@ -17,7 +25,7 @@ export const createApplicationMenu = (controller: TransportController, showWindo
     const active = controller.state().active
 
     const template: MenuItemConstructorOptions[] = [
-      { role: 'appMenu' },
+      { role: leadingMenuRole(toAppPlatform(process.platform)) },
       {
         label: text().menu.recording,
         submenu: [
