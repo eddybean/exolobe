@@ -330,7 +330,6 @@ npm run dev
   実機での取り込みは `npm run test:manual` で確かめる（CI のランナーには音声デバイスが無い）。
 - 音声の変換・マイク使用の見張りの補助プログラムはまだ無いので、使えないのが正しい。
   whisper-cli は `npm run setup` の案内どおり whisper.cpp のリリースを展開し、設定画面でパスを指定すれば試せる。
-- 初回起動（保存先が未設定）で端末に出る `folders:list` の「保存先が設定されていません」は macOS でも出る既知の挙動。
 - 保存先が exFAT など所有者を記録しないドライブだと、git が `dubious ownership` で止まる（`gh` も巻き込まれる）。
   `git config --global --add safe.directory <パス>` を足すか、`gh` は `-R eddybean/exolobe` を付けて呼ぶ。
 
