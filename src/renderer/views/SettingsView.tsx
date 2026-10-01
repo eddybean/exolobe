@@ -13,6 +13,7 @@ import {
   type SettingsPatch
 } from '@domain/Settings'
 import type { SetupStateDto, UpdateStatusDto } from '@shared/ipc'
+import { platformFeatures } from '@shared/platform'
 import { recordingShortcut } from '@shared/shortcuts'
 import { CalendarSettings } from '../components/CalendarSettings'
 import { LicenseNotices } from '../components/LicenseNotices'
@@ -59,6 +60,8 @@ export const SettingsView = ({
   const t = settingsText()
   const usesGemma = summarizationProviderOf(settings) === 'llama-cpp'
   const customPrompt = settings.summarization.promptMode === 'custom'
+  // OS に無い機能の設定は出さない（ADR-048）。
+  const features = platformFeatures(window.recorder.platform)
 
   const update = (patch: SettingsPatch): void => {
     setError(undefined)
@@ -142,12 +145,14 @@ export const SettingsView = ({
           </Field>
         </SettingsCard>
 
-        <CalendarSettings
-          enabled={settings.recording.calendarEnabled}
-          autoStartEnabled={settings.recording.autoStartEnabled}
-          onChange={(calendarEnabled) => update({ recording: { calendarEnabled } })}
-          onAutoStartChange={(autoStartEnabled) => update({ recording: { autoStartEnabled } })}
-        />
+        {features.calendar && (
+          <CalendarSettings
+            enabled={settings.recording.calendarEnabled}
+            autoStartEnabled={settings.recording.autoStartEnabled}
+            onChange={(calendarEnabled) => update({ recording: { calendarEnabled } })}
+            onAutoStartChange={(autoStartEnabled) => update({ recording: { autoStartEnabled } })}
+          />
+        )}
       </>
     ),
     transcription: (
@@ -343,10 +348,13 @@ export const SettingsView = ({
         </SettingsCard>
 
         <SettingsCard title={t.summarization.modelCardTitle}>
-          <SummarizationModelField
-            provider={summarizationProviderOf(settings)}
-            onChange={(provider) => update({ summarization: { provider } })}
-          />
+          {/* 選べるのが Gemma だけなら、選ぶ欄そのものを出さない。 */}
+          {features.appleIntelligence && (
+            <SummarizationModelField
+              provider={summarizationProviderOf(settings)}
+              onChange={(provider) => update({ summarization: { provider } })}
+            />
+          )}
 
           {/* Gemma に戻したときのためにパスは残すが、使わない間は見せない。 */}
           {usesGemma && (
@@ -434,7 +442,7 @@ export const SettingsView = ({
               onChange={(event) => update({ audio: { codec: event.target.value as Settings['audio']['codec'] } })}
             >
               <option value="aac">{t.storage.codecAac}</option>
-              <option value="aach">{t.storage.codecHeAac}</option>
+              {features.heAac && <option value="aach">{t.storage.codecHeAac}</option>}
             </select>
           </Field>
 
