@@ -1,0 +1,3 @@
+# Windows でも LF のまま取り出す。oxfmt は LF を前提にしていて、CRLF だと fmt:check が
+# 全ファイルで落ちる。CSS や .sh を文字列として読むテストと、Git Bash での .sh の実行も CRLF で壊れる（ADR-048）。
+* text=auto eol=lf
