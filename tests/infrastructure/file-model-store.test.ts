@@ -8,7 +8,7 @@ import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { findAsset, type ManagedAsset } from '@domain/ModelCatalog'
 import { AssetDownloader, type FetchLike } from '@infrastructure/download/AssetDownloader'
-import { FileModelStore } from '@infrastructure/download/FileModelStore'
+import { FileModelStore, extractCommand } from '@infrastructure/download/FileModelStore'
 import { notMacOS } from '../platform'
 
 let modelsDir: string
@@ -138,6 +138,57 @@ describe.skipIf(notMacOS)('FileModelStore.fetch（zip アーカイブ）', () =>
     } finally {
       await rm(work, { recursive: true, force: true })
     }
+  })
+})
+
+describe('extractCommand', () => {
+  it('macOS は zip を ditto、tar.bz2 を tar で展開する', () => {
+    expect(extractCommand('zip', '/m/a.zip', '/m', 'darwin')).toEqual({
+      command: '/usr/bin/ditto',
+      args: ['-x', '-k', '/m/a.zip', '/m']
+    })
+    expect(extractCommand('tar.bz2', '/m/a.tar.bz2', '/m', 'darwin')).toEqual({
+      command: '/usr/bin/tar',
+      args: ['-xjf', '/m/a.tar.bz2', '-C', '/m']
+    })
+  })
+
+  it('Windows は OS 付属の tar.exe（bsdtar）で展開する（PATH 上の Git の GNU tar は bz2 や zip を読めないことがある）', () => {
+    expect(extractCommand('tar.bz2', 'C:\\m\\a.tar.bz2', 'C:\\m', 'win32', 'C:\\Windows')).toEqual({
+      command: 'C:\\Windows\\System32\\tar.exe',
+      args: ['-xf', 'C:\\m\\a.tar.bz2', '-C', 'C:\\m']
+    })
+  })
+})
+
+/** sherpa-onnx-pyannote-segmentation-3-0/model.onnx（中身は "m"）だけを入れた tar.bz2。 */
+const TINY_TAR_BZ2 = Buffer.from(
+  'QlpoOTFBWSZTWQaHekEAAJt5kPGAAYBAA/+Qf+feYAQAAAgwANakYAZNNBkMENMRowJRT1T9NU2oaaAyabUAABVRqRHppoTEwGieo9DCn6hifLNO2whDrWiIDu4jKeTIMCKIoZxxTfKKPt9TjiuWNi1dW16YHNMKjmnKO8IJpHFrRUKGDjEiUyZAxltKVxUKaxYiai1CmdmRKqXpe5MUGdxX0MHuxatWOz2+VKjLBdWpJy1PhOVeK/uzN6FLFSoX6sGTaVNapkZOBgB/F3JFOFCQBod6QQ==',
+  'base64'
+)
+
+// OS のコマンドで実際に展開する。Windows の CI では tar.exe が bz2 を読めることの確認を兼ねる。
+describe('FileModelStore.fetch（tar.bz2 アーカイブ）', () => {
+  it('展開して、中のモデルを指す', async () => {
+    const fetch: FetchLike = async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-length': String(TINY_TAR_BZ2.length) }),
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(TINY_TAR_BZ2))
+          controller.close()
+        }
+      })
+    })
+    const target = unverified(asset('diarization-segmentation'))
+    const store = new FileModelStore(modelsDir, new AssetDownloader(fetch))
+
+    const path = await store.fetch(target, {})
+
+    expect(await readFile(path, 'utf8')).toBe('m')
+    expect(existsSync(join(modelsDir, target.fileName))).toBe(false)
   })
 })
 

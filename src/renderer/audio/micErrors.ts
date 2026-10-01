@@ -1,4 +1,5 @@
 import { audioText } from '../i18n/audio'
+import { platform } from '../platform'
 
 /**
  * マイク取得の失敗を、利用者が次に取るべき操作へつながる形に分類する。
@@ -41,11 +42,11 @@ export const describeMicFailure = (error: unknown): MicError => {
 
   if (NOT_FOUND.has(name)) {
     // 録音を続けるかどうかは呼び出し側の方針なので、ここでは原因だけを述べる。
-    return new MicDeviceMissingError(t.deviceMissing, options)
+    return new MicDeviceMissingError(t.deviceMissing(platform()), options)
   }
 
   if (NOT_ALLOWED.has(name)) {
-    return new MicPermissionError(t.permissionDenied, options)
+    return new MicPermissionError(t.permissionDenied(platform()), options)
   }
 
   if (name === 'NotReadableError' || name === 'TrackStartError') {

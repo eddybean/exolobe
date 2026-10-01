@@ -1,3 +1,5 @@
+import type { AppPlatform } from '@shared/platform'
+
 /**
  * 入力欄の「確定」キーの見分け方。
  *
@@ -18,8 +20,12 @@ export interface CommitKeyEvent {
 export const isCommitEnter = (event: CommitKeyEvent): boolean =>
   event.key === 'Enter' && !event.nativeEvent?.isComposing && event.keyCode !== 229
 
-/** 録音中の「今の発言に印をつける」。アプリ内だけで効く（グローバルには登録しない）。 */
-export const BOOKMARK_SHORTCUT_LABEL = '⌘⇧H'
+/**
+ * 録音中の「今の発言に印をつける」。アプリ内だけで効く（グローバルには登録しない）。
+ * Windows では Windows キーを OS が使うので、⌘ の代わりに Ctrl を使う（ADR-048）。
+ */
+export const bookmarkShortcutLabel = (platform: AppPlatform): string =>
+  platform === 'windows' ? 'Ctrl+Shift+H' : '⌘⇧H'
 
 export interface ShortcutKeyEvent {
   readonly key: string
@@ -32,14 +38,19 @@ export interface ShortcutKeyEvent {
 }
 
 /**
- * ⌘⇧H を印の操作として受ける。メモの入力欄にいても効かせるため、入力先は見ない。
+ * ⌘⇧H（Windows は Ctrl+Shift+H）を印の操作として受ける。メモの入力欄にいても効かせるため、入力先は見ない。
  * 押しっぱなしの自動反復は落とす — 1 回押しただけで印が並ぶ。
  */
-export const isBookmarkKey = (event: ShortcutKeyEvent): boolean =>
-  event.key.toLowerCase() === 'h' &&
-  event.metaKey &&
-  event.shiftKey &&
-  !event.ctrlKey &&
-  !event.altKey &&
-  !event.repeat &&
-  !event.isComposing
+export const isBookmarkKey = (event: ShortcutKeyEvent, platform: AppPlatform = 'macos'): boolean => {
+  const primary = platform === 'windows' ? event.ctrlKey : event.metaKey
+  const other = platform === 'windows' ? event.metaKey : event.ctrlKey
+  return (
+    event.key.toLowerCase() === 'h' &&
+    primary &&
+    event.shiftKey &&
+    !other &&
+    !event.altKey &&
+    !event.repeat &&
+    !event.isComposing
+  )
+}

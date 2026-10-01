@@ -18,6 +18,7 @@ import { LlamaCppSummarizer } from '@infrastructure/summarization/LlamaCppSummar
 import { NodeLlamaSessionFactory } from '@infrastructure/summarization/NodeLlamaSessionFactory'
 import { resolveAppleLmBinary } from '@infrastructure/summarization/resolveAppleLmBinary'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
+import { resolveBundledBinary } from '@infrastructure/system/resolveBundledBinary'
 import { WhisperCppTranscriber, droppedSegmentLogger } from '@infrastructure/transcription/WhisperCppTranscriber'
 import { resolveWhisperBinary } from '@infrastructure/transcription/resolveWhisperBinary'
 import {
@@ -138,8 +139,7 @@ const bundledWhisper = (): string | undefined => {
   const resourcesPath = process.env['OMR_RESOURCES']
   if (!resourcesPath) return undefined
 
-  const path = join(resourcesPath, 'bin', 'whisper-cli')
-  return existsSync(path) ? path : undefined
+  return resolveBundledBinary('whisper-cli', { packaged: true, resourcesPath })
 }
 
 /**

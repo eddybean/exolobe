@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { type BundledBinaryParams, resolveBundledBinary } from '@infrastructure/system/resolveBundledBinary'
 
 /**
  * 同梱した calendarevents の場所を解決する。置き方は micwatch と同じ
@@ -8,15 +7,5 @@ import { join } from 'node:path'
  * 見つからなければ undefined を返す。カレンダー連携が無効になるだけで、
  * 録音そのものは動く。
  */
-export const resolveCalendarBinary = (params: {
-  packaged: boolean
-  resourcesPath: string
-  cwd?: string
-  exists?: (path: string) => boolean
-}): string | undefined => {
-  const exists = params.exists ?? existsSync
-  const root = params.packaged ? params.resourcesPath : join(params.cwd ?? process.cwd(), 'resources')
-  const path = join(root, 'bin', 'calendarevents')
-
-  return exists(path) ? path : undefined
-}
+export const resolveCalendarBinary = (params: BundledBinaryParams): string | undefined =>
+  resolveBundledBinary('calendarevents', params)

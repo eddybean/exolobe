@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isBookmarkKey } from '@renderer/keyboard'
+import { bookmarkShortcutLabel, isBookmarkKey } from '@renderer/keyboard'
 import {
   bookmarkedSegmentIndexes,
   detailMoments,
@@ -58,6 +58,15 @@ describe('isBookmarkKey', () => {
     expect(isBookmarkKey({ ...key, shiftKey: false })).toBe(false)
     expect(isBookmarkKey({ ...key, altKey: true })).toBe(false)
     expect(isBookmarkKey({ ...key, ctrlKey: true })).toBe(false)
+  })
+
+  it('Windows では Ctrl+Shift+H（Windows キーは OS が使う）', () => {
+    const windows = { ...key, metaKey: false, ctrlKey: true }
+
+    expect(isBookmarkKey(windows, 'windows')).toBe(true)
+    expect(isBookmarkKey(key, 'windows')).toBe(false)
+    expect(bookmarkShortcutLabel('windows')).toBe('Ctrl+Shift+H')
+    expect(bookmarkShortcutLabel('macos')).toBe('⌘⇧H')
   })
 
   it('日本語入力の変換中は付けない', () => {

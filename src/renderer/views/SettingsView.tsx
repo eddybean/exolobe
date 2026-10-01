@@ -13,7 +13,8 @@ import {
   type SettingsPatch
 } from '@domain/Settings'
 import type { SetupStateDto, UpdateStatusDto } from '@shared/ipc'
-import { RECORDING_SHORTCUT } from '@shared/shortcuts'
+import { platformFeatures } from '@shared/platform'
+import { recordingShortcut } from '@shared/shortcuts'
 import { CalendarSettings } from '../components/CalendarSettings'
 import { LicenseNotices } from '../components/LicenseNotices'
 import { ModelManager } from '../components/ModelManager'
@@ -25,6 +26,7 @@ import { VoiceprintSettings } from '../components/VoiceprintSettings'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../settingsSections'
 import { locale } from '../i18n/locale'
 import { settingsText } from '../i18n/settings'
+import { platform } from '../platform'
 
 /**
  * 設定画面。保存先とモデルの指定がここに集まる。左のナビで項目を選び、右にその項目だけを出す。
@@ -59,6 +61,8 @@ export const SettingsView = ({
   const t = settingsText()
   const usesGemma = summarizationProviderOf(settings) === 'llama-cpp'
   const customPrompt = settings.summarization.promptMode === 'custom'
+  // OS に無い機能の設定は出さない（ADR-048）。
+  const features = platformFeatures(platform())
 
   const update = (patch: SettingsPatch): void => {
     setError(undefined)
@@ -113,7 +117,7 @@ export const SettingsView = ({
           </Field>
 
           <Field
-            label={t.recording.globalShortcutLabel(RECORDING_SHORTCUT.label)}
+            label={t.recording.globalShortcutLabel(recordingShortcut(platform()).label)}
             hint={t.recording.globalShortcutHint}
           >
             <input
@@ -142,12 +146,14 @@ export const SettingsView = ({
           </Field>
         </SettingsCard>
 
-        <CalendarSettings
-          enabled={settings.recording.calendarEnabled}
-          autoStartEnabled={settings.recording.autoStartEnabled}
-          onChange={(calendarEnabled) => update({ recording: { calendarEnabled } })}
-          onAutoStartChange={(autoStartEnabled) => update({ recording: { autoStartEnabled } })}
-        />
+        {features.calendar && (
+          <CalendarSettings
+            enabled={settings.recording.calendarEnabled}
+            autoStartEnabled={settings.recording.autoStartEnabled}
+            onChange={(calendarEnabled) => update({ recording: { calendarEnabled } })}
+            onAutoStartChange={(autoStartEnabled) => update({ recording: { autoStartEnabled } })}
+          />
+        )}
       </>
     ),
     transcription: (
@@ -343,10 +349,13 @@ export const SettingsView = ({
         </SettingsCard>
 
         <SettingsCard title={t.summarization.modelCardTitle}>
-          <SummarizationModelField
-            provider={summarizationProviderOf(settings)}
-            onChange={(provider) => update({ summarization: { provider } })}
-          />
+          {/* 選べるのが Gemma だけなら、選ぶ欄そのものを出さない。 */}
+          {features.appleIntelligence && (
+            <SummarizationModelField
+              provider={summarizationProviderOf(settings)}
+              onChange={(provider) => update({ summarization: { provider } })}
+            />
+          )}
 
           {/* Gemma に戻したときのためにパスは残すが、使わない間は見せない。 */}
           {usesGemma && (
@@ -434,7 +443,7 @@ export const SettingsView = ({
               onChange={(event) => update({ audio: { codec: event.target.value as Settings['audio']['codec'] } })}
             >
               <option value="aac">{t.storage.codecAac}</option>
-              <option value="aach">{t.storage.codecHeAac}</option>
+              {features.heAac && <option value="aach">{t.storage.codecHeAac}</option>}
             </select>
           </Field>
 

@@ -4,7 +4,7 @@ import { localized } from './locale'
 
 const ja = {
   heading: 'チャット',
-  lead: '録音・文字起こし・要約をもとに答えます。処理はすべてこの Mac の中で完結します。',
+  lead: '録音・文字起こし・要約をもとに答えます。処理はすべてこのパソコンの中で完結します。',
   newConversation: '新しい会話',
   emptyHint: '期間や話し手で絞って尋ねられます。',
   examples: [
@@ -33,7 +33,7 @@ const ja = {
 
 const en: typeof ja = {
   heading: 'Chat',
-  lead: 'Answers are based on your recordings, transcripts, and summaries. Everything runs on this Mac.',
+  lead: 'Answers are based on your recordings, transcripts, and summaries. Everything runs on this computer.',
   newConversation: 'New Conversation',
   // 英語の問いはまだ期間や話者で絞れない（ChatQuery / DateExpression は日本語の言い回しだけを読む、
   // ADR-043）。絞れない問い方を例に出すと、効いていない絞り込みを効いたと思わせてしまう。

@@ -98,6 +98,7 @@ describe('parseCalendarPermission', () => {
 describe('resolveCalendarBinary', () => {
   it('配布版は Resources/bin の同梱物を使う', () => {
     const path = resolveCalendarBinary({
+      platform: 'darwin',
       packaged: true,
       resourcesPath: '/Apps/Exolobe.app/Contents/Resources',
       cwd: '/repo',
@@ -108,13 +109,20 @@ describe('resolveCalendarBinary', () => {
   })
 
   it('開発時はリポジトリの resources/bin を使う', () => {
-    const path = resolveCalendarBinary({ packaged: false, resourcesPath: '/ignored', cwd: '/repo', exists: () => true })
+    const path = resolveCalendarBinary({
+      platform: 'darwin',
+      packaged: false,
+      resourcesPath: '/ignored',
+      cwd: '/repo',
+      exists: () => true
+    })
 
     expect(path).toBe(join('/repo', 'resources', 'bin', 'calendarevents'))
   })
 
   it('同梱物が無ければ undefined を返す（連携だけ無効になる）', () => {
     const path = resolveCalendarBinary({
+      platform: 'darwin',
       packaged: false,
       resourcesPath: '/ignored',
       cwd: '/repo',

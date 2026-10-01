@@ -2,7 +2,7 @@ import { localized } from './locale'
 
 const ja = {
   title: 'はじめに',
-  lead: '会議の音声を録音し、文字起こし・話者識別・要約までをこの Mac の中だけで行います。音声もテキストも外部には送信されません。',
+  lead: '会議の音声を録音し、文字起こし・話者識別・要約までをこのパソコンの中だけで行います。音声もテキストも外部には送信されません。',
   step1Title: '保存先を選ぶ',
   step1Description: '録音・文字起こし・要約の保存場所です。これを決めると録音を始められます。',
   unset: '未設定',
@@ -21,7 +21,7 @@ const ja = {
 
 const en: typeof ja = {
   title: 'Getting Started',
-  lead: 'Records meeting audio and does transcription, speaker identification, and summarization entirely on this Mac. Neither audio nor text is sent anywhere else.',
+  lead: 'Records meeting audio and does transcription, speaker identification, and summarization entirely on this computer. Neither audio nor text is sent anywhere else.',
   step1Title: 'Choose a Save Location',
   step1Description: 'Where recordings, transcripts, and summaries are saved. Setting this lets you start recording.',
   unset: 'Not set',

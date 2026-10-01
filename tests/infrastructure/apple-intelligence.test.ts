@@ -44,16 +44,18 @@ describe('resolveAppleLmBinary', () => {
   it('開発時はリポジトリの resources/bin を、配布時は Resources/bin を見る', () => {
     const exists = () => true
 
-    expect(resolveAppleLmBinary({ packaged: false, resourcesPath: '', cwd: '/repo', exists })).toBe(
+    expect(resolveAppleLmBinary({ platform: 'darwin', packaged: false, resourcesPath: '', cwd: '/repo', exists })).toBe(
       join('/repo', 'resources', 'bin', 'applelm')
     )
-    expect(resolveAppleLmBinary({ packaged: true, resourcesPath: '/App/Resources', exists })).toBe(
+    expect(resolveAppleLmBinary({ platform: 'darwin', packaged: true, resourcesPath: '/App/Resources', exists })).toBe(
       join('/App/Resources', 'bin', 'applelm')
     )
   })
 
   it('無ければ undefined', () => {
-    expect(resolveAppleLmBinary({ packaged: true, resourcesPath: '/App', exists: () => false })).toBeUndefined()
+    expect(
+      resolveAppleLmBinary({ platform: 'darwin', packaged: true, resourcesPath: '/App', exists: () => false })
+    ).toBeUndefined()
   })
 })
 

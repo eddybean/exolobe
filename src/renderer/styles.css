@@ -53,7 +53,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Segoe UI', 'Yu Gothic UI', Meiryo, 'Noto Sans JP', sans-serif;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -89,7 +90,7 @@ textarea {
 }
 
 code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   background: var(--surface-2);
   padding: 2px 6px;
@@ -119,6 +120,12 @@ code {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
+}
+
+/* Windows は標準のウィンドウ枠を使う（ADR-048）。信号機ボタンの余白も、枠の代わりのドラッグ領域も要らない。 */
+:root[data-platform='windows'] .nav {
+  padding-left: 16px;
+  -webkit-app-region: no-drag;
 }
 
 .nav__links {
@@ -1704,7 +1711,7 @@ code {
 }
 
 .summary code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   padding: 1px 4px;
   border-radius: 4px;
@@ -1810,7 +1817,7 @@ code {
 
 .live__clock {
   margin: 0;
-  font-family: ui-monospace, Menlo, monospace;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 40px;
   font-weight: 600;
   line-height: 1.1;
@@ -1888,7 +1895,7 @@ code {
 }
 
 .live__kbd {
-  font-family: ui-monospace, Menlo, monospace;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 11px;
   padding: 1px 5px;
   border: 1px solid var(--border);
@@ -1918,7 +1925,7 @@ code {
 }
 
 .live__mark-time {
-  font-family: ui-monospace, Menlo, monospace;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
   font-variant-numeric: tabular-nums;
   color: color-mix(in srgb, var(--warning) 70%, var(--text));
 }
@@ -2280,7 +2287,7 @@ textarea:focus {
 .settings__prompt {
   width: 100%;
   min-height: 160px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
 }
 
@@ -2370,7 +2377,7 @@ textarea:focus {
   border-radius: 4px;
   background: var(--surface-2);
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
 }
 

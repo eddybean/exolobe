@@ -1,11 +1,12 @@
 import type { ReactElement } from 'react'
-import { RECORDING_SHORTCUT } from '@shared/shortcuts'
+import { recordingShortcut } from '@shared/shortcuts'
 import { autoStartedMessage, startAlertMessage } from '@shared/startAlert'
 import type { Transport } from '../hooks/useTransport'
 import { LevelTimeline } from './LevelTimeline'
 import { formatDuration } from '../format'
 import { locale } from '../i18n/locale'
 import { transportText } from '../i18n/transport'
+import { platform } from '../platform'
 
 /**
  * 画面下部に常時固定される操作バー。
@@ -37,7 +38,7 @@ export const TransportBar = ({
       </button>
       {shortcutEnabled && (
         <kbd className="transport__shortcut" title={t.shortcutHint}>
-          {RECORDING_SHORTCUT.label}
+          {recordingShortcut(platform()).label}
         </kbd>
       )}
 

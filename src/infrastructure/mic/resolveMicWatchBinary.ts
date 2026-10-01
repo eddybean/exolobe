@@ -1,5 +1,4 @@
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { type BundledBinaryParams, resolveBundledBinary } from '@infrastructure/system/resolveBundledBinary'
 
 /**
  * 同梱した micwatch の場所を解決する。
@@ -12,15 +11,5 @@ import { join } from 'node:path'
  * 録音そのものは動く。ここで例外にすると、まだ作っていない開発環境で
  * アプリが起動しなくなる。
  */
-export const resolveMicWatchBinary = (params: {
-  packaged: boolean
-  resourcesPath: string
-  cwd?: string
-  exists?: (path: string) => boolean
-}): string | undefined => {
-  const exists = params.exists ?? existsSync
-  const root = params.packaged ? params.resourcesPath : join(params.cwd ?? process.cwd(), 'resources')
-  const path = join(root, 'bin', 'micwatch')
-
-  return exists(path) ? path : undefined
-}
+export const resolveMicWatchBinary = (params: BundledBinaryParams): string | undefined =>
+  resolveBundledBinary('micwatch', params)

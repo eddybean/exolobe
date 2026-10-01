@@ -38,6 +38,7 @@ import {
 import { reasonText } from '../i18n/failure'
 import { detailText } from '../i18n/detail'
 import { locale } from '../i18n/locale'
+import { platform } from '../platform'
 
 /** メモの自動保存までの待ち時間。打鍵のたびに書かないため。 */
 const NOTE_SAVE_DELAY_MS = 600
@@ -425,7 +426,7 @@ export const RecordingDetailView = ({
         </div>
         <div className="detail__actions">
           <button type="button" onClick={() => void window.recorder.revealRecording(recordingId)}>
-            {t.header.revealInFinder}
+            {t.header.revealInFileManager(platform())}
           </button>
           <button type="button" className="danger" onClick={onDelete}>
             {t.header.delete}

@@ -1,3 +1,4 @@
+import type { AppPlatform } from '@shared/platform'
 import { localized } from './locale'
 
 /** 新しい版の通知（ナビの知らせと、設定の「このアプリについて」）の文言。 */
@@ -24,7 +25,10 @@ const ja = {
   available: (version: string) => `新しい版 ${version} が出ています。`,
   homebrewHint: 'Homebrew で入れた版です。ターミナルで次を実行してください。',
   copyCommand: '更新のコマンドをコピー',
-  downloadHint: '配布ページから DMG をダウンロードし、アプリを入れ替えてください。録音やモデルはそのまま残ります。',
+  downloadHint: (platform: AppPlatform): string =>
+    platform === 'windows'
+      ? '配布ページからインストーラ（.exe）をダウンロードして実行してください。録音やモデルはそのまま残ります。'
+      : '配布ページから DMG をダウンロードし、アプリを入れ替えてください。録音やモデルはそのまま残ります。',
   openPage: '配布ページを開く'
 }
 
@@ -50,7 +54,10 @@ const en: typeof ja = {
   available: (version: string) => `Version ${version} is available.`,
   homebrewHint: 'This copy was installed with Homebrew. Run the following in Terminal.',
   copyCommand: 'Copy the update command',
-  downloadHint: 'Download the DMG from the release page and replace the app. Your recordings and models stay in place.',
+  downloadHint: (platform: AppPlatform): string =>
+    platform === 'windows'
+      ? 'Download the installer (.exe) from the release page and run it. Your recordings and models stay in place.'
+      : 'Download the DMG from the release page and replace the app. Your recordings and models stay in place.',
   openPage: 'Open Release Page'
 }
 

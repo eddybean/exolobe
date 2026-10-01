@@ -5,6 +5,7 @@ import { formatDateTime } from '../format'
 import { updateText } from '../i18n/update'
 import { updateGuidance, type UpdateGuidance } from '../update'
 import { CopyButton } from './CopyButton'
+import { platform } from '../platform'
 
 /**
  * 新しい版の確認（ADR-044）。いまの版・確認の間隔・今すぐ確認と、入れ方に応じた更新の案内。
@@ -105,7 +106,7 @@ const Instructions = ({ guidance }: { guidance: UpdateGuidance }): ReactElement 
     case 'download':
       return (
         <div className="update__instructions">
-          <p>{t.downloadHint}</p>
+          <p>{t.downloadHint(platform())}</p>
           <div>
             <button type="button" onClick={() => void window.recorder.openUpdatePage()}>
               {t.openPage}

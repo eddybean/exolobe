@@ -33,6 +33,8 @@ export interface ManagedAsset {
   readonly entryPath?: string
   /** 無くても録音・文字起こし・要約は動くか。 */
   readonly optional: boolean
+  /** 使える環境が限られるもの。満たさない環境では一覧に出さず、取得もさせない（ADR-048）。 */
+  readonly requires?: 'core-ml'
   /** 取得できたパスを設定のどこに書き込むか。 */
   applyTo(path: string): SettingsPatch
 }
@@ -72,6 +74,7 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     bytes: 1_173_393_014,
     sha256: '84bedfe895bd7b5de6e8e89a0803dfc5addf8c0c5bc4c937451716bf7cf7988a',
     archive: 'zip',
+    requires: 'core-ml',
     entryPath: 'ggml-large-v3-turbo-encoder.mlmodelc/weights/weight.bin',
     optional: true,
     // whisper.cpp がモデルのパスから位置を導くので、設定に書く項目が無い。
@@ -183,6 +186,15 @@ export const MODEL_PACKAGES: readonly ModelPackage[] = MANAGED_ASSETS.flatMap((a
     }
   ]
 })
+
+/** 実行している環境で使えるもの。domain は OS を知らないので、結線が環境の能力として渡す。 */
+export interface ModelCapabilities {
+  readonly coreMl: boolean
+}
+
+/** この環境で取得・管理できるパッケージ。Core ML の無い Windows では Core ML のエンコーダを外す。 */
+export const modelPackagesFor = (capabilities: ModelCapabilities): ModelPackage[] =>
+  MODEL_PACKAGES.filter((pkg) => pkg.assets.every((asset) => asset.requires !== 'core-ml' || capabilities.coreMl))
 
 export const findPackage = (id: string): ModelPackage | undefined => MODEL_PACKAGES.find((pkg) => pkg.id === id)
 

@@ -13,6 +13,7 @@ import {
   findAsset,
   findPackage,
   formatBytes,
+  modelPackagesFor,
   requiredAssets
 } from '@domain/ModelCatalog'
 import type { ManagedAsset, ManagedAssetId } from '@domain/ModelCatalog'
@@ -130,6 +131,19 @@ describe('ModelCatalog', () => {
   })
 })
 
+describe('modelPackagesFor', () => {
+  it('Core ML が使えれば、Core ML のエンコーダも並べる', () => {
+    expect(modelPackagesFor({ coreMl: true }).map((pkg) => pkg.id)).toContain('transcription-coreml-encoder')
+  })
+
+  it('Core ML が使えない OS（Windows）では、Core ML のエンコーダを並べない', () => {
+    const ids = modelPackagesFor({ coreMl: false }).map((pkg) => pkg.id)
+
+    expect(ids).not.toContain('transcription-coreml-encoder')
+    expect(ids).toContain('transcription-model')
+  })
+})
+
 describe('formatBytes', () => {
   it('人が読める単位にする', () => {
     expect(formatBytes(5_154_941_280)).toBe('5.2GB')
@@ -221,6 +235,33 @@ describe('GetModelStatus', () => {
     const status = await new GetModelStatus(new FakeSettingsRepository(defaultSettings('ja')), store).execute()
 
     expect(status.find((s) => s.id === 'diarization')?.updateAvailable).toBe(true)
+  })
+})
+
+describe('GetModelStatus（OS で使えるもの）', () => {
+  it('渡されたパッケージだけを返す', async () => {
+    const packages = modelPackagesFor({ coreMl: false })
+    const status = await new GetModelStatus(
+      new FakeSettingsRepository(defaultSettings('ja')),
+      new FakeModelStore(),
+      packages
+    ).execute()
+
+    expect(status.map((s) => s.id)).toEqual(packages.map((pkg) => pkg.id))
+  })
+})
+
+describe('DownloadModel（OS で使えるもの）', () => {
+  it('この OS で使えないパッケージは取得しない', async () => {
+    const store = new FakeModelStore()
+    const download = new DownloadModel(
+      new FakeSettingsRepository(defaultSettings('ja')),
+      store,
+      modelPackagesFor({ coreMl: false })
+    )
+
+    await expect(download.execute({ id: 'transcription-coreml-encoder' })).rejects.toThrow()
+    expect(store.fetched).toEqual([])
   })
 })
 

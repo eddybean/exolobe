@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { setLocale } from '@renderer/i18n/locale'
+import { setPlatform } from '@renderer/platform'
 import { calendarPermissionView, inputCheckView, micPermissionView } from '@renderer/permissions'
 
 /**
@@ -155,5 +156,18 @@ describe('英語の UI', () => {
       ['Your voice (microphone)', false]
     ])
     expect(view[1]?.message).toContain('speaking')
+  })
+})
+
+describe('inputCheckView（Windows）', () => {
+  afterEach(() => setPlatform('macos'))
+
+  it('システム音声の取り込みに許可は要らないので、設定へは案内せず再生先と音量を確かめるよう促す', () => {
+    setPlatform('windows')
+    const [system] = inputCheckView({ system: { kind: 'silent' }, mic: { kind: 'heard' } })
+
+    expect(system?.openSettings).toBeUndefined()
+    expect(system?.message).not.toContain('システム設定')
+    expect(system?.message).toContain('音量')
   })
 })
