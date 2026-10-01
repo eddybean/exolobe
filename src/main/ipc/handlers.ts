@@ -50,6 +50,7 @@ import { notifyAutoStarted, notifyMeetingStart } from '../startNotification'
 import { applyRecordingShortcut } from '../recordingShortcut'
 import { createTransportRequests } from '../transportRequests'
 import { privacySettingsUrl } from '../privacySettings'
+import { requestMicPermission } from '../micPermission'
 import { probeSystemAudio } from '../systemAudioProbe'
 import { PipelineClient } from '../worker/PipelineClient'
 import { ChatClient } from '../worker/ChatClient'
@@ -520,7 +521,7 @@ export const registerIpcHandlers = (
   // 録音に必要な許可。マイクは状態を問い合わせられるが、システム音声（Core Audio Tap）は
   // 問い合わせる公開 API が無く、許可が無くても無音が流れるだけなので、画面を開く案内に留める。
   handle(IPC.getMicPermission, async () => systemPreferences.getMediaAccessStatus('microphone'))
-  handle(IPC.requestMicPermission, async () => systemPreferences.askForMediaAccess('microphone'))
+  handle(IPC.requestMicPermission, async () => requestMicPermission(systemPreferences))
   // カレンダーは Electron に API が無いので、同梱の calendarevents に問い合わせる（ADR-040）。
   handle(IPC.getCalendarPermission, async () => container.calendar.permission())
   handle(IPC.requestCalendarPermission, async () => container.calendar.requestPermission())
