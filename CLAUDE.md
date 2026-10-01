@@ -21,7 +21,7 @@ npm test             # vitest run
 npm run test:watch
 npm run build        # typecheck + electron-vite build
 npm run package      # build + whisper-cli / micwatch / calendarevents / applelm のビルド + electron-builder
-npm run setup        # 開発用に whisper-cli を Homebrew で導入し、micwatch / calendarevents / applelm をビルド
+npm run setup        # macOS: whisper-cli を Homebrew で導入し、補助プログラムをビルド / Windows: 道具の有無を確かめる
 npm run build:whisper  # whisper.cpp を Core ML 有効でビルド（配布版はこちら）
 npm run build:micwatch # micwatch（Swift）をビルド
 npm run build:calendarevents # calendarevents（Swift、カレンダー連携）をビルド
@@ -312,3 +312,40 @@ agent-browser screenshot /tmp/ui.png   # 画像を実際に見て確かめる
     && w[kCGWindowLayer as String] as? Int == 0 { print(w[kCGWindowNumber as String]!) }' | head -1)
   screencapture -x -o -l "$WID" /tmp/window.png
   ```
+
+### Windows での開発
+
+フェーズ 2 の作業（eddybean/exolobe#137）はネイティブの Windows で行う。WSL からは WASAPI も
+Electron の GUI も扱えない。
+
+```powershell
+npm ci
+npm run setup        # whisper-cli・cargo などの有無を確かめて知らせるだけ（何も入れない）
+npm run dev
+```
+
+- **補助プログラムがまだ無い**ので、システム音声の録音・音声の変換・マイク使用の見張りは使えないのが正しい。
+  whisper-cli は `npm run setup` の案内どおり whisper.cpp のリリースを展開し、設定画面でパスを指定すれば試せる。
+- 初回起動（保存先が未設定）で端末に出る `folders:list` の「保存先が設定されていません」は macOS でも出る既知の挙動。
+- 保存先が exFAT など所有者を記録しないドライブだと、git が `dubious ownership` で止まる（`gh` も巻き込まれる）。
+  `git config --global --add safe.directory <パス>` を足すか、`gh` は `-R eddybean/exolobe` を付けて呼ぶ。
+
+UI の確かめ方は上の節と同じく `--user-data-dir` で隔離する。架空データは Windows では**音声無し**で書き出される
+（`audio.m4a` は afconvert で作るため）。再生バーは出るが鳴らない。一覧・文字起こし・要約・設定は確かめられる。
+
+```bash
+# Git Bash で。PowerShell なら `Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction Ignore` で外してから起動する。
+npm run build
+FX=$(mktemp -d)
+node scripts/screenshot-fixtures.mjs "$FX"
+env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/electron out/main/index.js   --remote-debugging-port=9222 --user-data-dir="$FX/userData" &
+agent-browser connect 9222
+```
+
+- `HOME` の付け替えは要らない（Windows の userData は `--user-data-dir` だけで決まる）。
+- `electron out/main/index.js` で起動すると、「このアプリについて」の版は Electron の版になる
+  （package.json の無い `out/main` がアプリのパスになるため）。`npm run dev` なら正しい。
+- ウィンドウ枠ごと撮る `screencapture` に当たるものは無い。ページの描画は `agent-browser screenshot` で撮る。
+
+Windows でしか走らないテスト（WASAPI・Media Foundation・`.exe` の補助プログラムを実際に使うもの）は
+`tests/platform.ts` の `notWindows` で `describe.skipIf(notWindows)` と囲む。macOS 専用の `notMacOS` と対にする。

@@ -24,7 +24,7 @@
     "lint": "oxlint",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "setup": "bash scripts/setup.sh",
+    "setup": "node scripts/setup.mjs",
     "postinstall": "install-electron && node scripts/postinstall.mjs",
     "build:icon": "node scripts/build-icon.mjs",
     "build:whisper": "bash scripts/build-whisper.sh",
