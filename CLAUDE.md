@@ -346,6 +346,9 @@ agent-browser connect 9222
 - `electron out/main/index.js` で起動すると、「このアプリについて」の版は Electron の版になる
   （package.json の無い `out/main` がアプリのパスになるため）。`npm run dev` なら正しい。
 - ウィンドウ枠ごと撮る `screencapture` に当たるものは無い。ページの描画は `agent-browser screenshot` で撮る。
+- **agent-browser の出力をパイプに通さない**（`| head` など）。最初の呼び出しで起動する常駐プロセスがパイプを
+  握ったままになり、コマンドが返らない。見たいときはファイルへリダイレクトしてから読む。
+- `npm install -g agent-browser` を mise の Node で入れたら `mise reshim` する。しないと PATH に出てこない。
 
 Windows でしか走らないテスト（WASAPI・Media Foundation・`.exe` の補助プログラムを実際に使うもの）は
 `tests/platform.ts` の `notWindows` で `describe.skipIf(notWindows)` と囲む。macOS 専用の `notMacOS` と対にする。
