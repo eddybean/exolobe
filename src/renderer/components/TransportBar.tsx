@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { RECORDING_SHORTCUT } from '@shared/shortcuts'
+import { recordingShortcut } from '@shared/shortcuts'
 import { autoStartedMessage, startAlertMessage } from '@shared/startAlert'
 import type { Transport } from '../hooks/useTransport'
 import { LevelTimeline } from './LevelTimeline'
@@ -37,7 +37,7 @@ export const TransportBar = ({
       </button>
       {shortcutEnabled && (
         <kbd className="transport__shortcut" title={t.shortcutHint}>
-          {RECORDING_SHORTCUT.label}
+          {recordingShortcut(window.recorder.platform).label}
         </kbd>
       )}
 

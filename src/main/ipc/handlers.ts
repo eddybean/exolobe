@@ -35,7 +35,6 @@ import {
   type UpdateStatusDto,
   toUpdateStatusDto
 } from '@shared/ipc'
-import { RECORDING_SHORTCUT } from '@shared/shortcuts'
 import { startAlertMessage } from '@shared/startAlert'
 import { applyAppearance } from '../appearance'
 import type { Container } from '../container'
@@ -47,7 +46,7 @@ import { notifySilence } from '../silenceNotification'
 import { createMeetingLookup } from '../meetingLookup'
 import { createStartMonitor } from '../startMonitor'
 import { notifyAutoStarted, notifyMeetingStart } from '../startNotification'
-import { applyRecordingShortcut } from '../recordingShortcut'
+import { RECORDING_SHORTCUT, applyRecordingShortcut } from '../recordingShortcut'
 import { createTransportRequests } from '../transportRequests'
 import { privacySettingsUrl } from '../privacySettings'
 import { requestMicPermission } from '../micPermission'

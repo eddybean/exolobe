@@ -13,7 +13,7 @@ import {
   type SettingsPatch
 } from '@domain/Settings'
 import type { SetupStateDto, UpdateStatusDto } from '@shared/ipc'
-import { RECORDING_SHORTCUT } from '@shared/shortcuts'
+import { recordingShortcut } from '@shared/shortcuts'
 import { CalendarSettings } from '../components/CalendarSettings'
 import { LicenseNotices } from '../components/LicenseNotices'
 import { ModelManager } from '../components/ModelManager'
@@ -113,7 +113,7 @@ export const SettingsView = ({
           </Field>
 
           <Field
-            label={t.recording.globalShortcutLabel(RECORDING_SHORTCUT.label)}
+            label={t.recording.globalShortcutLabel(recordingShortcut(window.recorder.platform).label)}
             hint={t.recording.globalShortcutHint}
           >
             <input

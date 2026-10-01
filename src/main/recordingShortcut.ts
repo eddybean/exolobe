@@ -1,5 +1,8 @@
 import { globalShortcut } from 'electron'
-import { RECORDING_SHORTCUT } from '@shared/shortcuts'
+import { toAppPlatform } from '@shared/platform'
+import { recordingShortcut } from '@shared/shortcuts'
+
+export const RECORDING_SHORTCUT = recordingShortcut(toAppPlatform(process.platform))
 
 /**
  * 設定に合わせて登録し直す。登録できたかを返す。
