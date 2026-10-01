@@ -31,6 +31,10 @@ describe('importTitleOf', () => {
   it('拡張子が無ければファイル名そのまま', () => {
     expect(importTitleOf('/x/recording')).toBe('recording')
   })
+
+  it('Windows のパス（\\ 区切り）からもファイル名だけを取る', () => {
+    expect(importTitleOf('C:\\Users\\me\\会議\\2026-09 定例.m4a')).toBe('2026-09 定例')
+  })
 })
 
 describe('unsupportedImportReason', () => {

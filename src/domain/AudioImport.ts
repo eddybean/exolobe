@@ -57,7 +57,9 @@ const UNREADABLE_EXTENSIONS: readonly string[] = [
   'wv'
 ]
 
-const fileNameOf = (path: string): string => path.split('/').pop() ?? path
+// domain は node:path を使えないので、どちらの OS のパスでも区切れるよう \ でも分ける。
+// macOS のファイル名に \ が入っていると手前が落ちるが、タイトルの初期値が短くなるだけで済む。
+const fileNameOf = (path: string): string => path.split(/[\\/]/).pop() ?? path
 
 /** 小文字の拡張子（ドット無し）。無ければ空文字。 */
 export const extensionOf = (path: string): string => {

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { findAsset, type ManagedAsset } from '@domain/ModelCatalog'
 import { AssetDownloader, type FetchLike } from '@infrastructure/download/AssetDownloader'
 import { FileModelStore } from '@infrastructure/download/FileModelStore'
+import { notMacOS } from '../platform'
 
 let modelsDir: string
 let store: FileModelStore
@@ -71,7 +72,7 @@ describe('FileModelStore.remove', () => {
 /** テスト用の擬似アーカイブは配布物と中身が違うので、チェックサムだけ外す。 */
 const unverified = ({ sha256: _ignored, ...rest }: ManagedAsset): ManagedAsset => rest
 
-describe('FileModelStore.fetch（zip アーカイブ）', () => {
+describe.skipIf(notMacOS)('FileModelStore.fetch（zip アーカイブ）', () => {
   /** ditto で固めた zip を返す fetch。Core ML エンコーダの配布形と同じ形にする。 */
   const zipOf = async (dir: string): Promise<FetchLike> => {
     const src = join(dir, 'src')

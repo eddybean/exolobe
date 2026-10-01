@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { notMacOS } from '../platform'
 
 /**
  * 許可ダイアログの文言（ADR-043）。
@@ -32,7 +33,7 @@ const extendInfo = (): Record<string, string> => {
   return Object.fromEntries(USAGE_KEYS.map((key) => [key, new RegExp(`^\\s+${key}: (.+)$`, 'm').exec(yml)?.[1] ?? '']))
 }
 
-describe('InfoPlist.strings', () => {
+describe.skipIf(notMacOS)('InfoPlist.strings', () => {
   it('英語と日本語の両方が、使う権限の説明をすべて持つ', () => {
     for (const language of ['en', 'ja']) {
       expect(Object.keys(lproj(language)).sort()).toEqual([...USAGE_KEYS].sort())
@@ -49,7 +50,7 @@ describe('InfoPlist.strings', () => {
   })
 })
 
-describe('開発用 Electron.app へのパッチ', () => {
+describe.skipIf(notMacOS)('開発用 Electron.app へのパッチ', () => {
   it('基底に英語の文言を入れ、各言語の InfoPlist.strings を置く', () => {
     const app = join(mkdtempSync(join(tmpdir(), 'omr-plist-')), 'Electron.app')
     mkdirSync(join(app, 'Contents/Resources'), { recursive: true })

@@ -25,7 +25,7 @@
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "setup": "bash scripts/setup.sh",
-    "postinstall": "install-electron && (bash scripts/patch-dev-electron.sh || true)",
+    "postinstall": "install-electron && node scripts/postinstall.mjs",
     "build:icon": "node scripts/build-icon.mjs",
     "build:whisper": "bash scripts/build-whisper.sh",
     "build:micwatch": "bash scripts/build-micwatch.sh",

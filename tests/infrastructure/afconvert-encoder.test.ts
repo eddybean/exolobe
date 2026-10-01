@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AfconvertEncoder } from '@infrastructure/audio/AfconvertEncoder'
 import { WavFileWriter, int16Buffer } from '@infrastructure/audio/wav'
+import { notMacOS } from '../platform'
 
 const SAMPLE_RATE = 16_000
 
@@ -43,7 +44,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-describe('AfconvertEncoder', () => {
+describe.skipIf(notMacOS)('AfconvertEncoder', () => {
   it('WAV を AAC-LC の m4a へ変換し、大幅に小さくする', async () => {
     const input = join(dir, 'mix.wav')
     const output = join(dir, 'nested', 'audio.m4a')

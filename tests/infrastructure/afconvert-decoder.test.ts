@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
 import { AfconvertEncoder } from '@infrastructure/audio/AfconvertEncoder'
 import { WavFileWriter, int16Buffer, readWav } from '@infrastructure/audio/wav'
+import { notMacOS } from '../platform'
 
 const TARGET_RATE = 16_000
 
@@ -46,7 +47,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-describe('AfconvertDecoder', () => {
+describe.skipIf(notMacOS)('AfconvertDecoder', () => {
   it('44.1kHz ステレオを 16kHz モノラル 16bit の WAV にする', async () => {
     const input = await writeStereo('src.wav', 1, 44_100)
     const output = join(dir, 'nested', 'imported.wav')

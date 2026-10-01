@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { MicUsageProbe } from '../../src/infrastructure/mic/MicUsageProbe'
 import { parseMicUsageLine } from '../../src/infrastructure/mic/micUsageProtocol'
 import { resolveMicWatchBinary } from '../../src/infrastructure/mic/resolveMicWatchBinary'
+import { notMacOS } from '../platform'
 
 describe('parseMicUsageLine', () => {
   it('1 と 0 を使用状態として読む', () => {
@@ -31,7 +32,7 @@ describe('resolveMicWatchBinary', () => {
       exists: () => true
     })
 
-    expect(path).toBe('/Apps/Meeting Recorder.app/Contents/Resources/bin/micwatch')
+    expect(path).toBe(join('/Apps/Meeting Recorder.app/Contents/Resources', 'bin', 'micwatch'))
   })
 
   it('開発時はリポジトリの resources/bin を使う', () => {
@@ -42,7 +43,7 @@ describe('resolveMicWatchBinary', () => {
       exists: () => true
     })
 
-    expect(path).toBe('/repo/resources/bin/micwatch')
+    expect(path).toBe(join('/repo', 'resources', 'bin', 'micwatch'))
   })
 
   it('同梱物が無ければ undefined を返す（機能だけ無効になる）', () => {
@@ -58,7 +59,7 @@ describe('resolveMicWatchBinary', () => {
 })
 
 /** micwatch の代役。実際に spawn して、行の組み立てと終了時の扱いを確かめる。 */
-describe('MicUsageProbe', () => {
+describe.skipIf(notMacOS)('MicUsageProbe', () => {
   let dir: string
 
   beforeEach(async () => {

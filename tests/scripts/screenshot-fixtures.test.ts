@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { FileFolderRepository } from '@infrastructure/persistence/FileFolderStore'
 import { FileRecordingArtifactStore, FileRecordingRepository } from '@infrastructure/persistence/FileRecordingStore'
 import { writeScreenshotFixtures } from '../../scripts/screenshot-fixtures.mjs'
+import { notMacOS } from '../platform'
 
 /**
  * README のスクリーンショット用の架空データ。データの形が変わったときに、撮り直す段になって
@@ -13,15 +14,16 @@ import { writeScreenshotFixtures } from '../../scripts/screenshot-fixtures.mjs'
 let root: string
 let library: string
 
-beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'screenshot-fixtures-'))
-  library = join(root, 'library')
-  await writeScreenshotFixtures(root)
-}, 30_000)
-
 const locator = { root: async (): Promise<string> => library }
 
-describe('writeScreenshotFixtures', () => {
+// 音声は afconvert で作るので、架空データの書き出し自体が macOS でしか動かない。
+describe.skipIf(notMacOS)('writeScreenshotFixtures', () => {
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), 'screenshot-fixtures-'))
+    library = join(root, 'library')
+    await writeScreenshotFixtures(root)
+  }, 30_000)
+
   it('userData の設定が保存先として library を指す', async () => {
     const settings = JSON.parse(await readFile(join(root, 'userData', 'settings.json'), 'utf8'))
 
