@@ -181,7 +181,10 @@ const ja: ReasonMessages = {
     'アプリの再インストールで解消しない場合は不具合の可能性があります。',
   systemAudioPermission: () =>
     'システム音声を取得できませんでした。「システム設定 > プライバシーとセキュリティ > ' +
-    'オーディオ録音」でこのアプリを許可してください。'
+    'オーディオ録音」でこのアプリを許可してください。',
+  systemAudioCapture: (r) =>
+    `システム音声を取り込めませんでした（${r.detail}）。Windows 10 バージョン 2004 以降で、` +
+    '再生デバイスが有効になっているか確かめてください。'
 }
 
 const en: ReasonMessages = {
@@ -286,7 +289,10 @@ const en: ReasonMessages = {
     'If reinstalling the app does not fix this, it may be a bug.',
   systemAudioPermission: () =>
     'Could not capture system audio. Allow this app in “System Settings > Privacy & Security > ' +
-    'Screen & System Audio Recording”.'
+    'Screen & System Audio Recording”.',
+  systemAudioCapture: (r) =>
+    `Could not capture system audio (${r.detail}). Windows 10 version 2004 or later is required, ` +
+    'and a playback device must be enabled.'
 }
 
 const MESSAGES: Readonly<Record<Locale, ReasonMessages>> = { ja, en }

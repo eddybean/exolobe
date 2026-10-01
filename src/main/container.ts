@@ -43,6 +43,8 @@ import {
 } from '@application/usecases/models'
 import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
 import { AudioTeeSource } from '@infrastructure/audio/AudioTeeSource'
+import { SysCaptureSource } from '@infrastructure/audio/SysCaptureSource'
+import { resolveSysCaptureBinary } from '@infrastructure/audio/resolveSysCaptureBinary'
 import { resolveAudioTeeBinary } from '@infrastructure/audio/resolveAudioTeeBinary'
 import { DualTrackRecorder, type SystemAudioSource } from '@infrastructure/audio/DualTrackRecorder'
 import { FileFolderRepository } from '@infrastructure/persistence/FileFolderStore'
@@ -144,11 +146,18 @@ export const createContainer = (): Container => {
     recordings: repository,
     ids: { next: () => randomUUID() }
   }
+  // Windows は syscapture.exe（WASAPI のプロセス loopback）で、main の PID 以下の木（このアプリの音）を除いて録る。
   // audiotee は自分の JS の位置からバイナリを探すため、パッケージ済みアプリでは
   // asar 内のパスを解決してしまい起動できない。実パスを明示的に渡す。
-  const createSystemAudioSource = (): SystemAudioSource =>
-    new AudioTeeSource(resolveAudioTeeBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath }))
-  const recorder = new DualTrackRecorder(createSystemAudioSource())
+  // テスト録音は自分の確認音が入るかで判定するので、Windows でも自分の音を除かない。
+  const createSystemAudioSource = ({ excludeOwnAudio }: { excludeOwnAudio: boolean }): SystemAudioSource =>
+    process.platform === 'win32'
+      ? new SysCaptureSource(
+          resolveSysCaptureBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath }),
+          excludeOwnAudio ? process.pid : undefined
+        )
+      : new AudioTeeSource(resolveAudioTeeBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath }))
+  const recorder = new DualTrackRecorder(createSystemAudioSource({ excludeOwnAudio: true }))
   // 録音していない間だけ動かす見張り。同梱物が無ければ available が false になり、
   // 開始忘れの通知だけが無効になる。
   const micUsage = new MicUsageProbe(
@@ -178,7 +187,7 @@ export const createContainer = (): Container => {
   return {
     settings,
     recorder,
-    createSystemAudioSource,
+    createSystemAudioSource: () => createSystemAudioSource({ excludeOwnAudio: false }),
     micUsage,
     calendar,
     appleIntelligence: () => appleIntelligenceStatus(appleLm),

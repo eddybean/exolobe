@@ -129,6 +129,8 @@ export type ErrorReason =
   // システム音声
   | { readonly code: 'systemAudioBinary'; readonly detail: string }
   | { readonly code: 'systemAudioPermission' }
+  // Windows の補助プログラム（syscapture）が取り込めなかった。detail は補助プログラムが stderr に書いた理由。
+  | { readonly code: 'systemAudioCapture'; readonly detail: string }
 
 export type ErrorCode = ErrorReason['code']
 
