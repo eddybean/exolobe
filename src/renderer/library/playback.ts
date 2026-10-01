@@ -19,8 +19,7 @@ export const formatPlaybackRate = (rate: number): string => `${rate}×`
  * 文字起こしが無い（失敗した・まだ無い）録音では帯が出ず位置を動かせないので、
  * 標準のプレーヤーに戻す。
  */
-export const playerMode = (segmentCount: number): 'custom' | 'native' =>
-  segmentCount > 0 ? 'custom' : 'native'
+export const playerMode = (segmentCount: number): 'custom' | 'native' => (segmentCount > 0 ? 'custom' : 'native')
 
 export interface PlaybackKeyEvent {
   readonly key: string

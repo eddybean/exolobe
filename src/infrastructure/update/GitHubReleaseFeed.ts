@@ -31,16 +31,13 @@ export class GitHubReleaseFeed implements ReleaseFeedPort {
 
   async latest(): Promise<ReleaseLookup> {
     try {
-      const response = await this.fetchImpl(
-        `https://api.github.com/repos/${this.repository}/releases/latest`,
-        {
-          headers: {
-            accept: 'application/vnd.github+json',
-            'user-agent': `Exolobe/${this.appVersion}`
-          },
-          signal: AbortSignal.timeout(TIMEOUT_MS)
-        }
-      )
+      const response = await this.fetchImpl(`https://api.github.com/repos/${this.repository}/releases/latest`, {
+        headers: {
+          accept: 'application/vnd.github+json',
+          'user-agent': `Exolobe/${this.appVersion}`
+        },
+        signal: AbortSignal.timeout(TIMEOUT_MS)
+      })
       // リポジトリが非公開の間と、まだ Release が 1 つも無いときは 404 になる。
       if (response.status === 404) return { kind: 'none' }
       if (!response.ok) return { kind: 'unreachable' }
@@ -51,8 +48,7 @@ export class GitHubReleaseFeed implements ReleaseFeedPort {
   }
 
   private lookupOf(body: unknown): ReleaseLookup {
-    const tag =
-      typeof body === 'object' && body !== null && 'tag_name' in body ? body.tag_name : undefined
+    const tag = typeof body === 'object' && body !== null && 'tag_name' in body ? body.tag_name : undefined
     if (typeof tag !== 'string') return { kind: 'none' }
 
     const version = parseVersion(tag)

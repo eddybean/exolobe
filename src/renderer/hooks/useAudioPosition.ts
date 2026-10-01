@@ -38,15 +38,7 @@ export const useAudioPosition = (
       })
     read()
 
-    const events = [
-      'timeupdate',
-      'seeked',
-      'play',
-      'pause',
-      'ended',
-      'emptied',
-      'durationchange'
-    ] as const
+    const events = ['timeupdate', 'seeked', 'play', 'pause', 'ended', 'emptied', 'durationchange'] as const
     for (const name of events) audio.addEventListener(name, read)
     return () => {
       for (const name of events) audio.removeEventListener(name, read)

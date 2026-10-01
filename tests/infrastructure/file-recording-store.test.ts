@@ -81,9 +81,7 @@ describe('FileRecordingRepository', () => {
   it('録音ディレクトリにも meta.json を残す', async () => {
     await repository.save(recording)
 
-    const meta = JSON.parse(
-      await readFile(join(storage, recording.slug, 'meta.json'), 'utf8')
-    ) as { id: string }
+    const meta = JSON.parse(await readFile(join(storage, recording.slug, 'meta.json'), 'utf8')) as { id: string }
     expect(meta.id).toBe('rec-1')
   })
 
@@ -168,9 +166,7 @@ describe('FileRecordingRepository', () => {
 })
 
 describe('FileRecordingArtifactStore', () => {
-  const segments = [
-    { startMs: 0, endMs: 1000, speakerId: SELF_SPEAKER_ID, text: 'おはようございます' }
-  ]
+  const segments = [{ startMs: 0, endMs: 1000, speakerId: SELF_SPEAKER_ID, text: 'おはようございます' }]
   const speakers = [{ id: SELF_SPEAKER_ID, kind: 'self' as const, label: '自分' }]
 
   it('文字起こしを JSON と Markdown の両方で保存する', async () => {
@@ -192,9 +188,7 @@ describe('FileRecordingArtifactStore', () => {
     const content = JSON.stringify({ schemaVersion: 2, segments: [], speakers: [] })
     await writeStored(recording.slug, 'transcript.json', content)
 
-    await expect(artifacts.writeTranscript(recording, { segments, speakers })).rejects.toThrow(
-      'storageNewerVersion'
-    )
+    await expect(artifacts.writeTranscript(recording, { segments, speakers })).rejects.toThrow('storageNewerVersion')
     expect(await readFile(join(storage, recording.slug, 'transcript.json'), 'utf8')).toBe(content)
   })
 
@@ -373,10 +367,7 @@ describe('FileRecordingArtifactStore — 話者の声紋', () => {
     expect(voices?.modelKey).toBe('campplus:192')
     expect(voices?.speakers[0]?.speakerId).toBe('remote:spk0')
     expect(voices?.speakers[0]?.vector).toBeInstanceOf(Float32Array)
-    expect(Array.from(voices?.speakers[0]?.vector ?? [])).toEqual([
-      expect.closeTo(0.6),
-      expect.closeTo(0.8)
-    ])
+    expect(Array.from(voices?.speakers[0]?.vector ?? [])).toEqual([expect.closeTo(0.6), expect.closeTo(0.8)])
   })
 
   it('voices.json に形式の番号を書き込む', async () => {
@@ -392,9 +383,9 @@ describe('FileRecordingArtifactStore — 話者の声紋', () => {
     const content = JSON.stringify({ schemaVersion: 2, modelKey: 'x', speakers: [] })
     await writeStored(recording.slug, 'voices.json', content)
 
-    await expect(
-      artifacts.writeVoices(recording, { modelKey: 'campplus:192', speakers: [] })
-    ).rejects.toThrow('storageNewerVersion')
+    await expect(artifacts.writeVoices(recording, { modelKey: 'campplus:192', speakers: [] })).rejects.toThrow(
+      'storageNewerVersion'
+    )
     expect(await readFile(join(storage, recording.slug, 'voices.json'), 'utf8')).toBe(content)
   })
 
@@ -467,9 +458,7 @@ describe('FileRecordingArtifactStore — 録音中の印（ADR-042）', () => {
     const content = JSON.stringify({ schemaVersion: 2, bookmarks: [] })
     await writeStored(recording.slug, 'bookmarks.json', content)
 
-    await expect(artifacts.writeBookmarks(recording, [{ atMs: 0 }])).rejects.toThrow(
-      'storageNewerVersion'
-    )
+    await expect(artifacts.writeBookmarks(recording, [{ atMs: 0 }])).rejects.toThrow('storageNewerVersion')
     expect(await readFile(join(storage, recording.slug, 'bookmarks.json'), 'utf8')).toBe(content)
   })
 

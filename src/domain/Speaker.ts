@@ -41,8 +41,7 @@ const letterOf = (index: number): string => String.fromCharCode('A'.charCodeAt(0
 export const defaultSelfLabel = (language: MeetingLanguage): string => DEFAULT_LABELS[language].self
 
 /** 話者識別をしないとき、相手側をまとめて呼ぶ名前。 */
-export const defaultRemoteGroupLabel = (language: MeetingLanguage): string =>
-  DEFAULT_LABELS[language].group
+export const defaultRemoteGroupLabel = (language: MeetingLanguage): string => DEFAULT_LABELS[language].group
 
 /** クラスタ名 `spk0`, `spk1`, ... を「参加者A」「参加者B」... の初期ラベルに変換する。 */
 export const defaultRemoteLabel = (index: number, language: MeetingLanguage): string =>

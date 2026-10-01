@@ -9,7 +9,8 @@ const ja = {
   choose: '選択',
   change: '変更',
   modelsSectionTitle: 'モデルを取得する',
-  modelsLead1: '文字起こしと要約に使うモデルをダウンロードします。合計で約 5.7GB あり、回線によっては時間がかかります。中断しても途中から再開できます。',
+  modelsLead1:
+    '文字起こしと要約に使うモデルをダウンロードします。合計で約 5.7GB あり、回線によっては時間がかかります。中断しても途中から再開できます。',
   modelsLeadStrong: 'モデルが無くても録音は始められます',
   modelsLead2: 'ので、先に会議を録っておいて後から処理することもできます。',
   settingsNote1: '細かい設定や、手元にあるモデルの指定は',
@@ -27,13 +28,15 @@ const en: typeof ja = {
   choose: 'Choose',
   change: 'Change',
   modelsSectionTitle: 'Get Models',
-  modelsLead1: 'Downloads the models used for transcription and summarization — about 5.7GB in total, which can take a while depending on your connection. If interrupted, it resumes from where it left off.',
+  modelsLead1:
+    'Downloads the models used for transcription and summarization — about 5.7GB in total, which can take a while depending on your connection. If interrupted, it resumes from where it left off.',
   modelsLeadStrong: 'You can start recording even without the models',
   modelsLead2: ', so you can record a meeting first and process it later.',
   settingsNote1: 'Detailed settings, and specifying models you already have, are available from',
   settingsLink: 'Settings',
   settingsNote2: '.',
-  permissionsNote: 'You’ll be asked to allow “Microphone” and “System Audio Recording” the first time you record. Allow both.'
+  permissionsNote:
+    'You’ll be asked to allow “Microphone” and “System Audio Recording” the first time you record. Allow both.'
 }
 
 /** 初回起動の案内（OnboardingView）の文言。 */

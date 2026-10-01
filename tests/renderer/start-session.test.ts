@@ -7,11 +7,13 @@ const fakeMic = (): MicCapture => ({
   stop: async () => undefined
 })
 
-const build = (overrides: {
-  startRecording?: () => Promise<void>
-  startMic?: () => Promise<MicCapture>
-  stopRecording?: () => Promise<void>
-} = {}) => {
+const build = (
+  overrides: {
+    startRecording?: () => Promise<void>
+    startMic?: () => Promise<MicCapture>
+    stopRecording?: () => Promise<void>
+  } = {}
+) => {
   const calls: string[] = []
 
   const api = {
@@ -58,9 +60,7 @@ describe('startRecordingSession', () => {
 
     await startRecordingSession({ sampleRate: 48_000, api: ctx.api, startMic: ctx.startMic })
 
-    expect(ctx.startMic).toHaveBeenCalledWith(
-      expect.objectContaining({ sampleRate: 48_000 })
-    )
+    expect(ctx.startMic).toHaveBeenCalledWith(expect.objectContaining({ sampleRate: 48_000 }))
   })
 
   it('マイクの PCM を main へ転送する', async () => {
@@ -116,9 +116,9 @@ describe('startRecordingSession', () => {
       }
     })
 
-    await expect(
-      startRecordingSession({ sampleRate: 16_000, api: ctx.api, startMic: ctx.startMic })
-    ).rejects.toThrow('システム音声の録音が許可されていません。')
+    await expect(startRecordingSession({ sampleRate: 16_000, api: ctx.api, startMic: ctx.startMic })).rejects.toThrow(
+      'システム音声の録音が許可されていません。'
+    )
 
     expect(ctx.startMic).not.toHaveBeenCalled()
     expect(ctx.api.stopRecording).not.toHaveBeenCalled()

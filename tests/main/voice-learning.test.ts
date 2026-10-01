@@ -15,11 +15,7 @@ class FakeRemember {
   private blocked = false
   private release: (() => void) | undefined
 
-  async execute(params: {
-    recordingId: string
-    speakerId: string
-    label: string
-  }): Promise<VoiceMemoryResult> {
+  async execute(params: { recordingId: string; speakerId: string; label: string }): Promise<VoiceMemoryResult> {
     this.calls.push(params)
     this.running += 1
     this.maxConcurrent = Math.max(this.maxConcurrent, this.running)
@@ -44,10 +40,7 @@ class FakeRemember {
   }
 }
 
-const params = (
-  speakerId: string,
-  label: string
-): { recordingId: string; speakerId: string; label: string } => ({
+const params = (speakerId: string, label: string): { recordingId: string; speakerId: string; label: string } => ({
   recordingId: 'rec-1',
   speakerId,
   label

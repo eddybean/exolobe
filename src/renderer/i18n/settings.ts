@@ -68,8 +68,7 @@ const ja = {
     promptModeLabel: '使うプロンプト',
     promptModeDefault: 'アプリの既定',
     promptModeCustom: 'カスタム',
-    promptModeHint:
-      'アプリの既定は会議の言語に合わせて切り替わり、アプリの更新で改善されたときも自動で反映されます。',
+    promptModeHint: 'アプリの既定は会議の言語に合わせて切り替わり、アプリの更新で改善されたときも自動で反映されます。',
     promptLabel: '要約プロンプト',
     promptHint:
       '{{transcript}} の位置に文字起こしが、{{notes}} の位置に録音中のメモと印が差し込まれます（{{notes}} が無ければ末尾に付きます）。',
@@ -199,8 +198,7 @@ const en: typeof ja = {
     promptModeLabel: 'Prompt to use',
     promptModeDefault: 'App default',
     promptModeCustom: 'Custom',
-    promptModeHint:
-      'The app default follows the meeting language and picks up improvements when the app is updated.',
+    promptModeHint: 'The app default follows the meeting language and picks up improvements when the app is updated.',
     promptLabel: 'Summary prompt',
     promptHint:
       'The transcript is inserted at {{transcript}}, and notes and bookmarks taken during recording are inserted at {{notes}} (appended at the end if {{notes}} is absent).',
@@ -235,8 +233,7 @@ const en: typeof ja = {
     sampleRateLabel: 'Sample rate',
     sampleRateHint: 'whisper assumes 16000Hz.',
     codecLabel: 'Codec',
-    codecHint:
-      'HE-AAC produces smaller files but drops to 8kHz, so AAC-LC is recommended for meeting audio.',
+    codecHint: 'HE-AAC produces smaller files but drops to 8kHz, so AAC-LC is recommended for meeting audio.',
     codecAac: 'AAC-LC (recommended)',
     codecHeAac: 'HE-AAC (smallest size)',
     bitrateLabel: 'Bit rate',

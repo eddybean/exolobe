@@ -86,11 +86,7 @@ describe('chunkTranscript', () => {
     const chunks = chunkTranscript([segment(0, 'self', 'あ'.repeat(20))], speakers, 10)
 
     // 「自分: 」+20 字 = 24 字を 10 字ずつ。
-    expect(chunks.map((chunk) => chunk.text)).toEqual([
-      '自分: ああああああ',
-      'ああああああああああ',
-      'ああああ'
-    ])
+    expect(chunks.map((chunk) => chunk.text)).toEqual(['自分: ああああああ', 'ああああああああああ', 'ああああ'])
     expect(chunks.every((chunk) => chunk.locator.kind === 'segments')).toBe(true)
   })
 
@@ -144,7 +140,6 @@ describe('buildSearchDocuments', () => {
       ['transcript', '自分: 雨ですね']
     ])
   })
-
 })
 
 describe('fingerprint', () => {

@@ -53,9 +53,7 @@ export class StartRecording {
     })
     // 予定の問い合わせはキャプチャと並べて走らせる。応答を待ってから録り始めると、
     // その間の会議の冒頭が失われる。
-    const lookup = settings.recording.calendarEnabled
-      ? this.findEvent(draft.startedAt)
-      : Promise.resolve(undefined)
+    const lookup = settings.recording.calendarEnabled ? this.findEvent(draft.startedAt) : Promise.resolve(undefined)
 
     // キャプチャ開始が失敗した場合に空の録音を残さないよう、成功後に永続化する。
     await this.deps.capture.start({
@@ -87,11 +85,7 @@ export class StartRecording {
  * 指定されたタイトルがあればそれを、無ければ予定のタイトルを使う。どちらも空なら、
  * 下書きに付けた既定のタイトルのまま。
  */
-const withEvent = (
-  draft: Recording,
-  title: string | undefined,
-  event: CalendarEvent | undefined
-): Recording => {
+const withEvent = (draft: Recording, title: string | undefined, event: CalendarEvent | undefined): Recording => {
   const chosen = (title ?? event?.title)?.trim()
   const participants = event ? participantNames(event) : []
 

@@ -24,17 +24,9 @@ import { basename, join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { findAsset } from '@domain/ModelCatalog'
 import { int16Buffer, readWav, WavFileWriter } from '@infrastructure/audio/wav'
-import {
-  WhisperCppTranscriber,
-  type DropReason
-} from '@infrastructure/transcription/WhisperCppTranscriber'
+import { WhisperCppTranscriber, type DropReason } from '@infrastructure/transcription/WhisperCppTranscriber'
 import { composeScenario, SAMPLE_RATE, type Utterance } from './compose'
-import {
-  characterErrorRate,
-  hallucinatedChars,
-  longestRepeatRun,
-  missedUtterances
-} from './metrics'
+import { characterErrorRate, hallucinatedChars, longestRepeatRun, missedUtterances } from './metrics'
 import {
   environmentDifferences,
   formatComparison,
@@ -49,13 +41,11 @@ const CACHE = join(HERE, '.cache')
 const BASELINE = join(HERE, 'baseline.json')
 
 const modelDir =
-  process.env.OMR_EVAL_MODEL_DIR ??
-  join(homedir(), 'Library', 'Application Support', 'Exolobe', 'models')
+  process.env.OMR_EVAL_MODEL_DIR ?? join(homedir(), 'Library', 'Application Support', 'Exolobe', 'models')
 const modelFile = findAsset('transcription-model')?.fileName ?? ''
 const vadFile = findAsset('vad-model')?.fileName ?? ''
 const bundledCli = resolve('resources/bin/whisper-cli')
-const whisperCli =
-  process.env.OMR_EVAL_WHISPER_CLI ?? (existsSync(bundledCli) ? bundledCli : 'whisper-cli')
+const whisperCli = process.env.OMR_EVAL_WHISPER_CLI ?? (existsSync(bundledCli) ? bundledCli : 'whisper-cli')
 
 const hash = (value: string): string => createHash('sha1').update(value).digest('hex').slice(0, 12)
 
@@ -77,13 +67,17 @@ const readEnvironment = (): EvalEnvironment => {
 const assertPrerequisites = (): void => {
   for (const file of [modelFile, vadFile]) {
     if (!existsSync(join(modelDir, file))) {
-      throw new Error(`${join(modelDir, file)} がありません。アプリでモデルを取得するか OMR_EVAL_MODEL_DIR を指定してください。`)
+      throw new Error(
+        `${join(modelDir, file)} がありません。アプリでモデルを取得するか OMR_EVAL_MODEL_DIR を指定してください。`
+      )
     }
   }
   const installed = execFileSync('say', ['-v', '?'], { encoding: 'utf8' })
   const missing = VOICES.filter((voice) => !installed.includes(voice))
   if (missing.length > 0) {
-    throw new Error(`say の声がありません: ${missing.join(', ')}。システム設定の読み上げコンテンツから追加してください。`)
+    throw new Error(
+      `say の声がありません: ${missing.join(', ')}。システム設定の読み上げコンテンツから追加してください。`
+    )
   }
 }
 
@@ -93,9 +87,7 @@ const speechKey = (text: string, voice: string): string => `${voice}\n${text}`
  * 台本が使う文をすべて say で読み上げ、16kHz モノラルにして読み込む。
  * 同じ文と声はファイルを使い回す。組み立て（composeScenario）は同期なので先に済ませる。
  */
-const prepareSpeech = async (
-  environment: EvalEnvironment
-): Promise<(text: string, voice: string) => Float32Array> => {
+const prepareSpeech = async (environment: EvalEnvironment): Promise<(text: string, voice: string) => Float32Array> => {
   const dir = join(CACHE, 'tts')
   mkdirSync(dir, { recursive: true })
   const voices = new Map<string, Float32Array>()
@@ -114,7 +106,10 @@ const prepareSpeech = async (
       execFileSync('afconvert', ['-f', 'WAVE', '-d', `LEI16@${SAMPLE_RATE}`, '-c', '1', `${file}.aiff`, `${file}.wav`])
     }
     const { samples } = await readWav(`${file}.wav`)
-    voices.set(key, Float32Array.from(samples, (sample) => sample / 32_768))
+    voices.set(
+      key,
+      Float32Array.from(samples, (sample) => sample / 32_768)
+    )
   }
 
   return (text, voice) => voices.get(speechKey(text, voice)) ?? new Float32Array(0)
@@ -210,9 +205,7 @@ it('合成音声を文字起こしして基準と比べる', async () => {
     }
   }
 
-  const baseline = existsSync(BASELINE)
-    ? (JSON.parse(readFileSync(BASELINE, 'utf8')) as EvalReport)
-    : undefined
+  const baseline = existsSync(BASELINE) ? (JSON.parse(readFileSync(BASELINE, 'utf8')) as EvalReport) : undefined
   const differences = baseline ? environmentDifferences(environment, baseline.environment) : []
   const report = [
     `whisper-cli: ${whisperCli}`,

@@ -86,12 +86,7 @@ describe('SherpaOnnxSpeakerEmbedder', () => {
       turns: [turn(0, 5000, 'spk0')]
     })
 
-    expect(Array.from(entry?.vector ?? [])).toEqual([
-      expect.closeTo(0.6),
-      expect.closeTo(0.8),
-      0,
-      0
-    ])
+    expect(Array.from(entry?.vector ?? [])).toEqual([expect.closeTo(0.6), expect.closeTo(0.8), 0, 0])
   })
 
   it('話者ごとに 1 本の声紋を返す', async () => {
@@ -160,9 +155,7 @@ describe('SherpaOnnxSpeakerEmbedder', () => {
     const embedder = new SherpaOnnxSpeakerEmbedder(config, factory)
     const wavPath = await writeWav(20)
 
-    await expect(
-      embedder.embedSpeakers({ wavPath, turns: [turn(0, 5000, 'spk0')] })
-    ).rejects.toThrow()
+    await expect(embedder.embedSpeakers({ wavPath, turns: [turn(0, 5000, 'spk0')] })).rejects.toThrow()
     expect(factory.session.disposed).toBe(1)
   })
 

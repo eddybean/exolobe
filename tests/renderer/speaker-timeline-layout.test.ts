@@ -71,9 +71,7 @@ describe.each([
 
   it('相手どうしは、隣り合う番号の色が明度で見分けられる', () => {
     for (let index = 1; index < tones.length - 1; index += 1) {
-      expect(contrast(tones[index] ?? '', tones[index + 1] ?? '')).toBeGreaterThanOrEqual(
-        MIN_TONE_CONTRAST
-      )
+      expect(contrast(tones[index] ?? '', tones[index + 1] ?? '')).toBeGreaterThanOrEqual(MIN_TONE_CONTRAST)
     }
   })
 })

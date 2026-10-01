@@ -3,10 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppError } from '@domain/errors'
-import {
-  AppleLmSessionFactory,
-  appleIntelligenceStatus
-} from '@infrastructure/summarization/AppleLmSessionFactory'
+import { AppleLmSessionFactory, appleIntelligenceStatus } from '@infrastructure/summarization/AppleLmSessionFactory'
 import { parseAppleLmStatus } from '@infrastructure/summarization/appleLmProtocol'
 import { resolveAppleLmBinary } from '@infrastructure/summarization/resolveAppleLmBinary'
 
@@ -49,15 +46,13 @@ describe('resolveAppleLmBinary', () => {
     expect(resolveAppleLmBinary({ packaged: false, resourcesPath: '', cwd: '/repo', exists })).toBe(
       '/repo/resources/bin/applelm'
     )
-    expect(
-      resolveAppleLmBinary({ packaged: true, resourcesPath: '/App/Resources', exists })
-    ).toBe('/App/Resources/bin/applelm')
+    expect(resolveAppleLmBinary({ packaged: true, resourcesPath: '/App/Resources', exists })).toBe(
+      '/App/Resources/bin/applelm'
+    )
   })
 
   it('無ければ undefined', () => {
-    expect(
-      resolveAppleLmBinary({ packaged: true, resourcesPath: '/App', exists: () => false })
-    ).toBeUndefined()
+    expect(resolveAppleLmBinary({ packaged: true, resourcesPath: '/App', exists: () => false })).toBeUndefined()
   })
 })
 
@@ -75,10 +70,7 @@ describe('applelm を呼ぶ', () => {
   /** 本物の代わりに置く applelm。受け取った引数と標準入力を記録する。 */
   const helper = async (body: string): Promise<string> => {
     const path = join(dir, 'applelm')
-    await writeFile(
-      path,
-      `#!/bin/sh\necho "$@" > "${dir}/args"\ncat > "${dir}/stdin"\n${body}\n`
-    )
+    await writeFile(path, `#!/bin/sh\necho "$@" > "${dir}/args"\ncat > "${dir}/stdin"\n${body}\n`)
     await chmod(path, 0o755)
     return path
   }

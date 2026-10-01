@@ -1,10 +1,6 @@
 import type { ReactElement } from 'react'
 import { LICENSE_TEXTS } from '@domain/LicenseTexts'
-import {
-  NOTICE_GROUPS,
-  usedLicenses,
-  type ThirdPartyNotice
-} from '@domain/ThirdPartyNotices'
+import { NOTICE_GROUPS, usedLicenses, type ThirdPartyNotice } from '@domain/ThirdPartyNotices'
 import { licensesText } from '../i18n/licenses'
 
 /**
@@ -64,15 +60,9 @@ const NoticeItem = ({ notice }: { notice: ThirdPartyNotice }): ReactElement => {
     <li className="licenses__item">
       <span className="licenses__name">{notice.name}</span>
       <span className="licenses__license">{notice.license}</span>
-      {notice.copyright !== undefined && (
-        <span className="licenses__copyright">{notice.copyright}</span>
-      )}
-      {notice.noteId !== undefined && (
-        <span className="licenses__note">{t.notes[notice.noteId]}</span>
-      )}
-      {notice.requiredNotice !== undefined && (
-        <span className="licenses__note">{notice.requiredNotice}</span>
-      )}
+      {notice.copyright !== undefined && <span className="licenses__copyright">{notice.copyright}</span>}
+      {notice.noteId !== undefined && <span className="licenses__note">{t.notes[notice.noteId]}</span>}
+      {notice.requiredNotice !== undefined && <span className="licenses__note">{notice.requiredNotice}</span>}
       <a className="licenses__url" href={notice.url} target="_blank" rel="noreferrer">
         {notice.url}
       </a>

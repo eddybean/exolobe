@@ -51,7 +51,7 @@ const fold = (text: string): FoldedText => {
   let folded = ''
   const origin: number[] = []
 
-  for (let index = 0; index < text.length; ) {
+  for (let index = 0; index < text.length;) {
     const codePoint = text.codePointAt(index)
     if (codePoint === undefined) break
     const char = String.fromCodePoint(codePoint)
@@ -72,7 +72,7 @@ const rangesOf = (folded: FoldedText, term: string): HighlightRange[] => {
   if (needle.length === 0) return []
 
   const ranges: HighlightRange[] = []
-  for (let from = folded.text.indexOf(needle); from !== -1; ) {
+  for (let from = folded.text.indexOf(needle); from !== -1;) {
     const start = folded.origin[from] ?? 0
     const end = folded.origin[from + needle.length] ?? start
     ranges.push({ start, length: end - start })

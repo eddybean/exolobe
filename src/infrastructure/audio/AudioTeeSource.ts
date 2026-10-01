@@ -76,10 +76,7 @@ export class AudioTeeSource implements SystemAudioSource {
     // asar 内のパスを spawn しようとすると ENOTDIR になる。権限の問題と
     // 紛らわしいので切り分けて伝える。
     if (/ENOTDIR|ENOENT|spawn/i.test(message)) {
-      return new SystemAudioBinaryError(
-        { code: 'systemAudioBinary', detail: message },
-        { cause: error }
-      )
+      return new SystemAudioBinaryError({ code: 'systemAudioBinary', detail: message }, { cause: error })
     }
 
     if (/permission|denied|not authorized|tap/i.test(message)) {

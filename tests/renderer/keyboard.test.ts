@@ -7,27 +7,19 @@ import { isCommitEnter } from '@renderer/keyboard'
  */
 describe('isCommitEnter', () => {
   it('通常の Enter は確定とみなす', () => {
-    expect(isCommitEnter({ key: 'Enter', keyCode: 13, nativeEvent: { isComposing: false } })).toBe(
-      true
-    )
+    expect(isCommitEnter({ key: 'Enter', keyCode: 13, nativeEvent: { isComposing: false } })).toBe(true)
   })
 
   it('IME の変換確定の Enter は無視する', () => {
-    expect(isCommitEnter({ key: 'Enter', keyCode: 229, nativeEvent: { isComposing: true } })).toBe(
-      false
-    )
+    expect(isCommitEnter({ key: 'Enter', keyCode: 229, nativeEvent: { isComposing: true } })).toBe(false)
   })
 
   it('isComposing を持たない環境でも keyCode 229 なら無視する', () => {
-    expect(isCommitEnter({ key: 'Enter', keyCode: 229, nativeEvent: { isComposing: false } })).toBe(
-      false
-    )
+    expect(isCommitEnter({ key: 'Enter', keyCode: 229, nativeEvent: { isComposing: false } })).toBe(false)
   })
 
   it('Enter 以外は確定ではない', () => {
     expect(isCommitEnter({ key: 'a', keyCode: 65, nativeEvent: { isComposing: false } })).toBe(false)
-    expect(isCommitEnter({ key: 'Escape', keyCode: 27, nativeEvent: { isComposing: false } })).toBe(
-      false
-    )
+    expect(isCommitEnter({ key: 'Escape', keyCode: 27, nativeEvent: { isComposing: false } })).toBe(false)
   })
 })

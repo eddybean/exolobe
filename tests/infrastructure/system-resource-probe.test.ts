@@ -3,10 +3,7 @@ import { totalmem } from 'node:os'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  NodeSystemResourceProbe,
-  parseVmStat
-} from '@infrastructure/system/NodeSystemResourceProbe'
+import { NodeSystemResourceProbe, parseVmStat } from '@infrastructure/system/NodeSystemResourceProbe'
 
 /** 実機の vm_stat 出力（16GB / ページ 16384 バイト）。 */
 const VM_STAT = `Mach Virtual Memory Statistics: (page size of 16384 bytes)

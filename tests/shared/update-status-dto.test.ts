@@ -23,8 +23,10 @@ describe('toUpdateStatusDto', () => {
   })
 
   it('確かめていない・新しい版が無いときは null にする', () => {
-    expect(
-      toUpdateStatusDto({ currentVersion: '0.2.2', checkedAt: undefined, available: undefined })
-    ).toEqual({ currentVersion: '0.2.2', checkedAt: null, available: null })
+    expect(toUpdateStatusDto({ currentVersion: '0.2.2', checkedAt: undefined, available: undefined })).toEqual({
+      currentVersion: '0.2.2',
+      checkedAt: null,
+      available: null
+    })
   })
 })

@@ -48,10 +48,7 @@ import { DualTrackRecorder, type SystemAudioSource } from '@infrastructure/audio
 import { FileFolderRepository } from '@infrastructure/persistence/FileFolderStore'
 import { FileVoiceprintRepository } from '@infrastructure/persistence/FileVoiceprintStore'
 import { WorkerVoiceExtraction } from './voiceLearning'
-import {
-  FileRecordingArtifactStore,
-  FileRecordingRepository
-} from '@infrastructure/persistence/FileRecordingStore'
+import { FileRecordingArtifactStore, FileRecordingRepository } from '@infrastructure/persistence/FileRecordingStore'
 import { MicUsageProbe } from '@infrastructure/mic/MicUsageProbe'
 import { resolveMicWatchBinary } from '@infrastructure/mic/resolveMicWatchBinary'
 import { EventKitCalendar } from '@infrastructure/calendar/EventKitCalendar'
@@ -67,10 +64,7 @@ import { FileUpdateCheckStore } from '@infrastructure/update/FileUpdateCheckStor
 import { GitHubReleaseFeed } from '@infrastructure/update/GitHubReleaseFeed'
 import { appLocale } from './i18n'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
-import {
-  JsonSettingsRepository,
-  SettingsStorageLocator
-} from '@infrastructure/settings/JsonSettingsRepository'
+import { JsonSettingsRepository, SettingsStorageLocator } from '@infrastructure/settings/JsonSettingsRepository'
 
 /**
  * 依存を結線する唯一の場所。
@@ -152,9 +146,7 @@ export const createContainer = (): Container => {
   // audiotee は自分の JS の位置からバイナリを探すため、パッケージ済みアプリでは
   // asar 内のパスを解決してしまい起動できない。実パスを明示的に渡す。
   const createSystemAudioSource = (): SystemAudioSource =>
-    new AudioTeeSource(
-      resolveAudioTeeBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath })
-    )
+    new AudioTeeSource(resolveAudioTeeBinary({ packaged: app.isPackaged, resourcesPath: process.resourcesPath }))
   const recorder = new DualTrackRecorder(createSystemAudioSource())
   // 録音していない間だけ動かす見張り。同梱物が無ければ available が false になり、
   // 開始忘れの通知だけが無効になる。

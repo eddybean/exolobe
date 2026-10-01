@@ -16,12 +16,8 @@ describe('describeReason', () => {
 
   it('依存ステップの失敗は、そのステップの名前を UI の言語で添える', () => {
     const reason = { code: 'stepBlocked', blocker: 'transcribe' } as const
-    expect(describeReason(reason, 'ja')).toBe(
-      '前のステップ（文字起こし）が失敗したため実行しませんでした。'
-    )
-    expect(describeReason(reason, 'en')).toBe(
-      'Skipped because an earlier step (Transcription) failed.'
-    )
+    expect(describeReason(reason, 'ja')).toBe('前のステップ（文字起こし）が失敗したため実行しませんでした。')
+    expect(describeReason(reason, 'en')).toBe('Skipped because an earlier step (Transcription) failed.')
   })
 
   it('メモリ不足は処理の名前と必要量・空き容量を添える', () => {
@@ -74,9 +70,7 @@ describe('describeReason', () => {
 describe('describeError', () => {
   it('理由を持つエラーは理由から文言を引く', () => {
     expect(describeError(new RecordingNotFoundError('x'), 'en')).toBe('Recording not found: x')
-    expect(describeError(new ConfigurationError({ code: 'titleRequired' }), 'ja')).toBe(
-      'タイトルを入力してください。'
-    )
+    expect(describeError(new ConfigurationError({ code: 'titleRequired' }), 'ja')).toBe('タイトルを入力してください。')
   })
 
   it('理由の無いエラーは元のメッセージをそのまま返す', () => {

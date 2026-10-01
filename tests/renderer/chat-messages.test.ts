@@ -130,7 +130,6 @@ describe('completeMessage', () => {
     expect(next[0]?.citations).toEqual(citations)
     expect(next[0]?.scopeLabel).toBe('先週（08/31〜09/06）の 1 件')
   })
-
 })
 
 describe('completeMessage — 英語の対象表記', () => {
@@ -171,10 +170,7 @@ describe('toHistory', () => {
   })
 
   it('失敗した回答は履歴に含めない', () => {
-    const messages = [
-      user('u1', '先週のTODOは？'),
-      assistant('req-1', '', { error: 'モデルがありません' })
-    ]
+    const messages = [user('u1', '先週のTODOは？'), assistant('req-1', '', { error: 'モデルがありません' })]
 
     expect(toHistory(messages)).toEqual([{ role: 'user', text: '先週のTODOは？' }])
   })
@@ -229,9 +225,7 @@ describe('withInlineSources', () => {
   it('番号が 2 つまでならどちらも出す', () => {
     const text = '- 見積もりの話 [1][2]'
 
-    expect(withInlineSources(text, citations)).toBe(
-      '- 見積もりの話（週次定例 9月4日）（A社との商談 9月2日）'
-    )
+    expect(withInlineSources(text, citations)).toBe('- 見積もりの話（週次定例 9月4日）（A社との商談 9月2日）')
   })
 
   it('番号が 3 つ以上並んだら先頭だけ出して件数でまとめる', () => {
@@ -252,9 +246,7 @@ describe('withInlineSources', () => {
     // モデルは [1][2] とも [1, 2] とも書く。どちらも根拠の並びとして扱う。
     const text = '- 見積もりの話 [1, 2]'
 
-    expect(withInlineSources(text, citations)).toBe(
-      '- 見積もりの話（週次定例 9月4日）（A社との商談 9月2日）'
-    )
+    expect(withInlineSources(text, citations)).toBe('- 見積もりの話（週次定例 9月4日）（A社との商談 9月2日）')
   })
 
   it('カンマ区切りが 3 つ以上でも件数でまとめる', () => {
@@ -302,9 +294,7 @@ describe('withInlineSources', () => {
   it('チェックボックスの [ ] は番号ではないので触らない', () => {
     const text = '- [ ] 佐藤さんへメッセージを送る [2]'
 
-    expect(withInlineSources(text, citations)).toBe(
-      '- [ ] 佐藤さんへメッセージを送る（A社との商談 9月2日）'
-    )
+    expect(withInlineSources(text, citations)).toBe('- [ ] 佐藤さんへメッセージを送る（A社との商談 9月2日）')
   })
 
   it('出典に無い番号はそのまま残す', () => {
@@ -316,9 +306,7 @@ describe('withInlineSources', () => {
   })
 
   it('番号の前の空白は詰める', () => {
-    expect(withInlineSources('求人票を更新する  [1]', citations)).toBe(
-      '求人票を更新する（週次定例 9月4日）'
-    )
+    expect(withInlineSources('求人票を更新する  [1]', citations)).toBe('求人票を更新する（週次定例 9月4日）')
   })
 })
 
@@ -413,15 +401,12 @@ describe('completeMessage — 打ち切られた回答', () => {
 describe('answerNotice', () => {
   it('上限で切れた回答は、続きがあることを伝える', () => {
     // 黙って尻切れにすると、利用者はそれが全部だと思う。
-    expect(answerNotice(assistant('req-1', '途中まで', { truncated: true }))).toContain(
-      '長すぎた'
-    )
+    expect(answerNotice(assistant('req-1', '途中まで', { truncated: true }))).toContain('長すぎた')
   })
 
   it('切れていない回答には何も言わない', () => {
     expect(answerNotice(assistant('req-1', '答え', { truncated: false }))).toBeUndefined()
   })
-
 
   it('本文も理由も無い回答は、答えが返らなかったと伝える', () => {
     // 何も描かないと、出典の一覧だけが残って「それが答え」に見える。

@@ -41,8 +41,7 @@ export const TranscriptSearchResults = ({
       <h3 className="transcript-hits__heading">{t.transcriptHitsHeading(state.hits.length)}</h3>
       <ul className="transcript-hits__list">
         {state.hits.map((hit) => {
-          const active =
-            selected?.recordingId === hit.recordingId && selected.startMs === hit.startMs
+          const active = selected?.recordingId === hit.recordingId && selected.startMs === hit.startMs
           return (
             <li key={`${hit.recordingId}-${hit.startMs}`}>
               <button
@@ -57,11 +56,7 @@ export const TranscriptSearchResults = ({
                 </span>
                 <span className="transcript-hit__excerpt">
                   {splitHighlight(hit.excerpt, hit.ranges).map((piece, index) =>
-                    piece.hit ? (
-                      <mark key={index}>{piece.text}</mark>
-                    ) : (
-                      <span key={index}>{piece.text}</span>
-                    )
+                    piece.hit ? <mark key={index}>{piece.text}</mark> : <span key={index}>{piece.text}</span>
                   )}
                 </span>
               </button>

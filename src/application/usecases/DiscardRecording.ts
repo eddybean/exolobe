@@ -1,8 +1,4 @@
-import type {
-  AudioCapturePort,
-  RecordingArtifactPort,
-  RecordingRepositoryPort
-} from '@application/ports'
+import type { AudioCapturePort, RecordingArtifactPort, RecordingRepositoryPort } from '@application/ports'
 import { RecordingNotFoundError, RecordingStateError } from '@domain/errors'
 
 export interface DiscardRecordingDeps {

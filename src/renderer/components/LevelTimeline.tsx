@@ -1,18 +1,12 @@
 import { useEffect, useRef, type ReactElement } from 'react'
-import {
-  LEVEL_HISTORY_CAPACITY,
-  LEVEL_SAMPLE_INTERVAL_MS,
-  barHeight,
-  type LevelSample
-} from '../session/levelHistory'
+import { LEVEL_HISTORY_CAPACITY, LEVEL_SAMPLE_INTERVAL_MS, barHeight, type LevelSample } from '../session/levelHistory'
 
 const WIDTH = 200
 const HEIGHT = 28
 const COLUMN = WIDTH / LEVEL_HISTORY_CAPACITY
 const HALF = HEIGHT / 2 - 1
 
-const cssVar = (name: string): string =>
-  getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+const cssVar = (name: string): string => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 
 const paint = (ctx: CanvasRenderingContext2D, history: readonly LevelSample[]): void => {
   const mid = HEIGHT / 2

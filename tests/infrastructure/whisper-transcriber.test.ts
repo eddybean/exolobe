@@ -14,16 +14,12 @@ import {
 } from '@infrastructure/transcription/WhisperCppTranscriber'
 import { WavFileWriter } from '@infrastructure/audio/wav'
 
-const whisperJson = (
-  entries: { from: number; to: number; text: string }[]
-): string =>
+const whisperJson = (entries: { from: number; to: number; text: string }[]): string =>
   JSON.stringify({
     transcription: entries.map((e) => ({ offsets: { from: e.from, to: e.to }, text: e.text }))
   })
 
-const whisperJsonWithTokens = (
-  entries: { from: number; to: number; text: string; tokenProbs: number[] }[]
-): string =>
+const whisperJsonWithTokens = (entries: { from: number; to: number; text: string; tokenProbs: number[] }[]): string =>
   JSON.stringify({
     transcription: entries.map((e) => ({
       offsets: { from: e.from, to: e.to },
@@ -72,9 +68,7 @@ describe('parseWhisperJson', () => {
       { from: 6000, to: 8000, text: "Let's review next week's schedule." }
     ])
 
-    expect(parseWhisperJson(raw, 'self').map((s) => s.text)).toEqual([
-      "Let's review next week's schedule."
-    ])
+    expect(parseWhisperJson(raw, 'self').map((s) => s.text)).toEqual(["Let's review next week's schedule."])
   })
 
   it('英語でも、定型句を含むだけの本物の発話と短い汎用語は消さない', () => {
@@ -127,9 +121,7 @@ describe('parseWhisperJson', () => {
   })
 
   it('JSON として壊れていれば利用者向けメッセージで失敗する', () => {
-    expect(() => parseWhisperJson('{ broken', 'self')).toThrow(
-      'transcriptionOutputUnreadable'
-    )
+    expect(() => parseWhisperJson('{ broken', 'self')).toThrow('transcriptionOutputUnreadable')
   })
 
   it('平均対数確率が閾値を下回るセグメントを捨てる', () => {
@@ -195,9 +187,7 @@ describe('parseWhisperJson', () => {
 
   it('計測モードを渡さなければ何も報告しない', () => {
     // 通常の利用では落とした事実をどこにも出さない。
-    const raw = whisperJsonWithTokens([
-      { from: 0, to: 2000, text: '雑音から生まれた文', tokenProbs: [0.2, 0.2] }
-    ])
+    const raw = whisperJsonWithTokens([{ from: 0, to: 2000, text: '雑音から生まれた文', tokenProbs: [0.2, 0.2] }])
 
     expect(parseWhisperJson(raw, 'self')).toEqual([])
   })
@@ -280,9 +270,7 @@ describe('formatDroppedSegment', () => {
       avgLogprob: -1.4237
     })
 
-    expect(line).toBe(
-      '[dropped:low-confidence] 01:02:03.450-01:02:05.000 remote logprob=-1.424 「雑音から生まれた文」'
-    )
+    expect(line).toBe('[dropped:low-confidence] 01:02:03.450-01:02:05.000 remote logprob=-1.424 「雑音から生まれた文」')
   })
 
   it('対数確率が無い理由では logprob を書かない', () => {
@@ -696,9 +684,7 @@ describe('WhisperCppTranscriber', () => {
       }
     )
 
-    await expect(
-      transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
-    ).rejects.toThrow()
+    await expect(transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })).rejects.toThrow()
     await expect(stat(join(dir, 'mic.json'))).rejects.toThrow()
   })
 
@@ -717,20 +703,15 @@ describe('WhisperCppTranscriber', () => {
       }
     )
 
-    expect(
-      await transcriber.transcribe({ wavPath: emptyWav, language: 'ja', speakerId: 'self' })
-    ).toEqual([])
+    expect(await transcriber.transcribe({ wavPath: emptyWav, language: 'ja', speakerId: 'self' })).toEqual([])
     expect(started).toBe(false)
   })
 
   it('モデル未設定なら設定画面へ誘導する', async () => {
-    const transcriber = new WhisperCppTranscriber(
-      { binaryPath: 'whisper-cli', modelPath: '' },
-      runnerWriting([])
-    )
+    const transcriber = new WhisperCppTranscriber({ binaryPath: 'whisper-cli', modelPath: '' }, runnerWriting([]))
 
-    await expect(
-      transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })
-    ).rejects.toThrow('transcriptionModelNotConfigured')
+    await expect(transcriber.transcribe({ wavPath, language: 'ja', speakerId: 'self' })).rejects.toThrow(
+      'transcriptionModelNotConfigured'
+    )
   })
 })

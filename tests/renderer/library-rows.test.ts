@@ -126,10 +126,7 @@ describe('英語表示', () => {
   it('直近以外の行は月・日・曜日を英語で添える', () => {
     setLocale('en')
     expect(
-      recordingRowMeta(
-        { startedAt: new Date('2026-09-21T09:05:00+09:00').toISOString(), durationMs: 55 * 60_000 },
-        now
-      )
+      recordingRowMeta({ startedAt: new Date('2026-09-21T09:05:00+09:00').toISOString(), durationMs: 55 * 60_000 }, now)
     ).toBe('Sep 21 (Mon) 09:05 · 55 min')
   })
 })

@@ -139,11 +139,7 @@ describe('ProcessRecording — 正常系', () => {
     await ctx.process.execute({ recordingId: 'rec-1' })
     const saved = await ctx.artifacts.readTranscript(ctx.recording)
 
-    expect(saved?.segments.map((s) => s.speakerId)).toEqual([
-      SELF_SPEAKER_ID,
-      'remote:spk0',
-      'remote:spk1'
-    ])
+    expect(saved?.segments.map((s) => s.speakerId)).toEqual([SELF_SPEAKER_ID, 'remote:spk0', 'remote:spk1'])
     expect(saved?.speakers).toEqual([
       { id: SELF_SPEAKER_ID, kind: 'self', label: '自分' },
       { id: 'remote:spk0', kind: 'remote', label: '参加者A' },
@@ -390,9 +386,9 @@ describe('ProcessRecording — 個別リトライ', () => {
     const ctx = await build()
     await ctx.process.execute({ recordingId: 'rec-1' })
 
-    await expect(
-      ctx.process.execute({ recordingId: 'rec-1', only: ['transcribe'] })
-    ).rejects.toThrow('recordingDataMissing')
+    await expect(ctx.process.execute({ recordingId: 'rec-1', only: ['transcribe'] })).rejects.toThrow(
+      'recordingDataMissing'
+    )
   })
 
   it('リトライで中間ファイルを使うステップが揃えば片付ける', async () => {
@@ -421,9 +417,7 @@ describe('ProcessRecording — 短すぎる録音', () => {
     expect(ctx.mixer.calls).toHaveLength(0)
     expect(ctx.transcriber.calls).toHaveLength(0)
     expect(result.status).toBe('failed')
-    expect(PIPELINE_STEPS.map((step) => result.steps[step].reason)).toEqual(
-      PIPELINE_STEPS.map(() => tooShort)
-    )
+    expect(PIPELINE_STEPS.map((step) => result.steps[step].reason)).toEqual(PIPELINE_STEPS.map(() => tooShort))
   })
 
   it('中間ファイルを片付ける（やり直しても結果は変わらない）', async () => {
@@ -469,17 +463,11 @@ describe('ProcessRecording — 短すぎる録音', () => {
 
 describe('ProcessRecording — 利用者が付けた話者名', () => {
   /** 詳細画面で話者名を変えた状況を作る。 */
-  const rename = async (
-    ctx: Awaited<ReturnType<typeof build>>,
-    speakerId: string,
-    label: string
-  ): Promise<void> => {
+  const rename = async (ctx: Awaited<ReturnType<typeof build>>, speakerId: string, label: string): Promise<void> => {
     const saved = await ctx.artifacts.readTranscript(ctx.recording)
     await ctx.artifacts.writeTranscript(ctx.recording, {
       segments: saved?.segments ?? [],
-      speakers: (saved?.speakers ?? []).map((speaker) =>
-        speaker.id === speakerId ? { ...speaker, label } : speaker
-      )
+      speakers: (saved?.speakers ?? []).map((speaker) => (speaker.id === speakerId ? { ...speaker, label } : speaker))
     })
   }
 
@@ -669,9 +657,7 @@ describe('ProcessRecording — メモリガード', () => {
 
     await ctx.process.execute({ recordingId: 'rec-1' })
 
-    const failed = ctx.progress.events.find(
-      (event) => event.step === 'summarize' && event.status === 'failed'
-    )
+    const failed = ctx.progress.events.find((event) => event.step === 'summarize' && event.status === 'failed')
     expect(failed?.reason).toMatchObject({ code: 'insufficientMemory', task: 'summarize' })
   })
 
@@ -819,9 +805,11 @@ describe('ProcessRecording — 声紋による話者名の自動適用', () => {
 
     await ctx.process.execute({ recordingId: 'rec-1' })
 
-    expect(
-      (await ctx.artifacts.readTranscript(ctx.recording))?.speakers.map((s) => s.label)
-    ).toEqual(['自分', '参加者A', '参加者B'])
+    expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers.map((s) => s.label)).toEqual([
+      '自分',
+      '参加者A',
+      '参加者B'
+    ])
   })
 
   it('利用者が付けた名前は声紋の一致より優先する', async () => {
@@ -863,9 +851,11 @@ describe('ProcessRecording — 声紋による話者名の自動適用', () => {
     await ctx.artifacts.writeTracks(ctx.recording, tracks)
     await ctx.process.execute({ recordingId: 'rec-1', only: ['diarize'] })
 
-    expect(
-      (await ctx.artifacts.readTranscript(ctx.recording))?.speakers.map((s) => s.label)
-    ).toEqual(['自分', '佐藤さん', '鈴木さん'])
+    expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers.map((s) => s.label)).toEqual([
+      '自分',
+      '佐藤さん',
+      '鈴木さん'
+    ])
   })
 
   it('話者ごとの声紋を録音に残す（後のリネームで声紋帳に登録するため）', async () => {
@@ -908,18 +898,17 @@ describe('ProcessRecording — 声紋による話者名の自動適用', () => {
     const result = await ctx.process.execute({ recordingId: 'rec-1' })
 
     expect(result.steps.diarize.status).toBe('done')
-    expect(
-      (await ctx.artifacts.readTranscript(ctx.recording))?.speakers.map((s) => s.label)
-    ).toEqual(['自分', '参加者A', '参加者B'])
+    expect((await ctx.artifacts.readTranscript(ctx.recording))?.speakers.map((s) => s.label)).toEqual([
+      '自分',
+      '参加者A',
+      '参加者B'
+    ])
   })
 })
 
 /** 会議の言語（ADR-043）。話者の既定名・要約プロンプト・メモの見出しを揃える。 */
 describe('ProcessRecording — 会議の言語', () => {
-  const clustered = async (
-    patch: SettingsPatch,
-    options: { fallbackLanguage?: MeetingLanguage } = {}
-  ) => {
+  const clustered = async (patch: SettingsPatch, options: { fallbackLanguage?: MeetingLanguage } = {}) => {
     const ctx = await build(patch, options)
     ctx.diarizer.turns = [
       { startMs: 1000, endMs: 3000, speaker: 'spk0' },

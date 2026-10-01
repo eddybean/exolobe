@@ -5,10 +5,7 @@ import type { TextEmbedderPort } from '@application/ports'
 import { ConfigurationError, toMessage } from '@domain/errors'
 import type { MemoryProtection } from '@domain/MemoryGuard'
 import { normalize } from '@domain/vector'
-import {
-  ModelLoadError,
-  llamaOptionsFor
-} from '@infrastructure/summarization/NodeLlamaSessionFactory'
+import { ModelLoadError, llamaOptionsFor } from '@infrastructure/summarization/NodeLlamaSessionFactory'
 
 /**
  * 埋め込みのコンテキスト長。
@@ -72,9 +69,7 @@ export class NodeLlamaEmbedder<T> implements TextEmbedderPort {
   /** 同期と検索が同時に最初の 1 回を呼んでも、読み込みは 1 回にする。 */
   private ensureSession(): Promise<EmbeddingSession<T>> {
     if (!this.config.modelPath) {
-      return Promise.reject(
-        new ConfigurationError({ code: 'searchModelMissing' })
-      )
+      return Promise.reject(new ConfigurationError({ code: 'searchModelMissing' }))
     }
 
     if (!this.session) {
@@ -90,10 +85,7 @@ export class NodeLlamaEmbedder<T> implements TextEmbedderPort {
 
 /** node-llama-cpp で埋め込み用のコンテキストを作る。import はメソッド内で行う。 */
 export class NodeLlamaEmbeddingSessionFactory implements EmbeddingSessionFactory<Token> {
-  async create(config: {
-    modelPath: string
-    protection: MemoryProtection
-  }): Promise<EmbeddingSession<Token>> {
+  async create(config: { modelPath: string; protection: MemoryProtection }): Promise<EmbeddingSession<Token>> {
     const { getLlama } = await import('node-llama-cpp')
 
     try {
@@ -110,11 +102,7 @@ export class NodeLlamaEmbeddingSessionFactory implements EmbeddingSessionFactory
           // bge-m3 のトークナイザ（UGM）では node-llama-cpp が先頭の <s> を付けない。
           // CLS プーリングは先頭トークンの出力を使うので、明示的に付ける。
           const { bos, eos } = model.tokens
-          const framed = [
-            ...(bos === null ? [] : [bos]),
-            ...tokens,
-            ...(eos === null ? [] : [eos])
-          ]
+          const framed = [...(bos === null ? [] : [bos]), ...tokens, ...(eos === null ? [] : [eos])]
           return (await context.getEmbeddingFor(framed)).vector
         },
         dispose: async () => {

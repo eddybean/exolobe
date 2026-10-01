@@ -1,9 +1,5 @@
 import type { SherpaModel } from '@domain/errors'
-import {
-  DiarizationError,
-  type DiarizationSession,
-  type DiarizationSessionFactory
-} from './SherpaOnnxDiarizer'
+import { DiarizationError, type DiarizationSession, type DiarizationSessionFactory } from './SherpaOnnxDiarizer'
 import { loadSherpa, missingModel, sherpaThreads } from './sherpaModule'
 
 /**
@@ -24,8 +20,7 @@ export class SherpaOnnxSessionFactory implements DiarizationSessionFactory {
     requireModel('embedding', config.embeddingModelPath)
 
     const sherpa = await loadSherpa(
-      (detail, cause) =>
-        new DiarizationError({ code: 'sherpaLoadFailed', detail, forDiarization: true }, { cause })
+      (detail, cause) => new DiarizationError({ code: 'sherpaLoadFailed', detail, forDiarization: true }, { cause })
     )
     const numThreads = sherpaThreads()
 

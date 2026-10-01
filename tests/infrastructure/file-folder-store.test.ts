@@ -2,10 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  FileFolderRepository,
-  type StorageLocator
-} from '@infrastructure/persistence/FileFolderStore'
+import { FileFolderRepository, type StorageLocator } from '@infrastructure/persistence/FileFolderStore'
 
 let storage: string
 let locator: StorageLocator
@@ -63,9 +60,7 @@ describe('FileFolderRepository', () => {
 
     await repository.replaceAll([{ id: 'f1', name: '議事録' }])
 
-    const [quarantined] = (await readdir(storage)).filter((name) =>
-      name.startsWith('folders.json.unreadable-')
-    )
+    const [quarantined] = (await readdir(storage)).filter((name) => name.startsWith('folders.json.unreadable-'))
     expect(await readFile(join(storage, quarantined ?? ''), 'utf8')).toBe('{ broken')
     expect(await repository.list()).toEqual([{ id: 'f1', name: '議事録' }])
   })

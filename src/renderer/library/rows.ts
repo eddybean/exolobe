@@ -15,8 +15,7 @@ export interface DateGroup<T> {
 const DAY_MS = 86_400_000
 
 /** その日のローカル時刻 0 時。日付の境目は利用者の暦で切る。 */
-const startOfDay = (date: Date): Date =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate())
+const startOfDay = (date: Date): Date => new Date(date.getFullYear(), date.getMonth(), date.getDate())
 
 /** 今日から数えて何日前か（今日 = 0）。夏時間で 1 日が 23・25 時間になっても、丸めて日単位にそろえる。 */
 const daysAgo = (date: Date, now: Date): number =>

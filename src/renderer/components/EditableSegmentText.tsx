@@ -24,10 +24,7 @@ export const EditableSegmentText = ({
   blocker: string | undefined
   onCommit: (text: string) => Promise<void>
 }): ReactElement => {
-  const { editing, draft, saving, inputRef, setDraft, start, commit, onKeyDown } = useInlineEdit(
-    text,
-    onCommit
-  )
+  const { editing, draft, saving, inputRef, setDraft, start, commit, onKeyDown } = useInlineEdit(text, onCommit)
   const t = editableText().segmentText
 
   if (!editing) {

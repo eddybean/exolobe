@@ -23,10 +23,8 @@ export type SherpaNamespace = Partial<SherpaExports> & { default: SherpaExports 
  * 変換系（vitest 等）では名前付きも生えるので、クラスごとに両方を見る。
  */
 export const pickSherpaExports = (namespace: SherpaNamespace): SherpaExports => ({
-  OfflineSpeakerDiarization:
-    namespace.OfflineSpeakerDiarization ?? namespace.default.OfflineSpeakerDiarization,
-  SpeakerEmbeddingExtractor:
-    namespace.SpeakerEmbeddingExtractor ?? namespace.default.SpeakerEmbeddingExtractor
+  OfflineSpeakerDiarization: namespace.OfflineSpeakerDiarization ?? namespace.default.OfflineSpeakerDiarization,
+  SpeakerEmbeddingExtractor: namespace.SpeakerEmbeddingExtractor ?? namespace.default.SpeakerEmbeddingExtractor
 })
 
 /**
@@ -36,9 +34,7 @@ export const pickSherpaExports = (namespace: SherpaNamespace): SherpaExports => 
  * （アプリの起動時間とメモリを不必要に使わない）。読み込み失敗は呼び出し側が
  * 自分のエラー型へ包む —— 利用者に出す文面が話者分割と声紋抽出で違うため。
  */
-export const loadSherpa = async (
-  wrap: (detail: string, cause: unknown) => Error
-): Promise<SherpaExports> => {
+export const loadSherpa = async (wrap: (detail: string, cause: unknown) => Error): Promise<SherpaExports> => {
   try {
     return pickSherpaExports((await import('sherpa-onnx-node')) as unknown as SherpaNamespace)
   } catch (error: unknown) {

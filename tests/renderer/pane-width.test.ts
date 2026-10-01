@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  LIBRARY_WIDTH,
-  clampLibraryWidth,
-  keyboardResize,
-  parseStoredWidth
-} from '@renderer/library/paneWidth'
+import { LIBRARY_WIDTH, clampLibraryWidth, keyboardResize, parseStoredWidth } from '@renderer/library/paneWidth'
 
 /**
  * ライブラリと詳細の境目は、ドラッグで自由に動かせる。ただし詳細が潰れて

@@ -20,10 +20,7 @@ export interface MeetingLookup extends MeetingSource {
   markCurrentHandled(atMs: number): Promise<void>
 }
 
-export const createMeetingLookup = (deps: {
-  calendar: CalendarPort
-  refreshIntervalMs: number
-}): MeetingLookup => {
+export const createMeetingLookup = (deps: { calendar: CalendarPort; refreshIntervalMs: number }): MeetingLookup => {
   let events: CalendarEvent[] = []
   let refreshedAtMs: number | undefined
   const handled = new Set<string>()
@@ -41,8 +38,7 @@ export const createMeetingLookup = (deps: {
     }
   }
 
-  const current = (atMs: number): CalendarEvent | undefined =>
-    pickMeetingEvent(events, new Date(atMs), handled)
+  const current = (atMs: number): CalendarEvent | undefined => pickMeetingEvent(events, new Date(atMs), handled)
 
   return {
     async refresh(atMs) {

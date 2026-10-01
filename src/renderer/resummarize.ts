@@ -21,9 +21,7 @@ export const resummarizeState = (
 ): ResummarizeState => {
   if (steps.summarize?.status === 'running') return 'summarizing'
   if (steps.summarize?.status === 'queued') return 'queued'
-  if (
-    Object.values(steps).some((state) => state?.status === 'running' || state?.status === 'queued')
-  ) {
+  if (Object.values(steps).some((state) => state?.status === 'running' || state?.status === 'queued')) {
     return 'busy'
   }
   if (!hasTranscript) return 'unavailable'
@@ -36,6 +34,5 @@ export const resummarizeState = (
  * 生成結果で上書きされて黙って消えるので直させない。
  * 失敗したときは、生成を諦めて自分で書く道を残す。
  */
-export const canEditSummary = (
-  steps: Readonly<Record<string, { status: string } | undefined>>
-): boolean => steps.summarize?.status === 'done' || steps.summarize?.status === 'failed'
+export const canEditSummary = (steps: Readonly<Record<string, { status: string } | undefined>>): boolean =>
+  steps.summarize?.status === 'done' || steps.summarize?.status === 'failed'

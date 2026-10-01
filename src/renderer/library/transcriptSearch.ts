@@ -13,10 +13,7 @@ export interface ExcerptPiece {
  * 語どうしが重なって当たることがある（「予算」と「算案」）ので、先に範囲をまとめる。
  * まとめずに切ると断片の境目が前後し、元の文が並べ替わって見える。
  */
-export const splitHighlight = (
-  excerpt: string,
-  ranges: readonly HighlightRangeDto[]
-): ExcerptPiece[] => {
+export const splitHighlight = (excerpt: string, ranges: readonly HighlightRangeDto[]): ExcerptPiece[] => {
   const merged: { start: number; end: number }[] = []
   for (const range of [...ranges].sort((left, right) => left.start - right.start)) {
     const last = merged[merged.length - 1]
@@ -48,10 +45,7 @@ export const splitHighlight = (
  * ぴったり一致しなくなる。その場合はその時刻を含む手前の発言に寄せて、
  * 「飛んだのにどこにも行かない」を避ける。
  */
-export const focusedSegmentIndex = (
-  segments: readonly TranscriptSegment[],
-  startMs: number
-): number => {
+export const focusedSegmentIndex = (segments: readonly TranscriptSegment[], startMs: number): number => {
   if (segments.length === 0) return -1
 
   let found = 0

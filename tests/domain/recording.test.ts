@@ -109,10 +109,7 @@ describe('failStep', () => {
    * 理由を知らない古い版で開いても空欄にならないようにする。
    */
   it('理由のある失敗はコードと理由を残す', () => {
-    expect(
-      failStep(initialStepStates(), 'diarize', { code: 'stepBlocked', blocker: 'transcribe' })
-        .diarize
-    ).toEqual({
+    expect(failStep(initialStepStates(), 'diarize', { code: 'stepBlocked', blocker: 'transcribe' }).diarize).toEqual({
       status: 'failed',
       error: 'stepBlocked',
       reason: { code: 'stepBlocked', blocker: 'transcribe' }
@@ -122,10 +119,7 @@ describe('failStep', () => {
 
 describe('interruptSteps', () => {
   it('実行中のまま残ったステップを失敗にし、他のステップには触れない', () => {
-    const steps = startStep(
-      succeedStep(failStep(initialStepStates(), 'diarize', '前の失敗'), 'mix'),
-      'summarize'
-    )
+    const steps = startStep(succeedStep(failStep(initialStepStates(), 'diarize', '前の失敗'), 'mix'), 'summarize')
 
     const interrupted = interruptSteps(steps)
 
@@ -148,23 +142,23 @@ describe('transcriptEditBlocker', () => {
   })
 
   it('文字起こしの最中は理由を返す', () => {
-    expect(transcriptEditBlocker(startStep(initialStepStates(), 'transcribe'))).toEqual(
-      { code: 'transcriptEditBlocked', step: 'transcribe' }
-    )
+    expect(transcriptEditBlocker(startStep(initialStepStates(), 'transcribe'))).toEqual({
+      code: 'transcriptEditBlocked',
+      step: 'transcribe'
+    })
   })
 
   it('話者識別の最中は理由を返す', () => {
-    expect(transcriptEditBlocker(startStep(initialStepStates(), 'diarize'))).toEqual(
-      { code: 'transcriptEditBlocked', step: 'diarize' }
-    )
+    expect(transcriptEditBlocker(startStep(initialStepStates(), 'diarize'))).toEqual({
+      code: 'transcriptEditBlocked',
+      step: 'diarize'
+    })
   })
 })
 
 describe('tooShortRecording', () => {
   it('1 分に満たない録音は理由を返す', () => {
-    expect(tooShortRecording(59_999)).toEqual(
-      { code: 'tooShortRecording', seconds: 59 }
-    )
+    expect(tooShortRecording(59_999)).toEqual({ code: 'tooShortRecording', seconds: 59 })
   })
 
   it('ちょうど 1 分は処理する', () => {
@@ -172,9 +166,7 @@ describe('tooShortRecording', () => {
   })
 
   it('押し間違えて即停止した録音も理由を返す', () => {
-    expect(tooShortRecording(0)).toEqual(
-      { code: 'tooShortRecording', seconds: 0 }
-    )
+    expect(tooShortRecording(0)).toEqual({ code: 'tooShortRecording', seconds: 0 })
   })
 
   it('録音時間を測れなかった場合は止めない', () => {
@@ -185,9 +177,7 @@ describe('tooShortRecording', () => {
 
 describe('slugForRecording', () => {
   it('日時と id 先頭8桁から保存ディレクトリ名を作る（タイトルは使わない）', () => {
-    expect(slugForRecording(startedAt, 'a1b2c3d4-e5f6-7890-abcd-ef1234567890')).toBe(
-      '2026-09-06_1430-a1b2c3d4'
-    )
+    expect(slugForRecording(startedAt, 'a1b2c3d4-e5f6-7890-abcd-ef1234567890')).toBe('2026-09-06_1430-a1b2c3d4')
   })
 
   it('id が短い場合はそのまま接尾辞にする', () => {

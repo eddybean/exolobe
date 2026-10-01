@@ -34,10 +34,7 @@ export const SpeakerTimeline = ({
   }
 
   return (
-    <div
-      className={disabled ? 'timeline timeline--disabled' : 'timeline'}
-      aria-disabled={disabled}
-    >
+    <div className={disabled ? 'timeline timeline--disabled' : 'timeline'} aria-disabled={disabled}>
       <div className="timeline__labels">
         {lanes.map((lane) => (
           <span key={lane.speakerId} className="timeline__label" title={lane.label}>
@@ -68,11 +65,7 @@ export const SpeakerTimeline = ({
             ))}
           </button>
         ))}
-        <span
-          className="timeline__playhead"
-          aria-hidden="true"
-          style={{ left: percent(positionMs) }}
-        />
+        <span className="timeline__playhead" aria-hidden="true" style={{ left: percent(positionMs) }} />
       </div>
     </div>
   )

@@ -52,31 +52,28 @@ describe('matchVoiceprints', () => {
 
   it('2 位との差が僅かなら、当てにいかず未割り当てにする', () => {
     // どちらとも 0.99 以上で並ぶ位置に置く。
-    const matched = matchVoiceprints(
-      [speaker('remote:spk0', 5)],
-      [print('田中さん', 0), print('佐藤さん', 10)],
-      { threshold: 0.6, modelKey: MODEL }
-    )
+    const matched = matchVoiceprints([speaker('remote:spk0', 5)], [print('田中さん', 0), print('佐藤さん', 10)], {
+      threshold: 0.6,
+      modelKey: MODEL
+    })
 
     expect(matched.size).toBe(0)
   })
 
   it('別のモデルで作られた声紋は比較しない', () => {
-    const matched = matchVoiceprints(
-      [speaker('remote:spk0', 0)],
-      [print('田中さん', 0, { modelKey: 'other:256' })],
-      { threshold: 0.6, modelKey: MODEL }
-    )
+    const matched = matchVoiceprints([speaker('remote:spk0', 0)], [print('田中さん', 0, { modelKey: 'other:256' })], {
+      threshold: 0.6,
+      modelKey: MODEL
+    })
 
     expect(matched.size).toBe(0)
   })
 
   it('同じ名前を 2 人が取り合ったら、似ている方だけに付ける', () => {
-    const matched = matchVoiceprints(
-      [speaker('remote:spk0', 20), speaker('remote:spk1', 2)],
-      [print('田中さん', 0)],
-      { threshold: 0.6, modelKey: MODEL }
-    )
+    const matched = matchVoiceprints([speaker('remote:spk0', 20), speaker('remote:spk1', 2)], [print('田中さん', 0)], {
+      threshold: 0.6,
+      modelKey: MODEL
+    })
 
     expect([...matched]).toEqual([['remote:spk1', '田中さん']])
   })
@@ -93,8 +90,7 @@ describe('matchVoiceprints', () => {
   })
 
   it('声紋帳が空なら何も返さない', () => {
-    expect(matchVoiceprints([speaker('remote:spk0', 0)], [], { threshold: 0.6, modelKey: MODEL }))
-      .toEqual(new Map())
+    expect(matchVoiceprints([speaker('remote:spk0', 0)], [], { threshold: 0.6, modelKey: MODEL })).toEqual(new Map())
   })
 
   it('既定の余白は誤適用を避けられる程度に取ってある', () => {

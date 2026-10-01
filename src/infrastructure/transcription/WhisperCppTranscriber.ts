@@ -52,14 +52,12 @@ const secondsToMs = (seconds: string): number => Math.round(Number(seconds) * 10
  * 空のときは切り直しをせず、今までどおりの発言を返す（ADR-036）。
  */
 export const parseVadSpans = (stderr: string): VadSpan[] =>
-  [...stderr.matchAll(VAD_SPAN_LINE)].map(
-    ([, origStart = '', origEnd = '', vadStart = '', vadEnd = '']) => ({
-      origStartMs: secondsToMs(origStart),
-      origEndMs: secondsToMs(origEnd),
-      vadStartMs: secondsToMs(vadStart),
-      vadEndMs: secondsToMs(vadEnd)
-    })
-  )
+  [...stderr.matchAll(VAD_SPAN_LINE)].map(([, origStart = '', origEnd = '', vadStart = '', vadEnd = '']) => ({
+    origStartMs: secondsToMs(origStart),
+    origEndMs: secondsToMs(origEnd),
+    vadStartMs: secondsToMs(vadStart),
+    vadEndMs: secondsToMs(vadEnd)
+  }))
 
 /**
  * セグメントを捨てる平均対数確率の下限。
@@ -83,9 +81,7 @@ const SPECIAL_TOKEN = /^\[_/
  * 「確率が無い」を「確信度が低い」と読み替えて消すと、`--output-json-full` に
  * 対応しない whisper-cli で文字起こしが丸ごと消える。
  */
-export const averageLogprob = (
-  tokens: readonly { text?: string; p?: number }[] | undefined
-): number | undefined => {
+export const averageLogprob = (tokens: readonly { text?: string; p?: number }[] | undefined): number | undefined => {
   const probs = (tokens ?? [])
     .filter((token) => !SPECIAL_TOKEN.test(token.text ?? ''))
     .map((token) => token.p)
@@ -136,9 +132,7 @@ export const formatDroppedSegment = (dropped: DroppedSegment): string =>
     `[dropped:${dropped.reason}]`,
     `${formatTimestamp(dropped.startMs)}-${formatTimestamp(dropped.endMs)}`,
     dropped.speakerId,
-    ...(dropped.avgLogprob === undefined
-      ? []
-      : [`logprob=${dropped.avgLogprob.toFixed(3)}`]),
+    ...(dropped.avgLogprob === undefined ? [] : [`logprob=${dropped.avgLogprob.toFixed(3)}`]),
     `「${dropped.text}」`
   ].join(' ')
 
@@ -317,14 +311,11 @@ const cutIndexFor = (
  */
 const splitAtVadGaps = (piece: SegmentPiece, spans: readonly VadSpan[]): SegmentPiece[] => {
   // 発言の開始・終了は元の時間軸に戻っているので、どの区間にまたがるかはこちらで決まる。
-  const covered = spans.filter(
-    (span) => span.origStartMs < piece.endMs && span.origEndMs > piece.startMs
-  )
+  const covered = spans.filter((span) => span.origStartMs < piece.endMs && span.origEndMs > piece.startMs)
   const grazes = (span: VadSpan | undefined): boolean =>
     covered.length >= 2 &&
     span !== undefined &&
-    Math.min(span.origEndMs, piece.endMs) - Math.max(span.origStartMs, piece.startMs) <
-      EDGE_OVERLAP_MS
+    Math.min(span.origEndMs, piece.endMs) - Math.max(span.origStartMs, piece.startMs) < EDGE_OVERLAP_MS
   const grazedHead = grazes(covered[0])
   if (grazedHead) covered.shift()
   const grazedTail = grazes(covered[covered.length - 1])
@@ -350,7 +341,13 @@ const splitAtVadGaps = (piece: SegmentPiece, spans: readonly VadSpan[]): Segment
     return typeof from === 'number' && typeof to === 'number' ? [{ token, text, from, to }] : []
   })
   if (timed.length === 0 || timed.length !== words.length) return [piece]
-  if (words.map((token) => token.text ?? '').join('').trim() !== piece.text) return [piece]
+  if (
+    words
+      .map((token) => token.text ?? '')
+      .join('')
+      .trim() !== piece.text
+  )
+    return [piece]
 
   // 切る位置と、その位置の手前の発言が覆う最後の区間。
   const cuts: { index: number; lastSpan: number }[] = []
@@ -436,8 +433,7 @@ const HALLUCINATIONS: readonly string[] = [
 ]
 
 /** 末尾の句読点や感嘆符は揺れるだけで意味を持たないため、比較前に落とす。 */
-const stripTrailingPunctuation = (text: string): string =>
-  text.replace(/[。．.、，,！!？?〜~…\s]+$/u, '')
+const stripTrailingPunctuation = (text: string): string => text.replace(/[。．.、，,！!？?〜~…\s]+$/u, '')
 
 /** 英語は文頭の大文字が揺れる。日本語には影響しない。 */
 const isHallucination = (text: string): boolean =>
@@ -466,9 +462,7 @@ const PROGRESS_LINE = /whisper_print_progress_callback:\s*progress\s*=\s*(\d+)%/
  * stderr は行の区切りと無関係な単位で届くため、行が揃うまで溜めてから読む。
  * 切れ目でそのまま読むと「progress = 2」と「1%」に割れて、21% を取り逃がす。
  */
-export const whisperProgressReader = (
-  onProgress: (fraction: number) => void
-): ((chunk: string) => void) => {
+export const whisperProgressReader = (onProgress: (fraction: number) => void): ((chunk: string) => void) => {
   let pending = ''
   return (chunk) => {
     const lines = (pending + chunk).split('\n')
@@ -498,9 +492,7 @@ const defaultRunner: WhisperRunner = ({ binaryPath, argv, onStderr }) =>
       { maxBuffer: 64 * 1024 * 1024 },
       (error, _stdout, stderr) => {
         if (error) {
-          reject(
-            new TranscriptionError(describeFailure(binaryPath, error, stderr), { cause: error })
-          )
+          reject(new TranscriptionError(describeFailure(binaryPath, error, stderr), { cause: error }))
           return
         }
         resolve()
@@ -511,11 +503,7 @@ const defaultRunner: WhisperRunner = ({ binaryPath, argv, onStderr }) =>
   })
 
 /** whisper-cli の失敗を、利用者が次に何をすべきか分かる理由へ翻訳する。 */
-export const describeFailure = (
-  binaryPath: string,
-  error: unknown,
-  stderr: string
-): ErrorReason => {
+export const describeFailure = (binaryPath: string, error: unknown, stderr: string): ErrorReason => {
   const message = toMessage(error)
   if (/ENOENT/.test(message)) return { code: 'whisperNotFound', binaryPath }
   if (/failed to initialize|load model|no such file/i.test(`${message}${stderr}`)) {

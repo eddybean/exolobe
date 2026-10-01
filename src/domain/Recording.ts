@@ -26,9 +26,7 @@ export interface StepState {
 export type StepFailure = ErrorReason | string
 
 /** 失敗を StepState と進捗の通知に載せる形にする。 */
-export const failureFields = (
-  failure: StepFailure
-): { readonly error: string; readonly reason?: ErrorReason } =>
+export const failureFields = (failure: StepFailure): { readonly error: string; readonly reason?: ErrorReason } =>
   typeof failure === 'string' ? { error: failure } : { error: failure.code, reason: failure }
 
 export type StepStates = Readonly<Record<PipelineStep, StepState>>
@@ -61,9 +59,7 @@ const formatDateTime = (date: Date): { date: string; time: string } => ({
 })
 
 export const initialStepStates = (): StepStates =>
-  Object.fromEntries(
-    PIPELINE_STEPS.map((step) => [step, { status: 'pending' as const }])
-  ) as StepStates
+  Object.fromEntries(PIPELINE_STEPS.map((step) => [step, { status: 'pending' as const }])) as StepStates
 
 /**
  * 保存ディレクトリ名を組み立てる。タイトルは後から自由にリネームできて
@@ -142,11 +138,8 @@ export const startStep = (steps: StepStates, step: PipelineStep): StepStates =>
 export const succeedStep = (steps: StepStates, step: PipelineStep): StepStates =>
   setStep(steps, step, { status: 'done' })
 
-export const failStep = (
-  steps: StepStates,
-  step: PipelineStep,
-  failure: StepFailure
-): StepStates => setStep(steps, step, { status: 'failed', ...failureFields(failure) })
+export const failStep = (steps: StepStates, step: PipelineStep, failure: StepFailure): StepStates =>
+  setStep(steps, step, { status: 'failed', ...failureFields(failure) })
 
 /**
  * 実行中のまま残ったステップを失敗にする。
@@ -158,8 +151,7 @@ export const failStep = (
  */
 export const interruptSteps = (steps: StepStates): StepStates =>
   PIPELINE_STEPS.reduce(
-    (acc, step) =>
-      acc[step].status === 'running' ? failStep(acc, step, { code: 'stepInterrupted' }) : acc,
+    (acc, step) => (acc[step].status === 'running' ? failStep(acc, step, { code: 'stepInterrupted' }) : acc),
     steps
   )
 

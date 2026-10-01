@@ -27,9 +27,7 @@ export const UpdateSettings = ({
   /** この画面で「今すぐ確認」を押したか。押した後は、確認しない設定でもその結果を伝える。 */
   const [checkedNow, setCheckedNow] = useState(false)
   const t = updateText()
-  const guidance = status
-    ? updateGuidance(status, { automatic: interval !== 'never' || checkedNow })
-    : undefined
+  const guidance = status ? updateGuidance(status, { automatic: interval !== 'never' || checkedNow }) : undefined
 
   const checkNow = (): void => {
     setChecking(true)
@@ -50,10 +48,7 @@ export const UpdateSettings = ({
 
       <label className="field">
         <span className="field__label">{t.intervalLabel}</span>
-        <select
-          value={interval}
-          onChange={(event) => onIntervalChange(event.target.value as UpdateCheckInterval)}
-        >
+        <select value={interval} onChange={(event) => onIntervalChange(event.target.value as UpdateCheckInterval)}>
           {UPDATE_CHECK_INTERVALS.map((value) => (
             <option key={value} value={value}>
               {t.intervals[value]}

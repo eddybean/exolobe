@@ -3,11 +3,7 @@ import type { VoiceprintDto } from '@shared/ipc'
 import { messageOf } from '../errorMessage'
 import { useModalKeys } from '../hooks/useModalKeys'
 import { voiceprintsText } from '../i18n/voiceprints'
-import {
-  filterVoiceprints,
-  voiceprintCountLabel,
-  voiceprintSummary
-} from '../library/voiceprints'
+import { filterVoiceprints, voiceprintCountLabel, voiceprintSummary } from '../library/voiceprints'
 
 /**
  * 覚えた声の一覧と削除。

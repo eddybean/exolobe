@@ -75,7 +75,10 @@ export const SettingsView = ({
       })
   }
 
-  const pickFile = (kind: 'whisper-model' | 'llm-model' | 'onnx-model', apply: (path: string) => SettingsPatch): void => {
+  const pickFile = (
+    kind: 'whisper-model' | 'llm-model' | 'onnx-model',
+    apply: (path: string) => SettingsPatch
+  ): void => {
     window.recorder
       .chooseFile(kind)
       .then((path) => {
@@ -105,9 +108,7 @@ export const SettingsView = ({
               min={1}
               step={1}
               defaultValue={Math.round(settings.recording.silenceDurationMs / 60_000)}
-              onBlur={(event) =>
-                update({ recording: { silenceDurationMs: Number(event.target.value) * 60_000 } })
-              }
+              onBlur={(event) => update({ recording: { silenceDurationMs: Number(event.target.value) * 60_000 } })}
             />
           </Field>
 
@@ -118,9 +119,7 @@ export const SettingsView = ({
             <input
               type="checkbox"
               checked={settings.recording.globalShortcutEnabled}
-              onChange={(event) =>
-                update({ recording: { globalShortcutEnabled: event.target.checked } })
-              }
+              onChange={(event) => update({ recording: { globalShortcutEnabled: event.target.checked } })}
             />
           </Field>
 
@@ -138,9 +137,7 @@ export const SettingsView = ({
               min={0.5}
               step={0.5}
               defaultValue={settings.recording.startAlertDelayMs / 60_000}
-              onBlur={(event) =>
-                update({ recording: { startAlertDelayMs: Number(event.target.value) * 60_000 } })
-              }
+              onBlur={(event) => update({ recording: { startAlertDelayMs: Number(event.target.value) * 60_000 } })}
             />
           </Field>
         </SettingsCard>
@@ -171,9 +168,7 @@ export const SettingsView = ({
             <textarea
               className="settings__prompt"
               defaultValue={formatGlossary(settings.transcription.glossary)}
-              onBlur={(event) =>
-                update({ transcription: { glossary: parseGlossary(event.target.value) } })
-              }
+              onBlur={(event) => update({ transcription: { glossary: parseGlossary(event.target.value) } })}
             />
           </Field>
 
@@ -192,9 +187,7 @@ export const SettingsView = ({
               <code>{settings.transcription.modelPath || t.common.unset}</code>
               <button
                 type="button"
-                onClick={() =>
-                  pickFile('whisper-model', (path) => ({ transcription: { modelPath: path } }))
-                }
+                onClick={() => pickFile('whisper-model', (path) => ({ transcription: { modelPath: path } }))}
               >
                 {t.common.choose}
               </button>
@@ -206,9 +199,7 @@ export const SettingsView = ({
               <code>{settings.transcription.vadModelPath || t.common.unset}</code>
               <button
                 type="button"
-                onClick={() =>
-                  pickFile('whisper-model', (path) => ({ transcription: { vadModelPath: path } }))
-                }
+                onClick={() => pickFile('whisper-model', (path) => ({ transcription: { vadModelPath: path } }))}
               >
                 {t.common.choose}
               </button>
@@ -245,37 +236,27 @@ export const SettingsView = ({
             />
           </Field>
 
-          <Field
-            label={t.diarization.clusteringThresholdLabel}
-            hint={t.diarization.clusteringThresholdHint}
-          >
+          <Field label={t.diarization.clusteringThresholdLabel} hint={t.diarization.clusteringThresholdHint}>
             <input
               type="number"
               min={0.1}
               max={1}
               step={0.05}
               defaultValue={settings.diarization.clusteringThreshold}
-              onBlur={(event) =>
-                update({ diarization: { clusteringThreshold: Number(event.target.value) } })
-              }
+              onBlur={(event) => update({ diarization: { clusteringThreshold: Number(event.target.value) } })}
             />
           </Field>
         </SettingsCard>
 
         <SettingsCard title={t.diarization.namingCardTitle}>
-          <Field
-            label={t.diarization.voiceprintThresholdLabel}
-            hint={t.diarization.voiceprintThresholdHint}
-          >
+          <Field label={t.diarization.voiceprintThresholdLabel} hint={t.diarization.voiceprintThresholdHint}>
             <input
               type="number"
               min={0.1}
               max={1}
               step={0.05}
               defaultValue={settings.diarization.voiceprintThreshold}
-              onBlur={(event) =>
-                update({ diarization: { voiceprintThreshold: Number(event.target.value) } })
-              }
+              onBlur={(event) => update({ diarization: { voiceprintThreshold: Number(event.target.value) } })}
             />
           </Field>
 
@@ -283,17 +264,12 @@ export const SettingsView = ({
         </SettingsCard>
 
         <SettingsCard title={t.diarization.modelCardTitle}>
-          <Field
-            label={t.diarization.segmentationModelLabel}
-            hint={t.diarization.segmentationModelHint}
-          >
+          <Field label={t.diarization.segmentationModelLabel} hint={t.diarization.segmentationModelHint}>
             <div className="settings__path">
               <code>{settings.diarization.segmentationModelPath || t.common.unset}</code>
               <button
                 type="button"
-                onClick={() =>
-                  pickFile('onnx-model', (path) => ({ diarization: { segmentationModelPath: path } }))
-                }
+                onClick={() => pickFile('onnx-model', (path) => ({ diarization: { segmentationModelPath: path } }))}
               >
                 {t.common.choose}
               </button>
@@ -305,9 +281,7 @@ export const SettingsView = ({
               <code>{settings.diarization.embeddingModelPath || t.common.unset}</code>
               <button
                 type="button"
-                onClick={() =>
-                  pickFile('onnx-model', (path) => ({ diarization: { embeddingModelPath: path } }))
-                }
+                onClick={() => pickFile('onnx-model', (path) => ({ diarization: { embeddingModelPath: path } }))}
               >
                 {t.common.choose}
               </button>
@@ -362,9 +336,7 @@ export const SettingsView = ({
                 min={1024}
                 step={1024}
                 defaultValue={settings.summarization.contextSize}
-                onBlur={(event) =>
-                  update({ summarization: { contextSize: Number(event.target.value) } })
-                }
+                onBlur={(event) => update({ summarization: { contextSize: Number(event.target.value) } })}
               />
             </Field>
           )}
@@ -383,9 +355,7 @@ export const SettingsView = ({
                 <code>{settings.summarization.modelPath || t.common.unset}</code>
                 <button
                   type="button"
-                  onClick={() =>
-                    pickFile('llm-model', (path) => ({ summarization: { modelPath: path } }))
-                  }
+                  onClick={() => pickFile('llm-model', (path) => ({ summarization: { modelPath: path } }))}
                 >
                   {t.common.choose}
                 </button>
@@ -396,9 +366,7 @@ export const SettingsView = ({
           <Field label={t.summarization.memoryProtectionLabel} hint={t.summarization.memoryProtectionHint}>
             <select
               value={settings.memoryProtection}
-              onChange={(event) =>
-                update({ memoryProtection: event.target.value as MemoryProtection })
-              }
+              onChange={(event) => update({ memoryProtection: event.target.value as MemoryProtection })}
             >
               <option value="conservative">{t.summarization.memoryProtectionConservative}</option>
               <option value="standard">{t.summarization.memoryProtectionStandard}</option>
@@ -463,9 +431,7 @@ export const SettingsView = ({
           <Field label={t.storage.codecLabel} hint={t.storage.codecHint}>
             <select
               value={settings.audio.codec}
-              onChange={(event) =>
-                update({ audio: { codec: event.target.value as Settings['audio']['codec'] } })
-              }
+              onChange={(event) => update({ audio: { codec: event.target.value as Settings['audio']['codec'] } })}
             >
               <option value="aac">{t.storage.codecAac}</option>
               <option value="aach">{t.storage.codecHeAac}</option>
@@ -522,9 +488,7 @@ export const SettingsView = ({
           <button
             key={item.id}
             type="button"
-            className={
-              item.id === section ? 'settings__nav-item settings__nav-item--active' : 'settings__nav-item'
-            }
+            className={item.id === section ? 'settings__nav-item settings__nav-item--active' : 'settings__nav-item'}
             aria-current={item.id === section ? 'page' : undefined}
             onClick={() => onSectionChange(item.id)}
           >
@@ -559,13 +523,7 @@ export const SettingsView = ({
  * 関係する設定をまとめる角丸のカード。見出しと下線だけでは、どこからどこまでが
  * 一つのまとまりか読み取りにくかった。
  */
-const SettingsCard = ({
-  title,
-  children
-}: {
-  title?: string
-  children: ReactNode
-}): ReactElement => (
+const SettingsCard = ({ title, children }: { title?: string; children: ReactNode }): ReactElement => (
   <section className="settings-card">
     {title && <h3 className="settings-card__title">{title}</h3>}
     {children}
@@ -588,5 +546,4 @@ const Field = ({
   </label>
 )
 
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
+const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))

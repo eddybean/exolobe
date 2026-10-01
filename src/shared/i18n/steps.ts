@@ -19,8 +19,6 @@ const LABELS: Readonly<Record<Locale, Readonly<Record<PipelineStep, string>>>> =
 }
 
 /** パイプラインのステップの表示名。知らないステップ（新しい版の保存データ）は名前をそのまま返す。 */
-export const stepLabel = (step: string, locale: Locale): string =>
-  isPipelineStep(step) ? LABELS[locale][step] : step
+export const stepLabel = (step: string, locale: Locale): string => (isPipelineStep(step) ? LABELS[locale][step] : step)
 
-const isPipelineStep = (step: string): step is PipelineStep =>
-  PIPELINE_STEPS.some((known) => known === step)
+const isPipelineStep = (step: string): step is PipelineStep => PIPELINE_STEPS.some((known) => known === step)

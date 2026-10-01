@@ -78,11 +78,7 @@ describe('SearchTranscripts', () => {
   it('新しい録音から順に返す', async () => {
     const hits = await usecase().execute({ query: 'ます' })
 
-    expect(hits.map((hit) => hit.recordingId)).toEqual([
-      'rec-budget',
-      'rec-budget',
-      'rec-weather'
-    ])
+    expect(hits.map((hit) => hit.recordingId)).toEqual(['rec-budget', 'rec-budget', 'rec-weather'])
   })
 
   it('1 件の録音から返す発言の数を絞る（1 つの録音が結果を埋め尽くさない）', async () => {

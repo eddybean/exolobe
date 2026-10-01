@@ -1,10 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type {
-  DiarizationPort,
-  ProgressReporterPort,
-  SpeakerEmbeddingPort
-} from '@application/ports'
+import type { DiarizationPort, ProgressReporterPort, SpeakerEmbeddingPort } from '@application/ports'
 import { ExtractVoices } from '@application/usecases/ExtractVoices'
 import { ProcessRecording } from '@application/usecases/ProcessRecording'
 import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
@@ -13,31 +9,16 @@ import { TrackMixer } from '@infrastructure/audio/TrackMixer'
 import { NullDiarizer, SherpaOnnxDiarizer } from '@infrastructure/diarization/SherpaOnnxDiarizer'
 import { SherpaOnnxEmbeddingSessionFactory } from '@infrastructure/diarization/SherpaOnnxEmbeddingSessionFactory'
 import { SherpaOnnxSessionFactory } from '@infrastructure/diarization/SherpaOnnxSessionFactory'
-import {
-  NullSpeakerEmbedder,
-  SherpaOnnxSpeakerEmbedder
-} from '@infrastructure/diarization/SherpaOnnxSpeakerEmbedder'
-import {
-  FileRecordingArtifactStore,
-  FileRecordingRepository
-} from '@infrastructure/persistence/FileRecordingStore'
+import { NullSpeakerEmbedder, SherpaOnnxSpeakerEmbedder } from '@infrastructure/diarization/SherpaOnnxSpeakerEmbedder'
+import { FileRecordingArtifactStore, FileRecordingRepository } from '@infrastructure/persistence/FileRecordingStore'
 import { FileVoiceprintRepository } from '@infrastructure/persistence/FileVoiceprintStore'
-import {
-  JsonSettingsRepository,
-  SettingsStorageLocator
-} from '@infrastructure/settings/JsonSettingsRepository'
-import {
-  AppleLmSessionFactory,
-  appleIntelligenceStatus
-} from '@infrastructure/summarization/AppleLmSessionFactory'
+import { JsonSettingsRepository, SettingsStorageLocator } from '@infrastructure/settings/JsonSettingsRepository'
+import { AppleLmSessionFactory, appleIntelligenceStatus } from '@infrastructure/summarization/AppleLmSessionFactory'
 import { LlamaCppSummarizer } from '@infrastructure/summarization/LlamaCppSummarizer'
 import { NodeLlamaSessionFactory } from '@infrastructure/summarization/NodeLlamaSessionFactory'
 import { resolveAppleLmBinary } from '@infrastructure/summarization/resolveAppleLmBinary'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
-import {
-  WhisperCppTranscriber,
-  droppedSegmentLogger
-} from '@infrastructure/transcription/WhisperCppTranscriber'
+import { WhisperCppTranscriber, droppedSegmentLogger } from '@infrastructure/transcription/WhisperCppTranscriber'
 import { resolveWhisperBinary } from '@infrastructure/transcription/resolveWhisperBinary'
 import {
   summarizationProviderOf,
@@ -98,10 +79,7 @@ export const createPipeline = async (
  * パイプラインと同じワーカーで動くが、要るのは埋め込みモデルとデコーダだけ。
  * whisper も LLM も読まない ―― 名前を付けるたびに 5GB を読み込んでいては使えない。
  */
-export const createVoiceExtractor = async (
-  userDataPath: string,
-  uiLocale: Locale
-): Promise<ExtractVoices> => {
+export const createVoiceExtractor = async (userDataPath: string, uiLocale: Locale): Promise<ExtractVoices> => {
   const settings = new JsonSettingsRepository(join(userDataPath, 'settings.json'), uiLocale)
   const locator = new SettingsStorageLocator(settings)
   const current = await settings.load()

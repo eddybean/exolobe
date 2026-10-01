@@ -277,4 +277,3 @@ export const useTransport = (sampleRate: number): Transport => {
     dismissError: () => setError(undefined)
   }
 }
-

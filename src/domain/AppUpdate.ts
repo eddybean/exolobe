@@ -12,12 +12,7 @@
  */
 export type UpdateCheckInterval = 'daily' | 'weekly' | 'monthly' | 'never'
 
-export const UPDATE_CHECK_INTERVALS: readonly UpdateCheckInterval[] = [
-  'daily',
-  'weekly',
-  'monthly',
-  'never'
-]
+export const UPDATE_CHECK_INTERVALS: readonly UpdateCheckInterval[] = ['daily', 'weekly', 'monthly', 'never']
 
 export const isUpdateCheckInterval = (value: unknown): value is UpdateCheckInterval =>
   UPDATE_CHECK_INTERVALS.includes(value as UpdateCheckInterval)

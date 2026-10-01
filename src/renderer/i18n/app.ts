@@ -9,9 +9,7 @@ const ja = {
   navSettings: '設定',
   dropOverlayLabel: '音声ファイルをドロップすると取り込みます',
   importingStatus: (done: number, total: number, fileName: string): string =>
-    '音声を取り込んでいます…' +
-    (total > 0 ? ` ${done}/${total}` : '') +
-    (fileName ? `（${fileName}）` : ''),
+    '音声を取り込んでいます…' + (total > 0 ? ` ${done}/${total}` : '') + (fileName ? `（${fileName}）` : ''),
   dismissImportError: '取り込みのエラーを閉じる',
   detailEmpty: '左のライブラリから録音を選ぶと、文字起こし・要約・メモを表示します。'
 }

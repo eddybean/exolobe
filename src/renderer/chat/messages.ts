@@ -31,25 +31,15 @@ export interface ChatMessage {
 export const MAX_HISTORY_TURNS = 6
 
 /** 質問と、これから書かれる空の回答を並べて置く。 */
-export const startTurn = (
-  messages: readonly ChatMessage[],
-  requestId: string,
-  question: string
-): ChatMessage[] => [
+export const startTurn = (messages: readonly ChatMessage[], requestId: string, question: string): ChatMessage[] => [
   ...messages,
   { id: `${requestId}:q`, role: 'user', text: question, streaming: false },
   // 空の回答を先に置くことで、「考え中」の表示が別の仕組みにならずに済む。
   { id: requestId, role: 'assistant', text: '', streaming: true }
 ]
 
-export const appendChunk = (
-  messages: readonly ChatMessage[],
-  requestId: string,
-  text: string
-): ChatMessage[] =>
-  messages.map((message) =>
-    message.id === requestId ? { ...message, text: message.text + text } : message
-  )
+export const appendChunk = (messages: readonly ChatMessage[], requestId: string, text: string): ChatMessage[] =>
+  messages.map((message) => (message.id === requestId ? { ...message, text: message.text + text } : message))
 
 /**
  * 生成の終わりを反映する。
@@ -60,10 +50,7 @@ export const appendChunk = (
  * ただし最終テキストが空なら、流れてきた本文を残す。モデルの戻り値が空でも
  * 断片は届いていることがあり、丸ごと置き換えると読めていた答えが消える。
  */
-export const completeMessage = (
-  messages: readonly ChatMessage[],
-  done: ChatDoneDto
-): ChatMessage[] =>
+export const completeMessage = (messages: readonly ChatMessage[], done: ChatDoneDto): ChatMessage[] =>
   messages.map((message) =>
     message.id === done.requestId
       ? {
@@ -123,17 +110,12 @@ const MAX_INLINE_SOURCES = 2
  * 番号だけ書かせて、名前はこちらで当てる —— 番号と出典の対応は文脈を組み立てた
  * 時点で確定しているので、推論を挟む余地が無い。
  */
-export const withInlineSources = (
-  text: string,
-  citations: readonly ChatCitationDto[]
-): string => {
+export const withInlineSources = (text: string, citations: readonly ChatCitationDto[]): string => {
   if (citations.length === 0) return text
   const t = chatText()
 
   return text.replace(CITATION_RUN, (run) => {
-    const found = [...run.matchAll(CITATION_NUMBER)].map(
-      (match) => citations[Number.parseInt(match[0], 10) - 1]
-    )
+    const found = [...run.matchAll(CITATION_NUMBER)].map((match) => citations[Number.parseInt(match[0], 10) - 1])
     // 対応する出典が無い番号は、モデルの書き間違い。消すと根拠が消えたように見える。
     if (found.length === 0 || found.some((citation) => citation === undefined)) return run
 

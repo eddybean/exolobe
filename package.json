@@ -1,14 +1,11 @@
 {
   "name": "exolobe",
   "version": "0.3.3",
-  "description": "Web 会議の録音・文字起こし・話者識別・要約を Mac の中だけで実行するデスクトップアプリ",
-  "main": "./out/main/index.js",
-  "author": "eddybean",
-  "license": "SEE LICENSE IN LICENSE",
   "private": true,
-  "engines": {
-    "node": ">=22.12"
-  },
+  "description": "Web 会議の録音・文字起こし・話者識別・要約を Mac の中だけで実行するデスクトップアプリ",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "eddybean",
+  "main": "./out/main/index.js",
   "scripts": {
     "predev": "node scripts/check-node-modules.mjs",
     "dev": "electron-vite dev",
@@ -25,6 +22,8 @@
     "preeval:transcription": "node scripts/check-node-modules.mjs",
     "eval:transcription": "vitest run --config vitest.eval.config.ts",
     "lint": "oxlint",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
     "setup": "bash scripts/setup.sh",
     "postinstall": "install-electron && (bash scripts/patch-dev-electron.sh || true)",
     "build:icon": "node scripts/build-icon.mjs",
@@ -47,11 +46,15 @@
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "oxfmt": "^0.71.0",
     "oxlint": "^1.85.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
     "vitest": "^5.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

@@ -30,10 +30,7 @@ const AUDIBLE_PEAK = 0.001
  * 音源ファイルを用意しなくても、どの Mac でもそのまま走る。
  */
 const playSound = (): (() => void) => {
-  const child = spawn('/bin/sh', [
-    '-c',
-    'for i in 1 2 3 4 5 6; do afplay /System/Library/Sounds/Ping.aiff; done'
-  ])
+  const child = spawn('/bin/sh', ['-c', 'for i in 1 2 3 4 5 6; do afplay /System/Library/Sounds/Ping.aiff; done'])
   return () => child.kill()
 }
 

@@ -26,8 +26,7 @@ beforeEach(() => {
 const writeSettings = (dir: string, settings: unknown): void =>
   writeFileSync(join(dir, 'settings.json'), JSON.stringify(settings, null, 2))
 
-const readSettings = (dir: string): unknown =>
-  JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'))
+const readSettings = (dir: string): unknown => JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'))
 
 describe('migrate-from-duoscribe.sh', () => {
   it('Duoscribe の userData を中身ごと Exolobe へ移す', () => {

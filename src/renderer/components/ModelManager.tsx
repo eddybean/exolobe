@@ -22,13 +22,7 @@ type ErrorMap = Record<string, string | undefined>
  * 更新を出すのは、アプリの更新でモデルが差し替わったとき、手元の古いファイルが
  * 黙って使われ続けないようにするため。比べる相手は上流ではなくアプリが想定する版。
  */
-export const ModelManager = ({
-  onChanged,
-  compact
-}: {
-  onChanged: () => void
-  compact?: boolean
-}): ReactElement => {
+export const ModelManager = ({ onChanged, compact }: { onChanged: () => void; compact?: boolean }): ReactElement => {
   const [assets, setAssets] = useState<ManagedAssetStatusDto[]>([])
   const [progress, setProgress] = useState<ProgressMap>({})
   const [errors, setErrors] = useState<ErrorMap>({})
@@ -56,8 +50,7 @@ export const ModelManager = ({
       ...current,
       [id]: { id, receivedBytes: 0, status: 'downloading' }
     }))
-    const request =
-      mode === 'update' ? window.recorder.updateModel(id) : window.recorder.downloadModel(id)
+    const request = mode === 'update' ? window.recorder.updateModel(id) : window.recorder.downloadModel(id)
     // 完了・失敗は進捗イベントで反映されるので、ここでは結果を待たない。
     void request.catch(() => undefined)
   }, [])
@@ -127,8 +120,7 @@ const ModelRow = ({
   const text = modelText(asset.id, locale())
   const downloading = progress?.status === 'downloading'
   const total = progress?.totalBytes ?? asset.bytes
-  const percent =
-    downloading && total > 0 ? Math.min(100, Math.round((progress.receivedBytes / total) * 100)) : 0
+  const percent = downloading && total > 0 ? Math.min(100, Math.round((progress.receivedBytes / total) * 100)) : 0
 
   return (
     <li className={asset.installed ? 'models__item models__item--done' : 'models__item'}>

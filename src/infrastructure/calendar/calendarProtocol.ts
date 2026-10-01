@@ -1,9 +1,4 @@
-import type {
-  AttendeeKind,
-  AttendeeStatus,
-  CalendarAttendee,
-  CalendarEvent
-} from '@domain/CalendarEvent'
+import type { AttendeeKind, AttendeeStatus, CalendarAttendee, CalendarEvent } from '@domain/CalendarEvent'
 
 /**
  * calendarevents（native/calendarevents/main.swift）との取り決め。
@@ -23,13 +18,7 @@ export type CalendarPermission =
   | 'unavailable'
   | 'unknown'
 
-const PERMISSIONS: readonly CalendarPermission[] = [
-  'granted',
-  'denied',
-  'restricted',
-  'not-determined',
-  'write-only'
-]
+const PERMISSIONS: readonly CalendarPermission[] = ['granted', 'denied', 'restricted', 'not-determined', 'write-only']
 
 const STATUSES: readonly AttendeeStatus[] = ['accepted', 'declined', 'tentative', 'pending']
 const KINDS: readonly AttendeeKind[] = ['person', 'room', 'resource', 'group']
@@ -67,9 +56,7 @@ const toEvent = (value: unknown): CalendarEvent | undefined => {
     startsAt: new Date(startMs),
     endsAt: new Date(endMs),
     allDay: allDay === true,
-    attendees: Array.isArray(attendees)
-      ? attendees.map(toAttendee).filter((attendee) => attendee !== undefined)
-      : [],
+    attendees: Array.isArray(attendees) ? attendees.map(toAttendee).filter((attendee) => attendee !== undefined) : [],
     ...optionalString('url', url),
     ...optionalString('location', location),
     ...optionalString('notes', notes)

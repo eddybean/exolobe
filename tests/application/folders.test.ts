@@ -53,15 +53,13 @@ describe('CreateFolder', () => {
   })
 
   it('存在しない親フォルダは指定できない', async () => {
-    await expect(
-      new CreateFolder(deps).execute({ name: '子', parentId: 'unknown' })
-    ).rejects.toThrow('parentFolderNotFound')
+    await expect(new CreateFolder(deps).execute({ name: '子', parentId: 'unknown' })).rejects.toThrow(
+      'parentFolderNotFound'
+    )
   })
 
   it('空の名前は拒否する', async () => {
-    await expect(new CreateFolder(deps).execute({ name: '  ' })).rejects.toThrow(
-      'folderNameRequired'
-    )
+    await expect(new CreateFolder(deps).execute({ name: '  ' })).rejects.toThrow('folderNameRequired')
   })
 })
 
@@ -75,9 +73,9 @@ describe('RenameFolder', () => {
   })
 
   it('存在しないフォルダは変更できない', async () => {
-    await expect(
-      new RenameFolder(deps).execute({ folderId: 'unknown', name: '新名' })
-    ).rejects.toThrow('folderNotFound')
+    await expect(new RenameFolder(deps).execute({ folderId: 'unknown', name: '新名' })).rejects.toThrow(
+      'folderNotFound'
+    )
   })
 })
 
@@ -107,15 +105,11 @@ describe('MoveFolder', () => {
   })
 
   it('自分自身を親にはできない', async () => {
-    await expect(new MoveFolder(deps).execute({ folderId: 'a', parentId: 'a' })).rejects.toThrow(
-      'folderMoveIntoSelf'
-    )
+    await expect(new MoveFolder(deps).execute({ folderId: 'a', parentId: 'a' })).rejects.toThrow('folderMoveIntoSelf')
   })
 
   it('自分の子孫を親にはできない（循環防止）', async () => {
-    await expect(new MoveFolder(deps).execute({ folderId: 'a', parentId: 'c' })).rejects.toThrow(
-      'folderMoveIntoSelf'
-    )
+    await expect(new MoveFolder(deps).execute({ folderId: 'a', parentId: 'c' })).rejects.toThrow('folderMoveIntoSelf')
   })
 })
 
@@ -156,9 +150,7 @@ describe('DeleteFolder', () => {
   })
 
   it('存在しないフォルダは削除できない', async () => {
-    await expect(new DeleteFolder(deps).execute({ folderId: 'unknown' })).rejects.toThrow(
-      'folderNotFound'
-    )
+    await expect(new DeleteFolder(deps).execute({ folderId: 'unknown' })).rejects.toThrow('folderNotFound')
   })
 })
 
@@ -196,8 +188,8 @@ describe('MoveRecordingToFolder', () => {
   })
 
   it('存在しない録音は割り当てられない', async () => {
-    await expect(
-      new MoveRecordingToFolder(deps).execute({ recordingId: 'unknown', folderId: 'f1' })
-    ).rejects.toThrow('recordingNotFound')
+    await expect(new MoveRecordingToFolder(deps).execute({ recordingId: 'unknown', folderId: 'f1' })).rejects.toThrow(
+      'recordingNotFound'
+    )
   })
 })

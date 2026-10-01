@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  characterErrorRate,
-  hallucinatedChars,
-  longestRepeatRun,
-  missedUtterances
-} from './metrics'
+import { characterErrorRate, hallucinatedChars, longestRepeatRun, missedUtterances } from './metrics'
 
 const at = (startS: number, endS: number, text: string) => ({
   startMs: startS * 1000,

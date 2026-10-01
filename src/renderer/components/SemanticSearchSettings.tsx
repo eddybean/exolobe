@@ -53,11 +53,7 @@ export const SemanticSearchSettings = ({
     <>
       <label className="field">
         <span className="field__label">{t.enableLabel}</span>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(event) => onToggle(event.target.checked)}
-        />
+        <input type="checkbox" checked={enabled} onChange={(event) => onToggle(event.target.checked)} />
         <span className="field__hint">{t.enableHint}</span>
       </label>
 

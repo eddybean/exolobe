@@ -155,8 +155,7 @@ const MODELS: readonly ThirdPartyNotice[] = [
     name: 'Gemma',
     license: 'Gemma Terms of Use',
     url: 'https://ai.google.dev/gemma/terms',
-    requiredNotice:
-      'Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms',
+    requiredNotice: 'Gemma is provided under and subject to the Gemma Terms of Use found at ai.google.dev/gemma/terms',
     assetIds: ['summarization-model']
   },
   {
@@ -171,8 +170,7 @@ const MODELS: readonly ThirdPartyNotice[] = [
     name: '3D-Speaker (CAM++)',
     license: 'Apache-2.0',
     url: 'https://github.com/alibaba-damo-academy/3D-Speaker',
-    copyright:
-      'Copyright 3D-Speaker (https://github.com/alibaba-damo-academy/3D-Speaker). All Rights Reserved.',
+    copyright: 'Copyright 3D-Speaker (https://github.com/alibaba-damo-academy/3D-Speaker). All Rights Reserved.',
     noteId: 'onnxConversionBySherpa',
     assetIds: ['diarization-embedding']
   },
@@ -200,6 +198,6 @@ export const NOTICE_GROUPS: readonly NoticeGroup[] = [
 export const THIRD_PARTY_NOTICES: readonly ThirdPartyNotice[] = [...BUNDLED, ...MODELS]
 
 /** 表記に出てくるライセンスだけを、一覧に並ぶ順で返す。使っていない全文は見せない。 */
-export const usedLicenses = (
-  notices: readonly ThirdPartyNotice[] = THIRD_PARTY_NOTICES
-): readonly LicenseId[] => [...new Set(notices.map((notice) => notice.license))]
+export const usedLicenses = (notices: readonly ThirdPartyNotice[] = THIRD_PARTY_NOTICES): readonly LicenseId[] => [
+  ...new Set(notices.map((notice) => notice.license))
+]

@@ -134,8 +134,7 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
   }
 ]
 
-export const findAsset = (id: string): ManagedAsset | undefined =>
-  MANAGED_ASSETS.find((asset) => asset.id === id)
+export const findAsset = (id: string): ManagedAsset | undefined => MANAGED_ASSETS.find((asset) => asset.id === id)
 
 /**
  * 利用者が取得・更新・削除する単位。たいていは 1 ファイルで 1 つだが、
@@ -172,27 +171,23 @@ const assetOf = (id: ManagedAssetId): ManagedAsset => {
  */
 const diarization = [assetOf('diarization-segmentation'), assetOf('diarization-embedding')]
 
-export const MODEL_PACKAGES: readonly ModelPackage[] = MANAGED_ASSETS.flatMap(
-  (asset): ModelPackage[] => {
-    if (asset.id === 'diarization-embedding') return []
-    if (asset.id !== 'diarization-segmentation') return [single(asset)]
-    return [
-      {
-        id: 'diarization',
-        optional: true,
-        bytes: diarization.reduce((sum, file) => sum + file.bytes, 0),
-        assets: diarization
-      }
-    ]
-  }
-)
+export const MODEL_PACKAGES: readonly ModelPackage[] = MANAGED_ASSETS.flatMap((asset): ModelPackage[] => {
+  if (asset.id === 'diarization-embedding') return []
+  if (asset.id !== 'diarization-segmentation') return [single(asset)]
+  return [
+    {
+      id: 'diarization',
+      optional: true,
+      bytes: diarization.reduce((sum, file) => sum + file.bytes, 0),
+      assets: diarization
+    }
+  ]
+})
 
-export const findPackage = (id: string): ModelPackage | undefined =>
-  MODEL_PACKAGES.find((pkg) => pkg.id === id)
+export const findPackage = (id: string): ModelPackage | undefined => MODEL_PACKAGES.find((pkg) => pkg.id === id)
 
 /** 録音を文字起こし・要約まで通すのに欠かせないもの。 */
-export const requiredAssets = (): ManagedAsset[] =>
-  MANAGED_ASSETS.filter((asset) => !asset.optional)
+export const requiredAssets = (): ManagedAsset[] => MANAGED_ASSETS.filter((asset) => !asset.optional)
 
 /** 表示用のサイズ。ダウンロード前に利用者が判断できるようにする。 */
 export const formatBytes = (bytes: number): string => {

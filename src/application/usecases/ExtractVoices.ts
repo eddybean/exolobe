@@ -80,9 +80,7 @@ export class ExtractVoices {
       })
 
       const embedded = await this.deps.embedder.embedSpeakers({ wavPath, turns })
-      return embedded.map(
-        ({ speaker, vector }): SpeakerVector => ({ speakerId: remoteSpeakerId(speaker), vector })
-      )
+      return embedded.map(({ speaker, vector }): SpeakerVector => ({ speakerId: remoteSpeakerId(speaker), vector }))
     })
 
     const voices: RecordingVoices = { modelKey, speakers }

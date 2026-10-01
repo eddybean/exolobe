@@ -50,8 +50,7 @@ const en: typeof ja = {
   available: (version: string) => `Version ${version} is available.`,
   homebrewHint: 'This copy was installed with Homebrew. Run the following in Terminal.',
   copyCommand: 'Copy the update command',
-  downloadHint:
-    'Download the DMG from the release page and replace the app. Your recordings and models stay in place.',
+  downloadHint: 'Download the DMG from the release page and replace the app. Your recordings and models stay in place.',
   openPage: 'Open Release Page'
 }
 

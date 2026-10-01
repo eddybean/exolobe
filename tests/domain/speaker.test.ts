@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  defaultRemoteGroupLabel,
-  defaultRemoteLabel,
-  defaultSelfLabel,
-  isDefaultRemoteLabel
-} from '@domain/Speaker'
+import { defaultRemoteGroupLabel, defaultRemoteLabel, defaultSelfLabel, isDefaultRemoteLabel } from '@domain/Speaker'
 
 /** 話者の既定名は会議の言語で付ける。文字起こしと要約に書き込まれるため（ADR-043）。 */
 describe('話者の既定名', () => {

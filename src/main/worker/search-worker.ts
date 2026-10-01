@@ -24,10 +24,12 @@ const send = (response: SearchWorkerResponse): void => {
 let services: Promise<SearchServices> | undefined
 
 const getServices = (): Promise<SearchServices> => {
-  services ??= createSearch(process.env['OMR_USER_DATA'] ?? '', parseLocale(process.env[UI_LOCALE_ENV])).catch((error: unknown) => {
-    services = undefined
-    throw error
-  })
+  services ??= createSearch(process.env['OMR_USER_DATA'] ?? '', parseLocale(process.env[UI_LOCALE_ENV])).catch(
+    (error: unknown) => {
+      services = undefined
+      throw error
+    }
+  )
   return services
 }
 
@@ -72,8 +74,7 @@ port.on('message', (message) => {
           const { sync } = await getServices()
           const result = await sync.execute({
             signal: controller.signal,
-            onProgress: (done, total) =>
-              send({ type: 'sync-progress', id: request.id, done, total })
+            onProgress: (done, total) => send({ type: 'sync-progress', id: request.id, done, total })
           })
           send({ type: 'sync-done', id: request.id, result })
         } catch (error: unknown) {

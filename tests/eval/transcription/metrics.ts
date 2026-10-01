@@ -6,8 +6,7 @@
  */
 
 /** 句読点・空白・全角半角の揺れを落とす。比べたいのは言葉で、書き方ではない。 */
-export const normalizeText = (text: string): string =>
-  text.normalize('NFKC').replace(/[\p{P}\p{S}\p{Z}\s]/gu, '')
+export const normalizeText = (text: string): string => text.normalize('NFKC').replace(/[\p{P}\p{S}\p{Z}\s]/gu, '')
 
 const editDistance = (a: readonly string[], b: readonly string[]): number => {
   let previous = Array.from({ length: b.length + 1 }, (_, j) => j)
@@ -15,11 +14,7 @@ const editDistance = (a: readonly string[], b: readonly string[]): number => {
     const current = [i + 1]
     for (const [j, charB] of b.entries()) {
       current.push(
-        Math.min(
-          (previous[j + 1] ?? 0) + 1,
-          (current[j] ?? 0) + 1,
-          (previous[j] ?? 0) + (charA === charB ? 0 : 1)
-        )
+        Math.min((previous[j + 1] ?? 0) + 1, (current[j] ?? 0) + 1, (previous[j] ?? 0) + (charA === charB ? 0 : 1))
       )
     }
     previous = current
@@ -44,10 +39,7 @@ const overlaps = (a: TimedText, b: TimedText, toleranceMs = 0): boolean =>
   a.startMs < b.endMs + toleranceMs && b.startMs < a.endMs + toleranceMs
 
 /** 発話の無い区間に出たセグメントの文字数。無音や雑音から生まれた作り話の量。 */
-export const hallucinatedChars = (
-  said: readonly TimedText[],
-  output: readonly TimedText[]
-): number =>
+export const hallucinatedChars = (said: readonly TimedText[], output: readonly TimedText[]): number =>
   output
     .filter((segment) => !said.some((utterance) => overlaps(utterance, segment, EDGE_TOLERANCE_MS)))
     .reduce((sum, segment) => sum + [...normalizeText(segment.text)].length, 0)
@@ -57,11 +49,7 @@ const commonSubsequenceLength = (a: readonly string[], b: readonly string[]): nu
   for (const charA of a) {
     const current = [0]
     for (const [j, charB] of b.entries()) {
-      current.push(
-        charA === charB
-          ? (previous[j] ?? 0) + 1
-          : Math.max(previous[j + 1] ?? 0, current[j] ?? 0)
-      )
+      current.push(charA === charB ? (previous[j] ?? 0) + 1 : Math.max(previous[j + 1] ?? 0, current[j] ?? 0))
     }
     previous = current
   }
@@ -77,10 +65,7 @@ const MIN_RECALL = 0.5
  * 時刻が重なる出力があるかだけでは判定しない。ループした出力は本物の発話の時刻を
  * 覆ったまま別の文を並べるので、言葉が残っているかまで見る。
  */
-export const missedUtterances = (
-  said: readonly TimedText[],
-  output: readonly TimedText[]
-): number =>
+export const missedUtterances = (said: readonly TimedText[], output: readonly TimedText[]): number =>
   said.filter((utterance) => {
     const expected = [...normalizeText(utterance.text)]
     if (expected.length === 0) return false

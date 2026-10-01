@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  resolveAudioTeeBinary,
-  toUnpackedPath
-} from '@infrastructure/audio/resolveAudioTeeBinary'
+import { resolveAudioTeeBinary, toUnpackedPath } from '@infrastructure/audio/resolveAudioTeeBinary'
 
 describe('toUnpackedPath', () => {
   it('asar 内のパスを unpacked 側へ読み替える', () => {
@@ -12,9 +9,7 @@ describe('toUnpackedPath', () => {
   })
 
   it('asar を含まないパスはそのまま返す', () => {
-    expect(toUnpackedPath('/Users/me/project/node_modules/x/bin/y')).toBe(
-      '/Users/me/project/node_modules/x/bin/y'
-    )
+    expect(toUnpackedPath('/Users/me/project/node_modules/x/bin/y')).toBe('/Users/me/project/node_modules/x/bin/y')
   })
 
   it('すでに unpacked のパスを二重に書き換えない', () => {
@@ -38,14 +33,10 @@ describe('resolveAudioTeeBinary', () => {
   })
 
   it('開発時は undefined を返し、audiotee の既定解決に任せる', () => {
-    expect(
-      resolveAudioTeeBinary({ packaged: false, resourcesPath, exists: () => true })
-    ).toBeUndefined()
+    expect(resolveAudioTeeBinary({ packaged: false, resourcesPath, exists: () => true })).toBeUndefined()
   })
 
   it('パッケージ済みでもバイナリが無ければ undefined を返す', () => {
-    expect(
-      resolveAudioTeeBinary({ packaged: true, resourcesPath, exists: () => false })
-    ).toBeUndefined()
+    expect(resolveAudioTeeBinary({ packaged: true, resourcesPath, exists: () => false })).toBeUndefined()
   })
 })

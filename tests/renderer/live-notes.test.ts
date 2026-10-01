@@ -12,15 +12,17 @@ import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
 describe('readTrackLevels', () => {
   it('相手（デスクトップ音声）と自分（マイク）を分けて返す', async () => {
-    await expect(
-      readTrackLevels({ micLevel: () => 0.2, systemLevel: async () => 0.7 })
-    ).resolves.toEqual({ mic: 0.2, system: 0.7 })
+    await expect(readTrackLevels({ micLevel: () => 0.2, systemLevel: async () => 0.7 })).resolves.toEqual({
+      mic: 0.2,
+      system: 0.7
+    })
   })
 
   it('マイクが取れていなければ mic は undefined（無音と区別して出す）', async () => {
-    await expect(
-      readTrackLevels({ micLevel: undefined, systemLevel: async () => 0.4 })
-    ).resolves.toEqual({ mic: undefined, system: 0.4 })
+    await expect(readTrackLevels({ micLevel: undefined, systemLevel: async () => 0.4 })).resolves.toEqual({
+      mic: undefined,
+      system: 0.4
+    })
   })
 
   it('デスクトップ音声を読めなければ無音として扱う', async () => {
@@ -79,9 +81,7 @@ describe('showsLiveView', () => {
   })
 
   it('処理中の録音は通常の詳細', () => {
-    expect(
-      showsLiveView({ ...recording, status: 'processing' }, { active: true, recordingId: 'rec-1' })
-    ).toBe(false)
+    expect(showsLiveView({ ...recording, status: 'processing' }, { active: true, recordingId: 'rec-1' })).toBe(false)
   })
 })
 
@@ -105,9 +105,7 @@ describe('bookmarkedSegmentIndexes', () => {
   ]
 
   it('印を押した時点で話されていた発言を返す', () => {
-    expect(bookmarkedSegmentIndexes(segments, [{ atMs: 6_000 }, { atMs: 11_000 }])).toEqual(
-      new Set([1, 2])
-    )
+    expect(bookmarkedSegmentIndexes(segments, [{ atMs: 6_000 }, { atMs: 11_000 }])).toEqual(new Set([1, 2]))
   })
 
   it('発言の合間に押した印は、直前の発言に付ける', () => {
@@ -140,10 +138,7 @@ describe('recordingToOpen', () => {
 
   it('録音中の状態の更新（タイトルの変更など）では開き直さない — 利用者が他の録音を見ていても奪わない', () => {
     expect(
-      recordingToOpen(
-        { active: true, recordingId: 'rec-1' },
-        { active: true, recordingId: 'rec-1' }
-      )
+      recordingToOpen({ active: true, recordingId: 'rec-1' }, { active: true, recordingId: 'rec-1' })
     ).toBeUndefined()
   })
 
@@ -152,11 +147,8 @@ describe('recordingToOpen', () => {
   })
 
   it('続けて別の録音を始めたら、そちらを開く', () => {
-    expect(
-      recordingToOpen(
-        { active: true, recordingId: 'rec-1' },
-        { active: true, recordingId: 'rec-2' }
-      )
-    ).toBe('rec-2')
+    expect(recordingToOpen({ active: true, recordingId: 'rec-1' }, { active: true, recordingId: 'rec-2' })).toBe(
+      'rec-2'
+    )
   })
 })

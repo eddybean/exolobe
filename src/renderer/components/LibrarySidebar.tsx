@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type DragEvent,
-  type ReactElement
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type ReactElement } from 'react'
 import type { FolderDto, RecordingDto } from '@shared/ipc'
 import { messageOf } from '../errorMessage'
 import { libraryListText } from '../i18n/libraryList'
@@ -27,10 +19,7 @@ import { statusLabel } from '../format'
 import { useNow } from '../hooks/useNow'
 import { groupByDate, recordingRowMeta } from '../library/rows'
 import { SemanticSearchResults, type SemanticSearchState } from './SemanticSearchResults'
-import {
-  TranscriptSearchResults,
-  type TranscriptSearchState
-} from './TranscriptSearchResults'
+import { TranscriptSearchResults, type TranscriptSearchState } from './TranscriptSearchResults'
 
 /** 本文の検索を走らせるまでの待ち。打っている途中の語で全件を読まないための間。 */
 const TRANSCRIPT_SEARCH_DEBOUNCE_MS = 250
@@ -179,16 +168,10 @@ export const LibrarySidebar = ({
   // 意味検索のモードでは語句の絞り込みをしない。Enter を押すまで一覧は全件のまま。
   const keywordQuery = semanticMode ? '' : query
   const searching = keywordQuery.trim().length > 0
-  const chipRows = useMemo(
-    () => folderChipRows(folders, recordings, currentKey),
-    [folders, recordings, currentKey]
-  )
+  const chipRows = useMemo(() => folderChipRows(folders, recordings, currentKey), [folders, recordings, currentKey])
   // 検索中はフォルダを横断する。選んだフォルダの外にある録音を「無い」と見せない。
   const listed = useMemo(
-    () =>
-      searching
-        ? filterByQuery(recordings, keywordQuery)
-        : recordingsInFolder(folders, recordings, currentKey),
+    () => (searching ? filterByQuery(recordings, keywordQuery) : recordingsInFolder(folders, recordings, currentKey)),
     [folders, recordings, currentKey, searching, keywordQuery]
   )
   const folderNameOf = useMemo(() => folderNameLookup(folders), [folders])
@@ -246,8 +229,7 @@ export const LibrarySidebar = ({
   )
 
   const hasTranscriptHits =
-    transcriptHits !== undefined &&
-    (transcriptHits.kind !== 'done' || transcriptHits.hits.length > 0)
+    transcriptHits !== undefined && (transcriptHits.kind !== 'done' || transcriptHits.hits.length > 0)
 
   /**
    * 1 文字ごとに問い合わせるとモデルの計算が追いつかないので、Enter で確定させる。
@@ -336,9 +318,7 @@ export const LibrarySidebar = ({
         )}
       </div>
 
-      {showSemanticResults && (
-        <SemanticSearchResults state={semantic} selectedId={selectedId} onSelect={onSelect} />
-      )}
+      {showSemanticResults && <SemanticSearchResults state={semantic} selectedId={selectedId} onSelect={onSelect} />}
 
       {!showSemanticResults && !searching && (
         <section className="folders" aria-labelledby="folders-title">
@@ -388,11 +368,7 @@ export const LibrarySidebar = ({
               <button type="button" onClick={() => setModal({ kind: 'rename', folder: selectedFolder })}>
                 {t.renameFolder}
               </button>
-              <button
-                type="button"
-                className="folders__delete"
-                onClick={() => onDeleteFolder(selectedFolder.id)}
-              >
+              <button type="button" className="folders__delete" onClick={() => onDeleteFolder(selectedFolder.id)}>
                 {t.deleteFolder}
               </button>
             </div>
@@ -400,9 +376,7 @@ export const LibrarySidebar = ({
         </section>
       )}
 
-      {!showSemanticResults && searching && (
-        <p className="folders__searching">{t.searchingAllFolders}</p>
-      )}
+      {!showSemanticResults && searching && <p className="folders__searching">{t.searchingAllFolders}</p>}
 
       {!showSemanticResults && listed.length === 0 && !hasTranscriptHits && (
         <p className="tree__empty">
@@ -440,9 +414,7 @@ export const LibrarySidebar = ({
                   meta={recordingRowMeta(recording, now)}
                   folder={
                     // 検索はフォルダを横断するので、同名の子フォルダと区別できるよう親からの位置を出す。
-                    searching
-                      ? folderPathLabel(folders, recording.folderId)
-                      : folderNameOf(recording.folderId)
+                    searching ? folderPathLabel(folders, recording.folderId) : folderNameOf(recording.folderId)
                   }
                   onSelect={onSelect}
                 />
@@ -453,21 +425,13 @@ export const LibrarySidebar = ({
       )}
 
       {!showSemanticResults && transcriptHits && (
-        <TranscriptSearchResults
-          state={transcriptHits}
-          selected={focus}
-          onSelect={onSelectSegment}
-        />
+        <TranscriptSearchResults state={transcriptHits} selected={focus} onSelect={onSelectSegment} />
       )}
 
       {modal && (
         <FolderNameModal
           title={
-            modal.kind === 'rename'
-              ? t.renameFolderTitle
-              : modal.parentId
-                ? t.createSubfolderTitle
-                : t.newFolderTitle
+            modal.kind === 'rename' ? t.renameFolderTitle : modal.parentId ? t.createSubfolderTitle : t.newFolderTitle
           }
           initialName={modal.kind === 'rename' ? modal.folder.name : ''}
           submitLabel={modal.kind === 'rename' ? t.renameSubmit : t.createSubmit}
@@ -486,9 +450,7 @@ export const LibrarySidebar = ({
   )
 }
 
-type FolderModal =
-  | { kind: 'create'; parentId?: string }
-  | { kind: 'rename'; folder: FolderDto }
+type FolderModal = { kind: 'create'; parentId?: string } | { kind: 'rename'; folder: FolderDto }
 
 /** フォルダのボタン。録音やフォルダのドロップ先も兼ねる（何を受けるかは acceptedDrop）。 */
 const FolderChipButton = ({
@@ -567,9 +529,7 @@ const RecordingRow = ({
       <span className="tree__title">{recording.title}</span>
       {/* 完了は大半の行の状態で、並べても何も語らない。手が要る状態だけ出す。 */}
       {recording.status !== 'ready' && (
-        <span className={`badge badge--${recording.status}`}>
-          {statusLabel(recording.status)}
-        </span>
+        <span className={`badge badge--${recording.status}`}>{statusLabel(recording.status)}</span>
       )}
     </span>
     <span className="tree__meta">

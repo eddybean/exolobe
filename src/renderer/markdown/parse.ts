@@ -72,8 +72,7 @@ const alignOf = (cell: string): Align | null => {
 }
 
 /** 行頭の空白を、タブを 4 桁として数える。 */
-const indentWidth = (spaces: string): number =>
-  [...spaces].reduce((width, char) => width + (char === '\t' ? 4 : 1), 0)
+const indentWidth = (spaces: string): number => [...spaces].reduce((width, char) => width + (char === '\t' ? 4 : 1), 0)
 
 interface ListLine {
   readonly indent: number

@@ -2,10 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  JsonSettingsRepository,
-  SettingsStorageLocator
-} from '@infrastructure/settings/JsonSettingsRepository'
+import { JsonSettingsRepository, SettingsStorageLocator } from '@infrastructure/settings/JsonSettingsRepository'
 import { DEFAULT_SUMMARY_PROMPT_EN, TRANSCRIPT_PLACEHOLDER, defaultSettings } from '@domain/Settings'
 
 let dir: string
@@ -42,9 +39,7 @@ describe('JsonSettingsRepository', () => {
   it('保存した設定を別インスタンスから読み戻せる', async () => {
     await new JsonSettingsRepository(filePath, 'ja').save({ storageDir: '/Users/me/Meetings' })
 
-    expect((await new JsonSettingsRepository(filePath, 'ja').load()).storageDir).toBe(
-      '/Users/me/Meetings'
-    )
+    expect((await new JsonSettingsRepository(filePath, 'ja').load()).storageDir).toBe('/Users/me/Meetings')
   })
 
   it('部分更新で他の設定を失わない', async () => {
@@ -111,12 +106,8 @@ describe('JsonSettingsRepository', () => {
 
     await new JsonSettingsRepository(broken, 'ja').save({ audio: { bitrateKbps: 64 } })
 
-    const [quarantined] = (await readdir(dir)).filter((name) =>
-      name.startsWith('broken.json.unreadable-')
-    )
-    expect(await readFile(join(dir, quarantined ?? ''), 'utf8')).toBe(
-      '{ "storageDir": "/Users/me/Meet'
-    )
+    const [quarantined] = (await readdir(dir)).filter((name) => name.startsWith('broken.json.unreadable-'))
+    expect(await readFile(join(dir, quarantined ?? ''), 'utf8')).toBe('{ "storageDir": "/Users/me/Meet')
   })
 
   it('object でない JSON も既定値で起動し、保存前に退避する', async () => {
@@ -127,9 +118,7 @@ describe('JsonSettingsRepository', () => {
     expect(await repository.load()).toEqual(defaultSettings('ja'))
     await repository.save({ storageDir: '/Users/me/Meetings' })
 
-    expect((await readdir(dir)).some((name) => name.startsWith('odd.json.unreadable-'))).toBe(
-      true
-    )
+    expect((await readdir(dir)).some((name) => name.startsWith('odd.json.unreadable-'))).toBe(true)
   })
 
   it('知らないキーを保存で消さない（新しい版の設定を古い版で壊さない）', async () => {
@@ -162,9 +151,7 @@ describe('JsonSettingsRepository', () => {
 
     const repository = new JsonSettingsRepository(newer, 'ja')
     expect((await repository.load()).storageDir).toBe('/Users/me/Meetings')
-    await expect(repository.save({ storageDir: '/elsewhere' })).rejects.toThrow(
-      'storageNewerVersion'
-    )
+    await expect(repository.save({ storageDir: '/elsewhere' })).rejects.toThrow('storageNewerVersion')
     expect(await readFile(newer, 'utf8')).toBe(content)
   })
 
@@ -194,8 +181,8 @@ describe('SettingsStorageLocator', () => {
   })
 
   it('未設定なら設定画面へ誘導する', async () => {
-    await expect(
-      new SettingsStorageLocator(new JsonSettingsRepository(filePath, 'ja')).root()
-    ).rejects.toThrow('storageNotConfigured')
+    await expect(new SettingsStorageLocator(new JsonSettingsRepository(filePath, 'ja')).root()).rejects.toThrow(
+      'storageNotConfigured'
+    )
   })
 })

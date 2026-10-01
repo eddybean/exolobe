@@ -1,18 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import {
-  GLOSSARY_PROMPT_LIMIT,
-  formatGlossary,
-  glossaryPrompt,
-  parseGlossary
-} from '@domain/Glossary'
+import { GLOSSARY_PROMPT_LIMIT, formatGlossary, glossaryPrompt, parseGlossary } from '@domain/Glossary'
 
 describe('parseGlossary', () => {
   it('改行区切りの入力を用語の配列にする', () => {
-    expect(parseGlossary('Anthropic\nClaude Code\n議事録')).toEqual([
-      'Anthropic',
-      'Claude Code',
-      '議事録'
-    ])
+    expect(parseGlossary('Anthropic\nClaude Code\n議事録')).toEqual(['Anthropic', 'Claude Code', '議事録'])
   })
 
   it('前後の空白を落とし、空行は用語にしない', () => {

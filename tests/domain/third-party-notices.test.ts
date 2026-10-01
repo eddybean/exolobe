@@ -53,9 +53,7 @@ describe('第三者ソフトウェアの表記', () => {
   })
 
   it('同梱する npm 依存がすべて載っている', () => {
-    const covered = new Set(
-      THIRD_PARTY_NOTICES.flatMap((notice) => (notice.packageName ? [notice.packageName] : []))
-    )
+    const covered = new Set(THIRD_PARTY_NOTICES.flatMap((notice) => (notice.packageName ? [notice.packageName] : [])))
 
     // 落ちたときに、表記の無いパッケージ名がそのまま出るようにする。
     const missing = Object.keys(packageJson.dependencies).filter((name) => !covered.has(name))

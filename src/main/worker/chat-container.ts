@@ -3,14 +3,8 @@ import type { RecordingFinderPort, SettingsRepositoryPort } from '@application/p
 import { AskChat } from '@application/usecases/chat'
 import { LlamaCppChat } from '@infrastructure/chat/LlamaCppChat'
 import { NodeLlamaChatSessionFactory } from '@infrastructure/chat/NodeLlamaChatSessionFactory'
-import {
-  FileRecordingArtifactStore,
-  FileRecordingRepository
-} from '@infrastructure/persistence/FileRecordingStore'
-import {
-  JsonSettingsRepository,
-  SettingsStorageLocator
-} from '@infrastructure/settings/JsonSettingsRepository'
+import { FileRecordingArtifactStore, FileRecordingRepository } from '@infrastructure/persistence/FileRecordingStore'
+import { JsonSettingsRepository, SettingsStorageLocator } from '@infrastructure/settings/JsonSettingsRepository'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import type { Locale } from '@shared/i18n/locale'
 

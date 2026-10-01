@@ -9,10 +9,7 @@ const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), a[href]'
  * `aria-modal` を名乗る以上、Tab で背後の画面へ抜けさせてはいけない。
  * 閉じ込めの手順はモーダルごとに変わらないので、ここに 1 つだけ置く。
  */
-export const useModalKeys = (
-  panelRef: RefObject<HTMLElement | null>,
-  onClose: () => void
-): void => {
+export const useModalKeys = (panelRef: RefObject<HTMLElement | null>, onClose: () => void): void => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {

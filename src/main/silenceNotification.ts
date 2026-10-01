@@ -11,11 +11,7 @@ import { text } from './i18n'
  * 通知が使えない環境（許可されていない等）でも呼び出し側を壊さないよう、
  * ここでは投げずに黙って何もしない。アプリ内の確認表示が残るため気づけなくならない。
  */
-export const notifySilence = (params: {
-  minutes: number
-  onStop: () => void
-  onShowWindow: () => void
-}): void => {
+export const notifySilence = (params: { minutes: number; onStop: () => void; onShowWindow: () => void }): void => {
   if (!Notification.isSupported()) return
 
   const notification = new Notification({

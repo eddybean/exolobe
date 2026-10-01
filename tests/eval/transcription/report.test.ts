@@ -45,8 +45,9 @@ describe('formatComparison', () => {
 
 describe('environmentDifferences', () => {
   it('基準と違う条件を挙げる（音声や whisper が違えば数値は比べられない）', () => {
-    expect(
-      environmentDifferences(environment, { ...environment, macos: '15.5', voices: ['Kyoko', 'Reed'] })
-    ).toEqual(['macos: 15.5 → 26.0', 'voices: Kyoko, Reed → Kyoko'])
+    expect(environmentDifferences(environment, { ...environment, macos: '15.5', voices: ['Kyoko', 'Reed'] })).toEqual([
+      'macos: 15.5 → 26.0',
+      'voices: Kyoko, Reed → Kyoko'
+    ])
   })
 })

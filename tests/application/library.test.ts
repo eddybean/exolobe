@@ -104,9 +104,7 @@ describe('GetRecordingDetail', () => {
   it('コピー用に話者ラベルを解決したテキストを作る', async () => {
     const detail = await new GetRecordingDetail(deps).execute('rec-1')
 
-    expect(detail.transcriptMarkdown).toBe(
-      '自分: おはようございます\n参加者A: よろしくお願いします'
-    )
+    expect(detail.transcriptMarkdown).toBe('自分: おはようございます\n参加者A: よろしくお願いします')
   })
 
   it('処理中で文字起こしがまだ無くても開ける', async () => {
@@ -121,9 +119,7 @@ describe('GetRecordingDetail', () => {
   })
 
   it('存在しない録音は開けない', async () => {
-    await expect(new GetRecordingDetail(deps).execute('unknown')).rejects.toThrow(
-      'recordingNotFound'
-    )
+    await expect(new GetRecordingDetail(deps).execute('unknown')).rejects.toThrow('recordingNotFound')
   })
 })
 
@@ -158,9 +154,9 @@ describe('AddBookmark', () => {
   })
 
   it('存在しない録音には付けられない', async () => {
-    await expect(
-      new AddBookmark(deps).execute({ recordingId: 'unknown', atMs: 0 })
-    ).rejects.toThrow('recordingNotFound')
+    await expect(new AddBookmark(deps).execute({ recordingId: 'unknown', atMs: 0 })).rejects.toThrow(
+      'recordingNotFound'
+    )
   })
 })
 
@@ -173,9 +169,9 @@ describe('UpdateSummary', () => {
   })
 
   it('存在しない録音の要約は直せない', async () => {
-    await expect(
-      new UpdateSummary(deps).execute({ recordingId: 'unknown', summary: '要約' })
-    ).rejects.toThrow('recordingNotFound')
+    await expect(new UpdateSummary(deps).execute({ recordingId: 'unknown', summary: '要約' })).rejects.toThrow(
+      'recordingNotFound'
+    )
   })
 })
 
@@ -200,9 +196,9 @@ describe('RenameRecording', () => {
   })
 
   it('空のタイトルは拒否する', async () => {
-    await expect(
-      new RenameRecording(deps).execute({ recordingId: 'rec-1', title: '   ' })
-    ).rejects.toThrow('titleRequired')
+    await expect(new RenameRecording(deps).execute({ recordingId: 'rec-1', title: '   ' })).rejects.toThrow(
+      'titleRequired'
+    )
   })
 })
 
@@ -445,9 +441,7 @@ describe('RememberSpeakerVoice', () => {
       await rememberName(label)
     }
 
-    expect(voiceprints.entries.map((entry) => [entry.name, entry.sources.length])).toEqual([
-      ['田中さん', 1]
-    ])
+    expect(voiceprints.entries.map((entry) => [entry.name, entry.sources.length])).toEqual([['田中さん', 1]])
   })
 
   it('別の録音からも覚えた名前は、1 つの出所を取り消しても残る', async () => {
@@ -464,9 +458,7 @@ describe('RememberSpeakerVoice', () => {
 
     await rememberName('佐藤さん')
 
-    expect(
-      voiceprints.entries.map((entry) => [entry.name, entry.sources.map((s) => s.key)])
-    ).toEqual([
+    expect(voiceprints.entries.map((entry) => [entry.name, entry.sources.map((s) => s.key)])).toEqual([
       ['田中さん', ['rec-9:remote:spk0']],
       ['佐藤さん', ['rec-1:remote:spk0']]
     ])
@@ -489,9 +481,7 @@ describe('DeleteRecording', () => {
   })
 
   it('存在しない録音は削除できない', async () => {
-    await expect(new DeleteRecording(deps).execute('unknown')).rejects.toThrow(
-      'recordingNotFound'
-    )
+    await expect(new DeleteRecording(deps).execute('unknown')).rejects.toThrow('recordingNotFound')
   })
 })
 
@@ -509,18 +499,18 @@ describe('UpdateSettings', () => {
   it('保存前に検証し、不正な値は保存しない', async () => {
     const settings = new FakeSettingsRepository()
 
-    await expect(
-      new UpdateSettings(settings).execute({ audio: { sampleRate: 12_345 } })
-    ).rejects.toThrow('invalidSettings')
+    await expect(new UpdateSettings(settings).execute({ audio: { sampleRate: 12_345 } })).rejects.toThrow(
+      'invalidSettings'
+    )
     expect((await settings.load()).audio.sampleRate).toBe(16_000)
   })
 
   it('録音の設定も検証の対象にする', async () => {
     const settings = new FakeSettingsRepository()
 
-    await expect(
-      new UpdateSettings(settings).execute({ recording: { silenceDurationMs: 0 } })
-    ).rejects.toThrow('invalidSettings')
+    await expect(new UpdateSettings(settings).execute({ recording: { silenceDurationMs: 0 } })).rejects.toThrow(
+      'invalidSettings'
+    )
     expect((await settings.load()).recording.silenceDurationMs).toBe(300_000)
   })
 

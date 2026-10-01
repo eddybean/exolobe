@@ -55,9 +55,7 @@ describe('folderChipRows', () => {
   it('1 段目は「すべて」「未分類」と最上位のフォルダ', () => {
     const rows = folderChipRows(folders, recordings, 'all')
 
-    expect(rows.map((row) => row.map((chip) => chip.key))).toEqual([
-      ['all', 'unfiled', 'customers', 'weekly']
-    ])
+    expect(rows.map((row) => row.map((chip) => chip.key))).toEqual([['all', 'unfiled', 'customers', 'weekly']])
   })
 
   it('選んだフォルダに子があれば、その子を次の段に出す', () => {
@@ -78,11 +76,12 @@ describe('folderChipRows', () => {
       ['x']
     ])
     // 経路上のフォルダは選択中として見せる。
-    expect(rows.flat().filter((chip) => chip.onPath).map((chip) => chip.key)).toEqual([
-      'customers',
-      'a',
-      'x'
-    ])
+    expect(
+      rows
+        .flat()
+        .filter((chip) => chip.onPath)
+        .map((chip) => chip.key)
+    ).toEqual(['customers', 'a', 'x'])
   })
 
   it('件数は子フォルダの中の録音も数える', () => {
@@ -107,11 +106,7 @@ describe('recordingsInFolder', () => {
   })
 
   it('フォルダを選んだら、子フォルダの中の録音も含める', () => {
-    expect(recordingsInFolder(folders, recordings, 'customers').map((r) => r.id)).toEqual([
-      'r-customers',
-      'r-a',
-      'r-x'
-    ])
+    expect(recordingsInFolder(folders, recordings, 'customers').map((r) => r.id)).toEqual(['r-customers', 'r-a', 'r-x'])
   })
 
   it('消えたフォルダの録音は「未分類」に出す（見えなくならないように）', () => {

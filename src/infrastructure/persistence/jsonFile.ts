@@ -46,11 +46,7 @@ export const readStoredJson = async <T>(
  * 読めなかったファイルを置き換えるときは、先に元の内容を脇へ退避する。
  * 起動は止めず、手で取り戻せる形で残す（ADR-035）。
  */
-export const replaceStoredJson = async (
-  path: string,
-  previous: StoredJson<unknown>,
-  value: unknown
-): Promise<void> => {
+export const replaceStoredJson = async (path: string, previous: StoredJson<unknown>, value: unknown): Promise<void> => {
   if (previous.kind === 'unreadable') {
     const aside = `${path}.unreadable-${new Date().toISOString().replace(/[:.]/g, '-')}`
     await rename(path, aside)

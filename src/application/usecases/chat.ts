@@ -9,12 +9,7 @@ import type {
   SystemResourcePort
 } from '@application/ports'
 import { isSettled } from '@application/usecases/search'
-import {
-  buildChatContext,
-  contextBudgetChars,
-  type ChatCitation,
-  type ChatSourceMaterial
-} from '@domain/ChatContext'
+import { buildChatContext, contextBudgetChars, type ChatCitation, type ChatSourceMaterial } from '@domain/ChatContext'
 import { chatPrompts, renderChatPrompt } from '@domain/ChatPrompt'
 import { hasTopic, planChatQuery, type ChatQueryPlan } from '@domain/ChatQuery'
 import { AppError, ConfigurationError } from '@domain/errors'
@@ -59,8 +54,7 @@ const FINDER_MULTIPLIER = 3
 
 const inRange = (recording: Recording, plan: ChatQueryPlan): boolean =>
   plan.range === undefined ||
-  (recording.startedAt.getTime() >= plan.range.fromMs &&
-    recording.startedAt.getTime() < plan.range.toMs)
+  (recording.startedAt.getTime() >= plan.range.fromMs && recording.startedAt.getTime() < plan.range.toMs)
 
 /**
  * 数 GB のモデルを読み込む前に空きを確認する。
@@ -117,9 +111,7 @@ const narrowByTopic = async (
 
   const byId = new Map(candidates.map((recording) => [recording.id, recording]))
   // 順序は検索のスコア順を尊重する。期間で絞った集合との積を取る。
-  return ids
-    .map((id) => byId.get(id))
-    .filter((recording): recording is Recording => recording !== undefined)
+  return ids.map((id) => byId.get(id)).filter((recording): recording is Recording => recording !== undefined)
 }
 
 const loadMaterial = async (

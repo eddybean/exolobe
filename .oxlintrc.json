@@ -3,17 +3,7 @@
   // TypeScript 7 は従来の JS コンパイラ API を公開しなくなり、typescript-eslint の
   // peerDependencies（typescript <6.1.0）から外れた。型情報を必要としない oxlint に
   // 置き換えている。型に関する検査は tsc の strict 設定が担う。
-  "plugins": [
-    "eslint",
-    "typescript",
-    "oxc",
-    "unicorn",
-    "import",
-    "promise",
-    "react",
-    "jsx-a11y",
-    "vitest"
-  ],
+  "plugins": ["eslint", "typescript", "oxc", "unicorn", "import", "promise", "react", "jsx-a11y", "vitest"],
   "categories": {
     "correctness": "error"
   },

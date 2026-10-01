@@ -12,10 +12,7 @@ import { text } from './i18n'
  * メニューは開かれるたびに作り直す。録音中かどうかで項目の有効／無効が変わり、
  * 状態の変化を個別に監視するより、その都度組み立てた方が確実にずれない。
  */
-export const createApplicationMenu = (
-  controller: TransportController,
-  showWindow: () => void
-): void => {
+export const createApplicationMenu = (controller: TransportController, showWindow: () => void): void => {
   const build = (): Menu => {
     const active = controller.state().active
 
@@ -61,9 +58,7 @@ export const createApplicationMenu = (
           {
             label: text().menu.openDocs,
             click: () => {
-              void shell.openExternal(
-                'https://github.com/eddybean/exolobe/tree/main/docs'
-              )
+              void shell.openExternal('https://github.com/eddybean/exolobe/tree/main/docs')
             }
           }
         ]

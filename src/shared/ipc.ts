@@ -319,10 +319,7 @@ export interface VoiceLearnedDto {
   readonly message?: string
 }
 
-export const toRecordingDto = (
-  recording: Recording,
-  summaryPreview?: string
-): RecordingDto => ({
+export const toRecordingDto = (recording: Recording, summaryPreview?: string): RecordingDto => ({
   id: recording.id,
   title: recording.title,
   startedAt: recording.startedAt.toISOString(),
@@ -342,10 +339,7 @@ export const toRecordingDto = (
  * 作った DTO にだけ載せる。前回の失敗の理由を落とすのは、再実行を受け付けたのに
  * 失敗と再実行ボタンが出たままだと、押しても反応が無いように見えるため。
  */
-export const withQueuedSteps = (
-  dto: RecordingDto,
-  queued: readonly PipelineStep[]
-): RecordingDto => {
+export const withQueuedSteps = (dto: RecordingDto, queued: readonly PipelineStep[]): RecordingDto => {
   if (queued.length === 0) return dto
 
   const steps = { ...dto.steps }
@@ -509,11 +503,7 @@ export interface RendererApi {
    *
    * 答えは chat:chunk / chat:done で届くので、この呼び出しの戻り値は待たない。
    */
-  askChat(params: {
-    requestId: string
-    question: string
-    history: readonly ChatTurnDto[]
-  }): Promise<void>
+  askChat(params: { requestId: string; question: string; history: readonly ChatTurnDto[] }): Promise<void>
   cancelChat(requestId: string): Promise<void>
   getChatAvailability(): Promise<ChatAvailabilityDto>
   onChatChunk(listener: (event: ChatChunkDto) => void): () => void

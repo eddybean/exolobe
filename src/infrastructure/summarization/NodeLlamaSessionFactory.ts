@@ -27,8 +27,7 @@ export const llamaOptionsFor = (
 }
 
 /** node-llama-cpp の defaultLlamaRamPadding（macOS）と同じ式。 */
-const libraryRamPadding = (totalBytes: number): number =>
-  Math.min(totalBytes * 0.25, 6 * 1_024 ** 3)
+const libraryRamPadding = (totalBytes: number): number => Math.min(totalBytes * 0.25, 6 * 1_024 ** 3)
 
 /**
  * node-llama-cpp で GGUF モデルを読み込み、1 回の要約ぶんのセッションを作る。
@@ -41,11 +40,7 @@ const libraryRamPadding = (totalBytes: number): number =>
  * 十分で、アプリの起動時間とメモリを不必要に使わないため。
  */
 export class NodeLlamaSessionFactory implements LlmSessionFactory {
-  async create(config: {
-    modelPath: string
-    contextSize: number
-    protection: MemoryProtection
-  }): Promise<LlmSession> {
+  async create(config: { modelPath: string; contextSize: number; protection: MemoryProtection }): Promise<LlmSession> {
     const { getLlama, LlamaChatSession } = await import('node-llama-cpp')
 
     try {

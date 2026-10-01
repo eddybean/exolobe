@@ -13,10 +13,7 @@ export const EditableTitle = ({
   value: string
   onCommit: (title: string) => Promise<void>
 }): ReactElement => {
-  const { editing, draft, saving, inputRef, setDraft, start, commit, onKeyDown } = useInlineEdit(
-    value,
-    onCommit
-  )
+  const { editing, draft, saving, inputRef, setDraft, start, commit, onKeyDown } = useInlineEdit(value, onCommit)
   const t = editableText().title
 
   if (!editing) {

@@ -32,8 +32,7 @@ export interface EvalReport {
   readonly results: readonly CaseResult[]
 }
 
-const signed = (delta: number, digits: number): string =>
-  `${delta > 0 ? '+' : ''}${delta.toFixed(digits)}`
+const signed = (delta: number, digits: number): string => `${delta > 0 ? '+' : ''}${delta.toFixed(digits)}`
 
 /** 値と、基準があれば差。差が 0 なら値だけ。 */
 const withDelta = (value: number, base: number | undefined, digits = 0): string => {
@@ -50,10 +49,7 @@ const formatDropped = (dropped: CaseResult['dropped']): string => {
 }
 
 /** Markdown の表。差は「今回 − 基準」なので、どの列もマイナスが改善。 */
-export const formatComparison = (
-  current: readonly CaseResult[],
-  baseline: readonly CaseResult[] = []
-): string => {
+export const formatComparison = (current: readonly CaseResult[], baseline: readonly CaseResult[] = []): string => {
   const rows = current.map((result) => {
     const base = baseline.find(
       (candidate) => candidate.scenario === result.scenario && candidate.config === result.config
@@ -82,10 +78,7 @@ export const formatComparison = (
 }
 
 /** 基準と違う条件を「基準 → 今回」で挙げる。 */
-export const environmentDifferences = (
-  current: EvalEnvironment,
-  baseline: EvalEnvironment
-): string[] =>
+export const environmentDifferences = (current: EvalEnvironment, baseline: EvalEnvironment): string[] =>
   (Object.keys(current) as (keyof EvalEnvironment)[]).flatMap((key) => {
     const now = [current[key]].flat().join(', ')
     const before = [baseline[key]].flat().join(', ')

@@ -37,8 +37,7 @@ export interface Voiceprint {
 }
 
 /** `RenameSpeaker` が声紋帳に渡す出所の鍵。 */
-export const voiceSourceKey = (recordingId: string, speakerId: string): string =>
-  `${recordingId}:${speakerId}`
+export const voiceSourceKey = (recordingId: string, speakerId: string): string => `${recordingId}:${speakerId}`
 
 /** 1 録音の中の話者 1 人ぶんの声紋。`speakerId` は `remote:spk0` 形式。 */
 export interface SpeakerVector {
@@ -160,11 +159,7 @@ export const registerVoice = (
  * 「差が無いなら当てにいかない」規則で両方とも弾かれる（＝その人は二度と
  * 自動判定されない）。取り消しまでが訂正の一部。
  */
-export const forgetSource = (
-  voiceprint: Voiceprint,
-  source: string,
-  now: Date
-): Voiceprint | undefined => {
+export const forgetSource = (voiceprint: Voiceprint, source: string, now: Date): Voiceprint | undefined => {
   const kept = voiceprint.sources.filter((entry) => entry.key !== source)
   if (kept.length === voiceprint.sources.length) return voiceprint
   if (kept.length === 0) return undefined
@@ -172,11 +167,7 @@ export const forgetSource = (
   return build(voiceprint.name, kept, { modelKey: voiceprint.modelKey, now })
 }
 
-const build = (
-  name: string,
-  sources: readonly VoiceSource[],
-  options: { modelKey: string; now: Date }
-): Voiceprint => {
+const build = (name: string, sources: readonly VoiceSource[], options: { modelKey: string; now: Date }): Voiceprint => {
   const width = sources.reduce((max, source) => Math.max(max, source.vector.length), 0)
   const mean = new Float32Array(width)
   for (const source of sources) {

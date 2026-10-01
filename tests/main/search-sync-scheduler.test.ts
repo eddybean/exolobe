@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createSearchSyncScheduler,
-  type SearchSyncState
-} from '../../src/main/searchSyncScheduler'
+import { createSearchSyncScheduler, type SearchSyncState } from '../../src/main/searchSyncScheduler'
 
 const DEBOUNCE_MS = 3_000
 

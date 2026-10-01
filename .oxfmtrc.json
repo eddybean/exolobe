@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  // 導入前の手書きのスタイル（セミコロン無し・シングルクォート・末尾カンマ無し）に合わせる。
+  // Markdown は表が最長の行に合わせて詰め物され、日本語の表が読めなくなるので対象外にする。
+  // 幅は全角文字を 2 と数えるので、日本語のコメントや文言が多いこのリポジトリでは長めにとる。
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "none",
+  "printWidth": 120,
+  "ignorePatterns": ["out", "release", "resources", "docs", "package-lock.json", "**/*.md"]
+}

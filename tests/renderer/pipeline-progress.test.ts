@@ -62,9 +62,7 @@ describe('pipelinePillLabel', () => {
   })
 
   it('残り時間を見積もれていれば添える', () => {
-    expect(pipelinePillLabel(running('diarize'), undefined, 4 * 60_000)).toBe(
-      '話者識別中 ・ 残り約 4 分'
-    )
+    expect(pipelinePillLabel(running('diarize'), undefined, 4 * 60_000)).toBe('話者識別中 ・ 残り約 4 分')
   })
 
   it('どのステップも動いていなければ順番待ちと出す', () => {
@@ -109,15 +107,9 @@ describe('applyProgressEvent', () => {
       1_000
     )
 
+    expect(applyProgressEvent(running, { recordingId: 'r1', step: 'transcribe', status: 'done' }, 2_000)).toEqual({})
     expect(
-      applyProgressEvent(running, { recordingId: 'r1', step: 'transcribe', status: 'done' }, 2_000)
-    ).toEqual({})
-    expect(
-      applyProgressEvent(
-        running,
-        { recordingId: 'r1', step: 'transcribe', status: 'failed', error: 'x' },
-        2_000
-      )
+      applyProgressEvent(running, { recordingId: 'r1', step: 'transcribe', status: 'failed', error: 'x' }, 2_000)
     ).toEqual({})
   })
 
@@ -178,9 +170,7 @@ describe('formatRemaining', () => {
 describe('英語ロケール', () => {
   it('いま動いているステップを英語のステップ名で出す', () => {
     setLocale('en')
-    expect(pipelinePillLabel(running('diarize'), undefined, undefined)).toBe(
-      'Speaker identification'
-    )
+    expect(pipelinePillLabel(running('diarize'), undefined, undefined)).toBe('Speaker identification')
   })
 
   it('割合を添えるときは語順を変える（動名詞の「〜中」を作らない）', () => {

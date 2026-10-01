@@ -13,9 +13,7 @@ import { describe, expect, it } from 'vitest'
 const html = readFileSync(join(process.cwd(), 'src/renderer/index.html'), 'utf8')
 
 const cspContent = (): string => {
-  const match = html.match(
-    /http-equiv="Content-Security-Policy"\s*\n?\s*content="([^"]+)"/
-  )
+  const match = html.match(/http-equiv="Content-Security-Policy"\s*\n?\s*content="([^"]+)"/)
   if (!match?.[1]) throw new Error('index.html に CSP が見つかりません。')
   return match[1]
 }

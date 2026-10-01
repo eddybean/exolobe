@@ -5,9 +5,7 @@ import { isMemoryProtection, type MemoryProtection } from '@domain/MemoryGuard'
 import { VOICEPRINT_MATCH_THRESHOLD } from '@domain/Voiceprint'
 
 /** audiotee が受け付けるサンプルレート。whisper は 16kHz を前提とするためこれが既定。 */
-export const SUPPORTED_SAMPLE_RATES: readonly number[] = [
-  8_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000
-]
+export const SUPPORTED_SAMPLE_RATES: readonly number[] = [8_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000]
 
 /** 要約プロンプト内で文字起こし本文に置き換えられるプレースホルダ。 */
 export const TRANSCRIPT_PLACEHOLDER = '{{transcript}}'
@@ -91,10 +89,7 @@ export const legacySummaryPromptMode = (template: string): SummaryPromptMode =>
 export const summaryPromptFor = (
   summarization: Pick<SummarizationSettings, 'promptMode' | 'promptTemplate'>,
   language: MeetingLanguage
-): string =>
-  summarization.promptMode === 'custom'
-    ? summarization.promptTemplate
-    : DEFAULT_SUMMARY_PROMPTS[language]
+): string => (summarization.promptMode === 'custom' ? summarization.promptTemplate : DEFAULT_SUMMARY_PROMPTS[language])
 
 /**
  * 設定から、要約に使うプロンプトを決める。設定画面の編集欄と要約の実行で同じものを見せるため。
@@ -102,10 +97,7 @@ export const summaryPromptFor = (
  * @param uiLanguage 文字起こしの言語が自動判定のときに従う UI の言語
  */
 export const settingsSummaryPrompt = (settings: Settings, uiLanguage: MeetingLanguage): string =>
-  summaryPromptFor(
-    settings.summarization,
-    meetingLanguageOf(settings.transcription.language, uiLanguage)
-  )
+  summaryPromptFor(settings.summarization, meetingLanguageOf(settings.transcription.language, uiLanguage))
 
 /**
  * カスタムに切り替えたときの編集欄の出発点。
@@ -167,10 +159,7 @@ export interface TranscriptionSettings {
  */
 export type SummarizationProvider = 'llama-cpp' | 'apple-intelligence'
 
-export const SUMMARIZATION_PROVIDERS: readonly SummarizationProvider[] = [
-  'llama-cpp',
-  'apple-intelligence'
-]
+export const SUMMARIZATION_PROVIDERS: readonly SummarizationProvider[] = ['llama-cpp', 'apple-intelligence']
 
 const isSummarizationProvider = (value: unknown): value is SummarizationProvider =>
   SUMMARIZATION_PROVIDERS.includes(value as SummarizationProvider)
@@ -287,8 +276,7 @@ export type Appearance = 'system' | 'light' | 'dark'
 
 export const APPEARANCES: readonly Appearance[] = ['system', 'light', 'dark']
 
-const isAppearance = (value: unknown): value is Appearance =>
-  APPEARANCES.includes(value as Appearance)
+const isAppearance = (value: unknown): value is Appearance => APPEARANCES.includes(value as Appearance)
 
 /**
  * 反映する明暗。読み込んだ設定は検証を通らないので、知らない値（新しい版が足したもの）なら
@@ -310,9 +298,7 @@ export const updateCheckIntervalOf = (settings: Settings): UpdateCheckInterval =
  * 利用者が選んでいない方へ黙って倒れるなら、精度の高い既定の方にする。
  */
 export const summarizationProviderOf = (settings: Settings): SummarizationProvider =>
-  isSummarizationProvider(settings.summarization.provider)
-    ? settings.summarization.provider
-    : 'llama-cpp'
+  isSummarizationProvider(settings.summarization.provider) ? settings.summarization.provider : 'llama-cpp'
 
 export interface Settings {
   /** ユーザーが初期設定で選ぶ保存先。未選択なら null。 */
@@ -434,8 +420,7 @@ export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings =>
   storageDir: patch.storageDir === undefined ? base.storageDir : patch.storageDir,
   appearance: patch.appearance === undefined ? base.appearance : patch.appearance,
   updateCheck: patch.updateCheck === undefined ? base.updateCheck : patch.updateCheck,
-  memoryProtection:
-    patch.memoryProtection === undefined ? base.memoryProtection : patch.memoryProtection,
+  memoryProtection: patch.memoryProtection === undefined ? base.memoryProtection : patch.memoryProtection,
   recording: mergeGroup(base.recording, patch.recording),
   transcription: mergeGroup(base.transcription, patch.transcription),
   summarization: mergeGroup(base.summarization, patch.summarization),
@@ -454,16 +439,10 @@ export const validateSettings = (settings: Settings): SettingsProblem[] => {
   if (settings.recording.silenceDurationMs < 60_000) problems.push('silenceDuration')
   if (settings.recording.startAlertDelayMs < 30_000) problems.push('startAlertDelay')
   if (settings.diarization.maxSpeakers < 2) problems.push('maxSpeakers')
-  if (
-    settings.diarization.voiceprintThreshold <= 0 ||
-    settings.diarization.voiceprintThreshold > 1
-  ) {
+  if (settings.diarization.voiceprintThreshold <= 0 || settings.diarization.voiceprintThreshold > 1) {
     problems.push('voiceprintThreshold')
   }
-  if (
-    settings.diarization.clusteringThreshold <= 0 ||
-    settings.diarization.clusteringThreshold > 1
-  ) {
+  if (settings.diarization.clusteringThreshold <= 0 || settings.diarization.clusteringThreshold > 1) {
     problems.push('clusteringThreshold')
   }
   if (!isAppearance(settings.appearance)) problems.push('appearance')

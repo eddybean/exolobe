@@ -106,7 +106,8 @@ const CHAT_REQUEST_TAIL =
 const QUESTION_TAIL = /(?:は|って|とは)?(?:何|なに|どう|どれ|いつ)?(?:だっけ|ですか|でしたか|かな)?[？?。．.！!\s]*$/
 
 /** span を削った跡に残る助詞や記号。話題語の両端からだけ落とす。 */
-const EDGE_NOISE = /^[\s、。，．,.・:：「」『』()（）のをはがでにとへもや]+|[\s、。，．,.・:：「」『』()（）のをはがでにとへもや]+$/g
+const EDGE_NOISE =
+  /^[\s、。，．,.・:：「」『』()（）のをはがでにとへもや]+|[\s、。，．,.・:：「」『』()（）のをはがでにとへもや]+$/g
 
 const removeSpans = (text: string, spans: readonly Span[]): string => {
   if (spans.length === 0) return text
@@ -124,9 +125,7 @@ const removeSpans = (text: string, spans: readonly Span[]): string => {
 
 const trimEdges = (text: string): string => text.replace(EDGE_NOISE, '').trim()
 
-const findSpeaker = (
-  question: string
-): { scope: SpeakerScope; spans: Span[] } => {
+const findSpeaker = (question: string): { scope: SpeakerScope; spans: Span[] } => {
   for (const rule of SPEAKER_RULES) {
     rule.pattern.lastIndex = 0
     const match = rule.pattern.exec(question)
@@ -146,9 +145,7 @@ export const planChatQuery = (question: string, now: Date): ChatQueryPlan => {
 
   const stripped = removeSpans(question, [...(date?.spans ?? []), ...speaker.spans])
   const withoutRequest = trimEdges(
-    trimEdges(stripped.replace(/\s+/g, ' ').trim())
-      .replace(CHAT_REQUEST_TAIL, '')
-      .replace(QUESTION_TAIL, '')
+    trimEdges(stripped.replace(/\s+/g, ' ').trim()).replace(CHAT_REQUEST_TAIL, '').replace(QUESTION_TAIL, '')
   )
   // focusQuery は「〜をしたミーティング」まで落とす。意味検索に渡す形を揃えておく。
   const topic = withoutRequest.length === 0 ? '' : trimEdges(focusQuery(withoutRequest))

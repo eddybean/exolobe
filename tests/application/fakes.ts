@@ -45,13 +45,7 @@ import type { Bookmark } from '@domain/MeetingNotes'
 import { normalize } from '@domain/vector'
 import type { MemorySnapshot } from '@domain/MemoryGuard'
 import type { PipelineStep, Recording } from '@domain/Recording'
-import {
-  defaultSettings,
-  mergeSettings,
-  type AudioCodec,
-  type Settings,
-  type SettingsPatch
-} from '@domain/Settings'
+import { defaultSettings, mergeSettings, type AudioCodec, type Settings, type SettingsPatch } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
 import type { SpeakerTurn, TranscriptSegment } from '@domain/TranscriptSegment'
 
@@ -125,9 +119,7 @@ export class FakeRecordingRepository implements RecordingRepositoryPort {
   readonly records = new Map<string, Recording>()
 
   async list(): Promise<Recording[]> {
-    return [...this.records.values()].sort(
-      (a, b) => b.startedAt.getTime() - a.startedAt.getTime()
-    )
+    return [...this.records.values()].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
   }
   async find(id: string): Promise<Recording | undefined> {
     return this.records.get(id)
@@ -447,11 +439,7 @@ export class FakeAudioDecoder implements AudioDecoderPort {
   durationMs = 65_000
   error?: Error
 
-  async decode(params: {
-    inputPath: string
-    outputPath: string
-    sampleRate: number
-  }): Promise<{ durationMs: number }> {
+  async decode(params: { inputPath: string; outputPath: string; sampleRate: number }): Promise<{ durationMs: number }> {
     if (this.error) throw this.error
     this.calls.push(params)
     return { durationMs: this.durationMs }
@@ -522,10 +510,7 @@ export class FakeTextEmbedder implements TextEmbedderPort {
     this.calls.push(text)
     this.loaded = true
     // 末尾の小さな定数は、どの語も含まない文をゼロベクトルにしないため。
-    return normalize([
-      ...FakeTextEmbedder.KEYWORDS.map((keyword) => (text.includes(keyword) ? 1 : 0)),
-      0.01
-    ])
+    return normalize([...FakeTextEmbedder.KEYWORDS.map((keyword) => (text.includes(keyword) ? 1 : 0)), 0.01])
   }
 }
 

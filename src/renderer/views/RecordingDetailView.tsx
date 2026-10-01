@@ -139,17 +139,13 @@ export const RecordingDetailView = ({
       ),
     [detail.speakers, detail.recording.participants, voiceprintNames]
   )
-  const lanes = useMemo(
-    () => speakerLanes(detail.segments, detail.speakers),
-    [detail.segments, detail.speakers]
-  )
+  const lanes = useMemo(() => speakerLanes(detail.segments, detail.speakers), [detail.segments, detail.speakers])
   const timelineMs = timelineDurationMs(detail.recording.durationMs, detail.segments)
 
   const { positionMs, playing, durationMs: audioMs } = useAudioPosition(audioRef, recordingId)
   const player = playerMode(detail.segments.length)
   // 一度も再生していない頭出しの位置では強調しない。開いただけで先頭の発言が光るのは紛らわしい。
-  const playingIndex =
-    audioReady && (playing || positionMs > 0) ? activeSegmentIndex(detail.segments, positionMs) : -1
+  const playingIndex = audioReady && (playing || positionMs > 0) ? activeSegmentIndex(detail.segments, positionMs) : -1
   const segmentsRef = useRef<HTMLOListElement>(null)
 
   /**
@@ -422,12 +418,9 @@ export const RecordingDetailView = ({
           <div className="detail__meta-row">
             <p className="detail__meta">
               {formatDateTime(detail.recording.startedAt)}
-              {detail.recording.durationMs > 0 &&
-                `${t.metaSeparator}${formatDuration(detail.recording.durationMs)}`}
+              {detail.recording.durationMs > 0 && `${t.metaSeparator}${formatDuration(detail.recording.durationMs)}`}
             </p>
-            {showsPipelineProgress(detail.recording.status) && (
-              <PipelinePill recording={detail.recording} />
-            )}
+            {showsPipelineProgress(detail.recording.status) && <PipelinePill recording={detail.recording} />}
           </div>
         </div>
         <div className="detail__actions">
@@ -453,11 +446,7 @@ export const RecordingDetailView = ({
       )}
 
       <div
-        className={[
-          'player-slot',
-          player === 'custom' && 'player-slot--custom',
-          !audioReady && 'player-slot--pending'
-        ]
+        className={['player-slot', player === 'custom' && 'player-slot--custom', !audioReady && 'player-slot--pending']
           .filter(Boolean)
           .join(' ')}
       >
@@ -496,9 +485,7 @@ export const RecordingDetailView = ({
         {audioFailures.length > 0 || audioQueued.length > 0 ? (
           <StepFailures failures={audioFailures} queued={audioQueued} onRetry={retry} />
         ) : (
-          !audioReady && (
-            <p className="player-slot__hint">{pendingAudioHint(detail.recording.status)}</p>
-          )
+          !audioReady && <p className="player-slot__hint">{pendingAudioHint(detail.recording.status)}</p>
         )}
       </div>
 
@@ -509,28 +496,18 @@ export const RecordingDetailView = ({
             <CopyButton text={detail.transcriptText} label={t.transcript.copyLabel} />
           </div>
 
-          <StepFailures
-            failures={transcriptFailures}
-            queued={transcriptQueued}
-            onRetry={retry}
-          />
+          <StepFailures failures={transcriptFailures} queued={transcriptQueued} onRetry={retry} />
 
           {detail.segments.length === 0 ? (
             transcriptFailures.length === 0 &&
-            transcriptQueued.length === 0 && (
-              <p className="panel__empty">{t.transcript.empty}</p>
-            )
+            transcriptQueued.length === 0 && <p className="panel__empty">{t.transcript.empty}</p>
           ) : (
             <ol className="segments" ref={segmentsRef}>
               {detail.segments.map((segment, index) => (
                 <li
                   key={`${segment.startMs}-${index}`}
                   ref={index === focusedIndex ? focusedSegmentRef : undefined}
-                  className={segmentClassName(
-                    index === focusedIndex,
-                    index === playingIndex,
-                    bookmarked.has(index)
-                  )}
+                  className={segmentClassName(index === focusedIndex, index === playingIndex, bookmarked.has(index))}
                   aria-current={index === playingIndex ? 'true' : undefined}
                 >
                   <button
@@ -597,12 +574,7 @@ export const RecordingDetailView = ({
                 >
                   {t.summary.cancel}
                 </button>
-                <button
-                  type="button"
-                  className="copy"
-                  onClick={() => void saveSummary()}
-                  disabled={summarySaving}
-                >
+                <button type="button" className="copy" onClick={() => void saveSummary()} disabled={summarySaving}>
                   {summarySaving ? t.summary.saving : t.summary.save}
                 </button>
               </div>
@@ -644,11 +616,7 @@ export const RecordingDetailView = ({
             />
           ) : tab === 'summary' ? (
             <>
-              <StepFailures
-                failures={summaryFailures}
-                queued={summaryQueued}
-                onRetry={retrySummaryStep}
-              />
+              <StepFailures failures={summaryFailures} queued={summaryQueued} onRetry={retrySummaryStep} />
               {detail.summary ? (
                 <div className="summary">
                   <Markdown source={detail.summary} />
@@ -700,11 +668,7 @@ export const RecordingDetailView = ({
  *
  * 失敗の全文と再実行はここに出さず、各欄に出す（StepFailures）。
  */
-const PipelinePill = ({
-  recording
-}: {
-  recording: RecordingDetailDto['recording']
-}): ReactElement => {
+const PipelinePill = ({ recording }: { recording: RecordingDetailDto['recording'] }): ReactElement => {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const { samples, receivedAtMs } = useProgressSamples()
@@ -753,8 +717,7 @@ const PipelinePill = ({
           <ol className="pipeline__steps">
             {PIPELINE_STEPS.map((step) => {
               const status = recording.steps[step]?.status ?? 'pending'
-              const fraction =
-                status === 'running' && sample?.step === step ? sample.fraction : undefined
+              const fraction = status === 'running' && sample?.step === step ? sample.fraction : undefined
               const label = stepLabel(step, locale())
 
               return (
@@ -762,9 +725,7 @@ const PipelinePill = ({
                   <span className="pipeline__mark" aria-hidden="true" />
                   <span className="pipeline__label">{label}</span>
                   <span className="pipeline__state">
-                    {fraction === undefined
-                      ? t.pipeline.stepState[status]
-                      : `${Math.round(fraction * 100)}%`}
+                    {fraction === undefined ? t.pipeline.stepState[status] : `${Math.round(fraction * 100)}%`}
                   </span>
 
                   {fraction !== undefined && (
@@ -822,11 +783,7 @@ const StepFailures = ({
           <p className="failure__message" role="note">
             {failureTooltip(failure)}
           </p>
-          <button
-            type="button"
-            className="failure__retry"
-            onClick={() => onRetry(failure.step as PipelineStep)}
-          >
+          <button type="button" className="failure__retry" onClick={() => onRetry(failure.step as PipelineStep)}>
             {t.retry}
           </button>
         </li>
@@ -863,14 +820,8 @@ const useProgressSamples = (): { samples: ProgressSamples; receivedAtMs: number 
 
 /** 検索から飛んできた印と再生中の印は重なりうる。再生中の方を後に置いて見た目で勝たせる。 */
 const segmentClassName = (focused: boolean, playing: boolean, bookmarked: boolean): string =>
-  [
-    'segment',
-    bookmarked && 'segment--bookmarked',
-    focused && 'segment--focused',
-    playing && 'segment--playing'
-  ]
+  ['segment', bookmarked && 'segment--bookmarked', focused && 'segment--focused', playing && 'segment--playing']
     .filter(Boolean)
     .join(' ')
 
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
+const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))

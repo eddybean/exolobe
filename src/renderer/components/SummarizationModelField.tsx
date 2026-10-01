@@ -58,13 +58,9 @@ export const SummarizationModelField = ({
       </select>
       <span className="field__hint">{t.providerHint}</span>
       {!apple.selectable && apple.reason && (
-        <span className="field__hint">
-          {appleIntelligenceUnavailableText(apple.reason, locale())}
-        </span>
+        <span className="field__hint">{appleIntelligenceUnavailableText(apple.reason, locale())}</span>
       )}
-      {provider === 'apple-intelligence' && (
-        <p className="settings__caution">{t.appleWarning}</p>
-      )}
+      {provider === 'apple-intelligence' && <p className="settings__caution">{t.appleWarning}</p>}
       {error && (
         <p className="settings__error" role="alert">
           {error}

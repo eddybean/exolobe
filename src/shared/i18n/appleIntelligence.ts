@@ -14,8 +14,7 @@ const UNAVAILABLE: Readonly<Record<Locale, Readonly<Record<Unavailable, string>>
     'device-not-eligible': 'この Mac は Apple Intelligence に対応していません。',
     'apple-intelligence-not-enabled':
       'Apple Intelligence が有効になっていません。「システム設定 > Apple Intelligence と Siri」で有効にしてください。',
-    'model-not-ready':
-      'Apple Intelligence のモデルを準備中です。しばらく待ってからやり直してください。',
+    'model-not-ready': 'Apple Intelligence のモデルを準備中です。しばらく待ってからやり直してください。',
     unavailable: 'Apple Intelligence を使えません。',
     missing: 'Apple Intelligence を呼び出すプログラム（applelm）が見つかりません。'
   },
@@ -24,14 +23,11 @@ const UNAVAILABLE: Readonly<Record<Locale, Readonly<Record<Unavailable, string>>
     'device-not-eligible': 'This Mac does not support Apple Intelligence.',
     'apple-intelligence-not-enabled':
       'Apple Intelligence is turned off. Turn it on in System Settings > Apple Intelligence & Siri.',
-    'model-not-ready':
-      'The Apple Intelligence model is still being prepared. Wait a while and try again.',
+    'model-not-ready': 'The Apple Intelligence model is still being prepared. Wait a while and try again.',
     unavailable: 'Apple Intelligence is not available.',
     missing: 'The program that calls Apple Intelligence (applelm) was not found.'
   }
 }
 
-export const appleIntelligenceUnavailableText = (
-  availability: Unavailable,
-  locale: Locale
-): string => UNAVAILABLE[locale][availability]
+export const appleIntelligenceUnavailableText = (availability: Unavailable, locale: Locale): string =>
+  UNAVAILABLE[locale][availability]

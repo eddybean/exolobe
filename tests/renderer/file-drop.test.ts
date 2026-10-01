@@ -74,10 +74,10 @@ const recording = (id: string): RecordingDto => ({
   slug: id
 })
 
-const result = (
-  imported: readonly RecordingDto[],
-  failed: ImportAudioResultDto['failed']
-): ImportAudioResultDto => ({ imported, failed })
+const result = (imported: readonly RecordingDto[], failed: ImportAudioResultDto['failed']): ImportAudioResultDto => ({
+  imported,
+  failed
+})
 
 describe('importSummary', () => {
   it('全部取り込めたなら知らせない（一覧に出ることで分かる）', () => {

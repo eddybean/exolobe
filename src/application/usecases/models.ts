@@ -60,9 +60,7 @@ export class GetModelStatus {
    * checkUpdates を切るのは、取得済みかだけを知りたい呼び出しのため。更新の確認は
    * 初回に数 GB のハッシュ計算を伴うので、モデル一覧の画面以外には待たせない。
    */
-  async execute(
-    options: { checkUpdates: boolean } = { checkUpdates: true }
-  ): Promise<ManagedAssetStatus[]> {
+  async execute(options: { checkUpdates: boolean } = { checkUpdates: true }): Promise<ManagedAssetStatus[]> {
     const settings = await this.settings.load()
 
     return Promise.all(
@@ -72,15 +70,11 @@ export class GetModelStatus {
           return { asset, configured, path: configured || this.store.pathFor(asset) }
         })
         // 1 つでも欠けていれば使えないので、全部揃って初めて取得済みとする。
-        const installed = (
-          await Promise.all(files.map((file) => this.store.exists(file.path)))
-        ).every(Boolean)
+        const installed = (await Promise.all(files.map((file) => this.store.exists(file.path)))).every(Boolean)
         const outdated =
           options.checkUpdates &&
           installed &&
-          (await Promise.all(files.map((file) => this.isOutdated(file.asset, file.path)))).some(
-            Boolean
-          )
+          (await Promise.all(files.map((file) => this.isOutdated(file.asset, file.path)))).some(Boolean)
 
         return {
           id: pkg.id,
@@ -139,10 +133,7 @@ export class DownloadModel {
           ? {}
           : {
               onProgress: (received: number, total: number | undefined) =>
-                onProgress(
-                  offset + received,
-                  pkg.assets.length === 1 ? total : pkg.bytes
-                )
+                onProgress(offset + received, pkg.assets.length === 1 ? total : pkg.bytes)
             })
       })
       fetched.push({ asset, path })
@@ -224,10 +215,7 @@ export class UpdateModel {
  * 読み込み中のモデルを消したり入れ替えたりするとジョブが途中で失敗するため、
  * 動いている間は断る。pending が残るだけの録音（リトライ待ち）は動いていないので妨げない。
  */
-const ensureModelsIdle = async (
-  recordings: RecordingRepositoryPort,
-  action: 'delete' | 'update'
-): Promise<void> => {
+const ensureModelsIdle = async (recordings: RecordingRepositoryPort, action: 'delete' | 'update'): Promise<void> => {
   const list = await recordings.list()
 
   if (list.some((recording) => recording.status === 'recording')) {

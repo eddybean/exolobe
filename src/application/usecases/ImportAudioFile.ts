@@ -9,11 +9,7 @@ import type {
 } from '@application/ports'
 import { importTitleOf, unsupportedImportReason } from '@domain/AudioImport'
 import { createRecording, finishRecording, tooShortRecording, type Recording } from '@domain/Recording'
-import {
-  ConfigurationError,
-  TooShortRecordingError,
-  UnsupportedAudioFormatError
-} from '@domain/errors'
+import { ConfigurationError, TooShortRecordingError, UnsupportedAudioFormatError } from '@domain/errors'
 import { isConfigured } from '@domain/Settings'
 
 export interface ImportAudioFileDeps {

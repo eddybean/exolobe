@@ -71,9 +71,7 @@ describe('isPlaybackToggleKey', () => {
 
   it('音量のスライダーでは Space を奪ってよい（スライダーは Space を使わない）', () => {
     // 動かした直後はフォーカスがスライダーに残る。ここで効かないと、動かすたびに Space が死ぬ。
-    expect(isPlaybackToggleKey({ ...space, targetTag: 'INPUT', targetInputType: 'range' })).toBe(
-      true
-    )
+    expect(isPlaybackToggleKey({ ...space, targetTag: 'INPUT', targetInputType: 'range' })).toBe(true)
   })
 
   it('ボタンにフォーカスがあるときはボタンを押させる（二重に動かさない）', () => {

@@ -20,7 +20,7 @@ export interface LicenseText {
 }
 
 export const LICENSE_TEXTS: Readonly<Record<LicenseId, LicenseText>> = {
-  'MIT': {
+  MIT: {
     title: 'MIT License',
     url: 'https://opensource.org/license/mit',
     body: `Permission is hereby granted, free of charge, to any person obtaining a copy

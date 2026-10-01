@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { composeScenario, SAMPLE_RATE } from './compose'
 
 /** 読み上げの代わり。1 文字 0.1 秒、振幅 0.5 の一定の音。 */
-const fakeSpeech = (text: string): Float32Array =>
-  new Float32Array(text.length * (SAMPLE_RATE / 10)).fill(0.5)
+const fakeSpeech = (text: string): Float32Array => new Float32Array(text.length * (SAMPLE_RATE / 10)).fill(0.5)
 
 describe('composeScenario', () => {
   it('発話と間を順に並べ、発話の時刻を正解として返す', () => {
@@ -47,8 +46,6 @@ describe('composeScenario', () => {
       { kind: 'speech', text: 'あ', voice: 'Kyoko', noise: { type: 'fan', level: 0.01 } }
     ] as const
 
-    expect(composeScenario(parts, fakeSpeech).samples).toEqual(
-      composeScenario(parts, fakeSpeech).samples
-    )
+    expect(composeScenario(parts, fakeSpeech).samples).toEqual(composeScenario(parts, fakeSpeech).samples)
   })
 })

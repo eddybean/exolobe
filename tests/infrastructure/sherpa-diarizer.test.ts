@@ -21,11 +21,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-const writeWav = async (
-  name: string,
-  samples: readonly number[],
-  sampleRate = 16_000
-): Promise<string> => {
+const writeWav = async (name: string, samples: readonly number[], sampleRate = 16_000): Promise<string> => {
   const path = join(dir, name)
   const writer = await WavFileWriter.create(path, { sampleRate })
   await writer.write(int16Buffer(samples))
@@ -89,9 +85,7 @@ describe('SherpaOnnxDiarizer', () => {
       factory
     )
 
-    await expect(diarizer.diarize({ wavPath: 'x.wav', maxSpeakers: 6 })).rejects.toBeInstanceOf(
-      DiarizationError
-    )
+    await expect(diarizer.diarize({ wavPath: 'x.wav', maxSpeakers: 6 })).rejects.toBeInstanceOf(DiarizationError)
     expect(factory.calls).toHaveLength(0)
   })
 
@@ -99,9 +93,7 @@ describe('SherpaOnnxDiarizer', () => {
     const factory = new FakeFactory()
     const wavPath = await writeWav('empty.wav', [])
 
-    expect(await new SherpaOnnxDiarizer(config, factory).diarize({ wavPath, maxSpeakers: 6 })).toEqual(
-      []
-    )
+    expect(await new SherpaOnnxDiarizer(config, factory).diarize({ wavPath, maxSpeakers: 6 })).toEqual([])
     expect(factory.calls).toHaveLength(0)
   })
 
@@ -166,9 +158,7 @@ describe('SherpaOnnxDiarizer', () => {
     const factory = new FakeFactory(new FakeSession([], 16_000))
     const wavPath = await writeWav('d.wav', [1, 2, 3], 48_000)
 
-    await expect(
-      new SherpaOnnxDiarizer(config, factory).diarize({ wavPath, maxSpeakers: 6 })
-    ).rejects.toMatchObject({
+    await expect(new SherpaOnnxDiarizer(config, factory).diarize({ wavPath, maxSpeakers: 6 })).rejects.toMatchObject({
       reason: { code: 'diarizationSampleRate', modelRate: 16_000, recordingRate: 48_000 }
     })
     expect(factory.session.received).toBeUndefined()

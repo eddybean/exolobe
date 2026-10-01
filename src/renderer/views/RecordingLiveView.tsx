@@ -100,9 +100,7 @@ export const RecordingLiveView = ({
   const addBookmark = useCallback((): void => {
     const atMs = elapsedNow()
     setBookmarks((current) => [...current, { atMs }])
-    window.recorder
-      .addBookmark(recordingId, atMs)
-      .catch((addError: unknown) => setError(messageOf(addError)))
+    window.recorder.addBookmark(recordingId, atMs).catch((addError: unknown) => setError(messageOf(addError)))
   }, [elapsedNow, recordingId])
 
   // メモを書いている最中でも印をつけられるよう、入力欄ではなく window で受ける。
@@ -163,12 +161,7 @@ export const RecordingLiveView = ({
               tone="remote"
               level={transport.levels.system}
             />
-            <Meter
-              label={t.meter.selfLabel}
-              source={t.meter.selfSource}
-              tone="self"
-              level={transport.levels.mic}
-            />
+            <Meter label={t.meter.selfLabel} source={t.meter.selfSource} tone="self" level={transport.levels.mic} />
           </section>
 
           <section className="live__card" aria-label={t.bookmark.sectionAriaLabel}>
@@ -252,15 +245,11 @@ const Meter = ({
         aria-valuenow={lit}
       >
         {Array.from({ length: METER_SEGMENTS }, (_, index) => (
-          <span
-            key={index}
-            className={index < lit ? 'live__meter-bar live__meter-bar--on' : 'live__meter-bar'}
-          />
+          <span key={index} className={index < lit ? 'live__meter-bar live__meter-bar--on' : 'live__meter-bar'} />
         ))}
       </div>
     </div>
   )
 }
 
-const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
+const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))

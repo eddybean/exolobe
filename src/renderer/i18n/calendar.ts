@@ -22,8 +22,7 @@ const en: typeof ja = {
   fillLabel: 'Fill in the title and participants from the event',
   fillHint1:
     'Uses the title of the event overlapping the time you started recording as the recording’s name, and suggests participants as speaker names.',
-  fillHint2:
-    'Prompts you to record earlier if the microphone is used during an event that includes a meeting URL.',
+  fillHint2: 'Prompts you to record earlier if the microphone is used during an event that includes a meeting URL.',
   fillHint3: 'Only reads the macOS Calendar app — nothing is sent anywhere.',
   autoStartLabel: 'Start recording automatically when the microphone is used during a meeting event',
   autoStartHint1:

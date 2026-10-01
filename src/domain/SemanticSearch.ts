@@ -243,11 +243,7 @@ export const rankRecordings = <C extends { readonly vector: Float32Array }>(
   entries: readonly { readonly recordingId: string; readonly chunks: readonly C[] }[],
   options: { limit?: number; minScore?: number; margin?: number } = {}
 ): RankedHit<C>[] => {
-  const {
-    limit = DEFAULT_SEARCH_LIMIT,
-    minScore = DEFAULT_MIN_SCORE,
-    margin = DEFAULT_SCORE_MARGIN
-  } = options
+  const { limit = DEFAULT_SEARCH_LIMIT, minScore = DEFAULT_MIN_SCORE, margin = DEFAULT_SCORE_MARGIN } = options
 
   const best: RankedHit<C>[] = []
   for (const { recordingId, chunks } of entries) {
@@ -262,9 +258,7 @@ export const rankRecordings = <C extends { readonly vector: Float32Array }>(
   best.sort((a, b) => b.score - a.score)
   const leader = best[0]?.score ?? 0
 
-  return best
-    .filter((hit) => hit.score >= minScore && hit.score >= leader - margin)
-    .slice(0, limit)
+  return best.filter((hit) => hit.score >= minScore && hit.score >= leader - margin).slice(0, limit)
 }
 
 /** 結果一覧に添える抜粋の既定の長さ。一覧で 2 行程度に収まる量。 */
@@ -300,10 +294,7 @@ export const excerptFor = (
     case 'segments': {
       const labels = new Map(material.speakers.map((speaker) => [speaker.id, speaker.label]))
       const segments = material.segments.slice(locator.from, locator.to)
-      const excerpt = truncate(
-        plainText(segments.map((segment) => speakerLine(segment, labels)).join(' ')),
-        maxChars
-      )
+      const excerpt = truncate(plainText(segments.map((segment) => speakerLine(segment, labels)).join(' ')), maxChars)
       const first = segments[0]
       return first ? { excerpt, startMs: first.startMs } : { excerpt }
     }
@@ -319,10 +310,7 @@ export type SearchIndexTransition = 'clear' | 'rebuild' | 'sync' | 'none'
  * モデルの差し替えはワーカーが読み込み済みのモデルを捨てる必要があるので、
  * 単なる同期と区別する（索引自体は fingerprint の不一致で作り直される）。
  */
-export const searchIndexTransition = (
-  before: SearchSettings,
-  after: SearchSettings
-): SearchIndexTransition => {
+export const searchIndexTransition = (before: SearchSettings, after: SearchSettings): SearchIndexTransition => {
   if (before.enabled && !after.enabled) return 'clear'
   if (!before.enabled && after.enabled) return 'sync'
   if (after.enabled && before.modelPath !== after.modelPath) return 'rebuild'

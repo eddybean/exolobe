@@ -53,8 +53,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
   font-size: 13px;
   line-height: 1.6;
 }
@@ -1052,12 +1051,24 @@ code {
 }
 
 /* 話者の色の番号（library/timeline.ts の speakerTones）を、帯と名前の両方が読む --tone に渡す。 */
-.tone-0 { --tone: var(--tone-0); }
-.tone-1 { --tone: var(--tone-1); }
-.tone-2 { --tone: var(--tone-2); }
-.tone-3 { --tone: var(--tone-3); }
-.tone-4 { --tone: var(--tone-4); }
-.tone-5 { --tone: var(--tone-5); }
+.tone-0 {
+  --tone: var(--tone-0);
+}
+.tone-1 {
+  --tone: var(--tone-1);
+}
+.tone-2 {
+  --tone: var(--tone-2);
+}
+.tone-3 {
+  --tone: var(--tone-3);
+}
+.tone-4 {
+  --tone: var(--tone-4);
+}
+.tone-5 {
+  --tone: var(--tone-5);
+}
 
 /*
   話者ごとの発言の帯。左に話者名の桁、右に段を積む。再生位置の縦線は段の桁だけに

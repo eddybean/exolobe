@@ -1,10 +1,6 @@
 import { mkdir, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type {
-  RecordingArtifactPort,
-  RecordingRepositoryPort,
-  RecordingSource
-} from '@application/ports'
+import type { RecordingArtifactPort, RecordingRepositoryPort, RecordingSource } from '@application/ports'
 import {
   PIPELINE_STEPS,
   initialStepStates,
@@ -188,9 +184,7 @@ export class FileRecordingRepository implements RecordingRepositoryPort {
       return []
     }
 
-    const records = await Promise.all(
-      entries.map(async (name) => await readJson(join(root, name, META_FILE)))
-    )
+    const records = await Promise.all(entries.map(async (name) => await readJson(join(root, name, META_FILE))))
 
     return records.filter(isRecord)
   }

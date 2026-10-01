@@ -25,7 +25,8 @@ const en: typeof ja = {
   openList: 'Open List',
   hintEnabled:
     'When the same voice appears in the next recording, this name is applied automatically. If it is wrong, rename it in the detail view — the new name is learned in its place.',
-  hintDisabled: 'Speaker identification is off, so names are not applied automatically right now. Learned voices are kept as they are.',
+  hintDisabled:
+    'Speaker identification is off, so names are not applied automatically right now. Learned voices are kept as they are.',
   modalTitle: (count: number) => `Learned Voices (${count})`,
   filterPlaceholder: 'Filter by name',
   noMatch: 'No matching names.',

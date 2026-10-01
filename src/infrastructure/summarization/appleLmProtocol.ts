@@ -1,7 +1,4 @@
-import type {
-  AppleIntelligenceAvailability,
-  AppleIntelligenceStatus
-} from '@domain/AppleIntelligence'
+import type { AppleIntelligenceAvailability, AppleIntelligenceStatus } from '@domain/AppleIntelligence'
 
 /**
  * applelm（native/applelm/main.swift）との取り決め。

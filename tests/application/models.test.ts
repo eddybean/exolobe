@@ -16,13 +16,7 @@ import {
   requiredAssets
 } from '@domain/ModelCatalog'
 import type { ManagedAsset, ManagedAssetId } from '@domain/ModelCatalog'
-import {
-  initialStepStates,
-  startStep,
-  succeedStep,
-  type Recording,
-  type StepStates
-} from '@domain/Recording'
+import { initialStepStates, startStep, succeedStep, type Recording, type StepStates } from '@domain/Recording'
 import { defaultSettings } from '@domain/Settings'
 import { FakeRecordingRepository, FakeSettingsRepository } from './fakes'
 
@@ -67,11 +61,7 @@ class FakeModelStore implements ModelStorePort {
 
 describe('ModelCatalog', () => {
   it('文字起こし・無音検出・要約のモデルは必須、話者識別は任意にする', () => {
-    expect(requiredAssets().map((a) => a.id)).toEqual([
-      'transcription-model',
-      'vad-model',
-      'summarization-model'
-    ])
+    expect(requiredAssets().map((a) => a.id)).toEqual(['transcription-model', 'vad-model', 'summarization-model'])
   })
 
   it('必須モデルにはチェックサムを持たせる', () => {
@@ -116,9 +106,7 @@ describe('ModelCatalog', () => {
     // whisper.cpp は '<モデル名から -q5_0 を除いたもの>-encoder.mlmodelc' を探す。
     // この対応が崩れると Core ML が黙って無効になるため、名前で縛っておく。
     expect(model?.fileName).toBe('ggml-large-v3-turbo-q5_0.bin')
-    expect(encoder?.entryPath).toBe(
-      'ggml-large-v3-turbo-encoder.mlmodelc/weights/weight.bin'
-    )
+    expect(encoder?.entryPath).toBe('ggml-large-v3-turbo-encoder.mlmodelc/weights/weight.bin')
   })
 
   it('Core ML エンコーダは任意にする。無くても文字起こしは動く', () => {
@@ -135,10 +123,7 @@ describe('ModelCatalog', () => {
     // どちらか片方だけでは話者識別も声紋の取り出しも動かない。
     const diarization = findPackage('diarization')
 
-    expect(diarization?.assets.map((asset) => asset.id)).toEqual([
-      'diarization-segmentation',
-      'diarization-embedding'
-    ])
+    expect(diarization?.assets.map((asset) => asset.id)).toEqual(['diarization-segmentation', 'diarization-embedding'])
     expect(diarization?.optional).toBe(true)
     expect(diarization?.bytes).toBe(6_958_444 + 28_281_164)
     expect(findPackage('diarization-embedding')).toBeUndefined()
@@ -156,10 +141,7 @@ describe('formatBytes', () => {
 describe('GetModelStatus', () => {
   it('未取得のモデルを未インストールとして返す', async () => {
     const store = new FakeModelStore()
-    const status = await new GetModelStatus(
-      new FakeSettingsRepository(defaultSettings('ja')),
-      store
-    ).execute()
+    const status = await new GetModelStatus(new FakeSettingsRepository(defaultSettings('ja')), store).execute()
 
     expect(status).toHaveLength(MODEL_PACKAGES.length)
     expect(status.every((s) => !s.installed)).toBe(true)
@@ -197,10 +179,7 @@ describe('GetModelStatus', () => {
     const store = new FakeModelStore()
     store.present.add('/models/ggml-large-v3-turbo-encoder.mlmodelc/weights/weight.bin')
 
-    const status = await new GetModelStatus(
-      new FakeSettingsRepository(defaultSettings('ja')),
-      store
-    ).execute()
+    const status = await new GetModelStatus(new FakeSettingsRepository(defaultSettings('ja')), store).execute()
     const encoder = status.find((s) => s.id === 'transcription-coreml-encoder')
 
     expect(encoder?.installed).toBe(true)
@@ -211,10 +190,7 @@ describe('GetModelStatus', () => {
     const store = new FakeModelStore()
     store.present.add('/models/ggml-large-v3-turbo-q5_0.bin')
 
-    const status = await new GetModelStatus(
-      new FakeSettingsRepository(defaultSettings('ja')),
-      store
-    ).execute()
+    const status = await new GetModelStatus(new FakeSettingsRepository(defaultSettings('ja')), store).execute()
 
     expect(status.find((s) => s.id === 'transcription-model')?.installed).toBe(true)
   })
@@ -223,9 +199,9 @@ describe('GetModelStatus', () => {
     const store = new FakeModelStore()
     store.present.add('/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx')
     const statusOf = async () =>
-      (
-        await new GetModelStatus(new FakeSettingsRepository(defaultSettings('ja')), store).execute()
-      ).find((s) => s.id === 'diarization')
+      (await new GetModelStatus(new FakeSettingsRepository(defaultSettings('ja')), store).execute()).find(
+        (s) => s.id === 'diarization'
+      )
 
     expect((await statusOf())?.installed).toBe(false)
 
@@ -242,10 +218,7 @@ describe('GetModelStatus', () => {
     store.present.add(embedding)
     store.digests.set(embedding, 'old-digest')
 
-    const status = await new GetModelStatus(
-      new FakeSettingsRepository(defaultSettings('ja')),
-      store
-    ).execute()
+    const status = await new GetModelStatus(new FakeSettingsRepository(defaultSettings('ja')), store).execute()
 
     expect(status.find((s) => s.id === 'diarization')?.updateAvailable).toBe(true)
   })
@@ -305,10 +278,9 @@ describe('GetModelStatus（更新の有無）', () => {
       return 'old-digest'
     }
 
-    const status = await new GetModelStatus(
-      new FakeSettingsRepository(defaultSettings('ja')),
-      store
-    ).execute({ checkUpdates: false })
+    const status = await new GetModelStatus(new FakeSettingsRepository(defaultSettings('ja')), store).execute({
+      checkUpdates: false
+    })
 
     expect(asked).toBe(false)
     expect(status.find((s) => s.id === 'summarization-model')?.updateAvailable).toBe(false)
@@ -342,9 +314,7 @@ describe('DownloadModel', () => {
     const updated = await new DownloadModel(settings, store).execute({ id: 'diarization' })
 
     expect(store.fetched).toEqual(['diarization-segmentation', 'diarization-embedding'])
-    expect(updated.diarization.segmentationModelPath).toBe(
-      '/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx'
-    )
+    expect(updated.diarization.segmentationModelPath).toBe('/models/sherpa-onnx-pyannote-segmentation-3-0/model.onnx')
     expect(updated.diarization.embeddingModelPath).toContain('3dspeaker')
   })
 
@@ -373,9 +343,9 @@ describe('DownloadModel', () => {
       return fetch(asset, options)
     }
 
-    await expect(
-      new DownloadModel(settings, store).execute({ id: 'diarization' })
-    ).rejects.toThrow('通信に失敗しました')
+    await expect(new DownloadModel(settings, store).execute({ id: 'diarization' })).rejects.toThrow(
+      '通信に失敗しました'
+    )
     expect((await settings.load()).diarization.segmentationModelPath).toBe('')
   })
 
@@ -411,9 +381,9 @@ describe('DownloadModel', () => {
     const store = new FakeModelStore()
     store.failWith = new Error('通信に失敗しました')
 
-    await expect(
-      new DownloadModel(settings, store).execute({ id: 'summarization-model' })
-    ).rejects.toThrow('通信に失敗しました')
+    await expect(new DownloadModel(settings, store).execute({ id: 'summarization-model' })).rejects.toThrow(
+      '通信に失敗しました'
+    )
     expect((await settings.load()).summarization.modelPath).toBe('')
   })
 })
@@ -441,12 +411,8 @@ describe('CancelModelDownload', () => {
   })
 })
 
-
 /** 保存済みの録音を 1 件だけ作る。状態の違いだけを見たいので中身は最小にする。 */
-const recordingWith = (params: {
-  status: Recording['status']
-  steps?: StepStates
-}): Recording => ({
+const recordingWith = (params: { status: Recording['status']; steps?: StepStates }): Recording => ({
   id: 'rec-1',
   title: '会議',
   startedAt: new Date('2026-09-07T10:00:00+09:00'),
@@ -539,9 +505,7 @@ describe('DeleteModel', () => {
     const store = new FakeModelStore()
     store.present.add('/models/ggml-large-v3-turbo-q5_0.bin')
 
-    await deleter(new FakeSettingsRepository(defaultSettings('ja')), store).execute(
-      'transcription-model'
-    )
+    await deleter(new FakeSettingsRepository(defaultSettings('ja')), store).execute('transcription-model')
 
     expect(store.present.has('/models/ggml-large-v3-turbo-q5_0.bin')).toBe(false)
   })
@@ -552,9 +516,7 @@ describe('DeleteModel', () => {
     await recordings.save(recordingWith({ status: 'recording' }))
 
     await expect(
-      deleter(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute(
-        'summarization-model'
-      )
+      deleter(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute('summarization-model')
     ).rejects.toThrow('modelBusyRecording')
     expect(store.removed).toEqual([])
   })
@@ -570,9 +532,7 @@ describe('DeleteModel', () => {
     )
 
     await expect(
-      deleter(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute(
-        'transcription-model'
-      )
+      deleter(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute('transcription-model')
     ).rejects.toThrow('modelBusyProcessing')
     expect(store.removed).toEqual([])
   })
@@ -587,17 +547,15 @@ describe('DeleteModel', () => {
       id: 'rec-2'
     })
 
-    await deleter(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute(
-      'summarization-model'
-    )
+    await deleter(new FakeSettingsRepository(defaultSettings('ja')), store, recordings).execute('summarization-model')
 
     expect(store.removed).toEqual(['summarization-model'])
   })
 
   it('未知の ID は拒否する', async () => {
-    await expect(
-      deleter(new FakeSettingsRepository(), new FakeModelStore()).execute('nope')
-    ).rejects.toThrow('unknownModel')
+    await expect(deleter(new FakeSettingsRepository(), new FakeModelStore()).execute('nope')).rejects.toThrow(
+      'unknownModel'
+    )
   })
 })
 
@@ -654,8 +612,8 @@ describe('UpdateModel', () => {
   })
 
   it('未知の ID は拒否する', async () => {
-    await expect(
-      updater(new FakeSettingsRepository(), new FakeModelStore()).execute({ id: 'nope' })
-    ).rejects.toThrow('unknownModel')
+    await expect(updater(new FakeSettingsRepository(), new FakeModelStore()).execute({ id: 'nope' })).rejects.toThrow(
+      'unknownModel'
+    )
   })
 })

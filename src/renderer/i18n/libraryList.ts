@@ -61,8 +61,7 @@ const ja = {
     return `${date.getMonth() + 1}月${date.getDate()}日(${weekdays[date.getDay()]}) ${time}`
   },
   // library/fileDrop.ts
-  importFailedOne: (fileName: string, reason: string): string =>
-    `「${fileName}」を取り込めませんでした。${reason}`,
+  importFailedOne: (fileName: string, reason: string): string => `「${fileName}」を取り込めませんでした。${reason}`,
   importFailedMany: (count: number, fileNames: readonly string[]): string =>
     `${count} 件を取り込めませんでした: ${fileNames.join('、')}`,
   // library/semanticSearch.ts
@@ -94,8 +93,7 @@ const en: typeof ja = {
   deleteFolder: 'Delete',
   searchingAllFolders: 'Searching across all folders',
   noMatchingRecordings: 'No matching recordings.',
-  noRecordingsInFolder:
-    'No recordings in this folder. Drag a recording onto a folder above to move it.',
+  noRecordingsInFolder: 'No recordings in this folder. Drag a recording onto a folder above to move it.',
   noRecordingsYetPrefix: 'No recordings yet. Start one with the Record button below, or ',
   noRecordingsYetLink: 'import audio files',
   noRecordingsYetSuffix: '.',
@@ -122,8 +120,7 @@ const en: typeof ja = {
   yesterday: 'Yesterday',
   thisWeek: 'This Week',
   thisMonth: 'This Month',
-  monthHeading: (date: Date): string =>
-    new Intl.DateTimeFormat(intlLocale(), { month: 'long' }).format(date),
+  monthHeading: (date: Date): string => new Intl.DateTimeFormat(intlLocale(), { month: 'long' }).format(date),
   yearMonthHeading: (date: Date): string =>
     new Intl.DateTimeFormat(intlLocale(), { year: 'numeric', month: 'long' }).format(date),
   underOneMinute: 'Less than 1 minute',
@@ -131,15 +128,12 @@ const en: typeof ja = {
   hours: (value: number): string => `${value} hr`,
   hoursMinutes: (hours: number, minutes: number): string => `${hours} hr ${minutes} min`,
   rowDateTime: (date: Date, time: string): string => {
-    const monthDay = new Intl.DateTimeFormat(intlLocale(), { month: 'short', day: 'numeric' }).format(
-      date
-    )
+    const monthDay = new Intl.DateTimeFormat(intlLocale(), { month: 'short', day: 'numeric' }).format(date)
     const weekday = new Intl.DateTimeFormat(intlLocale(), { weekday: 'short' }).format(date)
     return `${monthDay} (${weekday}) ${time}`
   },
   // library/fileDrop.ts
-  importFailedOne: (fileName: string, reason: string): string =>
-    `Couldn't import "${fileName}". ${reason}`,
+  importFailedOne: (fileName: string, reason: string): string => `Couldn't import "${fileName}". ${reason}`,
   importFailedMany: (count: number, fileNames: readonly string[]): string =>
     `Couldn't import ${count} files: ${fileNames.join(', ')}`,
   // library/semanticSearch.ts

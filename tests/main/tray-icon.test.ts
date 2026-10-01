@@ -1,10 +1,6 @@
 import { inflateSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
-import {
-  TRAY_ICON_PNG_BASE64,
-  TRAY_ICON_RECORDING_PNG_BASE64,
-  trayIconFor
-} from '../../src/main/trayIcon'
+import { TRAY_ICON_PNG_BASE64, TRAY_ICON_RECORDING_PNG_BASE64, trayIconFor } from '../../src/main/trayIcon'
 
 /**
  * メニューバーのアイコンが実際に描画できる PNG であることを確かめる。

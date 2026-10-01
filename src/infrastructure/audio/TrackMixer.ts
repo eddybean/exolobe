@@ -47,10 +47,7 @@ export class TrackMixer implements AudioMixerPort {
       })
     }
 
-    const totalSamples = loaded.reduce(
-      (max, track) => Math.max(max, track.offsetSamples + track.samples.length),
-      0
-    )
+    const totalSamples = loaded.reduce((max, track) => Math.max(max, track.offsetSamples + track.samples.length), 0)
 
     const writer = await WavFileWriter.create(params.outputPath, { sampleRate })
     try {
@@ -62,9 +59,7 @@ export class TrackMixer implements AudioMixerPort {
           for (let index = start; index < end; index += 1) {
             const position = index - track.offsetSamples
             if (position < 0 || position >= track.samples.length) continue
-            chunk[index - start] = clampInt16(
-              (chunk[index - start] ?? 0) + (track.samples[position] ?? 0)
-            )
+            chunk[index - start] = clampInt16((chunk[index - start] ?? 0) + (track.samples[position] ?? 0))
           }
         }
 
