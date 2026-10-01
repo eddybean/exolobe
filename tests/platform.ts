@@ -4,3 +4,9 @@
  * 製品コードの Windows 版を足したら、その実装のテストは別に書く。
  */
 export const notMacOS = process.platform !== 'darwin'
+
+/**
+ * Windows の API（WASAPI・Media Foundation など）や `.exe` の補助プログラムを実際に使うテストは、
+ * Windows でだけ走らせる。`describe.skipIf(notWindows)` で囲む。
+ */
+export const notWindows = process.platform !== 'win32'

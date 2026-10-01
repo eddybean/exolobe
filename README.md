@@ -132,12 +132,13 @@ Ollama のような常駐サーバーは不要です。
 
 ```bash
 npm install
-npm run setup   # whisper-cli を Homebrew で導入（開発時の近道）
+npm run setup   # macOS: whisper-cli を Homebrew で導入（開発時の近道）
 npm run dev
 ```
 
 モデルはアプリの初期設定画面からダウンロードできるので、`npm run setup` が
-入れるのは `whisper-cli` だけです。
+入れるのは `whisper-cli` だけです。Windows（対応中）では `npm run setup` は道具の有無を
+確かめて知らせるだけで、何も入れません。
 
 ## 音声キャプチャの方式
 
