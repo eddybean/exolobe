@@ -17,10 +17,7 @@ export const voiceprintSummary = (voiceprint: VoiceprintDto): string =>
  * 探しているのは「消したい 1 人」なので、あいまい一致や読みの推測はしない ――
  * 意図しない人が混じるより、打った文字がそのまま含まれる人だけが残る方が確かめやすい。
  */
-export const filterVoiceprints = (
-  entries: readonly VoiceprintDto[],
-  query: string
-): VoiceprintDto[] => {
+export const filterVoiceprints = (entries: readonly VoiceprintDto[], query: string): VoiceprintDto[] => {
   const needle = normalize(query)
   if (needle === '') return [...entries]
 

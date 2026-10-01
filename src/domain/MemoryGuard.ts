@@ -66,13 +66,8 @@ const MODEL_OVERHEAD_RATIO = 1.15
 const CONTEXT_FIXED_BYTES = 0.75 * GB
 const KV_BYTES_PER_TOKEN = 19_456
 
-export const estimateSummarizationBytes = (params: {
-  modelFileBytes: number
-  contextSize: number
-}): number =>
-  params.modelFileBytes * MODEL_OVERHEAD_RATIO +
-  CONTEXT_FIXED_BYTES +
-  params.contextSize * KV_BYTES_PER_TOKEN
+export const estimateSummarizationBytes = (params: { modelFileBytes: number; contextSize: number }): number =>
+  params.modelFileBytes * MODEL_OVERHEAD_RATIO + CONTEXT_FIXED_BYTES + params.contextSize * KV_BYTES_PER_TOKEN
 
 /**
  * 文字起こしの所要メモリ。

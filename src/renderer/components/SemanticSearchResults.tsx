@@ -45,11 +45,7 @@ export const SemanticSearchResults = ({
         <li key={hit.recordingId}>
           <button
             type="button"
-            className={
-              hit.recordingId === selectedId
-                ? 'semantic__hit semantic__hit--selected'
-                : 'semantic__hit'
-            }
+            className={hit.recordingId === selectedId ? 'semantic__hit semantic__hit--selected' : 'semantic__hit'}
             onClick={() => onSelect(hit.recordingId)}
             title={hit.title}
           >

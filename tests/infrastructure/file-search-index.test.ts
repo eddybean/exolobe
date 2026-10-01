@@ -104,9 +104,7 @@ describe('FileSearchIndex', () => {
     await index.remove('rec-1')
     await index.remove('rec-missing')
 
-    expect((await new FileSearchIndex(root).list()).map((item) => item.recordingId)).toEqual([
-      'rec-2'
-    ])
+    expect((await new FileSearchIndex(root).list()).map((item) => item.recordingId)).toEqual(['rec-2'])
   })
 
   it('すべて消した後も続けて使える', async () => {

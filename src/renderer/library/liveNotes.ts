@@ -14,8 +14,7 @@ import { focusedSegmentIndex } from './transcriptSearch'
 export const showsLiveView = (
   recording: { readonly id: string; readonly status: RecordingStatus },
   transport: Pick<TransportStateDto, 'active' | 'recordingId'>
-): boolean =>
-  recording.status === 'recording' && transport.active && transport.recordingId === recording.id
+): boolean => recording.status === 'recording' && transport.active && transport.recordingId === recording.id
 
 /**
  * 録音が始まったときに開く録音。始まった瞬間だけ返し、録音中の状態の更新では返さない。
@@ -37,10 +36,7 @@ export interface DetailMoment {
 }
 
 /** 詳細画面のメモ欄に出す「時刻から飛ぶ」一覧。メモの行と印を時刻順に混ぜる。 */
-export const detailMoments = (
-  note: string,
-  bookmarks: readonly Bookmark[]
-): DetailMoment[] =>
+export const detailMoments = (note: string, bookmarks: readonly Bookmark[]): DetailMoment[] =>
   [
     ...noteMoments(note).map((moment) => ({ kind: 'note' as const, ...moment })),
     ...bookmarks.map(({ atMs }) => ({ kind: 'bookmark' as const, atMs, text: '' }))
@@ -54,11 +50,7 @@ export const bookmarkedSegmentIndexes = (
   segments: readonly TranscriptSegment[],
   bookmarks: readonly Bookmark[]
 ): Set<number> =>
-  new Set(
-    bookmarks
-      .map(({ atMs }) => focusedSegmentIndex(segments, atMs))
-      .filter((index) => index >= 0)
-  )
+  new Set(bookmarks.map(({ atMs }) => focusedSegmentIndex(segments, atMs)).filter((index) => index >= 0))
 
 /**
  * 録音中の画面のメーターで点ける段数。

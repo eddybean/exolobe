@@ -12,9 +12,6 @@ export interface StaleDependency {
   readonly actual: string | undefined
 }
 
-export declare const findStaleDependencies: (
-  lock: Lockfile,
-  installed: Lockfile
-) => StaleDependency[]
+export declare const findStaleDependencies: (lock: Lockfile, installed: Lockfile) => StaleDependency[]
 
 export declare const describeStaleness: (stale: readonly StaleDependency[] | undefined) => string

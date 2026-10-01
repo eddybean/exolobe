@@ -50,19 +50,14 @@ export const speakerTones = (
 }
 
 /** タイムラインの全長。文字起こしの時刻が録音の長さを僅かに越えることがあり、帯をはみ出させない。 */
-export const timelineDurationMs = (
-  durationMs: number,
-  segments: readonly TranscriptSegment[]
-): number => segments.reduce((longest, segment) => Math.max(longest, segment.endMs), durationMs)
+export const timelineDurationMs = (durationMs: number, segments: readonly TranscriptSegment[]): number =>
+  segments.reduce((longest, segment) => Math.max(longest, segment.endMs), durationMs)
 
 /**
  * 話者ごとの段。自分を先頭に、相手は話し始めた順に並べる。
  * 会議の流れを上から読むと「誰が口火を切ったか」が段の順に表れる。
  */
-export const speakerLanes = (
-  segments: readonly TranscriptSegment[],
-  speakers: readonly Speaker[]
-): SpeakerLane[] => {
+export const speakerLanes = (segments: readonly TranscriptSegment[], speakers: readonly Speaker[]): SpeakerLane[] => {
   const labels = new Map(speakers.map((speaker) => [speaker.id, speaker.label]))
   const spansBySpeaker = new Map<string, TimelineSpan[]>()
   for (const segment of [...segments].sort((left, right) => left.startMs - right.startMs)) {
@@ -87,10 +82,7 @@ export const speakerLanes = (
  * 2 トラックの録音では自分と相手の発言が重なる。そのときは後から話し始めた方
  * （割り込んだ側）を返す — 長い発言の途中の相づちを見失わないため。
  */
-export const activeSegmentIndex = (
-  segments: readonly TranscriptSegment[],
-  positionMs: number
-): number => {
+export const activeSegmentIndex = (segments: readonly TranscriptSegment[], positionMs: number): number => {
   let speaking: { index: number; startMs: number } | undefined
   let ended: { index: number; endMs: number } | undefined
   for (const [index, { startMs, endMs }] of segments.entries()) {
@@ -111,11 +103,7 @@ export const activeSegmentIndex = (
  * 帯の上なら発言の頭へ飛ぶ。帯は細く、狙った位置は発言の途中になりやすいが、
  * 聞きたいのは発言の中身で、言いかけの途中から聞かされても分からない。
  */
-export const seekTargetMs = (
-  spans: readonly TimelineSpan[],
-  fraction: number,
-  durationMs: number
-): number => {
+export const seekTargetMs = (spans: readonly TimelineSpan[], fraction: number, durationMs: number): number => {
   const positionMs = Math.min(durationMs, Math.max(0, fraction * durationMs))
   const hit = spans.find((span) => span.startMs <= positionMs && positionMs < span.endMs)
   return hit ? hit.startMs : positionMs

@@ -88,11 +88,9 @@ const ja: ReasonMessages = {
   alreadyRecording: () => 'すでに録音中です。',
   notRecording: () => '録音中ではありません。',
   storageNotConfigured: () => '保存先が設定されていません。設定画面から保存先を選んでください。',
-  tooShortRecording: (r) =>
-    `録音時間が ${r.seconds} 秒しかありません。1 分未満の録音は処理しません。`,
+  tooShortRecording: (r) => `録音時間が ${r.seconds} 秒しかありません。1 分未満の録音は処理しません。`,
   recordingDataMissing: () => '録音データが見つかりません。',
-  storageNewerVersion: (r) =>
-    `${r.fileName} は新しい版の Exolobe で保存されています。アプリを更新してください。`,
+  storageNewerVersion: (r) => `${r.fileName} は新しい版の Exolobe で保存されています。アプリを更新してください。`,
   fileUnreadable: (r) => `ファイルを読み取れません: ${r.path}`,
   importNoExtension: (r) =>
     `「${r.fileName}」は拡張子が無いため音声形式を判別できませんでした。${SUGGESTED_FORMATS.join('・')} などの拡張子を付けてからお試しください。`,
@@ -113,32 +111,25 @@ const ja: ReasonMessages = {
   transcriptChanged: () => '文字起こしが更新されています。画面を開き直してください。',
   transcriptEditBlocked: (r) => `${stepLabel(r.step, 'ja')}が終わるまでお待ちください。`,
   invalidSettings: (r) => r.problems.map((problem) => SETTINGS_PROBLEMS.ja[problem]).join('\n'),
-  stepBlocked: (r) =>
-    `前のステップ（${stepLabel(r.blocker, 'ja')}）が失敗したため実行しませんでした。`,
-  stepInterrupted: () =>
-    '処理の途中でアプリまたは処理プロセスが終了したため、完了しませんでした。再実行してください。',
-  transcriptRequiredFirst: () =>
-    '文字起こしがまだありません。先に文字起こしを実行してください。',
+  stepBlocked: (r) => `前のステップ（${stepLabel(r.blocker, 'ja')}）が失敗したため実行しませんでした。`,
+  stepInterrupted: () => '処理の途中でアプリまたは処理プロセスが終了したため、完了しませんでした。再実行してください。',
+  transcriptRequiredFirst: () => '文字起こしがまだありません。先に文字起こしを実行してください。',
   insufficientMemory: (r) =>
     `メモリが不足しているため${MEMORY_TASKS.ja[r.task]}を実行しませんでした` +
     `（必要 約${formatBytes(r.requiredBytes)} / 空き 約${formatBytes(r.availableBytes)}）。` +
     '他のアプリを終了してから再実行してください。' +
     '設定の「メモリ保護」で判定の厳しさを変えられます。',
   mixNoTracks: () => 'ミックスするトラックがありません。',
-  mixSampleRateMismatch: (r) =>
-    `トラックのサンプルレートが一致しません: ${r.sampleRates.join(', ')}`,
+  mixSampleRateMismatch: (r) => `トラックのサンプルレートが一致しません: ${r.sampleRates.join(', ')}`,
   wavUnreadable: (r) => `WAV ファイルとして読み取れません: ${r.path}`,
   wavUnsupportedBits: (r) => `16bit PCM のみ対応しています（${r.bits}bit）: ${r.path}`,
   wavChunkMissing: (r) => `${r.chunk} チャンクが見つかりません: ${r.path}`,
   wavClosed: () => 'クローズ済みの WAV には書き込めません。',
   encodeFailed: (r) => `音声のエンコードに失敗しました: ${r.detail}`,
-  transcriptionModelNotConfigured: () =>
-    '文字起こしモデルが設定されていません。設定画面でモデルを選んでください。',
+  transcriptionModelNotConfigured: () => '文字起こしモデルが設定されていません。設定画面でモデルを選んでください。',
   transcriptionOutputUnreadable: () => '文字起こし結果を読み取れませんでした。',
-  whisperNotFound: (r) =>
-    `文字起こしに必要な ${r.binaryPath} が見つかりません。'npm run setup' を実行してください。`,
-  whisperModelLoadFailed: () =>
-    'whisper のモデルを読み込めませんでした。設定画面でモデルのパスを確認してください。',
+  whisperNotFound: (r) => `文字起こしに必要な ${r.binaryPath} が見つかりません。'npm run setup' を実行してください。`,
+  whisperModelLoadFailed: () => 'whisper のモデルを読み込めませんでした。設定画面でモデルのパスを確認してください。',
   whisperVadUnsupported: (r) =>
     `${r.binaryPath} が無音区間の除外（VAD）に対応していません。whisper.cpp を v1.7.6 以降に更新するか、設定画面で無音区間の除外を無効にしてください。`,
   transcriptionFailed: (r) => `文字起こしに失敗しました: ${r.detail}`,
@@ -148,17 +139,14 @@ const ja: ReasonMessages = {
     `${SHERPA_MODELS.ja[r.model]}が見つかりません（${r.path}）。設定画面で取得し直すか、話者識別を無効にしてください。`,
   sherpaLoadFailed: (r) =>
     `sherpa-onnx を読み込めませんでした（${r.detail}）。` +
-    (r.forDiarization
-      ? '話者識別を無効にすると、自分と参加者の 2 話者で処理を続行できます。'
-      : ''),
+    (r.forDiarization ? '話者識別を無効にすると、自分と参加者の 2 話者で処理を続行できます。' : ''),
   diarizationSampleRate: (r) =>
     `話者識別モデルは ${r.modelRate} Hz の音声を前提としています` +
     `（この録音は ${r.recordingRate} Hz）。設定でサンプルレートを ` +
     `${r.modelRate} Hz にして録音し直すか、話者識別を無効にしてください。`,
   diarizationFailed: (r) => `話者識別に失敗しました: ${r.detail}`,
   speakerEmbeddingFailed: (r) => `声紋の抽出に失敗しました: ${r.detail}`,
-  summaryModelNotConfigured: () =>
-    '要約モデルが設定されていません。設定画面でモデルを選んでください。',
+  summaryModelNotConfigured: () => '要約モデルが設定されていません。設定画面でモデルを選んでください。',
   summaryModelLoadFailed: (r) => `要約モデルを読み込めませんでした（${r.path}）: ${r.detail}`,
   summaryTranscriptEmpty: () => '文字起こしが空のため要約できません。',
   appleIntelligenceUnavailable: (r) => appleIntelligenceUnavailableText(r.availability, 'ja'),
@@ -167,17 +155,13 @@ const ja: ReasonMessages = {
   appleIntelligenceUnsupportedLanguage: () =>
     'Apple Intelligence はこの会議の言語に対応していません。設定で要約のモデルを Gemma に切り替えてください。',
   appleIntelligenceFailed: (r) => `Apple Intelligence での要約に失敗しました: ${r.detail}`,
-  voiceLearningDiarizationDisabled: () =>
-    '話者識別が無効なため、この録音から声を覚えられません。',
+  voiceLearningDiarizationDisabled: () => '話者識別が無効なため、この録音から声を覚えられません。',
   voiceLearningNoSpeakers: () => 'この録音は話者が分かれていないため、声を覚えられません。',
   voiceLearningUnavailable: () => '処理プロセスを使えないため、声を覚えられません。',
-  chatModelNotConfigured: () =>
-    'チャットに使うモデルが設定されていません。設定画面で要約モデルを取得してください。',
+  chatModelNotConfigured: () => 'チャットに使うモデルが設定されていません。設定画面で要約モデルを取得してください。',
   chatModelLoadFailed: (r) => `チャット用のモデルを読み込めませんでした（${r.path}）: ${r.detail}`,
-  searchModelMissing: () =>
-    '意味検索のモデルが未取得です。設定画面の「モデル」からダウンロードしてください。',
-  searchModelLoadFailed: (r) =>
-    `意味検索のモデルを読み込めませんでした（${r.path}）: ${r.detail}`,
+  searchModelMissing: () => '意味検索のモデルが未取得です。設定画面の「モデル」からダウンロードしてください。',
+  searchModelLoadFailed: (r) => `意味検索のモデルを読み込めませんでした（${r.path}）: ${r.detail}`,
   modelBusyRecording: (r) =>
     `録音中はモデルを${r.action === 'delete' ? '削除' : '更新'}できません。録音を停止してから操作してください。`,
   modelBusyProcessing: (r) =>
@@ -186,10 +170,8 @@ const ja: ReasonMessages = {
   downloadEmpty: () => 'ダウンロードの応答が空でした。',
   downloadAborted: () => 'ダウンロードを中止しました。',
   downloadFailed: (r) => `ダウンロードに失敗しました: ${r.detail}`,
-  downloadCorrupted: () =>
-    'ダウンロードしたファイルが壊れています。通信環境を確認してもう一度お試しください。',
-  downloadNetwork: (r) =>
-    `ダウンロードに失敗しました: ${r.detail}。ネットワーク接続を確認してください。`,
+  downloadCorrupted: () => 'ダウンロードしたファイルが壊れています。通信環境を確認してもう一度お試しください。',
+  downloadNetwork: (r) => `ダウンロードに失敗しました: ${r.detail}。ネットワーク接続を確認してください。`,
   downloadHttp: (r) => `ダウンロードに失敗しました（${r.status} ${r.statusText}）。`,
   modelExtractMissing: (r) =>
     `モデルの取得に失敗しました（${modelText(r.assetId, 'ja').label}）。展開後のファイルが見つかりません。`,
@@ -210,8 +192,7 @@ const en: ReasonMessages = {
   tooShortRecording: (r) =>
     `The recording is only ${r.seconds} seconds long. Recordings under 1 minute are not processed.`,
   recordingDataMissing: () => 'The recording data could not be found.',
-  storageNewerVersion: (r) =>
-    `${r.fileName} was saved by a newer version of Exolobe. Please update the app.`,
+  storageNewerVersion: (r) => `${r.fileName} was saved by a newer version of Exolobe. Please update the app.`,
   fileUnreadable: (r) => `Cannot read the file: ${r.path}`,
   importNoExtension: (r) =>
     `“${r.fileName}” has no file extension, so its audio format could not be determined. Add an extension such as ${SUGGESTED_FORMATS.join(', ')} and try again.`,
@@ -233,8 +214,7 @@ const en: ReasonMessages = {
   transcriptEditBlocked: (r) => `Please wait until ${stepLabel(r.step, 'en').toLowerCase()} finishes.`,
   invalidSettings: (r) => r.problems.map((problem) => SETTINGS_PROBLEMS.en[problem]).join('\n'),
   stepBlocked: (r) => `Skipped because an earlier step (${stepLabel(r.blocker, 'en')}) failed.`,
-  stepInterrupted: () =>
-    'The app or the processing process quit before this step finished. Run it again.',
+  stepInterrupted: () => 'The app or the processing process quit before this step finished. Run it again.',
   transcriptRequiredFirst: () => 'There is no transcript yet. Run transcription first.',
   insufficientMemory: (r) =>
     `Not enough memory to run ${MEMORY_TASKS.en[r.task]} ` +
@@ -248,13 +228,10 @@ const en: ReasonMessages = {
   wavChunkMissing: (r) => `${r.chunk} chunk not found: ${r.path}`,
   wavClosed: () => 'Cannot write to a closed WAV file.',
   encodeFailed: (r) => `Audio encoding failed: ${r.detail}`,
-  transcriptionModelNotConfigured: () =>
-    'No transcription model is set. Choose a model in Settings.',
+  transcriptionModelNotConfigured: () => 'No transcription model is set. Choose a model in Settings.',
   transcriptionOutputUnreadable: () => 'Could not read the transcription result.',
-  whisperNotFound: (r) =>
-    `${r.binaryPath}, which transcription needs, was not found. Run 'npm run setup'.`,
-  whisperModelLoadFailed: () =>
-    'Could not load the whisper model. Check the model path in Settings.',
+  whisperNotFound: (r) => `${r.binaryPath}, which transcription needs, was not found. Run 'npm run setup'.`,
+  whisperModelLoadFailed: () => 'Could not load the whisper model. Check the model path in Settings.',
   whisperVadUnsupported: (r) =>
     `${r.binaryPath} does not support skipping silence (VAD). Update whisper.cpp to v1.7.6 or later, or turn off silence skipping in Settings.`,
   transcriptionFailed: (r) => `Transcription failed: ${r.detail}`,
@@ -284,15 +261,11 @@ const en: ReasonMessages = {
   appleIntelligenceFailed: (r) => `Summarizing with Apple Intelligence failed: ${r.detail}`,
   voiceLearningDiarizationDisabled: () =>
     'Speaker identification is off, so voices cannot be learned from this recording.',
-  voiceLearningNoSpeakers: () =>
-    'Speakers are not separated in this recording, so voices cannot be learned from it.',
-  voiceLearningUnavailable: () =>
-    'The processing process is unavailable, so voices cannot be learned.',
-  chatModelNotConfigured: () =>
-    'No model is set up for chat. Download the summarization model in Settings.',
+  voiceLearningNoSpeakers: () => 'Speakers are not separated in this recording, so voices cannot be learned from it.',
+  voiceLearningUnavailable: () => 'The processing process is unavailable, so voices cannot be learned.',
+  chatModelNotConfigured: () => 'No model is set up for chat. Download the summarization model in Settings.',
   chatModelLoadFailed: (r) => `Could not load the chat model (${r.path}): ${r.detail}`,
-  searchModelMissing: () =>
-    'The semantic search model has not been downloaded. Download it from “Models” in Settings.',
+  searchModelMissing: () => 'The semantic search model has not been downloaded. Download it from “Models” in Settings.',
   searchModelLoadFailed: (r) => `Could not load the semantic search model (${r.path}): ${r.detail}`,
   modelBusyRecording: (r) =>
     `Models cannot be ${r.action === 'delete' ? 'deleted' : 'updated'} while recording. Stop the recording first.`,
@@ -302,8 +275,7 @@ const en: ReasonMessages = {
   downloadEmpty: () => 'The download returned no data.',
   downloadAborted: () => 'Download canceled.',
   downloadFailed: (r) => `Download failed: ${r.detail}`,
-  downloadCorrupted: () =>
-    'The downloaded file is damaged. Check your connection and try again.',
+  downloadCorrupted: () => 'The downloaded file is damaged. Check your connection and try again.',
   downloadNetwork: (r) => `Download failed: ${r.detail}. Check your network connection.`,
   downloadHttp: (r) => `Download failed (${r.status} ${r.statusText}).`,
   modelExtractMissing: (r) =>

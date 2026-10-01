@@ -18,12 +18,7 @@ interface Completed {
   readonly stderr: string
 }
 
-const run = (
-  binaryPath: string,
-  args: readonly string[],
-  stdin: string,
-  timeoutMs: number
-): Promise<Completed> =>
+const run = (binaryPath: string, args: readonly string[], stdin: string, timeoutMs: number): Promise<Completed> =>
   new Promise((resolve, reject) => {
     const child = spawn(binaryPath, args, { timeout: timeoutMs })
     let stdout = ''
@@ -41,9 +36,7 @@ const run = (
  * Apple Intelligence が要約に使えるかを applelm に聞く（ADR-046）。
  * 失敗はすべて「使えない」に倒す。設定画面で選べなくなるだけで済む。
  */
-export const appleIntelligenceStatus = async (
-  binaryPath: string | undefined
-): Promise<AppleIntelligenceStatus> => {
+export const appleIntelligenceStatus = async (binaryPath: string | undefined): Promise<AppleIntelligenceStatus> => {
   if (binaryPath === undefined) return { availability: 'missing' }
   try {
     const { code, stdout } = await run(binaryPath, ['status'], '', STATUS_TIMEOUT_MS)
@@ -83,10 +76,7 @@ const respond = async (binaryPath: string, prompt: string): Promise<string> => {
   try {
     completed = await run(binaryPath, ['respond'], prompt, RESPOND_TIMEOUT_MS)
   } catch (error: unknown) {
-    throw new SummarizationError(
-      { code: 'appleIntelligenceFailed', detail: String(error) },
-      { cause: error }
-    )
+    throw new SummarizationError({ code: 'appleIntelligenceFailed', detail: String(error) }, { cause: error })
   }
 
   const { code, stdout, stderr } = completed
@@ -98,8 +88,7 @@ const respond = async (binaryPath: string, prompt: string): Promise<string> => {
       const reported = detail.split('\n')[0]
       throw new SummarizationError({
         code: 'appleIntelligenceUnavailable',
-        availability:
-          isReportedAvailability(reported) && reported !== 'available' ? reported : 'unavailable'
+        availability: isReportedAvailability(reported) && reported !== 'available' ? reported : 'unavailable'
       })
     }
     case RESPOND_EXIT.rejected:

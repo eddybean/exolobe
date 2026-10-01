@@ -32,12 +32,8 @@ describe('voiceLearnedNotice', () => {
 
   it('失敗したときは理由をそのまま見せる', () => {
     expect(
-      voiceLearnedNotice(
-        event({ status: 'failed', message: '話者識別が無効なため、この録音から声を覚えられません。' })
-      )
-    ).toBe(
-      '「田中さん」の声は覚えられませんでした ―― 話者識別が無効なため、この録音から声を覚えられません。'
-    )
+      voiceLearnedNotice(event({ status: 'failed', message: '話者識別が無効なため、この録音から声を覚えられません。' }))
+    ).toBe('「田中さん」の声は覚えられませんでした ―― 話者識別が無効なため、この録音から声を覚えられません。')
   })
 
   it('理由が付いていない失敗でも、覚えられなかったことは伝える', () => {
@@ -49,10 +45,10 @@ describe('voiceLearnedNotice', () => {
   it('英語ロケールでは英語で伝える', () => {
     setLocale('en')
     expect(voiceLearnedNotice(event({ status: 'unavailable' }))).toBe(
-      "Couldn't remember the voice for \"田中さん\". This name won't carry over to future recordings."
+      'Couldn\'t remember the voice for "田中さん". This name won\'t carry over to future recordings.'
     )
-    expect(
-      voiceLearnedNotice(event({ status: 'failed', message: 'Speaker ID is disabled.' }))
-    ).toBe('Couldn\'t remember the voice for "田中さん" — Speaker ID is disabled.')
+    expect(voiceLearnedNotice(event({ status: 'failed', message: 'Speaker ID is disabled.' }))).toBe(
+      'Couldn\'t remember the voice for "田中さん" — Speaker ID is disabled.'
+    )
   })
 })

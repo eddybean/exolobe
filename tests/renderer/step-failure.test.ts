@@ -15,9 +15,10 @@ describe('stepFailure', () => {
   })
 
   it('失敗したステップはラベルと本文を返す', () => {
-    expect(stepFailure('transcribe', { status: 'failed', error: 'モデルを読み込めません。' })).toEqual(
-      { label: '文字起こし', message: 'モデルを読み込めません。' }
-    )
+    expect(stepFailure('transcribe', { status: 'failed', error: 'モデルを読み込めません。' })).toEqual({
+      label: '文字起こし',
+      message: 'モデルを読み込めません。'
+    })
   })
 
   it('error が無い失敗でもツールチップが空にならないよう既定文言を入れる', () => {
@@ -110,9 +111,7 @@ describe('failuresIn', () => {
   it('要約の失敗は要約の欄に出す', () => {
     const failed = steps({ summarize: { status: 'failed', error: 'メモリ不足' } })
 
-    expect(failuresIn('summary', failed)).toEqual([
-      { step: 'summarize', label: '要約', message: 'メモリ不足' }
-    ])
+    expect(failuresIn('summary', failed)).toEqual([{ step: 'summarize', label: '要約', message: 'メモリ不足' }])
     expect(failuresIn('transcript', failed)).toEqual([])
     expect(failuresIn('audio', failed)).toEqual([])
   })
@@ -123,10 +122,7 @@ describe('failuresIn', () => {
       diarize: { status: 'failed', error: 'b' }
     })
 
-    expect(failuresIn('transcript', failed).map((failure) => failure.step)).toEqual([
-      'transcribe',
-      'diarize'
-    ])
+    expect(failuresIn('transcript', failed).map((failure) => failure.step)).toEqual(['transcribe', 'diarize'])
   })
 
   it('ミックスとエンコードの失敗は音声の欄に出す（エンコードはミックスに依存する）', () => {
@@ -169,11 +165,7 @@ describe('英語の UI', () => {
       label: 'Speaker identification',
       message: 'Skipped because an earlier step (Transcription) failed.'
     })
-    expect(failureTooltip({ label: 'Summary', message: 'Out of memory.' })).toBe(
-      'Summary failed: Out of memory.'
-    )
-    expect(stepFailure('summarize', { status: 'failed' })?.message).toBe(
-      'The cause could not be determined.'
-    )
+    expect(failureTooltip({ label: 'Summary', message: 'Out of memory.' })).toBe('Summary failed: Out of memory.')
+    expect(stepFailure('summarize', { status: 'failed' })?.message).toBe('The cause could not be determined.')
   })
 })

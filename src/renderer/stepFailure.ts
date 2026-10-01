@@ -46,9 +46,7 @@ export const stepFailure = (
  * 「文字起こしに失敗しました: …」の形なので、二重に名乗らせない。
  */
 export const failureTooltip = (failure: StepFailure): string =>
-  failure.message.includes(failure.label)
-    ? failure.message
-    : text().failed(failure.label, failure.message)
+  failure.message.includes(failure.label) ? failure.message : text().failed(failure.label, failure.message)
 
 /** 失敗を出す場所。そのステップが作るはずだったものが本来出る欄。 */
 export type FailureArea = 'transcript' | 'summary' | 'audio'
@@ -68,9 +66,7 @@ const FAILURE_AREAS: ReadonlyArray<readonly [string, FailureArea]> = [
 /** その欄に出す失敗を、パイプラインの順に返す。 */
 export const failuresIn = (
   area: FailureArea,
-  steps: Readonly<
-    Record<string, { status: string; error?: string; reason?: ErrorReason } | undefined>
-  >
+  steps: Readonly<Record<string, { status: string; error?: string; reason?: ErrorReason } | undefined>>
 ): Array<StepFailure & { readonly step: string }> =>
   FAILURE_AREAS.flatMap(([step, stepArea]) => {
     const failure = stepArea === area ? stepFailure(step, steps[step]) : undefined
@@ -86,7 +82,5 @@ export const queuedIn = (
   steps: Readonly<Record<string, { status: string } | undefined>>
 ): Array<{ readonly step: string; readonly label: string }> =>
   FAILURE_AREAS.flatMap(([step, stepArea]) =>
-    stepArea === area && steps[step]?.status === 'queued'
-      ? [{ step, label: stepLabel(step, locale()) }]
-      : []
+    stepArea === area && steps[step]?.status === 'queued' ? [{ step, label: stepLabel(step, locale()) }] : []
   )

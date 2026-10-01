@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  GitHubReleaseFeed,
-  type ReleaseFetch
-} from '@infrastructure/update/GitHubReleaseFeed'
+import { GitHubReleaseFeed, type ReleaseFetch } from '@infrastructure/update/GitHubReleaseFeed'
 
 /** 指定した状態と本文を返す最小のレスポンス。要求は記録して検証する。 */
 const respondWith = (

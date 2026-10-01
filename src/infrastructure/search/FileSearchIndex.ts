@@ -32,8 +32,7 @@ interface StoredEntry {
 
 const SOURCES: readonly string[] = ['summary', 'note', 'transcript']
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 const isLocator = (value: unknown): value is ChunkLocator => {
   if (!isRecord(value)) return false
@@ -105,13 +104,11 @@ const fromStored = (stored: StoredEntry): SearchIndexEntry => ({
   recordingId: stored.recordingId,
   fingerprint: stored.fingerprint,
   modelKey: stored.modelKey,
-  chunks: stored.chunks.map(
-    (chunk): IndexedChunk => ({
-      source: chunk.source,
-      locator: chunk.locator,
-      vector: dequantize(chunk.vector, chunk.scale)
-    })
-  )
+  chunks: stored.chunks.map((chunk): IndexedChunk => ({
+    source: chunk.source,
+    locator: chunk.locator,
+    vector: dequantize(chunk.vector, chunk.scale)
+  }))
 })
 
 /**

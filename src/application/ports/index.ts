@@ -60,21 +60,12 @@ export interface AudioMixerPort {
  * エンコード（配布用の圧縮）とは向きが逆なので別のポートにする。
  */
 export interface AudioDecoderPort {
-  decode(params: {
-    inputPath: string
-    outputPath: string
-    sampleRate: number
-  }): Promise<{ durationMs: number }>
+  decode(params: { inputPath: string; outputPath: string; sampleRate: number }): Promise<{ durationMs: number }>
 }
 
 /** WAV を配布用の圧縮音声へ変換する。 */
 export interface AudioEncoderPort {
-  encode(params: {
-    inputPath: string
-    outputPath: string
-    codec: AudioCodec
-    bitrateKbps: number
-  }): Promise<void>
+  encode(params: { inputPath: string; outputPath: string; codec: AudioCodec; bitrateKbps: number }): Promise<void>
 }
 
 export interface TranscriptionPort {
@@ -90,11 +81,7 @@ export interface TranscriptionPort {
 }
 
 export interface DiarizationPort {
-  diarize(params: {
-    wavPath: string
-    maxSpeakers: number
-    signal?: AbortSignal
-  }): Promise<SpeakerTurn[]>
+  diarize(params: { wavPath: string; maxSpeakers: number; signal?: AbortSignal }): Promise<SpeakerTurn[]>
 }
 
 /**
@@ -252,9 +239,7 @@ export interface RecordingArtifactPort {
   readTracks(recording: Recording): Promise<RecordingSource | undefined>
   writeTracks(recording: Recording, tracks: RecordingSource): Promise<void>
 
-  readTranscript(
-    recording: Recording
-  ): Promise<{ segments: TranscriptSegment[]; speakers: Speaker[] } | undefined>
+  readTranscript(recording: Recording): Promise<{ segments: TranscriptSegment[]; speakers: Speaker[] } | undefined>
   writeTranscript(
     recording: Recording,
     data: { segments: readonly TranscriptSegment[]; speakers: readonly Speaker[] }

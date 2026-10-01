@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react'
-import type {
-  FolderDto,
-  ImportProgressDto,
-  RecordingDetailDto,
-  RecordingDto,
-  SetupStateDto
-} from '@shared/ipc'
+import type { FolderDto, ImportProgressDto, RecordingDetailDto, RecordingDto, SetupStateDto } from '@shared/ipc'
 import { LibrarySidebar } from './components/LibrarySidebar'
 import { PaneResizer } from './components/PaneResizer'
 import type { FolderKey } from './library/folders'
@@ -79,9 +73,7 @@ export const App = (): ReactElement => {
     // 設定やモデルが変わるたびにここを通るので、意味検索を出せるかも合わせて確かめる。
     setSemanticAvailable(isSemanticSearchAvailable(await window.recorder.getSearchIndexStatus()))
     // 保存先が未設定なら、まず初期設定に誘導する。
-    setScreen((current) =>
-      state.needsStorageDir ? 'onboarding' : current === 'onboarding' ? 'library' : current
-    )
+    setScreen((current) => (state.needsStorageDir ? 'onboarding' : current === 'onboarding' ? 'library' : current))
   }, [])
 
   const refreshList = useCallback(async (): Promise<void> => {
@@ -308,11 +300,7 @@ export const App = (): ReactElement => {
             {importError && (
               <div className="library__import-error" role="alert">
                 <span>{importError}</span>
-                <button
-                  type="button"
-                  onClick={() => setImportError(undefined)}
-                  aria-label={t.dismissImportError}
-                >
+                <button type="button" onClick={() => setImportError(undefined)} aria-label={t.dismissImportError}>
                   ✕
                 </button>
               </div>
@@ -337,13 +325,9 @@ export const App = (): ReactElement => {
               }}
               focus={focus}
               onCreateFolder={(params) => void window.recorder.createFolder(params)}
-              onRenameFolder={(folderId, name) =>
-                void window.recorder.renameFolder(folderId, name)
-              }
+              onRenameFolder={(folderId, name) => void window.recorder.renameFolder(folderId, name)}
               onDeleteFolder={(folderId) => void window.recorder.deleteFolder(folderId)}
-              onMoveFolder={(folderId, parentId) =>
-                void window.recorder.moveFolder(folderId, parentId)
-              }
+              onMoveFolder={(folderId, parentId) => void window.recorder.moveFolder(folderId, parentId)}
               onMoveRecording={(recordingId, folderId) =>
                 void window.recorder.moveRecordingToFolder(recordingId, folderId)
               }
@@ -376,10 +360,7 @@ export const App = (): ReactElement => {
         )}
       </main>
 
-      <TransportBar
-        transport={transport}
-        shortcutEnabled={setup?.settings.recording.globalShortcutEnabled ?? false}
-      />
+      <TransportBar transport={transport} shortcutEnabled={setup?.settings.recording.globalShortcutEnabled ?? false} />
     </div>
   )
 }

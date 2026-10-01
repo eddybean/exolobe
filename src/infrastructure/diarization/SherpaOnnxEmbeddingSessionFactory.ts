@@ -18,10 +18,7 @@ export class SherpaOnnxEmbeddingSessionFactory implements SpeakerEmbeddingSessio
 
     const sherpa = await loadSherpa(
       (detail, cause) =>
-        new SpeakerEmbeddingError(
-          { code: 'sherpaLoadFailed', detail, forDiarization: false },
-          { cause }
-        )
+        new SpeakerEmbeddingError({ code: 'sherpaLoadFailed', detail, forDiarization: false }, { cause })
     )
     const extractor = new sherpa.SpeakerEmbeddingExtractor({
       model: config.embeddingModelPath,

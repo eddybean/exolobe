@@ -95,9 +95,7 @@ const generateNoise = (noise: Noise, length: number, random: () => number): Floa
     case 'hum': {
       for (let i = 0; i < length; i++) {
         const t = i / SAMPLE_RATE
-        out[i] =
-          noise.level *
-          (0.7 * Math.sin(2 * Math.PI * 50 * t) + 0.3 * Math.sin(2 * Math.PI * 150 * t))
+        out[i] = noise.level * (0.7 * Math.sin(2 * Math.PI * 50 * t) + 0.3 * Math.sin(2 * Math.PI * 150 * t))
       }
       break
     }

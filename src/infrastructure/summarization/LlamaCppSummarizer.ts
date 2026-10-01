@@ -32,11 +32,7 @@ export interface LlmSession {
 }
 
 export interface LlmSessionFactory {
-  create(config: {
-    modelPath: string
-    contextSize: number
-    protection: MemoryProtection
-  }): Promise<LlmSession>
+  create(config: { modelPath: string; contextSize: number; protection: MemoryProtection }): Promise<LlmSession>
 }
 
 /**
@@ -64,8 +60,7 @@ export const splitTranscript = (transcript: string, maxChars: number): string[] 
 }
 
 /** 組み立て終わったプロンプトへ、利用者が外せない防御の指示を前置きする。 */
-const guarded = (prompt: string, language: MeetingLanguage): string =>
-  `${hallucinationGuard(language)}\n\n${prompt}`
+const guarded = (prompt: string, language: MeetingLanguage): string => `${hallucinationGuard(language)}\n\n${prompt}`
 
 /**
  * プロンプトの差し込み位置に文字起こしとメモを入れる。位置指定が無い場合は末尾に付ける。
@@ -114,8 +109,7 @@ const HALLUCINATION_GUARDS: Readonly<Record<MeetingLanguage, string>> = {
   ].join('\n')
 }
 
-export const hallucinationGuard = (language: MeetingLanguage): string =>
-  HALLUCINATION_GUARDS[language]
+export const hallucinationGuard = (language: MeetingLanguage): string => HALLUCINATION_GUARDS[language]
 
 const CHUNK_PROMPTS: Readonly<Record<MeetingLanguage, string>> = {
   ja: [
@@ -182,9 +176,7 @@ export class LlamaCppSummarizer implements SummarizationPort {
         if (chunks.length === 1) break
         const condensed = (
           await sequentially(chunks, (chunk) =>
-            session.prompt(
-              guarded(renderPrompt(CHUNK_PROMPTS[params.language], chunk), params.language)
-            )
+            session.prompt(guarded(renderPrompt(CHUNK_PROMPTS[params.language], chunk), params.language))
           )
         ).join('\n\n')
         const shrank = condensed.length < material.length
@@ -195,10 +187,7 @@ export class LlamaCppSummarizer implements SummarizationPort {
       // メモは統合の段でだけ渡す。部分要約にも混ぜると、どの範囲の要約にも同じ論点が現れる。
       return (
         await session.prompt(
-          guarded(
-            renderPrompt(params.promptTemplate, material, params.notes ?? ''),
-            params.language
-          )
+          guarded(renderPrompt(params.promptTemplate, material, params.notes ?? ''), params.language)
         )
       ).trim()
     } finally {
@@ -209,10 +198,7 @@ export class LlamaCppSummarizer implements SummarizationPort {
 }
 
 /** チャンク要約は同時実行するとメモリを食い潰すため 1 件ずつ処理する。 */
-const sequentially = async <T, R>(
-  items: readonly T[],
-  run: (item: T) => Promise<R>
-): Promise<R[]> => {
+const sequentially = async <T, R>(items: readonly T[], run: (item: T) => Promise<R>): Promise<R[]> => {
   const results: R[] = []
   for (const item of items) {
     results.push(await run(item))

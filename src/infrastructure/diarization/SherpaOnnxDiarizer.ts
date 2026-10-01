@@ -100,10 +100,7 @@ export class SherpaOnnxDiarizer implements DiarizationPort {
       return limitSpeakers(turns, params.maxSpeakers)
     } catch (error: unknown) {
       if (error instanceof DiarizationError) throw error
-      throw new DiarizationError(
-        { code: 'diarizationFailed', detail: toMessage(error) },
-        { cause: error }
-      )
+      throw new DiarizationError({ code: 'diarizationFailed', detail: toMessage(error) }, { cause: error })
     } finally {
       // 失敗しても必ずセッションを閉じる。ネイティブが確保したメモリを抱えたまま
       // 次のステップ（要約は数 GB を使う）へ進ませない。

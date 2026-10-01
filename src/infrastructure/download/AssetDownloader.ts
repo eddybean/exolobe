@@ -88,10 +88,7 @@ export class AssetDownloader {
       // 途中までの内容は再開に使えるので残す。
       throw error instanceof DownloadError
         ? error
-        : new DownloadError(
-            { code: 'downloadFailed', detail: toMessage(error) },
-            { cause: error }
-          )
+        : new DownloadError({ code: 'downloadFailed', detail: toMessage(error) }, { cause: error })
     } finally {
       await handle.close()
     }
@@ -108,11 +105,7 @@ export class AssetDownloader {
     await rename(partPath, params.destPath)
   }
 
-  private async request(
-    url: string,
-    resumeFrom: number,
-    signal?: AbortSignal
-  ): ReturnType<FetchLike> {
+  private async request(url: string, resumeFrom: number, signal?: AbortSignal): ReturnType<FetchLike> {
     const init: RequestInit = {
       ...(signal === undefined ? {} : { signal }),
       ...(resumeFrom > 0 ? { headers: { range: `bytes=${resumeFrom}-` } } : {})
@@ -122,10 +115,7 @@ export class AssetDownloader {
     try {
       response = await this.fetchImpl(url, init)
     } catch (error: unknown) {
-      throw new DownloadError(
-        { code: 'downloadNetwork', detail: toMessage(error) },
-        { cause: error }
-      )
+      throw new DownloadError({ code: 'downloadNetwork', detail: toMessage(error) }, { cause: error })
     }
 
     if (!response.ok) {

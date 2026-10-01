@@ -105,8 +105,6 @@ describe('describeStaleness', () => {
   })
 
   it('node_modules がまだ無いときは install を促す', () => {
-    expect(describeStaleness(undefined)).toBe(
-      'node_modules がまだありません。npm ci を実行してください。'
-    )
+    expect(describeStaleness(undefined)).toBe('node_modules がまだありません。npm ci を実行してください。')
   })
 })

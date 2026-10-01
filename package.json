@@ -1,14 +1,11 @@
 {
   "name": "exolobe",
   "version": "0.3.3",
-  "description": "Web 会議の録音・文字起こし・話者識別・要約を Mac の中だけで実行するデスクトップアプリ",
-  "main": "./out/main/index.js",
-  "author": "eddybean",
-  "license": "SEE LICENSE IN LICENSE",
   "private": true,
-  "engines": {
-    "node": ">=22.12"
-  },
+  "description": "Web 会議の録音・文字起こし・話者識別・要約を Mac の中だけで実行するデスクトップアプリ",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "eddybean",
+  "main": "./out/main/index.js",
   "scripts": {
     "predev": "node scripts/check-node-modules.mjs",
     "dev": "electron-vite dev",
@@ -56,5 +53,8 @@
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
     "vitest": "^5.0.2"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

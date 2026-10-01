@@ -15,10 +15,7 @@ const MEETING_LANGUAGES: readonly MeetingLanguage[] = ['ja', 'en']
  * 自動判定の結果を使わないのは、要約だけを再実行したときにも同じ言語で書かせるため
  * （判定結果は保存していない）。
  */
-export const meetingLanguageOf = (
-  transcriptionLanguage: string,
-  fallback: MeetingLanguage
-): MeetingLanguage =>
+export const meetingLanguageOf = (transcriptionLanguage: string, fallback: MeetingLanguage): MeetingLanguage =>
   MEETING_LANGUAGES.find((language) => language === transcriptionLanguage) ?? fallback
 
 /** かな・漢字。これを含む問いは日本語として扱う。 */
@@ -30,5 +27,4 @@ const JAPANESE = /[぀-ヿ㐀-鿿]/
  * チャットは録音をまたいで答えるので、1 つの会議の言語では決められない。利用者が
  * 書いた言語で答えるのが自然で、英語の問いに日本語の指示文を渡すと答えも日本語に寄る。
  */
-export const questionLanguageOf = (question: string): MeetingLanguage =>
-  JAPANESE.test(question) ? 'ja' : 'en'
+export const questionLanguageOf = (question: string): MeetingLanguage => (JAPANESE.test(question) ? 'ja' : 'en')

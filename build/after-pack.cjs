@@ -23,10 +23,7 @@ exports.default = async function afterPack(context) {
     return
   }
 
-  const appPath = join(
-    context.appOutDir,
-    `${context.packager.appInfo.productFilename}.app`
-  )
+  const appPath = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
   if (!existsSync(appPath)) {
     throw new Error(`[after-pack] アプリが見つかりません: ${appPath}`)
   }

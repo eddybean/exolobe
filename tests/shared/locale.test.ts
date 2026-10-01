@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  localeArg,
-  localeFromArgv,
-  localeTag,
-  parseLocale,
-  resolveLocale
-} from '@shared/i18n/locale'
+import { localeArg, localeFromArgv, localeTag, parseLocale, resolveLocale } from '@shared/i18n/locale'
 
 describe('resolveLocale', () => {
   it('優先言語の先頭が日本語なら日本語', () => {

@@ -140,9 +140,7 @@ describe('PipelineClient', () => {
   })
 
   describe('ワーカーが落ちたときの後始末', () => {
-    const setupWithRecovery = (
-      recover: () => Promise<void>
-    ): { client: PipelineClient; workers: FakeWorker[] } => {
+    const setupWithRecovery = (recover: () => Promise<void>): { client: PipelineClient; workers: FakeWorker[] } => {
       const workers: FakeWorker[] = []
       const client = new PipelineClient(
         () => undefined,
@@ -256,13 +254,7 @@ describe('PipelineClient', () => {
 
       void client.run({ recordingId: 'r1' })
 
-      expect(client.queuedSteps('r1')).toEqual([
-        'mix',
-        'transcribe',
-        'diarize',
-        'summarize',
-        'encode'
-      ])
+      expect(client.queuedSteps('r1')).toEqual(['mix', 'transcribe', 'diarize', 'summarize', 'encode'])
     })
 
     it('前のジョブを待っている間も順番待ちのまま', () => {

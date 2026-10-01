@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { SearchHitDto, SearchIndexStatusDto } from '@shared/ipc'
-import {
-  hitLocation,
-  isSemanticSearchAvailable,
-  searchIndexSummary
-} from '../../src/renderer/library/semanticSearch'
+import { hitLocation, isSemanticSearchAvailable, searchIndexSummary } from '../../src/renderer/library/semanticSearch'
 import { setLocale } from '../../src/renderer/i18n/locale'
 
 const hit = (overrides: Partial<SearchHitDto> = {}): SearchHitDto => ({
@@ -59,9 +55,7 @@ describe('searchIndexSummary', () => {
   })
 
   it('対象を数えている間は件数を出さない', () => {
-    expect(searchIndexSummary(status({ sync: { state: 'running', done: 0, total: 0 } }))).toBe(
-      'インデックスを確認中…'
-    )
+    expect(searchIndexSummary(status({ sync: { state: 'running', done: 0, total: 0 } }))).toBe('インデックスを確認中…')
   })
 
   it('録音の処理を待っているときはそう伝える', () => {
@@ -71,9 +65,9 @@ describe('searchIndexSummary', () => {
   })
 
   it('失敗したら理由を示す', () => {
-    expect(
-      searchIndexSummary(status({ sync: { state: 'error', message: 'モデルがありません' } }))
-    ).toBe('インデックスを作成できませんでした: モデルがありません')
+    expect(searchIndexSummary(status({ sync: { state: 'error', message: 'モデルがありません' } }))).toBe(
+      'インデックスを作成できませんでした: モデルがありません'
+    )
   })
 
   it('モデルが無ければ取得を促す', () => {
@@ -96,8 +90,8 @@ describe('英語表示', () => {
   it('索引の状態を英語で示す', () => {
     setLocale('en')
     expect(searchIndexSummary(status())).toBe('12 of 15 indexed (3MB)')
-    expect(
-      searchIndexSummary(status({ sync: { state: 'running', done: 3, total: 8 } }))
-    ).toBe('Building index (3 of 8)')
+    expect(searchIndexSummary(status({ sync: { state: 'running', done: 3, total: 8 } }))).toBe(
+      'Building index (3 of 8)'
+    )
   })
 })

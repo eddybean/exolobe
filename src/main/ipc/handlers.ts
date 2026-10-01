@@ -1,13 +1,5 @@
 import { basename } from 'node:path'
-import {
-  BrowserWindow,
-  dialog,
-  ipcMain,
-  nativeTheme,
-  shell,
-  systemPreferences,
-  type FileFilter
-} from 'electron'
+import { BrowserWindow, dialog, ipcMain, nativeTheme, shell, systemPreferences, type FileFilter } from 'electron'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import { ConfigurationError, RecordingStateError, reasonOf, type ErrorReason } from '@domain/errors'
 import { IMPORTABLE_EXTENSIONS } from '@domain/AudioImport'
@@ -110,9 +102,7 @@ export const registerIpcHandlers = (
   getWindow: () => BrowserWindow | undefined,
   showWindow: () => void
 ): TransportController => {
-  let active:
-    | { recordingId: string; title: string; startedAtMs: number; silenceDurationMs: number }
-    | undefined
+  let active: { recordingId: string; title: string; startedAtMs: number; silenceDurationMs: number } | undefined
   /** テスト録音でシステム音声を取り込んでいる間。録音の開始と重ねない。 */
   let probingSystemAudio = false
 
@@ -127,11 +117,7 @@ export const registerIpcHandlers = (
    * renderer 側の confirm はブロッキングで見た目も浮くため使わない。
    * ウィンドウが無い（トレイからの操作）場合もあるので、その時は親無しで出す。
    */
-  const confirm = async (params: {
-    message: string
-    detail: string
-    confirmLabel?: string
-  }): Promise<boolean> => {
+  const confirm = async (params: { message: string; detail: string; confirmLabel?: string }): Promise<boolean> => {
     const window = getWindow()
     const options = {
       type: 'warning' as const,
@@ -142,9 +128,7 @@ export const registerIpcHandlers = (
       detail: params.detail
     }
 
-    const result = window
-      ? await dialog.showMessageBox(window, options)
-      : await dialog.showMessageBox(options)
+    const result = window ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options)
 
     return result.response === 0
   }
@@ -189,10 +173,7 @@ export const registerIpcHandlers = (
 
   // 画面に渡す録音には、列で順番を待っているステップを重ねる（保存された状態には無い）。
   const recordingDto = (recording: Recording, summaryPreview?: string): RecordingDto =>
-    withQueuedSteps(
-      toRecordingDto(recording, summaryPreview),
-      pipeline.queuedSteps(recording.id)
-    )
+    withQueuedSteps(toRecordingDto(recording, summaryPreview), pipeline.queuedSteps(recording.id))
 
   /**
    * 意味検索。埋め込みモデルは検索専用のワーカーに載せる。
@@ -384,8 +365,7 @@ export const registerIpcHandlers = (
   const startStartWatch = async (): Promise<void> => {
     const { recording } = await container.settings.load()
     // 促す設定が切でも、会議の予定での自動開始を選んでいれば見張る。
-    const wanted =
-      recording.startAlertEnabled || (recording.calendarEnabled && recording.autoStartEnabled)
+    const wanted = recording.startAlertEnabled || (recording.calendarEnabled && recording.autoStartEnabled)
 
     if (!wanted || !container.micUsage.available) {
       stopStartWatch()
@@ -544,10 +524,7 @@ export const registerIpcHandlers = (
   // カレンダーは Electron に API が無いので、同梱の calendarevents に問い合わせる（ADR-040）。
   handle(IPC.getCalendarPermission, async () => container.calendar.permission())
   handle(IPC.requestCalendarPermission, async () => container.calendar.requestPermission())
-  handle(
-    IPC.getAppleIntelligenceAvailability,
-    async () => (await container.appleIntelligence()).availability
-  )
+  handle(IPC.getAppleIntelligenceAvailability, async () => (await container.appleIntelligence()).availability)
   /**
    * テスト録音のシステム音声の側。録音と同時に取り込みを 2 本走らせると、同じ音を
    * 取り合って録音の側が欠けかねないので、録音中とテスト同士の重なりは断る。
@@ -580,9 +557,7 @@ export const registerIpcHandlers = (
   /** 設定に合わせてショートカットを登録し直す。起動時と設定の変更時に呼ぶ。 */
   const applyShortcut = async (): Promise<void> => {
     const { recording } = await container.settings.load()
-    const registered = applyRecordingShortcut(recording.globalShortcutEnabled, () =>
-      controller.request('toggle')
-    )
+    const registered = applyRecordingShortcut(recording.globalShortcutEnabled, () => controller.request('toggle'))
     if (!registered) {
       console.warn(`[shortcut] ${RECORDING_SHORTCUT.label} is used by another app and could not be registered.`)
     }
@@ -805,17 +780,14 @@ export const registerIpcHandlers = (
     send(IPC.recordingsChanged)
   })
 
-  handle(
-    IPC.moveRecordingToFolder,
-    async (id: unknown, folderId: unknown): Promise<RecordingDto> => {
-      const recording = await container.moveRecordingToFolder.execute({
-        recordingId: asString(id, 'recordingId'),
-        folderId: typeof folderId === 'string' ? folderId : undefined
-      })
-      send(IPC.recordingsChanged)
-      return recordingDto(recording)
-    }
-  )
+  handle(IPC.moveRecordingToFolder, async (id: unknown, folderId: unknown): Promise<RecordingDto> => {
+    const recording = await container.moveRecordingToFolder.execute({
+      recordingId: asString(id, 'recordingId'),
+      folderId: typeof folderId === 'string' ? folderId : undefined
+    })
+    send(IPC.recordingsChanged)
+    return recordingDto(recording)
+  })
 
   handle(IPC.getSetupState, async () => container.getSetupState.execute())
 
@@ -866,9 +838,7 @@ export const registerIpcHandlers = (
     }
   }
 
-  handle(IPC.downloadModel, async (id: unknown) =>
-    acquireModel(asString(id, 'modelId'), container.downloadModel)
-  )
+  handle(IPC.downloadModel, async (id: unknown) => acquireModel(asString(id, 'modelId'), container.downloadModel))
 
   handle(IPC.updateModel, async (id: unknown) => {
     const modelId = asString(id, 'modelId')
@@ -992,16 +962,13 @@ export const registerIpcHandlers = (
     const settings = await container.settings.load()
     // 設定だけが残ってファイルが消えている場合を「取得済み」と見せない。
     const models = await container.getModelStatus.execute({ checkUpdates: false })
-    const modelInstalled =
-      models.find((model) => model.id === 'summarization-model')?.installed ?? false
+    const modelInstalled = models.find((model) => model.id === 'summarization-model')?.installed ?? false
 
     return {
       enabled: settings.chat.enabled,
       modelInstalled,
       semanticSearchAvailable: settings.search.enabled && settings.search.modelPath !== '',
-      ...(pipeline.isBusy() || active !== undefined
-        ? { busyReason: text().error.chatWaitForProcessing }
-        : {})
+      ...(pipeline.isBusy() || active !== undefined ? { busyReason: text().error.chatWaitForProcessing } : {})
     }
   }
 
@@ -1009,7 +976,6 @@ export const registerIpcHandlers = (
 
   /** 利用者が止めた依頼。途中までの本文を「失敗」ではなく「中断」として見せるため。 */
   const cancelled = new Set<string>()
-
 
   /**
    * 問いを受けて答えを流す。
@@ -1132,9 +1098,7 @@ export const registerIpcHandlers = (
     const entries = await container.listVoiceprints.execute()
     return confirm({
       message: text().dialog.forgetAllMessage,
-      detail: [text().dialog.forgetAllCount(entries.length), text().dialog.forgetAllKeeps].join(
-        '\n'
-      ),
+      detail: [text().dialog.forgetAllCount(entries.length), text().dialog.forgetAllKeeps].join('\n'),
       confirmLabel: text().dialog.forgetAll
     })
   })
@@ -1144,9 +1108,7 @@ export const registerIpcHandlers = (
     return container.listVoiceprints.execute()
   })
 
-  handle(IPC.getUpdateStatus, async (): Promise<UpdateStatusDto> =>
-    updateStatusDto(await updates.current())
-  )
+  handle(IPC.getUpdateStatus, async (): Promise<UpdateStatusDto> => updateStatusDto(await updates.current()))
 
   handle(IPC.checkForUpdate, async (): Promise<UpdateStatusDto> => {
     await updates.checkNow()
@@ -1228,10 +1190,7 @@ const fileFilters = (): Record<FileKind, FileFilter[]> => ({
  * 'Error invoking remote method' に包まれて読めなくなるため、
  * UI の言語の文言だけを持つ Error に詰め替える。
  */
-const handle = (
-  channel: string,
-  handler: (...args: unknown[]) => Promise<unknown>
-): void => {
+const handle = (channel: string, handler: (...args: unknown[]) => Promise<unknown>): void => {
   ipcMain.handle(channel, async (_event, ...args: unknown[]) => {
     try {
       return await handler(...args)
@@ -1242,9 +1201,7 @@ const handle = (
 }
 
 /** renderer から届く値は信頼しない。会話履歴は形が崩れやすいので入口で絞る。 */
-const asChatRequest = (
-  value: unknown
-): { requestId: string; question: string; history: ChatTurnDto[] } => {
+const asChatRequest = (value: unknown): { requestId: string; question: string; history: ChatTurnDto[] } => {
   if (typeof value !== 'object' || value === null) {
     throw new Error('Missing argument: chat request')
   }
@@ -1292,13 +1249,7 @@ const asSegmentRef = (value: unknown): { index: number; startMs: number } => {
   return { index: index as number, startMs }
 }
 
-const PIPELINE_STEP_NAMES: readonly string[] = [
-  'mix',
-  'transcribe',
-  'diarize',
-  'summarize',
-  'encode'
-]
+const PIPELINE_STEP_NAMES: readonly string[] = ['mix', 'transcribe', 'diarize', 'summarize', 'encode']
 
 const asStep = (value: unknown): PipelineStep => {
   if (typeof value !== 'string' || !PIPELINE_STEP_NAMES.includes(value)) {

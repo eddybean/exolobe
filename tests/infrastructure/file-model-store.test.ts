@@ -54,9 +54,7 @@ describe('FileModelStore.remove', () => {
     await store.remove(target)
 
     expect(await store.exists(path)).toBe(false)
-    expect(
-      await store.exists(join(modelsDir, 'sherpa-onnx-pyannote-segmentation-3-0', 'LICENSE'))
-    ).toBe(false)
+    expect(await store.exists(join(modelsDir, 'sherpa-onnx-pyannote-segmentation-3-0', 'LICENSE'))).toBe(false)
   })
 
   it('中断で残った途中までのアーカイブも消す', async () => {
@@ -78,10 +76,7 @@ describe('FileModelStore.fetch（zip アーカイブ）', () => {
   const zipOf = async (dir: string): Promise<FetchLike> => {
     const src = join(dir, 'src')
     await mkdir(join(src, 'ggml-large-v3-turbo-encoder.mlmodelc', 'weights'), { recursive: true })
-    await writeFile(
-      join(src, 'ggml-large-v3-turbo-encoder.mlmodelc', 'weights', 'weight.bin'),
-      'w'
-    )
+    await writeFile(join(src, 'ggml-large-v3-turbo-encoder.mlmodelc', 'weights', 'weight.bin'), 'w')
     await writeFile(join(src, 'ggml-large-v3-turbo-encoder.mlmodelc', 'model.mil'), 'm')
 
     const archive = join(dir, 'src.zip')
@@ -258,10 +253,7 @@ describe('FileModelStore（配布物の版）', () => {
   it('取り替えに失敗しても古いファイルは残す', async () => {
     const path = store.pathFor(release('v1'))
     await writeFile(path, 'v0')
-    const failing = new FileModelStore(
-      modelsDir,
-      new AssetDownloader(serving(new Error('offline')))
-    )
+    const failing = new FileModelStore(modelsDir, new AssetDownloader(serving(new Error('offline'))))
 
     await expect(failing.fetch(release('v1'), {})).rejects.toThrow()
     expect(await readFile(path, 'utf8')).toBe('v0')
@@ -280,10 +272,7 @@ describe('FileModelStore（配布物の版）', () => {
 
   it('削除したモデルの記録も消す', async () => {
     const target = release('v1')
-    const path = await new FileModelStore(modelsDir, new AssetDownloader(serving('v1'))).fetch(
-      target,
-      {}
-    )
+    const path = await new FileModelStore(modelsDir, new AssetDownloader(serving('v1'))).fetch(target, {})
 
     await store.remove(target)
 

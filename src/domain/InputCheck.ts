@@ -22,5 +22,4 @@ export const INPUT_CHECK = {
 
 export type InputVerdict = 'heard' | 'silent'
 
-export const judgeInput = (peak: number): InputVerdict =>
-  peak >= INPUT_CHECK.audibleThreshold ? 'heard' : 'silent'
+export const judgeInput = (peak: number): InputVerdict => (peak >= INPUT_CHECK.audibleThreshold ? 'heard' : 'silent')

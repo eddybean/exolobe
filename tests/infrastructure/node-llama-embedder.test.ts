@@ -83,9 +83,9 @@ describe('NodeLlamaEmbedder', () => {
   it('モデルが未取得なら読み込みを試みず、取得を促す', async () => {
     const factory = new FakeFactory()
 
-    await expect(
-      new NodeLlamaEmbedder({ ...config, modelPath: '' }, factory).embed('a')
-    ).rejects.toBeInstanceOf(ConfigurationError)
+    await expect(new NodeLlamaEmbedder({ ...config, modelPath: '' }, factory).embed('a')).rejects.toBeInstanceOf(
+      ConfigurationError
+    )
     expect(factory.created).toBe(0)
   })
 

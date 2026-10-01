@@ -149,11 +149,7 @@ export const readWav = async (path: string): Promise<WavData> => {
 }
 
 /** 目的のチャンクは LIST 等の後ろに来ることがあるため位置を走査する。 */
-const findChunk = (
-  raw: Buffer,
-  id: string,
-  path: string
-): { offset: number; size: number } => {
+const findChunk = (raw: Buffer, id: string, path: string): { offset: number; size: number } => {
   let cursor = 12
   while (cursor + 8 <= raw.length) {
     const found = raw.toString('ascii', cursor, cursor + 4)
@@ -166,8 +162,7 @@ const findChunk = (
   throw new WavFormatError({ code: 'wavChunkMissing', chunk: id, path })
 }
 
-const findDataChunk = (raw: Buffer, path: string): { offset: number; size: number } =>
-  findChunk(raw, 'data', path)
+const findDataChunk = (raw: Buffer, path: string): { offset: number; size: number } => findChunk(raw, 'data', path)
 
 /** fmt チャンクからサンプルレート・チャンネル数・量子化ビット数を読む。 */
 const readFormatChunk = (raw: Buffer, path: string): WavFormat => {

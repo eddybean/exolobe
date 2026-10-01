@@ -16,10 +16,7 @@ import type { MeetingLanguage } from '@domain/MeetingLanguage'
 
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
 
-const build = (
-  settings = new FakeSettingsRepository(),
-  fallbackLanguage: MeetingLanguage = 'ja'
-) => {
+const build = (settings = new FakeSettingsRepository(), fallbackLanguage: MeetingLanguage = 'ja') => {
   const repository = new FakeRecordingRepository()
   const capture = new FakeAudioCapture()
   const artifacts = new FakeArtifactStore()
@@ -63,17 +60,13 @@ describe('StartRecording', () => {
   it('設定のサンプルレートと録音専用の作業ディレクトリを渡す', async () => {
     const recording = await ctx.start.execute({})
 
-    expect(ctx.capture.startCalls).toEqual([
-      { workDir: ctx.artifacts.workDir(recording), sampleRate: 16_000 }
-    ])
+    expect(ctx.capture.startCalls).toEqual([{ workDir: ctx.artifacts.workDir(recording), sampleRate: 16_000 }])
   })
 
   it('保存先が未設定なら開始できない', async () => {
     const ctxUnconfigured = build(new FakeSettingsRepository(defaultSettings('ja')))
 
-    await expect(ctxUnconfigured.start.execute({})).rejects.toThrow(
-      'storageNotConfigured'
-    )
+    await expect(ctxUnconfigured.start.execute({})).rejects.toThrow('storageNotConfigured')
     expect(ctxUnconfigured.capture.isActive()).toBe(false)
   })
 
@@ -128,9 +121,7 @@ describe('StartRecording（カレンダー連携）', () => {
   it('開始時刻から少し先までに重なる予定を問い合わせる', async () => {
     await ctx.start.execute({})
 
-    expect(ctx.calendar.calls).toEqual([
-      { from: startedAt, to: new Date(startedAt.getTime() + 5 * 60_000) }
-    ])
+    expect(ctx.calendar.calls).toEqual([{ from: startedAt, to: new Date(startedAt.getTime() + 5 * 60_000) }])
   })
 
   it('タイトルが指定されていればそちらを優先し、参加者名は残す', async () => {

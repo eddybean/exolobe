@@ -29,11 +29,7 @@ const AFINFO = '/usr/bin/afinfo'
  * 16bit（`LEI16`）を指定するのは、後段の readWav と話者識別が 16bit PCM を前提とするため。
  */
 export class AfconvertDecoder implements AudioDecoderPort {
-  async decode(params: {
-    inputPath: string
-    outputPath: string
-    sampleRate: number
-  }): Promise<{ durationMs: number }> {
+  async decode(params: { inputPath: string; outputPath: string; sampleRate: number }): Promise<{ durationMs: number }> {
     await mkdir(dirname(params.outputPath), { recursive: true })
 
     try {
@@ -43,10 +39,7 @@ export class AfconvertDecoder implements AudioDecoderPort {
       // 出力を書いたのはここなので、後始末もここで行う。
       await rm(params.outputPath, { force: true })
 
-      throw new DecodeError(
-        { code: 'decodeFailed', fileName: basename(params.inputPath) },
-        { cause: error }
-      )
+      throw new DecodeError({ code: 'decodeFailed', fileName: basename(params.inputPath) }, { cause: error })
     }
 
     return { durationMs: await wavDurationMs(params.outputPath) }

@@ -94,8 +94,7 @@ const CONTEXT_TEXT: Readonly<
             ? '相手の発言のみ・文字起こし'
             : '文字起こし'
       }）`,
-    dropped: (total, kept) =>
-      `※ 対象は ${total} 件ありましたが、長さの都合で新しい ${kept} 件だけを載せています。`
+    dropped: (total, kept) => `※ 対象は ${total} 件ありましたが、長さの都合で新しい ${kept} 件だけを載せています。`
   },
   en: {
     omission: '… (rest omitted)',
@@ -133,10 +132,7 @@ const SECTION_HEADINGS: Record<SummarySection, RegExp> = {
  * 見出しを落とさないのは、何の一覧なのかをモデルが取り違えないようにするため。
  * 該当が無ければ undefined を返し、呼び出し側は全体を載せる。
  */
-export const extractSummarySection = (
-  summary: string,
-  section: SummarySection
-): string | undefined => {
+export const extractSummarySection = (summary: string, section: SummarySection): string | undefined => {
   const pattern = SECTION_HEADINGS[section]
   const lines = summary.split('\n')
   const start = lines.findIndex((line) => /^#{1,6}\s/.test(line) && pattern.test(line))
@@ -157,10 +153,7 @@ export const extractSummarySection = (
  * 同じ席を分け合うので、順に引いてから残りを文字数に直す。割合で雑に引くと、
  * 履歴が伸びた会話で静かに溢れる。
  */
-export const contextBudgetChars = (
-  contextSize: number,
-  options: { readonly historyChars?: number } = {}
-): number => {
+export const contextBudgetChars = (contextSize: number, options: { readonly historyChars?: number } = {}): number => {
   const historyTokens = Math.ceil((options.historyChars ?? 0) / CHARS_PER_TOKEN)
   const available = contextSize - ANSWER_TOKENS - INSTRUCTION_TOKENS - historyTokens
 
@@ -178,9 +171,7 @@ export const filterSegmentsByScope = (
   return segments.filter((segment) => {
     // 話者一覧に無い ID でも、`remote:` の名前空間だけで相手だと判断できる。
     const kind = kinds.get(segment.speakerId) ?? (isRemoteSpeakerId(segment.speakerId) ? 'remote' : undefined)
-    return scope === 'self'
-      ? kind === 'self' || segment.speakerId === SELF_SPEAKER_ID
-      : kind === 'remote'
+    return scope === 'self' ? kind === 'self' || segment.speakerId === SELF_SPEAKER_ID : kind === 'remote'
   })
 }
 
@@ -192,16 +183,10 @@ const formatDate = (date: Date, language: MeetingLanguage): string => {
   return text.date(isoDate, text.weekdays[date.getDay()] ?? '')
 }
 
-export const formatContextHeading = (
-  index: number,
-  material: ChatSourceMaterial,
-  language: MeetingLanguage
-): string => `## [${index}] ${formatDate(material.startedAt, language)} ${material.title}`
+export const formatContextHeading = (index: number, material: ChatSourceMaterial, language: MeetingLanguage): string =>
+  `## [${index}] ${formatDate(material.startedAt, language)} ${material.title}`
 
-const transcriptBody = (
-  material: ChatSourceMaterial,
-  scope: SpeakerScope
-): { body: string; startMs?: number } => {
+const transcriptBody = (material: ChatSourceMaterial, scope: SpeakerScope): { body: string; startMs?: number } => {
   const segments = filterSegmentsByScope(material.segments, material.speakers, scope)
   if (segments.length === 0) return { body: '' }
 
@@ -271,16 +256,11 @@ const toCandidate = (
  */
 const allocate = (candidates: readonly Candidate[], budgetChars: number): number[] => {
   const share = Math.floor(budgetChars / candidates.length)
-  const surplus = candidates.reduce(
-    (total, candidate) => total + Math.max(0, share - candidate.body.length),
-    0
-  )
+  const surplus = candidates.reduce((total, candidate) => total + Math.max(0, share - candidate.body.length), 0)
   const needy = candidates.filter((candidate) => candidate.body.length > share).length
   const extra = needy === 0 ? 0 : Math.floor(surplus / needy)
 
-  return candidates.map((candidate) =>
-    candidate.body.length > share ? share + extra : candidate.body.length
-  )
+  return candidates.map((candidate) => (candidate.body.length > share ? share + extra : candidate.body.length))
 }
 
 export const buildChatContext = (params: {
@@ -296,9 +276,7 @@ export const buildChatContext = (params: {
 }): ChatContext => {
   const text = CONTEXT_TEXT[params.language]
   const all = params.materials
-    .map((material) =>
-      toCandidate(material, params.scope, params.useTranscript, params.section, params.language)
-    )
+    .map((material) => toCandidate(material, params.scope, params.useTranscript, params.section, params.language))
     .filter((candidate): candidate is Candidate => candidate !== undefined)
 
   if (all.length === 0) return { text: '', citations: [], droppedCount: 0 }
@@ -317,9 +295,7 @@ export const buildChatContext = (params: {
   const blocks = chosen.map((candidate, index) => {
     const allowance = allowances[index] ?? candidate.body.length
     const truncated = candidate.body.length > allowance
-    const body = truncated
-      ? `${candidate.body.slice(0, allowance)}${text.omission}`
-      : candidate.body
+    const body = truncated ? `${candidate.body.slice(0, allowance)}${text.omission}` : candidate.body
 
     citations.push({
       recordingId: candidate.material.recordingId,
@@ -334,8 +310,7 @@ export const buildChatContext = (params: {
   })
 
   // 落とした件数を書かないと、モデルは与えられた範囲を全体だと思って断定する。
-  const notice =
-    droppedCount > 0 ? `\n\n${text.dropped(params.materials.length, chosen.length)}` : ''
+  const notice = droppedCount > 0 ? `\n\n${text.dropped(params.materials.length, chosen.length)}` : ''
 
   return { text: blocks.join('\n\n') + notice, citations, droppedCount }
 }

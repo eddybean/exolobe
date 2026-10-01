@@ -3,9 +3,9 @@ import { resolveWhisperBinary } from '@infrastructure/transcription/resolveWhisp
 
 describe('resolveWhisperBinary', () => {
   it('既定値のままなら同梱バイナリを使う', () => {
-    expect(
-      resolveWhisperBinary({ configured: 'whisper-cli', bundled: '/App/Resources/bin/whisper-cli' })
-    ).toBe('/App/Resources/bin/whisper-cli')
+    expect(resolveWhisperBinary({ configured: 'whisper-cli', bundled: '/App/Resources/bin/whisper-cli' })).toBe(
+      '/App/Resources/bin/whisper-cli'
+    )
   })
 
   it('同梱が無ければ PATH 上の whisper-cli を使う（開発時）', () => {

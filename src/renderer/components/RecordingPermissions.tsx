@@ -92,7 +92,11 @@ export const RecordingPermissions = (): ReactElement => {
           <span className="permissions__purpose">{t.micPurpose}</span>
         </div>
         {micView && (
-          <span className={micView.ok ? 'permissions__state permissions__state--ok' : 'permissions__state permissions__state--ng'}>
+          <span
+            className={
+              micView.ok ? 'permissions__state permissions__state--ok' : 'permissions__state permissions__state--ng'
+            }
+          >
             {micView.label}
           </span>
         )}
@@ -131,11 +135,17 @@ export const RecordingPermissions = (): ReactElement => {
           {testResult.map((row) => (
             <li
               key={row.subject}
-              className={row.ok ? 'permissions__result permissions__result--ok' : 'permissions__result permissions__result--ng'}
+              className={
+                row.ok ? 'permissions__result permissions__result--ok' : 'permissions__result permissions__result--ng'
+              }
             >
               <span className="permissions__result-head">
                 <span className="permissions__name">{row.subject}</span>
-                <span className={row.ok ? 'permissions__state permissions__state--ok' : 'permissions__state permissions__state--ng'}>
+                <span
+                  className={
+                    row.ok ? 'permissions__state permissions__state--ok' : 'permissions__state permissions__state--ng'
+                  }
+                >
                   {row.ok ? t.heard : t.notHeard}
                 </span>
               </span>

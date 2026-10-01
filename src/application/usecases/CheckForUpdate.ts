@@ -62,10 +62,7 @@ export class CheckForUpdate {
     return record
   }
 
-  private async statusOf(
-    record: UpdateCheckRecord | undefined,
-    checkedAt: Date | undefined
-  ): Promise<UpdateStatus> {
+  private async statusOf(record: UpdateCheckRecord | undefined, checkedAt: Date | undefined): Promise<UpdateStatus> {
     const latest = record?.latest
     const available =
       latest && isNewerVersion(latest.version, this.deps.currentVersion)

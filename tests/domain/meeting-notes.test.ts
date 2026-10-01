@@ -83,12 +83,7 @@ describe('serializeNote / parseNote', () => {
       { text: '  * 入れ子', atMs: 600_000 }
     ]
     expect(serializeNote(lines)).toBe(
-      [
-        '- [00:03:10] エクスポートは次スプリント',
-        '[00:09:42] 価格改定',
-        '',
-        '  * [00:10:00] 入れ子'
-      ].join('\n')
+      ['- [00:03:10] エクスポートは次スプリント', '[00:09:42] 価格改定', '', '  * [00:10:00] 入れ子'].join('\n')
     )
   })
 
@@ -112,9 +107,7 @@ describe('serializeNote / parseNote', () => {
 
 describe('noteMoments', () => {
   it('時刻つきの行を、記号を除いた本文と一緒に返す', () => {
-    const note = ['- [00:03:10] エクスポート', '見出し', '[00:09:42] 価格改定', '- [00:10:00]   '].join(
-      '\n'
-    )
+    const note = ['- [00:03:10] エクスポート', '見出し', '[00:09:42] 価格改定', '- [00:10:00]   '].join('\n')
     expect(noteMoments(note)).toEqual([
       { atMs: 190_000, text: 'エクスポート' },
       { atMs: 582_000, text: '価格改定' }

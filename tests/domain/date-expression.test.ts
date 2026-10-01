@@ -166,9 +166,7 @@ describe('日付の補助関数', () => {
   })
 
   it('startOfWeek は月曜に呼べばその日を返す', () => {
-    expect(startOfWeek(new Date('2026-09-07T23:00:00+09:00')).getTime()).toBe(
-      at('2026-09-07T00:00:00+09:00')
-    )
+    expect(startOfWeek(new Date('2026-09-07T23:00:00+09:00')).getTime()).toBe(at('2026-09-07T00:00:00+09:00'))
   })
 
   it('startOfMonth は月初 00:00 を返す', () => {
@@ -176,8 +174,6 @@ describe('日付の補助関数', () => {
   })
 
   it('addDays は月をまたいでも正しく進む', () => {
-    expect(addDays(new Date('2026-08-31T00:00:00+09:00'), 1).getTime()).toBe(
-      at('2026-09-01T00:00:00+09:00')
-    )
+    expect(addDays(new Date('2026-08-31T00:00:00+09:00'), 1).getTime()).toBe(at('2026-09-01T00:00:00+09:00'))
   })
 })

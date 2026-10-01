@@ -28,16 +28,13 @@ export type ChatWorkerResponse =
       readonly limit: number
     }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 const isTurnArray = (value: unknown): value is ChatTurn[] =>
   Array.isArray(value) &&
   value.every(
     (turn) =>
-      isRecord(turn) &&
-      (turn['role'] === 'user' || turn['role'] === 'assistant') &&
-      typeof turn['text'] === 'string'
+      isRecord(turn) && (turn['role'] === 'user' || turn['role'] === 'assistant') && typeof turn['text'] === 'string'
   )
 
 export const isChatWorkerRequest = (value: unknown): value is ChatWorkerRequest => {
@@ -48,10 +45,7 @@ export const isChatWorkerRequest = (value: unknown): value is ChatWorkerRequest 
     case 'cancel':
       return true
     case 'candidates':
-      return (
-        Array.isArray(value['recordingIds']) &&
-        value['recordingIds'].every((id) => typeof id === 'string')
-      )
+      return Array.isArray(value['recordingIds']) && value['recordingIds'].every((id) => typeof id === 'string')
     default:
       return false
   }
@@ -60,7 +54,5 @@ export const isChatWorkerRequest = (value: unknown): value is ChatWorkerRequest 
 export const isChatWorkerResponse = (value: unknown): value is ChatWorkerResponse => {
   if (!isRecord(value) || typeof value['id'] !== 'string') return false
   const type = value['type']
-  return (
-    type === 'chat-chunk' || type === 'chat-done' || type === 'error' || type === 'find-candidates'
-  )
+  return type === 'chat-chunk' || type === 'chat-done' || type === 'error' || type === 'find-candidates'
 }

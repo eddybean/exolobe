@@ -34,9 +34,7 @@ describe('createMeetingLookup', () => {
 
     await lookup.refresh(at('10:05'))
 
-    expect(calendar.calls).toEqual([
-      { from: new Date(at('10:05')), to: new Date(at('10:10')) }
-    ])
+    expect(calendar.calls).toEqual([{ from: new Date(at('10:05')), to: new Date(at('10:10')) }])
     expect(lookup.current(at('10:05'))).toBe(meeting)
   })
 

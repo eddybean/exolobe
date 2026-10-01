@@ -29,9 +29,7 @@ const lproj = (language: string): Record<string, string> =>
 /** extendInfo の 1 行 1 キーの値を読む。YAML の読み取りを持ち込むほどの構造ではない。 */
 const extendInfo = (): Record<string, string> => {
   const yml = readFileSync(join(ROOT, 'electron-builder.yml'), 'utf8')
-  return Object.fromEntries(
-    USAGE_KEYS.map((key) => [key, new RegExp(`^\\s+${key}: (.+)$`, 'm').exec(yml)?.[1] ?? ''])
-  )
+  return Object.fromEntries(USAGE_KEYS.map((key) => [key, new RegExp(`^\\s+${key}: (.+)$`, 'm').exec(yml)?.[1] ?? '']))
 }
 
 describe('InfoPlist.strings', () => {

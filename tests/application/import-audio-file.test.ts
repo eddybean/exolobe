@@ -102,9 +102,7 @@ describe('ImportAudioFile — 断る場合', () => {
   it('保存先が未設定なら取り込まない', async () => {
     const ctx = build(new FakeSettingsRepository(defaultSettings('ja')))
 
-    await expect(ctx.importAudioFile.execute({ filePath: SOURCE })).rejects.toThrow(
-      'storageNotConfigured'
-    )
+    await expect(ctx.importAudioFile.execute({ filePath: SOURCE })).rejects.toThrow('storageNotConfigured')
     expect(ctx.repository.records.size).toBe(0)
   })
 
@@ -122,9 +120,7 @@ describe('ImportAudioFile — 断る場合', () => {
   it('読めないファイルは理由を返す', async () => {
     const ctx = build()
 
-    await expect(ctx.importAudioFile.execute({ filePath: '/x/missing.mp3' })).rejects.toThrow(
-      'fileUnreadable'
-    )
+    await expect(ctx.importAudioFile.execute({ filePath: '/x/missing.mp3' })).rejects.toThrow('fileUnreadable')
     expect(ctx.repository.records.size).toBe(0)
   })
 
@@ -133,9 +129,7 @@ describe('ImportAudioFile — 断る場合', () => {
     const ctx = build()
     ctx.decoder.error = new Error('音声を読み取れませんでした。')
 
-    await expect(ctx.importAudioFile.execute({ filePath: SOURCE })).rejects.toThrow(
-      '音声を読み取れませんでした。'
-    )
+    await expect(ctx.importAudioFile.execute({ filePath: SOURCE })).rejects.toThrow('音声を読み取れませんでした。')
     expect(ctx.repository.records.size).toBe(0)
     expect(ctx.artifacts.tracks.size).toBe(0)
   })
@@ -144,9 +138,7 @@ describe('ImportAudioFile — 断る場合', () => {
     const ctx = build()
     ctx.decoder.durationMs = MINIMUM_RECORDING_MS - 1_000
 
-    await expect(ctx.importAudioFile.execute({ filePath: SOURCE })).rejects.toThrow(
-      'tooShortRecording'
-    )
+    await expect(ctx.importAudioFile.execute({ filePath: SOURCE })).rejects.toThrow('tooShortRecording')
     expect(ctx.repository.records.size).toBe(0)
     expect(ctx.artifacts.cleanedUp).toEqual(['rec-1'])
   })

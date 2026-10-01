@@ -87,9 +87,7 @@ export class GetRecordingDetail {
 }
 
 /** コピー用のプレーンテキスト。話者ラベルを解決して読める形にする。 */
-const toPlainTranscript = (
-  transcript: { segments: TranscriptSegment[]; speakers: Speaker[] } | undefined
-): string => {
+const toPlainTranscript = (transcript: { segments: TranscriptSegment[]; speakers: Speaker[] } | undefined): string => {
   if (!transcript) return ''
   const labels = new Map(transcript.speakers.map((speaker) => [speaker.id, speaker.label]))
 
@@ -174,11 +172,7 @@ export class RenameRecording {
 export class RenameSpeaker {
   constructor(private readonly deps: LibraryDeps) {}
 
-  async execute(params: {
-    recordingId: string
-    speakerId: string
-    label: string
-  }): Promise<readonly Speaker[]> {
+  async execute(params: { recordingId: string; speakerId: string; label: string }): Promise<readonly Speaker[]> {
     const recording = await findOrThrow(this.deps.repository, params.recordingId)
     const transcript = await this.deps.artifacts.readTranscript(recording)
     if (!transcript) {
@@ -285,11 +279,7 @@ export interface RememberSpeakerVoiceDeps extends LibraryDeps {
 export class RememberSpeakerVoice {
   constructor(private readonly deps: RememberSpeakerVoiceDeps) {}
 
-  async execute(params: {
-    recordingId: string
-    speakerId: string
-    label: string
-  }): Promise<VoiceMemoryResult> {
+  async execute(params: { recordingId: string; speakerId: string; label: string }): Promise<VoiceMemoryResult> {
     if (!isRemoteSpeakerId(params.speakerId)) return 'skipped-self'
 
     const recording = await findOrThrow(this.deps.repository, params.recordingId)
@@ -333,8 +323,7 @@ export class RememberSpeakerVoice {
 const vectorOf = (
   voices: { speakers: readonly { speakerId: string; vector: Float32Array }[] } | undefined,
   speakerId: string
-): Float32Array | undefined =>
-  voices?.speakers.find((speaker) => speaker.speakerId === speakerId)?.vector
+): Float32Array | undefined => voices?.speakers.find((speaker) => speaker.speakerId === speakerId)?.vector
 
 export class DeleteRecording {
   constructor(private readonly deps: LibraryDeps) {}
@@ -378,16 +367,12 @@ export class GetSetupState {
       needsTranscriptionModel: settings.transcription.modelPath.length === 0,
       // Apple Intelligence はダウンロードの要らない OS のモデルなので、Gemma を取らせない。
       needsSummarizationModel:
-        summarizationProviderOf(settings) === 'llama-cpp' &&
-        settings.summarization.modelPath.length === 0
+        summarizationProviderOf(settings) === 'llama-cpp' && settings.summarization.modelPath.length === 0
     }
   }
 }
 
-const findOrThrow = async (
-  repository: RecordingRepositoryPort,
-  recordingId: string
-): Promise<Recording> => {
+const findOrThrow = async (repository: RecordingRepositoryPort, recordingId: string): Promise<Recording> => {
   const recording = await repository.find(recordingId)
   if (!recording) throw new RecordingNotFoundError(recordingId)
   return recording
@@ -413,9 +398,7 @@ const toView = (voiceprint: Voiceprint): VoiceprintView => ({
 
 /** 新しく覚えた順に並べる。直前に付けた名前が上に来るほうが確かめやすい。 */
 const listViews = async (voiceprints: VoiceprintRepositoryPort): Promise<VoiceprintView[]> =>
-  (await voiceprints.list())
-    .map(toView)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  (await voiceprints.list()).map(toView).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
 export class ListVoiceprints {
   constructor(private readonly voiceprints: VoiceprintRepositoryPort) {}

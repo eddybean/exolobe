@@ -16,10 +16,7 @@ describe('dropRepeatedSegments', () => {
       ...backToBack(Array<string>(6).fill('検索機能の回収を上げてください。'), 5000)
     ])
 
-    expect(kept.map((s) => s.text)).toEqual([
-      '検索は時間がかかっています。',
-      '検索機能の回収を上げてください。'
-    ])
+    expect(kept.map((s) => s.text)).toEqual(['検索は時間がかかっています。', '検索機能の回収を上げてください。'])
     expect(dropped).toHaveLength(5)
   })
 

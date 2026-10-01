@@ -30,9 +30,7 @@ interface Span {
   readonly endMs: number
 }
 
-export const voiceTurnsFromTranscript = (
-  segments: readonly TranscriptSegment[]
-): SpeakerTurn[] => {
+export const voiceTurnsFromTranscript = (segments: readonly TranscriptSegment[]): SpeakerTurn[] => {
   const muted = mergeSpans(
     segments
       .filter((segment) => !segment.speakerId.startsWith(CLUSTER_PREFIX))

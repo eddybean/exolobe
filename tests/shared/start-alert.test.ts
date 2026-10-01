@@ -4,9 +4,7 @@ import { autoStartedMessage, startAlertMessage } from '@shared/startAlert'
 /** 開始忘れの確認バーと OS 通知の文面。予定の有無で言い方を変える（ADR-041）。 */
 describe('startAlertMessage', () => {
   it('予定が無ければ、マイクが使われている時間で知らせる', () => {
-    expect(startAlertMessage({ micBusyDurationMs: 180_000 }, 'ja')).toBe(
-      '3 分以上、他のアプリがマイクを使っています。'
-    )
+    expect(startAlertMessage({ micBusyDurationMs: 180_000 }, 'ja')).toBe('3 分以上、他のアプリがマイクを使っています。')
     expect(startAlertMessage({ micBusyDurationMs: 180_000 }, 'en')).toBe(
       'Another app has been using the microphone for 3 minutes or more.'
     )
@@ -22,9 +20,7 @@ describe('startAlertMessage', () => {
   })
 
   it('1 分に満たなければ秒で言う', () => {
-    expect(startAlertMessage({ micBusyDurationMs: 30_000 }, 'ja')).toBe(
-      '30 秒以上、他のアプリがマイクを使っています。'
-    )
+    expect(startAlertMessage({ micBusyDurationMs: 30_000 }, 'ja')).toBe('30 秒以上、他のアプリがマイクを使っています。')
     expect(startAlertMessage({ micBusyDurationMs: 30_000 }, 'en')).toBe(
       'Another app has been using the microphone for 30 seconds or more.'
     )
@@ -37,9 +33,9 @@ describe('startAlertMessage', () => {
   })
 
   it('会議の予定があれば、時間ではなく予定の名前で言う', () => {
-    expect(
-      startAlertMessage({ micBusyDurationMs: 30_000, eventTitle: '週次定例' }, 'ja')
-    ).toBe('「週次定例」の時間に、他のアプリがマイクを使っています。')
+    expect(startAlertMessage({ micBusyDurationMs: 30_000, eventTitle: '週次定例' }, 'ja')).toBe(
+      '「週次定例」の時間に、他のアプリがマイクを使っています。'
+    )
     expect(startAlertMessage({ micBusyDurationMs: 30_000, eventTitle: 'Weekly' }, 'en')).toBe(
       'Another app is using the microphone during “Weekly”.'
     )

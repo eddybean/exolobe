@@ -16,10 +16,7 @@ export interface RecorderApi {
   pushMicPcm(pcm: ArrayBuffer): void
 }
 
-export type StartMic = (params: {
-  sampleRate: number
-  onPcm: (pcm: ArrayBuffer) => void
-}) => Promise<MicCapture>
+export type StartMic = (params: { sampleRate: number; onPcm: (pcm: ArrayBuffer) => void }) => Promise<MicCapture>
 
 export interface StartOutcome {
   /** 取得できたマイク。失敗した場合は undefined。 */
@@ -57,4 +54,3 @@ export const startRecordingSession = async (params: {
     }
   }
 }
-

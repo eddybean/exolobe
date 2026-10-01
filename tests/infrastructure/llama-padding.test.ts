@@ -31,9 +31,7 @@ describe('llamaOptionsFor', () => {
       const total = gb * 1_024 ** 3
       const options = llamaOptionsFor('conservative', total)
 
-      expect(options?.ramPadding).toBeGreaterThanOrEqual(
-        Math.floor(Math.min(total * 0.25, 6 * 1_024 ** 3))
-      )
+      expect(options?.ramPadding).toBeGreaterThanOrEqual(Math.floor(Math.min(total * 0.25, 6 * 1_024 ** 3)))
     }
   })
 })

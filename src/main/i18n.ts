@@ -53,20 +53,16 @@ const ja = {
     delete: '削除',
     cancel: 'キャンセル',
     resummarizeMessage: (title: string) => `「${title}」を要約し直しますか？`,
-    resummarizeDetail:
-      '今の要約は新しい要約で置き換えられます。手で直した内容も失われ、元に戻せません。',
+    resummarizeDetail: '今の要約は新しい要約で置き換えられます。手で直した内容も失われ、元に戻せません。',
     resummarize: '再要約',
     deleteRecordingMessage: (title: string) => `「${title}」を削除しますか？`,
-    deleteRecordingDetail:
-      '音声・文字起こし・要約・メモがすべて削除されます。この操作は取り消せません。',
+    deleteRecordingDetail: '音声・文字起こし・要約・メモがすべて削除されます。この操作は取り消せません。',
     deleteModelMessage: (label: string) => `「${label}」を削除しますか？`,
     deleteModelDetail: (size: string) => `もう一度使うには ${size} のダウンロードが必要になります。`,
     deleteSearchIndexMessage: '意味検索のインデックスを削除しますか？',
-    deleteSearchIndexSize: (count: number, size: string) =>
-      `${count} 件分、約 ${size} が削除されます。`,
+    deleteSearchIndexSize: (count: number, size: string) => `${count} 件分、約 ${size} が削除されます。`,
     deleteSearchIndexKeeps: '録音・文字起こし・要約・メモは削除されません。',
-    deleteSearchIndexRebuild:
-      '意味検索が有効な間は、次に録音を処理したときなどに作り直されます。',
+    deleteSearchIndexRebuild: '意味検索が有効な間は、次に録音を処理したときなどに作り直されます。',
     forgetVoiceMessage: (name: string) => `「${name}」の声を忘れますか？`,
     forgetVoiceDetail: [
       'この声で自動的に名前が入らなくなります。',
@@ -98,8 +94,7 @@ const ja = {
     chatDisabled: 'チャットが無効です。設定画面で有効にしてください。',
     tooManyImports: (max: number) => `一度に取り込めるのは ${max} 件までです。`,
     pipelineNoResult: '処理の結果を受け取れませんでした。',
-    pipelineExited:
-      '処理プロセスが終了しました。詳細画面から失敗したステップを再実行してください。',
+    pipelineExited: '処理プロセスが終了しました。詳細画面から失敗したステップを再実行してください。',
     searchExited: '検索用のプロセスが終了しました。もう一度お試しください。',
     chatExited: 'チャット用のプロセスが終了しました。もう一度お試しください。'
   }
@@ -145,8 +140,7 @@ const en: MainMessages = {
       'The current summary will be replaced by a new one. Any edits you made will be lost and cannot be restored.',
     resummarize: 'Summarize Again',
     deleteRecordingMessage: (title: string) => `Delete “${title}”?`,
-    deleteRecordingDetail:
-      'The audio, transcript, summary, and notes will all be deleted. This cannot be undone.',
+    deleteRecordingDetail: 'The audio, transcript, summary, and notes will all be deleted. This cannot be undone.',
     deleteModelMessage: (label: string) => `Delete “${label}”?`,
     deleteModelDetail: (size: string) => `To use it again, you will need to download ${size}.`,
     deleteSearchIndexMessage: 'Delete the semantic search index?',
@@ -163,8 +157,7 @@ const en: MainMessages = {
     ],
     forget: 'Forget',
     forgetAllMessage: 'Forget all learned voices?',
-    forgetAllCount: (count: number) =>
-      `Voices of ${count} ${count === 1 ? 'person' : 'people'} will be deleted.`,
+    forgetAllCount: (count: number) => `Voices of ${count} ${count === 1 ? 'person' : 'people'} will be deleted.`,
     forgetAllKeeps: 'Recordings and speaker names you already set are kept.',
     forgetAll: 'Forget All',
     importTitle: 'Choose Audio Files to Import',
@@ -178,8 +171,7 @@ const en: MainMessages = {
     onnxModel: 'ONNX Model'
   },
   error: {
-    probeInProgressStart:
-      'A test recording is in progress. Wait a few seconds, then start recording.',
+    probeInProgressStart: 'A test recording is in progress. Wait a few seconds, then start recording.',
     probeInProgress: 'A test recording is in progress.',
     probeWhileRecording: 'You cannot run a test while recording. Stop recording and try again.',
     searchDisabled: 'Semantic search is off. Turn it on in Settings.',
@@ -188,8 +180,7 @@ const en: MainMessages = {
     chatDisabled: 'Chat is off. Turn it on in Settings.',
     tooManyImports: (max: number) => `You can import up to ${max} files at a time.`,
     pipelineNoResult: 'Could not receive the processing result.',
-    pipelineExited:
-      'The processing process quit. Run the failed steps again from the recording details.',
+    pipelineExited: 'The processing process quit. Run the failed steps again from the recording details.',
     searchExited: 'The search process quit. Please try again.',
     chatExited: 'The chat process quit. Please try again.'
   }

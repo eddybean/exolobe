@@ -9,9 +9,7 @@ export interface LevelSources {
  * 録音中の画面で 2 トラックを分けて出すためのレベル。
  * マイクが取れていないことは「無音」と見分けて出したいので undefined のまま返す。
  */
-export const readTrackLevels = async (
-  params: LevelSources
-): Promise<{ mic: number | undefined; system: number }> => {
+export const readTrackLevels = async (params: LevelSources): Promise<{ mic: number | undefined; system: number }> => {
   const mic = params.micLevel?.()
 
   // 停止直後など、main 側が録音中でない瞬間に取りに行くと失敗しうる。

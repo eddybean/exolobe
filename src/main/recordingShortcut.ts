@@ -8,7 +8,8 @@ import { RECORDING_SHORTCUT } from '@shared/shortcuts'
  * 知れるよう、結果を握り潰さずに返す。
  */
 export const applyRecordingShortcut = (enabled: boolean, onPress: () => void): boolean => {
-  if (globalShortcut.isRegistered(RECORDING_SHORTCUT.accelerator)) globalShortcut.unregister(RECORDING_SHORTCUT.accelerator)
+  if (globalShortcut.isRegistered(RECORDING_SHORTCUT.accelerator))
+    globalShortcut.unregister(RECORDING_SHORTCUT.accelerator)
   if (!enabled) return true
   return globalShortcut.register(RECORDING_SHORTCUT.accelerator, onPress)
 }

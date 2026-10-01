@@ -8,11 +8,7 @@ export type VoiceLearnedEvent = VoiceLearnedDto
 
 /** 声紋帳への登録だけを行う窓。`RememberSpeakerVoice` がこの形をしている。 */
 interface SpeakerVoiceMemory {
-  execute(params: {
-    recordingId: string
-    speakerId: string
-    label: string
-  }): Promise<VoiceMemoryResult>
+  execute(params: { recordingId: string; speakerId: string; label: string }): Promise<VoiceMemoryResult>
 }
 
 export interface VoiceLearning {

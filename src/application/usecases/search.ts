@@ -23,10 +23,7 @@ import {
   type SearchSource
 } from '@domain/SemanticSearch'
 
-const loadMaterial = async (
-  artifacts: RecordingArtifactPort,
-  recording: Recording
-): Promise<SearchMaterial> => {
+const loadMaterial = async (artifacts: RecordingArtifactPort, recording: Recording): Promise<SearchMaterial> => {
   const transcript = await artifacts.readTranscript(recording)
 
   return {
@@ -81,8 +78,7 @@ const ensureEmbeddingMemory = async (
   const settings = await deps.settings.load()
   if (settings.memoryProtection === 'off') return
 
-  const modelFileBytes =
-    (await deps.system.fileSize(settings.search.modelPath)) ?? findAsset('search-model')?.bytes
+  const modelFileBytes = (await deps.system.fileSize(settings.search.modelPath)) ?? findAsset('search-model')?.bytes
   if (modelFileBytes === undefined) return
 
   const shortage = insufficientMemory({
@@ -125,11 +121,8 @@ export class SyncSearchIndex {
       removed += 1
     }
 
-    const indexedFingerprints = new Map(
-      entries.map((entry) => [entry.recordingId, entry.fingerprint])
-    )
-    const pending: { recording: Recording; documents: SearchDocument[]; fingerprint: string }[] =
-      []
+    const indexedFingerprints = new Map(entries.map((entry) => [entry.recordingId, entry.fingerprint]))
+    const pending: { recording: Recording; documents: SearchDocument[]; fingerprint: string }[] = []
     let failed = 0
 
     for (const recording of newestFirst(recordings)) {
@@ -190,7 +183,6 @@ export class SyncSearchIndex {
 
     return { indexed, removed, failed, aborted }
   }
-
 }
 
 export interface SearchHit {
@@ -223,9 +215,7 @@ export class SearchRecordings {
     await ensureEmbeddingMemory(this.deps, 'search')
     const vector = await embedder.embed(focusQuery(params.query))
 
-    const recordings = new Map(
-      (await repository.list()).map((recording) => [recording.id, recording])
-    )
+    const recordings = new Map((await repository.list()).map((recording) => [recording.id, recording]))
     // 別モデルのベクトルとは空間が違い、比べても意味のある値にならない。
     // 削除済みの録音は次の同期で掃除されるまで索引に残るので、ここでも除く。
     const entries = (await index.list()).filter(
@@ -281,8 +271,7 @@ export class GetSearchIndexStatus {
     const stats = await this.deps.index.stats()
     const recordings = await this.deps.repository.list()
     // 設定だけが残ってファイルが消えている場合を「取得済み」と見せない。
-    const modelInstalled =
-      search.modelPath !== '' && (await this.deps.system.fileSize(search.modelPath)) !== undefined
+    const modelInstalled = search.modelPath !== '' && (await this.deps.system.fileSize(search.modelPath)) !== undefined
 
     return {
       enabled: search.enabled,

@@ -10,19 +10,12 @@ export class ChatError extends AppError {}
  */
 export interface ChatLlmSession {
   setHistory(system: string, turns: readonly ChatTurn[]): void
-  prompt(
-    text: string,
-    options: { onChunk: (text: string) => void; signal?: AbortSignal }
-  ): Promise<ChatCompletion>
+  prompt(text: string, options: { onChunk: (text: string) => void; signal?: AbortSignal }): Promise<ChatCompletion>
   dispose(): Promise<void>
 }
 
 export interface ChatLlmSessionFactory {
-  create(config: {
-    modelPath: string
-    contextSize: number
-    protection: MemoryProtection
-  }): Promise<ChatLlmSession>
+  create(config: { modelPath: string; contextSize: number; protection: MemoryProtection }): Promise<ChatLlmSession>
 }
 
 /**

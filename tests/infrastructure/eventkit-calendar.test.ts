@@ -11,9 +11,7 @@ const helperEvent = {
   startMs: Date.parse('2026-09-27T10:00:00+09:00'),
   endMs: Date.parse('2026-09-27T11:00:00+09:00'),
   allDay: false,
-  attendees: [
-    { name: '山田 太郎', email: 'taro@example.com', isSelf: false, status: 'accepted', kind: 'person' }
-  ]
+  attendees: [{ name: '山田 太郎', email: 'taro@example.com', isSelf: false, status: 'accepted', kind: 'person' }]
 }
 
 describe('parseCalendarEvents', () => {
@@ -24,9 +22,7 @@ describe('parseCalendarEvents', () => {
         startsAt: new Date('2026-09-27T10:00:00+09:00'),
         endsAt: new Date('2026-09-27T11:00:00+09:00'),
         allDay: false,
-        attendees: [
-          { name: '山田 太郎', email: 'taro@example.com', isSelf: false, status: 'accepted', kind: 'person' }
-        ]
+        attendees: [{ name: '山田 太郎', email: 'taro@example.com', isSelf: false, status: 'accepted', kind: 'person' }]
       }
     ])
   })
@@ -69,7 +65,9 @@ describe('parseCalendarEvents', () => {
 
   it('知らない参加状況や種類は unknown に倒す', () => {
     const [event] = parseCalendarEvents(
-      JSON.stringify([{ ...helperEvent, attendees: [{ name: 'A', isSelf: false, status: 'delegated', kind: 'robot' }] }])
+      JSON.stringify([
+        { ...helperEvent, attendees: [{ name: 'A', isSelf: false, status: 'delegated', kind: 'robot' }] }
+      ])
     )
 
     expect(event?.attendees[0]).toMatchObject({ status: 'unknown', kind: 'unknown' })
@@ -115,7 +113,12 @@ describe('resolveCalendarBinary', () => {
   })
 
   it('同梱物が無ければ undefined を返す（連携だけ無効になる）', () => {
-    const path = resolveCalendarBinary({ packaged: false, resourcesPath: '/ignored', cwd: '/repo', exists: () => false })
+    const path = resolveCalendarBinary({
+      packaged: false,
+      resourcesPath: '/ignored',
+      cwd: '/repo',
+      exists: () => false
+    })
 
     expect(path).toBeUndefined()
   })

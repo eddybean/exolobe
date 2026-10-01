@@ -1,10 +1,5 @@
 import type { CalendarEvent } from '@domain/CalendarEvent'
-import {
-  meetingEventKey,
-  planStartWatch,
-  type StartWatchPlan,
-  type StartWatchSettings
-} from '@domain/MeetingStart'
+import { meetingEventKey, planStartWatch, type StartWatchPlan, type StartWatchSettings } from '@domain/MeetingStart'
 import {
   DEFAULT_BUSY_RATIO,
   dismissStartWatch,

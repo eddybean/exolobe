@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatAvailabilityDto } from '@shared/ipc'
-import {
-  appendChunk,
-  completeMessage,
-  startTurn,
-  toHistory,
-  type ChatMessage
-} from '../chat/messages'
+import { appendChunk, completeMessage, startTurn, toHistory, type ChatMessage } from '../chat/messages'
 
 /**
  * 断片を溜めてから画面に反映する間隔。

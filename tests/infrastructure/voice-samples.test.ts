@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  MAX_VOICE_MS,
-  MIN_TURN_MS,
-  MIN_VOICE_MS,
-  selectVoiceRanges
-} from '@infrastructure/diarization/voiceSamples'
+import { MAX_VOICE_MS, MIN_TURN_MS, MIN_VOICE_MS, selectVoiceRanges } from '@infrastructure/diarization/voiceSamples'
 import type { SpeakerTurn } from '@domain/TranscriptSegment'
 
 const turn = (startMs: number, endMs: number, speaker: string): SpeakerTurn => ({
@@ -15,11 +10,7 @@ const turn = (startMs: number, endMs: number, speaker: string): SpeakerTurn => (
 
 describe('selectVoiceRanges', () => {
   it('話者ごとに発話区間をまとめる', () => {
-    const ranges = selectVoiceRanges([
-      turn(0, 3000, 'spk0'),
-      turn(3000, 6000, 'spk1'),
-      turn(6000, 9000, 'spk0')
-    ])
+    const ranges = selectVoiceRanges([turn(0, 3000, 'spk0'), turn(3000, 6000, 'spk1'), turn(6000, 9000, 'spk0')])
 
     expect(ranges.get('spk0')).toEqual([
       { startMs: 0, endMs: 3000 },
@@ -29,10 +20,7 @@ describe('selectVoiceRanges', () => {
   })
 
   it('短すぎるターンは使わない（相槌で声紋が濁る）', () => {
-    const ranges = selectVoiceRanges([
-      turn(0, MIN_TURN_MS - 1, 'spk0'),
-      turn(1000, 4000, 'spk0')
-    ])
+    const ranges = selectVoiceRanges([turn(0, MIN_TURN_MS - 1, 'spk0'), turn(1000, 4000, 'spk0')])
 
     expect(ranges.get('spk0')).toEqual([{ startMs: 1000, endMs: 4000 }])
   })
@@ -44,15 +32,10 @@ describe('selectVoiceRanges', () => {
   })
 
   it('長い話者は上限までで打ち切る', () => {
-    const turns = Array.from({ length: 20 }, (_, index) =>
-      turn(index * 5000, index * 5000 + 4000, 'spk0')
-    )
+    const turns = Array.from({ length: 20 }, (_, index) => turn(index * 5000, index * 5000 + 4000, 'spk0'))
 
     const ranges = selectVoiceRanges(turns) ?? new Map()
-    const total = (ranges.get('spk0') ?? []).reduce(
-      (sum, range) => sum + (range.endMs - range.startMs),
-      0
-    )
+    const total = (ranges.get('spk0') ?? []).reduce((sum, range) => sum + (range.endMs - range.startMs), 0)
 
     expect(total).toBe(MAX_VOICE_MS)
   })
@@ -67,10 +50,7 @@ describe('selectVoiceRanges', () => {
   })
 
   it('打ち切った後も時系列の順に並べ直す', () => {
-    const ranges = selectVoiceRanges(
-      [turn(0, 5000, 'spk0'), turn(10_000, 20_000, 'spk0')],
-      { maxVoiceMs: 15_000 }
-    )
+    const ranges = selectVoiceRanges([turn(0, 5000, 'spk0'), turn(10_000, 20_000, 'spk0')], { maxVoiceMs: 15_000 })
 
     expect(ranges.get('spk0')).toEqual([
       { startMs: 0, endMs: 5000 },

@@ -100,11 +100,7 @@ export const ChatView = ({
             <ul className="chat__examples">
               {t.examples.map((example) => (
                 <li key={example}>
-                  <button
-                    type="button"
-                    className="chat__example"
-                    onClick={() => setDraft(example)}
-                  >
+                  <button type="button" className="chat__example" onClick={() => setDraft(example)}>
                     {example}
                   </button>
                 </li>
@@ -124,9 +120,7 @@ export const ChatView = ({
               .filter(Boolean)
               .join(' ')}
           >
-            {message.scopeLabel !== undefined && (
-              <p className="chat__scope">{t.scopePrefix(message.scopeLabel)}</p>
-            )}
+            {message.scopeLabel !== undefined && <p className="chat__scope">{t.scopePrefix(message.scopeLabel)}</p>}
 
             {message.error !== undefined ? (
               <p className="chat__error" role="alert">
@@ -139,9 +133,7 @@ export const ChatView = ({
               <p className="chat__question">{message.text}</p>
             )}
 
-            {message.streaming && message.text === '' && (
-              <p className="chat__thinking">{t.thinking}</p>
-            )}
+            {message.streaming && message.text === '' && <p className="chat__thinking">{t.thinking}</p>}
             {(() => {
               const notice = answerNotice(message)
               return notice === undefined ? null : <p className="chat__truncated">{notice}</p>
@@ -155,9 +147,7 @@ export const ChatView = ({
         ))}
       </div>
 
-      {blocked !== undefined && (
-        <output className="chat__notice">{blocked}</output>
-      )}
+      {blocked !== undefined && <output className="chat__notice">{blocked}</output>}
 
       <form
         className="chat__composer"
@@ -186,11 +176,7 @@ export const ChatView = ({
             {t.stop}
           </button>
         ) : (
-          <button
-            type="submit"
-            className="chat__send"
-            disabled={draft.trim().length === 0 || blocked !== undefined}
-          >
+          <button type="submit" className="chat__send" disabled={draft.trim().length === 0 || blocked !== undefined}>
             {t.send}
           </button>
         )}

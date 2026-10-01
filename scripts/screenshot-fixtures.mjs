@@ -123,8 +123,7 @@ export const writeScreenshotFixtures = async (root) => {
   const random = seededRandom(7)
   const pick = (items) => items[Math.floor(random() * items.length)]
   const between = (min, max) => min + Math.floor(random() * (max - min + 1))
-  const uuid = () =>
-    'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => between(0, 15).toString(16))
+  const uuid = () => 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => between(0, 15).toString(16))
 
   const library = join(root, 'library')
   const userData = join(root, 'userData')
@@ -185,7 +184,7 @@ export const writeScreenshotFixtures = async (root) => {
     return turns[0][0]
   }
   let previous
-  for (let t = 120_000; t < mainDuration - 15_000; ) {
+  for (let t = 120_000; t < mainDuration - 15_000;) {
     const who = weightedSpeaker()
     if (who === previous) continue
     previous = who

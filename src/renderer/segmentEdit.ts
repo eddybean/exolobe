@@ -13,5 +13,4 @@ export const splitTrailingChar = (text: string): [string, string] => {
  * 本文を押したときに編集へ入るか。範囲を選び終えたときにも click は届くので、
  * 選択が残っていれば入らない —— 本文はコピーのために選ばれることが多い。
  */
-export const shouldStartEditOnTextClick = (selectedText: string): boolean =>
-  selectedText.length === 0
+export const shouldStartEditOnTextClick = (selectedText: string): boolean => selectedText.length === 0

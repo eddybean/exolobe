@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  IMPORTABLE_EXTENSIONS,
-  extensionOf,
-  importTitleOf,
-  unsupportedImportReason
-} from '@domain/AudioImport'
+import { IMPORTABLE_EXTENSIONS, extensionOf, importTitleOf, unsupportedImportReason } from '@domain/AudioImport'
 
 describe('extensionOf', () => {
   it('小文字のドット無しで返す', () => {

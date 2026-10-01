@@ -2,10 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  FileVoiceprintRepository,
-  type StorageLocator
-} from '@infrastructure/persistence/FileVoiceprintStore'
+import { FileVoiceprintRepository, type StorageLocator } from '@infrastructure/persistence/FileVoiceprintStore'
 import type { Voiceprint } from '@domain/Voiceprint'
 
 let storage: string
@@ -56,11 +53,7 @@ describe('FileVoiceprintRepository', () => {
   })
 
   it('出所を持たない声紋は読み飛ばす（取り消せない声紋を残さない）', async () => {
-    await writeFile(
-      join(storage, 'voiceprints.json'),
-      JSON.stringify([{ ...record('田中さん'), sources: [] }]),
-      'utf8'
-    )
+    await writeFile(join(storage, 'voiceprints.json'), JSON.stringify([{ ...record('田中さん'), sources: [] }]), 'utf8')
 
     expect(await repository.list()).toEqual([])
   })
@@ -102,9 +95,10 @@ describe('FileVoiceprintRepository', () => {
   it('voiceprints.json に保存先ルートへ書き出す', async () => {
     await repository.put(print('田中さん', [1, 0]))
 
-    const content = JSON.parse(
-      await readFile(join(storage, 'voiceprints.json'), 'utf8')
-    ) as { name: string; vector: number[] }[]
+    const content = JSON.parse(await readFile(join(storage, 'voiceprints.json'), 'utf8')) as {
+      name: string
+      vector: number[]
+    }[]
     expect(content[0]?.name).toBe('田中さん')
     expect(content[0]?.vector).toEqual([1, 0])
   })
@@ -120,9 +114,7 @@ describe('FileVoiceprintRepository', () => {
 
     await repository.put(print('田中さん', [1, 0]))
 
-    const [quarantined] = (await readdir(storage)).filter((name) =>
-      name.startsWith('voiceprints.json.unreadable-')
-    )
+    const [quarantined] = (await readdir(storage)).filter((name) => name.startsWith('voiceprints.json.unreadable-'))
     expect(quarantined).toBeDefined()
     expect(await readFile(join(storage, quarantined ?? ''), 'utf8')).toBe('{ broken')
     expect((await repository.list()).map((entry) => entry.name)).toEqual(['田中さん'])
@@ -133,9 +125,7 @@ describe('FileVoiceprintRepository', () => {
 
     await repository.put(print('田中さん', [1, 0]))
 
-    expect(
-      (await readdir(storage)).some((name) => name.startsWith('voiceprints.json.unreadable-'))
-    ).toBe(true)
+    expect((await readdir(storage)).some((name) => name.startsWith('voiceprints.json.unreadable-'))).toBe(true)
   })
 
   it('読めない要素や知らないキーを書き戻しで消さない（新しい版のデータを古い版で壊さない）', async () => {
@@ -152,9 +142,7 @@ describe('FileVoiceprintRepository', () => {
     await repository.put(print('鈴木さん', [1, 0]))
     await repository.remove('田中さん')
 
-    const content = JSON.parse(
-      await readFile(join(storage, 'voiceprints.json'), 'utf8')
-    ) as Record<string, unknown>[]
+    const content = JSON.parse(await readFile(join(storage, 'voiceprints.json'), 'utf8')) as Record<string, unknown>[]
     expect(content).toContainEqual({ name: '未来の形', embedding: { dims: 2 } })
     expect(content).toContainEqual({ ...record('佐藤さん'), futureField: 'keep' })
     expect(content.map((entry) => entry['name'])).not.toContain('田中さん')
@@ -176,10 +164,7 @@ describe('FileVoiceprintRepository', () => {
   it('数値でない成分を含む声紋は読み飛ばす（NaN は閾値の検査を素通りする）', async () => {
     await writeFile(
       join(storage, 'voiceprints.json'),
-      JSON.stringify([
-        { ...record('田中さん'), vector: ['x', 1] },
-        record('佐藤さん')
-      ]),
+      JSON.stringify([{ ...record('田中さん'), vector: ['x', 1] }, record('佐藤さん')]),
       'utf8'
     )
 

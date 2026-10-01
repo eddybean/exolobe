@@ -36,11 +36,7 @@ export interface SearchTranscriptsDeps {
 export class SearchTranscripts {
   constructor(private readonly deps: SearchTranscriptsDeps) {}
 
-  async execute(params: {
-    query: string
-    limit?: number
-    perRecording?: number
-  }): Promise<TranscriptHit[]> {
+  async execute(params: { query: string; limit?: number; perRecording?: number }): Promise<TranscriptHit[]> {
     const terms = parseKeywordQuery(params.query)
     if (terms.length === 0) return []
 

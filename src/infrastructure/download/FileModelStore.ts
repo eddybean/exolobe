@@ -63,11 +63,7 @@ export class FileModelStore implements ModelStorePort {
     if (!current) return undefined
 
     const record = await this.manifest.get(asset.id)
-    if (
-      record?.path === managed &&
-      record.size === current.size &&
-      record.mtimeMs === current.mtimeMs
-    ) {
+    if (record?.path === managed && record.size === current.size && record.mtimeMs === current.mtimeMs) {
       return record.sha256
     }
     if (asset.archive) return undefined
@@ -130,11 +126,7 @@ export class FileModelStore implements ModelStorePort {
 
     // アーカイブは一度ダウンロードしてから展開する。取り替えるときは別名で受け取り、
     // 取得に失敗しても手元の古いファイルで動き続けられるようにする。
-    const downloadPath = asset.archive
-      ? this.downloadPathFor(asset)
-      : replacing
-        ? `${finalPath}.new`
-        : finalPath
+    const downloadPath = asset.archive ? this.downloadPathFor(asset) : replacing ? `${finalPath}.new` : finalPath
 
     try {
       await mkdir(dirname(downloadPath), { recursive: true })
@@ -146,8 +138,7 @@ export class FileModelStore implements ModelStorePort {
         ...(options.onProgress === undefined
           ? {}
           : {
-              onProgress: (progress) =>
-                options.onProgress?.(progress.receivedBytes, progress.totalBytes)
+              onProgress: (progress) => options.onProgress?.(progress.receivedBytes, progress.totalBytes)
             })
       })
 
@@ -212,10 +203,7 @@ export class FileModelStore implements ModelStorePort {
    * 撒かないため。ditto は展開時にこれを本来の拡張属性へ戻して消す。
    * unzip だと remove() が消し切れないゴミが残る。
    */
-  private async extract(
-    archivePath: string,
-    archive: NonNullable<ManagedAsset['archive']>
-  ): Promise<void> {
+  private async extract(archivePath: string, archive: NonNullable<ManagedAsset['archive']>): Promise<void> {
     const [command, args] =
       archive === 'zip'
         ? (['/usr/bin/ditto', ['-x', '-k', archivePath, this.modelsDir]] as const)
@@ -224,10 +212,7 @@ export class FileModelStore implements ModelStorePort {
     try {
       await execFileAsync(command, [...args])
     } catch (error: unknown) {
-      throw new ModelStoreError(
-        { code: 'modelExtractFailed', detail: toMessage(error) },
-        { cause: error }
-      )
+      throw new ModelStoreError({ code: 'modelExtractFailed', detail: toMessage(error) }, { cause: error })
     }
   }
 }

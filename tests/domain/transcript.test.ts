@@ -1,20 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import {
-  applyDiarization,
-  coalesceSegments,
-  formatTimestamp,
-  mergeTracks,
-  toMarkdown
-} from '@domain/Transcript'
+import { applyDiarization, coalesceSegments, formatTimestamp, mergeTracks, toMarkdown } from '@domain/Transcript'
 import { REMOTE_SPEAKER_ID, SELF_SPEAKER_ID, type Speaker } from '@domain/Speaker'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
-const seg = (
-  startMs: number,
-  endMs: number,
-  text: string,
-  speakerId: string
-): TranscriptSegment => ({ startMs, endMs, speakerId, text })
+const seg = (startMs: number, endMs: number, text: string, speakerId: string): TranscriptSegment => ({
+  startMs,
+  endMs,
+  speakerId,
+  text
+})
 
 describe('mergeTracks', () => {
   it('2 トラックのセグメントを開始時刻順に 1 本へまとめる', () => {
@@ -50,10 +44,7 @@ describe('applyDiarization', () => {
   it('相手トラックのセグメントを最も重なりの大きい話者へ割り当てる', () => {
     const segments = [seg(100, 1800, 'A の発言', REMOTE_SPEAKER_ID), seg(2100, 3900, 'B の発言', REMOTE_SPEAKER_ID)]
 
-    expect(applyDiarization(segments, turns).map((s) => s.speakerId)).toEqual([
-      'remote:spk0',
-      'remote:spk1'
-    ])
+    expect(applyDiarization(segments, turns).map((s) => s.speakerId)).toEqual(['remote:spk0', 'remote:spk1'])
   })
 
   it('複数ターンにまたがる場合は重なりが最大の話者を選ぶ', () => {
@@ -93,10 +84,7 @@ describe('coalesceSegments', () => {
   })
 
   it('間隔が閾値より開いていれば結合しない', () => {
-    const segments = [
-      seg(0, 1000, '前半', SELF_SPEAKER_ID),
-      seg(20_000, 21_000, '後半', SELF_SPEAKER_ID)
-    ]
+    const segments = [seg(0, 1000, '前半', SELF_SPEAKER_ID), seg(20_000, 21_000, '後半', SELF_SPEAKER_ID)]
     expect(coalesceSegments(segments, { maxGapMs: 2000 })).toHaveLength(2)
   })
 })

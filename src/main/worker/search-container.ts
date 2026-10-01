@@ -1,19 +1,10 @@
 import { join } from 'node:path'
 import type { SettingsRepositoryPort } from '@application/ports'
 import { SearchRecordings, SyncSearchIndex } from '@application/usecases/search'
-import {
-  FileRecordingArtifactStore,
-  FileRecordingRepository
-} from '@infrastructure/persistence/FileRecordingStore'
+import { FileRecordingArtifactStore, FileRecordingRepository } from '@infrastructure/persistence/FileRecordingStore'
 import { FileSearchIndex, SEARCH_INDEX_DIR } from '@infrastructure/search/FileSearchIndex'
-import {
-  NodeLlamaEmbedder,
-  NodeLlamaEmbeddingSessionFactory
-} from '@infrastructure/search/NodeLlamaEmbedder'
-import {
-  JsonSettingsRepository,
-  SettingsStorageLocator
-} from '@infrastructure/settings/JsonSettingsRepository'
+import { NodeLlamaEmbedder, NodeLlamaEmbeddingSessionFactory } from '@infrastructure/search/NodeLlamaEmbedder'
+import { JsonSettingsRepository, SettingsStorageLocator } from '@infrastructure/settings/JsonSettingsRepository'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import type { Locale } from '@shared/i18n/locale'
 
@@ -31,10 +22,7 @@ export interface SearchServices {
  * 読み込んだまま次の検索に使い回すため。モデルの差し替えは main がワーカーを
  * 終わらせることで反映する。
  */
-export const createSearch = async (
-  userDataPath: string,
-  uiLocale: Locale
-): Promise<SearchServices> => {
+export const createSearch = async (userDataPath: string, uiLocale: Locale): Promise<SearchServices> => {
   const settingsPath = join(userDataPath, 'settings.json')
   // ワーカーは長く生きるので、キャッシュを持つリポジトリを使い回すと、利用者が
   // 保存先や有効・無効を変えても古い値で動き続ける。読むたびにファイルから取り直す。

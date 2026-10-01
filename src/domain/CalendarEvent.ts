@@ -54,10 +54,7 @@ const isDeclinedBySelf = (event: CalendarEvent): boolean =>
  * 重なる予定が複数ある場合は、開始時刻が録音開始に最も近いものを選ぶ。
  * 長い「作業枠」の中で別の会議が始まったとき、録っているのは後者であることが多い。
  */
-export const pickEventForRecording = (
-  events: readonly CalendarEvent[],
-  startedAt: Date
-): CalendarEvent | undefined => {
+export const pickEventForRecording = (events: readonly CalendarEvent[], startedAt: Date): CalendarEvent | undefined => {
   const at = startedAt.getTime()
   const candidates = events.filter(
     (event) =>

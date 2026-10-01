@@ -41,9 +41,7 @@ export type RecordingSource = DualTrackSource | ImportedTrackSource
  * ミックスを飛ばすことはしない。飛ばすとエンコードが「何もしなかったミックス」に
  * 依存する状態になり、ステップ 1 つの意味が素材の種類で 2 つに割れる。
  */
-export const mixInputs = (
-  source: RecordingSource
-): readonly { readonly path: string; readonly offsetMs: number }[] =>
+export const mixInputs = (source: RecordingSource): readonly { readonly path: string; readonly offsetMs: number }[] =>
   source.kind === 'dual'
     ? [
         { path: source.systemWavPath, offsetMs: 0 },

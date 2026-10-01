@@ -56,9 +56,7 @@ export class RenameFolder {
       throw new ConfigurationError({ code: 'folderNameRequired' })
     }
 
-    const updated = current.map((folder) =>
-      folder.id === params.folderId ? { ...folder, name } : folder
-    )
+    const updated = current.map((folder) => (folder.id === params.folderId ? { ...folder, name } : folder))
     await this.deps.folders.replaceAll(updated)
     return updated.find((folder) => folder.id === params.folderId) as Folder
   }
@@ -73,9 +71,7 @@ export class MoveFolder {
 
     if (params.parentId !== undefined) {
       await findFolderOrThrow(current, params.parentId)
-      const invalid =
-        params.parentId === params.folderId ||
-        isDescendant(current, params.folderId, params.parentId)
+      const invalid = params.parentId === params.folderId || isDescendant(current, params.folderId, params.parentId)
       if (invalid) {
         throw new ConfigurationError({ code: 'folderMoveIntoSelf' })
       }
@@ -101,14 +97,10 @@ export class DeleteFolder {
 
     const reparented = current
       .filter((folder) => folder.id !== params.folderId)
-      .map((folder) =>
-        folder.parentId === params.folderId ? { ...folder, parentId: target.parentId } : folder
-      )
+      .map((folder) => (folder.parentId === params.folderId ? { ...folder, parentId: target.parentId } : folder))
     await this.deps.folders.replaceAll(reparented)
 
-    const affected = (await this.deps.recordings.list()).filter(
-      (recording) => recording.folderId === params.folderId
-    )
+    const affected = (await this.deps.recordings.list()).filter((recording) => recording.folderId === params.folderId)
     for (const recording of affected) {
       await this.deps.recordings.save({ ...recording, folderId: target.parentId })
     }

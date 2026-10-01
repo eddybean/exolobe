@@ -66,17 +66,12 @@ export class NodeLlamaChatSessionFactory implements ChatLlmSessionFactory {
           const history: ChatHistoryItem[] = [{ type: 'system', text: system }]
           for (const turn of turns) {
             history.push(
-              turn.role === 'user'
-                ? { type: 'user', text: turn.text }
-                : { type: 'model', response: [turn.text] }
+              turn.role === 'user' ? { type: 'user', text: turn.text } : { type: 'model', response: [turn.text] }
             )
           }
           session.setChatHistory(history)
         },
-        prompt: async (
-          text: string,
-          promptOptions: { onChunk: (t: string) => void; signal?: AbortSignal }
-        ) => {
+        prompt: async (text: string, promptOptions: { onChunk: (t: string) => void; signal?: AbortSignal }) => {
           // promptWithMeta を使うのは stopReason が要るため。上限で打ち切られたことを
           // 黙って飲み込むと、利用者には「答えが尻切れ」としか見えない。
           const result = await session.promptWithMeta(text, {

@@ -24,10 +24,7 @@ export const EditableSpeaker = ({
   suggestions?: readonly string[] | undefined
   onCommit: (label: string) => Promise<void>
 }): ReactElement => {
-  const { editing, draft, saving, inputRef, setDraft, start, commit, onKeyDown } = useInlineEdit(
-    label,
-    onCommit
-  )
+  const { editing, draft, saving, inputRef, setDraft, start, commit, onKeyDown } = useInlineEdit(label, onCommit)
   const listId = useId()
   const t = editableText().speaker
 
@@ -35,9 +32,7 @@ export const EditableSpeaker = ({
     return (
       <button
         type="button"
-        className={
-          tone === undefined ? 'segment__speaker' : `segment__speaker speaker-chip tone-${tone}`
-        }
+        className={tone === undefined ? 'segment__speaker' : `segment__speaker speaker-chip tone-${tone}`}
         onClick={start}
         title={t.hint}
       >

@@ -85,9 +85,7 @@ export const observeMicUsage = (
   // まだ計測していないなら、使用中の標本が来たところから数え始める。
   if (state.busySinceMs === undefined) {
     return {
-      state: sample.inUse
-        ? { busySinceMs: sample.atMs, samples: 1, busySamples: 1, silenced: false }
-        : state,
+      state: sample.inUse ? { busySinceMs: sample.atMs, samples: 1, busySamples: 1, silenced: false } : state,
       alert: false
     }
   }

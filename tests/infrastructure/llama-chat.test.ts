@@ -52,10 +52,7 @@ class FakeFactory implements ChatLlmSessionFactory {
 
 const build = (modelPath = '/models/gemma.gguf') => {
   const factory = new FakeFactory()
-  const chat = new LlamaCppChat(
-    { modelPath, contextSize: 32_768, protection: 'standard' },
-    factory
-  )
+  const chat = new LlamaCppChat({ modelPath, contextSize: 32_768, protection: 'standard' }, factory)
   return { chat, factory, session: factory.session }
 }
 

@@ -4,12 +4,7 @@ import { ConfigurationError } from '@domain/errors'
 import { createRecording } from '@domain/Recording'
 import { SELF_SPEAKER_ID, type Speaker } from '@domain/Speaker'
 import { normalize } from '@domain/vector'
-import {
-  FakeArtifactStore,
-  FakeAudioDecoder,
-  FakeRecordingRepository,
-  FakeSpeakerEmbedder
-} from './fakes'
+import { FakeArtifactStore, FakeAudioDecoder, FakeRecordingRepository, FakeSpeakerEmbedder } from './fakes'
 
 const startedAt = new Date('2026-09-06T14:30:00+09:00')
 const recording = createRecording({ id: 'rec-1', startedAt, title: 'サンプル会議' })

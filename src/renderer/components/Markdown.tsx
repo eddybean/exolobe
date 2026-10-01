@@ -94,9 +94,8 @@ const renderBlocks = (blocks: readonly Block[]): ReactNode =>
   })
 
 /** 表の寄せ指定。列ごとに変わるため CSS ではなくインラインで当てる。 */
-const styleFor = (align: 'left' | 'center' | 'right' | null | undefined): { textAlign?: 'left' | 'center' | 'right' } =>
-  align ? { textAlign: align } : {}
+const styleFor = (
+  align: 'left' | 'center' | 'right' | null | undefined
+): { textAlign?: 'left' | 'center' | 'right' } => (align ? { textAlign: align } : {})
 
-export const Markdown = ({ source }: { source: string }): ReactElement => (
-  <>{renderBlocks(parseMarkdown(source))}</>
-)
+export const Markdown = ({ source }: { source: string }): ReactElement => <>{renderBlocks(parseMarkdown(source))}</>

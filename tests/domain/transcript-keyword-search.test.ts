@@ -1,17 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  matchTranscript,
-  parseKeywordQuery,
-  type TranscriptKeywordMatch
-} from '@domain/TranscriptKeywordSearch'
+import { matchTranscript, parseKeywordQuery, type TranscriptKeywordMatch } from '@domain/TranscriptKeywordSearch'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 
-const segment = (
-  startMs: number,
-  text: string,
-  speakerId = 'remote:spk0'
-): TranscriptSegment => ({ startMs, endMs: startMs + 3_000, speakerId, text })
+const segment = (startMs: number, text: string, speakerId = 'remote:spk0'): TranscriptSegment => ({
+  startMs,
+  endMs: startMs + 3_000,
+  speakerId,
+  text
+})
 
 /** 抜粋の中で ranges が指している文字列（ハイライト対象）を取り出す。 */
 const highlighted = (match: TranscriptKeywordMatch): string[] =>
@@ -33,10 +30,7 @@ describe('parseKeywordQuery', () => {
 
 describe('matchTranscript', () => {
   it('本文に含む発言を、その時刻と話者ごと返す', () => {
-    const segments = [
-      segment(0, 'おはようございます'),
-      segment(5_000, '来期の予算について話しましょう', 'self')
-    ]
+    const segments = [segment(0, 'おはようございます'), segment(5_000, '来期の予算について話しましょう', 'self')]
 
     const matches = matchTranscript(segments, ['予算'])
 

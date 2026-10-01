@@ -88,8 +88,8 @@ describe('contextBudgetChars', () => {
     expect(with3000).toBeLessThan(without)
     // 履歴 3000 字は 3000/CHARS_PER_TOKEN トークンぶんの席を取る。
     expect(without - with3000).toBe(
-      Math.floor(without) - Math.floor((32_768 - ANSWER_TOKENS - INSTRUCTION_TOKENS -
-        Math.ceil(3_000 / CHARS_PER_TOKEN)) * CHARS_PER_TOKEN)
+      Math.floor(without) -
+        Math.floor((32_768 - ANSWER_TOKENS - INSTRUCTION_TOKENS - Math.ceil(3_000 / CHARS_PER_TOKEN)) * CHARS_PER_TOKEN)
     )
   })
 

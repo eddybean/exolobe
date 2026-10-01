@@ -21,8 +21,6 @@ describe('judgeInput', () => {
 
 describe('INPUT_CHECK', () => {
   it('確認音はテストの途中で鳴り終える（鳴っている間を必ず取り込む）', () => {
-    expect(INPUT_CHECK.toneStartMs + INPUT_CHECK.toneDurationMs).toBeLessThan(
-      INPUT_CHECK.durationMs
-    )
+    expect(INPUT_CHECK.toneStartMs + INPUT_CHECK.toneDurationMs).toBeLessThan(INPUT_CHECK.durationMs)
   })
 })

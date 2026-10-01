@@ -34,8 +34,7 @@ export const formatNoteStamp = (ms: number): string => {
 /** 箇条書きの記号を除いた中身。記号だけの行はまだ書き始めていない。 */
 const contentOf = (text: string): string => text.replace(LEAD, '').trim()
 
-const withStamp = (text: string, atMs: number | undefined): NoteLine =>
-  atMs === undefined ? { text } : { text, atMs }
+const withStamp = (text: string, atMs: number | undefined): NoteLine => (atMs === undefined ? { text } : { text, atMs })
 
 /**
  * 編集後の本文に、行ごとの書き始めの時刻を引き継ぐ。
@@ -44,21 +43,14 @@ const withStamp = (text: string, atMs: number | undefined): NoteLine =>
  * まま、新しく書き始めた行だけに `atMs` を付ける。打鍵のたびに呼ばれるので、変更は
  * ほぼ 1 か所に集まる前提で単純な前後一致にしている。
  */
-export const stampLines = (
-  previous: readonly NoteLine[],
-  text: string,
-  atMs: number
-): NoteLine[] => {
+export const stampLines = (previous: readonly NoteLine[], text: string, atMs: number): NoteLine[] => {
   const next = text.split('\n')
   const limit = Math.min(previous.length, next.length)
 
   let head = 0
   while (head < limit && previous[head]?.text === next[head]) head += 1
   let tail = 0
-  while (
-    tail < limit - head &&
-    previous[previous.length - 1 - tail]?.text === next[next.length - 1 - tail]
-  ) {
+  while (tail < limit - head && previous[previous.length - 1 - tail]?.text === next[next.length - 1 - tail]) {
     tail += 1
   }
 
@@ -118,17 +110,14 @@ const NOTES_TEXT: Readonly<
     memoHeading: '## 会議中のメモ',
     memoGuide: '利用者が会議中に書いたメモです。ここにある論点は要約から落とさないでください。',
     marksHeading: '## 重要だと印をつけた発言',
-    marksGuide:
-      '利用者が会議中に「ここは重要」と印をつけた箇所です。要約で優先して扱ってください。',
+    marksGuide: '利用者が会議中に「ここは重要」と印をつけた箇所です。要約で優先して扱ってください。',
     quote: (speaker, text) => `${speaker}「${text}」`
   },
   en: {
     memoHeading: '## Notes taken during the meeting',
-    memoGuide:
-      'Notes the user wrote during the meeting. Do not leave the points raised here out of the minutes.',
+    memoGuide: 'Notes the user wrote during the meeting. Do not leave the points raised here out of the minutes.',
     marksHeading: '## Moments marked as important',
-    marksGuide:
-      'Places the user marked as important during the meeting. Give them priority in the minutes.',
+    marksGuide: 'Places the user marked as important during the meeting. Give them priority in the minutes.',
     quote: (speaker, text) => `${speaker}: “${text}”`
   }
 }
@@ -155,9 +144,7 @@ export const summaryNotes = (params: {
 
   const memo = params.note.trim()
   if (memo) {
-    sections.push(
-      [text.memoHeading, text.memoGuide, memo].join('\n')
-    )
+    sections.push([text.memoHeading, text.memoGuide, memo].join('\n'))
   }
 
   if (params.marks.length > 0) {
@@ -166,14 +153,10 @@ export const summaryNotes = (params: {
       .map(({ atMs }) => {
         const spoken = params.segments
           .filter((segment) => segment.startMs <= atMs && segment.endMs >= atMs - MARK_LOOKBACK_MS)
-          .map((segment) =>
-            text.quote(labels.get(segment.speakerId) ?? segment.speakerId, segment.text)
-          )
+          .map((segment) => text.quote(labels.get(segment.speakerId) ?? segment.speakerId, segment.text))
         return `- [${formatTimestamp(atMs)}]${spoken.length > 0 ? ` ${spoken.join(' ')}` : ''}`
       })
-    sections.push(
-      [text.marksHeading, text.marksGuide, ...lines].join('\n')
-    )
+    sections.push([text.marksHeading, text.marksGuide, ...lines].join('\n'))
   }
 
   return sections.join('\n\n')

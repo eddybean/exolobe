@@ -9,8 +9,7 @@ import { join } from 'node:path'
  * unpacked へ透過的に振り替えるが、`child_process.spawn` は OS の実ファイルを
  * 直接見るため振り替えが効かない。
  */
-export const toUnpackedPath = (path: string): string =>
-  path.replace(/app\.asar(?!\.unpacked)/, 'app.asar.unpacked')
+export const toUnpackedPath = (path: string): string => path.replace(/app\.asar(?!\.unpacked)/, 'app.asar.unpacked')
 
 const AUDIOTEE_RELATIVE = join('app.asar.unpacked', 'node_modules', 'audiotee', 'bin', 'audiotee')
 

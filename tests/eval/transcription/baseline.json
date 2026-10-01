@@ -3,12 +3,7 @@
     "macos": "26.6.2",
     "whisper": "1.9.4-dev",
     "model": "ggml-large-v3-turbo-q5_0.bin",
-    "voices": [
-      "Kyoko",
-      "Eddy (日本語（日本）)",
-      "Flo (日本語（日本）)",
-      "Reed (日本語（日本）)"
-    ]
+    "voices": ["Kyoko", "Eddy (日本語（日本）)", "Flo (日本語（日本）)", "Reed (日本語（日本）)"]
   },
   "results": [
     {

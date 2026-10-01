@@ -89,17 +89,14 @@ export const DEFAULT_CHAT_PROMPT_EN = [
   'Choose a shape that fits the question and cite the meeting numbers you used in the form [1].'
 ].join('\n')
 
-const PROMPTS: Readonly<
-  Record<MeetingLanguage, { readonly system: string; readonly prompt: string }>
-> = {
+const PROMPTS: Readonly<Record<MeetingLanguage, { readonly system: string; readonly prompt: string }>> = {
   ja: { system: DEFAULT_CHAT_SYSTEM_PROMPT, prompt: DEFAULT_CHAT_PROMPT },
   en: { system: DEFAULT_CHAT_SYSTEM_PROMPT_EN, prompt: DEFAULT_CHAT_PROMPT_EN }
 }
 
 /** 問いの言語の指示文。 */
-export const chatPrompts = (
-  language: MeetingLanguage
-): { readonly system: string; readonly prompt: string } => PROMPTS[language]
+export const chatPrompts = (language: MeetingLanguage): { readonly system: string; readonly prompt: string } =>
+  PROMPTS[language]
 
 /** 文脈が空のときにそう書く。空欄のまま渡すと、モデルが記憶から会議を作り出す。 */
 const EMPTY_CONTEXT: Readonly<Record<MeetingLanguage, string>> = {
@@ -108,9 +105,7 @@ const EMPTY_CONTEXT: Readonly<Record<MeetingLanguage, string>> = {
 }
 
 /** 差し込み位置を持たないテンプレートに足す見出し。 */
-const FALLBACK_HEADINGS: Readonly<
-  Record<MeetingLanguage, { readonly context: string; readonly question: string }>
-> = {
+const FALLBACK_HEADINGS: Readonly<Record<MeetingLanguage, { readonly context: string; readonly question: string }>> = {
   ja: { context: '# 会議記録', question: '# 質問' },
   en: { context: '# Meeting records', question: '# Question' }
 }
@@ -125,11 +120,7 @@ export const renderChatPrompt = (
 ): string => {
   const context = params.context.trim() || EMPTY_CONTEXT[language]
   const headings = FALLBACK_HEADINGS[language]
-  const base = fill(
-    fill(template, CONTEXT_PLACEHOLDER, context),
-    QUESTION_PLACEHOLDER,
-    params.question
-  )
+  const base = fill(fill(template, CONTEXT_PLACEHOLDER, context), QUESTION_PLACEHOLDER, params.question)
 
   // 差し込み位置を持たないテンプレートでも、文脈と質問は必ず届ける。
   return base.includes(context) && base.includes(params.question)

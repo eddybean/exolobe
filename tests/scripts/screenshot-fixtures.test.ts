@@ -3,10 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { FileFolderRepository } from '@infrastructure/persistence/FileFolderStore'
-import {
-  FileRecordingArtifactStore,
-  FileRecordingRepository
-} from '@infrastructure/persistence/FileRecordingStore'
+import { FileRecordingArtifactStore, FileRecordingRepository } from '@infrastructure/persistence/FileRecordingStore'
 import { writeScreenshotFixtures } from '../../scripts/screenshot-fixtures.mjs'
 
 /**
@@ -56,12 +53,7 @@ describe('writeScreenshotFixtures', () => {
     const artifacts = new FileRecordingArtifactStore(locator, join(root, 'work'))
 
     const transcript = await artifacts.readTranscript(main)
-    expect(transcript?.speakers.map((speaker) => speaker.label)).toEqual([
-      '自分',
-      '田中さん',
-      '佐藤さん',
-      '鈴木さん'
-    ])
+    expect(transcript?.speakers.map((speaker) => speaker.label)).toEqual(['自分', '田中さん', '佐藤さん', '鈴木さん'])
     expect(await artifacts.readSummary(main)).toContain('## 決定事項')
     expect((await stat(join(library, main.slug, 'audio.m4a'))).size).toBeGreaterThan(0)
   })
@@ -71,10 +63,7 @@ describe('writeScreenshotFixtures', () => {
     await writeScreenshotFixtures(again)
     const read = async (base: string): Promise<unknown> => {
       const repository = new FileRecordingRepository({ root: async () => join(base, 'library') })
-      const artifacts = new FileRecordingArtifactStore(
-        { root: async () => join(base, 'library') },
-        join(base, 'work')
-      )
+      const artifacts = new FileRecordingArtifactStore({ root: async () => join(base, 'library') }, join(base, 'work'))
       const [main] = await repository.list()
       return main && (await artifacts.readTranscript(main))?.segments
     }

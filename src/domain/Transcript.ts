@@ -11,10 +11,8 @@ const DEFAULT_MAX_GAP_MS = 2_000
 export const mergeTracks = (tracks: readonly (readonly TranscriptSegment[])[]): TranscriptSegment[] =>
   tracks.flat().sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs)
 
-const overlapMs = (
-  a: { startMs: number; endMs: number },
-  b: { startMs: number; endMs: number }
-): number => Math.max(0, Math.min(a.endMs, b.endMs) - Math.max(a.startMs, b.startMs))
+const overlapMs = (a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }): number =>
+  Math.max(0, Math.min(a.endMs, b.endMs) - Math.max(a.startMs, b.startMs))
 
 /**
  * 相手トラックのセグメントを、時間の重なりが最大となるダイアライゼーション結果の
@@ -53,11 +51,7 @@ export const coalesceSegments = (
 
   for (const segment of segments) {
     const previous = result[result.length - 1]
-    if (
-      previous &&
-      previous.speakerId === segment.speakerId &&
-      segment.startMs - previous.endMs <= maxGapMs
-    ) {
+    if (previous && previous.speakerId === segment.speakerId && segment.startMs - previous.endMs <= maxGapMs) {
       result[result.length - 1] = {
         ...previous,
         endMs: segment.endMs,
@@ -83,10 +77,7 @@ export const formatTimestamp = (ms: number): string => {
 }
 
 /** コピペ用の Markdown 文字起こしを生成する。 */
-export const toMarkdown = (
-  segments: readonly TranscriptSegment[],
-  speakers: readonly Speaker[]
-): string => {
+export const toMarkdown = (segments: readonly TranscriptSegment[], speakers: readonly Speaker[]): string => {
   const labels = new Map(speakers.map((speaker) => [speaker.id, speaker.label]))
 
   return segments

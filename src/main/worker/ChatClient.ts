@@ -16,10 +16,7 @@ interface Waiting {
 }
 
 /** 話題語から録音の候補を引く役。main が意味検索のワーカーに委ねる。 */
-export type FindCandidates = (params: {
-  topic: string
-  limit: number
-}) => Promise<readonly string[]>
+export type FindCandidates = (params: { topic: string; limit: number }) => Promise<readonly string[]>
 
 /**
  * チャットのワーカーとのやり取りを担う。
@@ -154,12 +151,7 @@ export class ChatClient {
     return worker
   }
 
-  private async resolveCandidates(
-    worker: PipelineWorker,
-    id: string,
-    topic: string,
-    limit: number
-  ): Promise<void> {
+  private async resolveCandidates(worker: PipelineWorker, id: string, topic: string, limit: number): Promise<void> {
     let recordingIds: readonly string[] = []
     try {
       recordingIds = (await this.findCandidates?.({ topic, limit })) ?? []

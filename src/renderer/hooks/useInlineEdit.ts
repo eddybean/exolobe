@@ -39,10 +39,7 @@ export interface InlineEdit {
  * 保存に失敗したときは編集状態を保つ。理由の表示は呼び出し側の仕事で、
  * ここは入力し直せる状態を残すことだけを引き受ける。
  */
-export const useInlineEdit = (
-  value: string,
-  onCommit: (next: string) => Promise<void>
-): InlineEdit => {
+export const useInlineEdit = (value: string, onCommit: (next: string) => Promise<void>): InlineEdit => {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const [saving, setSaving] = useState(false)

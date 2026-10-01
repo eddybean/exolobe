@@ -20,9 +20,7 @@ describe('resummarizeState', () => {
   })
 
   it('文字起こしがまだ無ければ要約する材料が無い', () => {
-    expect(resummarizeState(steps({ transcribe: { status: 'pending' } }), false)).toBe(
-      'unavailable'
-    )
+    expect(resummarizeState(steps({ transcribe: { status: 'pending' } }), false)).toBe('unavailable')
   })
 
   it('要約の実行中はそれと分かるようにする', () => {

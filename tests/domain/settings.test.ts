@@ -102,9 +102,7 @@ describe('validateSettings', () => {
 
   it('サポート外のサンプルレートを弾く', () => {
     const settings = mergeSettings(defaultSettings('ja'), { audio: { sampleRate: 12_345 } })
-    expect(validateSettings(settings)).toContain(
-      'sampleRate'
-    )
+    expect(validateSettings(settings)).toContain('sampleRate')
   })
 
   it('話者数の上限が 2 未満なら弾く', () => {
@@ -115,18 +113,14 @@ describe('validateSettings', () => {
   it('声紋の一致閾値が範囲外なら弾く', () => {
     for (const voiceprintThreshold of [0, 1.2]) {
       const settings = mergeSettings(defaultSettings('ja'), { diarization: { voiceprintThreshold } })
-      expect(validateSettings(settings)).toContain(
-        'voiceprintThreshold'
-      )
+      expect(validateSettings(settings)).toContain('voiceprintThreshold')
     }
   })
 
   it('話者を分ける近さが範囲外なら弾く', () => {
     for (const clusteringThreshold of [0, 1.2]) {
       const settings = mergeSettings(defaultSettings('ja'), { diarization: { clusteringThreshold } })
-      expect(validateSettings(settings)).toContain(
-        'clusteringThreshold'
-      )
+      expect(validateSettings(settings)).toContain('clusteringThreshold')
     }
   })
 
@@ -142,9 +136,7 @@ describe('validateSettings', () => {
     const settings = mergeSettings(defaultSettings('ja'), {
       summarization: { promptMode: 'custom', promptTemplate: '要約してください。' }
     })
-    expect(validateSettings(settings)).toContain(
-      'promptPlaceholder'
-    )
+    expect(validateSettings(settings)).toContain('promptPlaceholder')
   })
 
   it('既定のプロンプトを使うなら、カスタムの本文は検証しない（要約に使わないため）', () => {
@@ -319,9 +311,7 @@ describe('startAlert', () => {
     const base = defaultSettings('ja')
     const settings = { ...base, recording: { ...base.recording, startAlertDelayMs: 10_000 } }
 
-    expect(validateSettings(settings)).toContain(
-      'startAlertDelay'
-    )
+    expect(validateSettings(settings)).toContain('startAlertDelay')
   })
 })
 

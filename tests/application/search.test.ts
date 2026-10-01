@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import {
-  ClearSearchIndex,
-  GetSearchIndexStatus,
-  SearchRecordings,
-  SyncSearchIndex
-} from '@application/usecases/search'
+import { ClearSearchIndex, GetSearchIndexStatus, SearchRecordings, SyncSearchIndex } from '@application/usecases/search'
 import { createRecording, initialStepStates, startStep, type Recording } from '@domain/Recording'
 import { defaultSettings } from '@domain/Settings'
 import type { Speaker } from '@domain/Speaker'
@@ -39,8 +34,7 @@ let embedder: FakeTextEmbedder
 let settings: FakeSettingsRepository
 let system: FakeSystemResource
 
-const sync = (): SyncSearchIndex =>
-  new SyncSearchIndex({ repository, artifacts, index, embedder, settings, system })
+const sync = (): SyncSearchIndex => new SyncSearchIndex({ repository, artifacts, index, embedder, settings, system })
 
 beforeEach(async () => {
   repository = new FakeRecordingRepository()
@@ -256,9 +250,7 @@ describe('SearchRecordings', () => {
     embedder.calls = []
     system.snapshot = { totalBytes: 8 * 1_024 ** 3, availableBytes: 1 * 1_024 ** 3 }
 
-    await expect(search().execute({ query: '雨の話' })).rejects.toThrow(
-      'insufficientMemory'
-    )
+    await expect(search().execute({ query: '雨の話' })).rejects.toThrow('insufficientMemory')
     expect(embedder.calls).toEqual([])
   })
 

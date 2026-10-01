@@ -12,19 +12,13 @@ import { GetRecordingDetail, ListRecordings } from '@application/usecases/librar
 import { REMOTE_SPEAKER_ID, SELF_SPEAKER_ID } from '@domain/Speaker'
 import { AfconvertDecoder } from '@infrastructure/audio/AfconvertDecoder'
 import { AfconvertEncoder } from '@infrastructure/audio/AfconvertEncoder'
-import {
-  DualTrackRecorder,
-  type SystemAudioSource
-} from '@infrastructure/audio/DualTrackRecorder'
+import { DualTrackRecorder, type SystemAudioSource } from '@infrastructure/audio/DualTrackRecorder'
 import { TrackMixer } from '@infrastructure/audio/TrackMixer'
 import { NullDiarizer } from '@infrastructure/diarization/SherpaOnnxDiarizer'
 import { NullSpeakerEmbedder } from '@infrastructure/diarization/SherpaOnnxSpeakerEmbedder'
 import { FileVoiceprintRepository } from '@infrastructure/persistence/FileVoiceprintStore'
 import { WavFileWriter, int16Buffer, readWav } from '@infrastructure/audio/wav'
-import {
-  FileRecordingArtifactStore,
-  FileRecordingRepository
-} from '@infrastructure/persistence/FileRecordingStore'
+import { FileRecordingArtifactStore, FileRecordingRepository } from '@infrastructure/persistence/FileRecordingStore'
 import { JsonSettingsRepository } from '@infrastructure/settings/JsonSettingsRepository'
 import { FakeCalendar, FakeProgressReporter, FakeSummarizer, FakeTranscriber } from '../application/fakes'
 
@@ -159,12 +153,8 @@ describe('録音から保存までの一連の流れ', () => {
     expect(recording.status).toBe('processing')
 
     // ── 文字起こしの結果を差し込む ──
-    ctx.transcriber.byPath.set(tracks.micWavPath, [
-      { startMs: 0, endMs: 1_000, text: '来週リリースで進めます' }
-    ])
-    ctx.transcriber.byPath.set(tracks.systemWavPath, [
-      { startMs: 1_200, endMs: 2_000, text: '了解しました' }
-    ])
+    ctx.transcriber.byPath.set(tracks.micWavPath, [{ startMs: 0, endMs: 1_000, text: '来週リリースで進めます' }])
+    ctx.transcriber.byPath.set(tracks.systemWavPath, [{ startMs: 1_200, endMs: 2_000, text: '了解しました' }])
 
     // ── 後処理 ──
     const processed = await ctx.process.execute({ recordingId: recording.id })
@@ -232,9 +222,7 @@ describe('録音から保存までの一連の流れ', () => {
     const { recording, tracks } = await ctx.stop.execute(started.id)
 
     ctx.transcriber.byPath.set(tracks.micWavPath, [])
-    ctx.transcriber.byPath.set(tracks.systemWavPath, [
-      { startMs: 0, endMs: 500, text: 'こんにちは' }
-    ])
+    ctx.transcriber.byPath.set(tracks.systemWavPath, [{ startMs: 0, endMs: 500, text: 'こんにちは' }])
 
     const processed = await ctx.process.execute({ recordingId: recording.id })
 

@@ -34,9 +34,7 @@ describe('describeMicFailure', () => {
     })
 
     it('DevicesNotFoundError（旧称）も同じ扱いにする', () => {
-      expect(describeMicFailure(domError('DevicesNotFoundError'))).toBeInstanceOf(
-        MicDeviceMissingError
-      )
+      expect(describeMicFailure(domError('DevicesNotFoundError'))).toBeInstanceOf(MicDeviceMissingError)
     })
   })
 
@@ -50,9 +48,7 @@ describe('describeMicFailure', () => {
 
     it('SecurityError と PermissionDeniedError も権限エラーにする', () => {
       expect(describeMicFailure(domError('SecurityError'))).toBeInstanceOf(MicPermissionError)
-      expect(describeMicFailure(domError('PermissionDeniedError'))).toBeInstanceOf(
-        MicPermissionError
-      )
+      expect(describeMicFailure(domError('PermissionDeniedError'))).toBeInstanceOf(MicPermissionError)
     })
   })
 

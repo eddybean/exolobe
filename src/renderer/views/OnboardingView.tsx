@@ -57,7 +57,6 @@ export const OnboardingView = ({
             {setup.needsStorageDir ? t.choose : t.change}
           </button>
         </li>
-
       </ol>
 
       <h3 className="onboarding__section">{t.modelsSectionTitle}</h3>

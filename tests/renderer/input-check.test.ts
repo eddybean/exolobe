@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { runInputCheck } from '@renderer/session/runInputCheck'
 import type { MicCapture } from '@renderer/audio/micCapture'
 
-const build = (options: {
-  micLevel?: number
-  micError?: Error
-  systemPeak?: number
-  systemError?: Error
-} = {}) => {
+const build = (
+  options: {
+    micLevel?: number
+    micError?: Error
+    systemPeak?: number
+    systemError?: Error
+  } = {}
+) => {
   const calls: string[] = []
   const mic: MicCapture = {
     level: () => options.micLevel ?? 0,
@@ -81,9 +83,7 @@ describe('runInputCheck', () => {
 
     await runInputCheck(deps)
 
-    expect(calls).toEqual(
-      expect.arrayContaining(['mic.start', 'tone.play', 'tone.stop', 'poll.stop', 'mic.stop'])
-    )
+    expect(calls).toEqual(expect.arrayContaining(['mic.start', 'tone.play', 'tone.stop', 'poll.stop', 'mic.stop']))
     expect(calls.indexOf('tone.play')).toBeLessThan(calls.indexOf('tone.stop'))
   })
 })

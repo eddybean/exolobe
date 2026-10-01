@@ -105,10 +105,7 @@ const WATCH_ONLY: StartWatchPlan = { action: 'none', durationMs: Number.POSITIVE
  * 自動開始は「会議の予定がある」ときだけ。予定が無いときに自動開始の設定が効くと、
  * ADR-027 が避けた「会議ではないマイク使用で録音が始まる」ことが起きる。
  */
-export const planStartWatch = (
-  settings: StartWatchSettings,
-  meeting: CalendarEvent | undefined
-): StartWatchPlan => {
+export const planStartWatch = (settings: StartWatchSettings, meeting: CalendarEvent | undefined): StartWatchPlan => {
   const fallback: StartWatchPlan = settings.startAlertEnabled
     ? { action: 'alert', durationMs: settings.startAlertDelayMs }
     : WATCH_ONLY

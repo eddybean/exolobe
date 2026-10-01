@@ -1,11 +1,7 @@
 import { execFile } from 'node:child_process'
 import type { CalendarPort } from '@application/ports'
 import type { CalendarEvent } from '@domain/CalendarEvent'
-import {
-  parseCalendarEvents,
-  parseCalendarPermission,
-  type CalendarPermission
-} from './calendarProtocol'
+import { parseCalendarEvents, parseCalendarPermission, type CalendarPermission } from './calendarProtocol'
 
 /**
  * 予定の問い合わせを打ち切るまでの時間。

@@ -23,13 +23,11 @@ const ja: ModelTexts = {
   },
   'vad-model': {
     label: '無音検出モデル',
-    description:
-      'Silero VAD。喋っていない区間を文字起こしから除き、無音から生まれる誤った文章を防ぎます。'
+    description: 'Silero VAD。喋っていない区間を文字起こしから除き、無音から生まれる誤った文章を防ぎます。'
   },
   'summarization-model': {
     label: '要約モデル',
-    description:
-      'Gemma 4 E4B（QAT q4_0）。128K のコンテキストがあり、長い会議も分割せず要約できます。'
+    description: 'Gemma 4 E4B（QAT q4_0）。128K のコンテキストがあり、長い会議も分割せず要約できます。'
   },
   'diarization-segmentation': {
     label: '話者分割モデル（任意）',
@@ -41,8 +39,7 @@ const ja: ModelTexts = {
   },
   'search-model': {
     label: '意味検索モデル（任意）',
-    description:
-      'bge-m3（Q8_0）。「天気の話をした会議」のような自然な文章で録音を探せるようにします。'
+    description: 'bge-m3（Q8_0）。「天気の話をした会議」のような自然な文章で録音を探せるようにします。'
   },
   diarization: {
     label: '話者識別モデル（任意）',
@@ -68,8 +65,7 @@ const en: ModelTexts = {
   },
   'summarization-model': {
     label: 'Summarization model',
-    description:
-      'Gemma 4 E4B (QAT q4_0). Its 128K context lets it summarize long meetings without splitting them.'
+    description: 'Gemma 4 E4B (QAT q4_0). Its 128K context lets it summarize long meetings without splitting them.'
   },
   'diarization-segmentation': {
     label: 'Speaker segmentation model (optional)',

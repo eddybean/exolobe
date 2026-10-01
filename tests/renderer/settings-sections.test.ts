@@ -26,9 +26,7 @@ describe('SETTINGS_SECTIONS', () => {
 
 describe('initialSettingsSection', () => {
   it('前に開いていた項目があれば、そこから開く', () => {
-    expect(initialSettingsSection({ storageDir: '/data', previous: 'summarization' })).toBe(
-      'summarization'
-    )
+    expect(initialSettingsSection({ storageDir: '/data', previous: 'summarization' })).toBe('summarization')
   })
 
   it('保存先が未設定なら、ほかより先に保存先を開く（決めないと録音できない）', () => {

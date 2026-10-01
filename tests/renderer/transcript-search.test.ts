@@ -22,9 +22,7 @@ describe('splitHighlight', () => {
   })
 
   it('先頭と末尾に接する範囲で空の断片を作らない', () => {
-    expect(splitHighlight('予算', [{ start: 0, length: 2 }])).toEqual([
-      { text: '予算', hit: true }
-    ])
+    expect(splitHighlight('予算', [{ start: 0, length: 2 }])).toEqual([{ text: '予算', hit: true }])
   })
 
   it('重なった範囲は 1 つにまとめる（語どうしが重なっても断片が壊れない）', () => {

@@ -27,9 +27,7 @@ describe('headroomBytes', () => {
   })
 
   it('大容量の機体では総量に比例して増える', () => {
-    expect(headroomBytes('conservative', 64 * GB)).toBeGreaterThan(
-      headroomBytes('conservative', 16 * GB)
-    )
+    expect(headroomBytes('conservative', 64 * GB)).toBeGreaterThan(headroomBytes('conservative', 16 * GB))
   })
 })
 
@@ -82,17 +80,13 @@ describe('estimateTranscriptionBytes', () => {
     const estimate = estimateTranscriptionBytes({ modelFileBytes: WHISPER_BYTES })
 
     expect(estimate).toBeGreaterThan(WHISPER_BYTES)
-    expect(estimate).toBeLessThan(
-      estimateSummarizationBytes({ modelFileBytes: GEMMA_BYTES, contextSize: 32_768 })
-    )
+    expect(estimate).toBeLessThan(estimateSummarizationBytes({ modelFileBytes: GEMMA_BYTES, contextSize: 32_768 }))
   })
 })
 
 describe('estimateEmbeddingBytes', () => {
   it('実測したピーク（bge-m3 Q8_0 で約 1.88GB）を下回らない', () => {
-    expect(estimateEmbeddingBytes({ modelFileBytes: BGE_M3_BYTES })).toBeGreaterThanOrEqual(
-      1_880_000_000
-    )
+    expect(estimateEmbeddingBytes({ modelFileBytes: BGE_M3_BYTES })).toBeGreaterThanOrEqual(1_880_000_000)
   })
 
   it('要約よりはるかに小さい', () => {
@@ -146,9 +140,7 @@ describe('insufficientMemory', () => {
     }
     const snapshot = { totalBytes: total, availableBytes: summarize.bytes + 0.9 * GB }
 
-    expect(
-      insufficientMemory({ snapshot, demand: summarize, protection: 'standard' })
-    ).toBeUndefined()
+    expect(insufficientMemory({ snapshot, demand: summarize, protection: 'standard' })).toBeUndefined()
   })
 
   it('標準は見積もりが空きに収まれば要約を通す', () => {
@@ -160,9 +152,7 @@ describe('insufficientMemory', () => {
     }
     const snapshot = { totalBytes: total, availableBytes: 7_600_000_000 }
 
-    expect(
-      insufficientMemory({ snapshot, demand: summarize, protection: 'standard' })
-    ).toBeUndefined()
+    expect(insufficientMemory({ snapshot, demand: summarize, protection: 'standard' })).toBeUndefined()
   })
 
   it('標準でも見積もりが空きを超えれば止める', () => {

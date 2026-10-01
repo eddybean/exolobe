@@ -206,9 +206,7 @@ describe('parseMarkdown のインライン解析', () => {
   })
 
   it('mailto も許可する', () => {
-    expect(inlineOf('[連絡](mailto:a@example.com)')).toMatchObject([
-      { kind: 'link', href: 'mailto:a@example.com' }
-    ])
+    expect(inlineOf('[連絡](mailto:a@example.com)')).toMatchObject([{ kind: 'link', href: 'mailto:a@example.com' }])
   })
 
   it('http/https/mailto 以外のリンクは木に載せず表示文字に落とす', () => {

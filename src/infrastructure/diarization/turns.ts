@@ -8,10 +8,7 @@ import type { SpeakerTurn } from '@domain/TranscriptSegment'
  * 上限まで残し、あふれた分のターンは捨てる。捨てられた区間に重なるセグメントは
  * どのターンとも重ならなくなるため、汎用の「参加者」ラベルのままになる。
  */
-export const limitSpeakers = (
-  turns: readonly SpeakerTurn[],
-  maxSpeakers: number
-): SpeakerTurn[] => {
+export const limitSpeakers = (turns: readonly SpeakerTurn[], maxSpeakers: number): SpeakerTurn[] => {
   if (maxSpeakers <= 0) return [...turns]
 
   const durationBySpeaker = new Map<string, number>()

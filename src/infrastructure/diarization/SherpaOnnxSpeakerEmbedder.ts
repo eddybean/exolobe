@@ -83,10 +83,7 @@ export class SherpaOnnxSpeakerEmbedder implements SpeakerEmbeddingPort {
       }
       return result
     } catch (error: unknown) {
-      throw new SpeakerEmbeddingError(
-        { code: 'speakerEmbeddingFailed', detail: toMessage(error) },
-        { cause: error }
-      )
+      throw new SpeakerEmbeddingError({ code: 'speakerEmbeddingFailed', detail: toMessage(error) }, { cause: error })
     } finally {
       session.dispose()
     }
@@ -99,11 +96,7 @@ export class SherpaOnnxSpeakerEmbedder implements SpeakerEmbeddingPort {
  * 範囲は録音の長さに丸める。ダイアライザが返す終了時刻は分割の窓に合わせて
  * 末尾をわずかに超えることがあり、そのまま切り出すと長さがずれる。
  */
-const concatRanges = (
-  samples: Int16Array,
-  sampleRate: number,
-  ranges: readonly SampleRange[]
-): Float32Array => {
+const concatRanges = (samples: Int16Array, sampleRate: number, ranges: readonly SampleRange[]): Float32Array => {
   const spans = ranges.map((range) => ({
     from: Math.max(0, Math.min(samples.length, Math.floor((range.startMs * sampleRate) / 1000))),
     to: Math.max(0, Math.min(samples.length, Math.floor((range.endMs * sampleRate) / 1000)))

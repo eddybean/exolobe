@@ -30,9 +30,8 @@ vi.mock('@infrastructure/diarization/sherpaModule', () => ({
   sherpaThreads: () => 2
 }))
 
-const { SherpaOnnxEmbeddingSessionFactory } = await import(
-  '@infrastructure/diarization/SherpaOnnxEmbeddingSessionFactory'
-)
+const { SherpaOnnxEmbeddingSessionFactory } =
+  await import('@infrastructure/diarization/SherpaOnnxEmbeddingSessionFactory')
 
 /**
  * Electron の V8 は外部バッファ（napi_create_external_arraybuffer）を禁じており、

@@ -193,9 +193,9 @@ describe('AssetDownloader', () => {
       body: null
     }))
 
-    await expect(
-      downloader.download({ url: 'https://example.test/m.bin', destPath: dest })
-    ).rejects.toThrow('downloadHttp')
+    await expect(downloader.download({ url: 'https://example.test/m.bin', destPath: dest })).rejects.toThrow(
+      'downloadHttp'
+    )
   })
 
   it('中断されたら途中ファイルを残して再開できるようにする', async () => {

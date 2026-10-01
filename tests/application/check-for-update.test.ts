@@ -2,13 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CheckForUpdate } from '@application/usecases/CheckForUpdate'
 import type { Settings } from '@domain/Settings'
 import { defaultSettings } from '@domain/Settings'
-import {
-  FakeClock,
-  FakeInstallSource,
-  FakeReleaseFeed,
-  FakeSettingsRepository,
-  FakeUpdateCheckStore
-} from './fakes'
+import { FakeClock, FakeInstallSource, FakeReleaseFeed, FakeSettingsRepository, FakeUpdateCheckStore } from './fakes'
 
 const DAY_MS = 86_400_000
 

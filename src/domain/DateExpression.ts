@@ -31,8 +31,7 @@ export const RECENT_DAYS = 14
  * 深夜や早朝の録音が隣の日に滑る。
  */
 
-export const startOfDay = (date: Date): Date =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate())
+export const startOfDay = (date: Date): Date => new Date(date.getFullYear(), date.getMonth(), date.getDate())
 
 export const addDays = (date: Date, days: number): Date => {
   const result = new Date(date.getTime())
@@ -41,8 +40,7 @@ export const addDays = (date: Date, days: number): Date => {
 }
 
 /** 月初を基準に動かす。月末（31 日）から月を進めたときの繰り上がりを避けるため。 */
-export const addMonths = (date: Date, months: number): Date =>
-  new Date(date.getFullYear(), date.getMonth() + months, 1)
+export const addMonths = (date: Date, months: number): Date => new Date(date.getFullYear(), date.getMonth() + months, 1)
 
 /**
  * 週の始まりは月曜。

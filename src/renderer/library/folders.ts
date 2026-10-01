@@ -85,15 +85,11 @@ export const recordingsInFolder = <T extends Pick<RecordingDto, 'folderId'>>(
 
   const known = byId(folders)
   if (key === 'unfiled') {
-    return recordings.filter(
-      (recording) => recording.folderId === undefined || !known.has(recording.folderId)
-    )
+    return recordings.filter((recording) => recording.folderId === undefined || !known.has(recording.folderId))
   }
 
   const ids = subtreeIds(folders, key)
-  return recordings.filter(
-    (recording) => recording.folderId !== undefined && ids.has(recording.folderId)
-  )
+  return recordings.filter((recording) => recording.folderId !== undefined && ids.has(recording.folderId))
 }
 
 /** 上に並べるフォルダの段。1 段目は最上位、以降は選んだフォルダの経路に沿って子を足す。 */
@@ -127,18 +123,13 @@ export const folderChipRows = (
     ...childrenOf(folders, undefined).map(chip)
   ]
 
-  const nested = path
-    .map((folder) => childrenOf(folders, folder.id).map(chip))
-    .filter((row) => row.length > 0)
+  const nested = path.map((folder) => childrenOf(folders, folder.id).map(chip)).filter((row) => row.length > 0)
 
   return [top, ...nested]
 }
 
 /** 検索結果の行に添えるフォルダの位置。フォルダを横断して探すので、どこにあるかが要る。 */
-export const folderPathLabel = (
-  folders: readonly FolderDto[],
-  folderId: string | undefined
-): string => {
+export const folderPathLabel = (folders: readonly FolderDto[], folderId: string | undefined): string => {
   const t = libraryListText()
   if (folderId === undefined) return t.unfiledFolder
   const path = ancestry(folders, folderId)
@@ -165,9 +156,7 @@ export const filterByQuery = <T extends Pick<RecordingDto, 'title' | 'summaryPre
   const needle = query.trim().toLowerCase()
   if (!needle) return [...recordings]
   return recordings.filter((recording) =>
-    [recording.title, recording.summaryPreview ?? ''].some((text) =>
-      text.toLowerCase().includes(needle)
-    )
+    [recording.title, recording.summaryPreview ?? ''].some((text) => text.toLowerCase().includes(needle))
   )
 }
 

@@ -27,13 +27,7 @@ import {
   type StepStates
 } from '@domain/Recording'
 import { diarizationTarget, mixInputs, transcriptionTargets } from '@domain/RecordingSource'
-import {
-  PipelineStepError,
-  RecordingNotFoundError,
-  reasonOf,
-  toMessage,
-  type ErrorReason
-} from '@domain/errors'
+import { PipelineStepError, RecordingNotFoundError, reasonOf, toMessage, type ErrorReason } from '@domain/errors'
 import {
   estimateSummarizationBytes,
   estimateTranscriptionBytes,
@@ -130,10 +124,7 @@ interface StepContext {
 export class ProcessRecording {
   constructor(private readonly deps: ProcessRecordingDeps) {}
 
-  async execute(params: {
-    recordingId: string
-    only?: readonly PipelineStep[]
-  }): Promise<Recording> {
+  async execute(params: { recordingId: string; only?: readonly PipelineStep[] }): Promise<Recording> {
     const recording = await this.deps.repository.find(params.recordingId)
     if (!recording) {
       throw new RecordingNotFoundError(params.recordingId)
@@ -196,11 +187,7 @@ export class ProcessRecording {
     return aborted
   }
 
-  private async runStep(
-    step: PipelineStep,
-    steps: StepStates,
-    context: StepContext
-  ): Promise<StepStates> {
+  private async runStep(step: PipelineStep, steps: StepStates, context: StepContext): Promise<StepStates> {
     const blocker = STEP_DEPENDENCIES[step].find((dep) => steps[dep].status === 'failed')
     if (blocker) {
       return failStep(steps, step, { code: 'stepBlocked', blocker })
@@ -250,10 +237,7 @@ export class ProcessRecording {
    * 対象は数 GB のモデルを載せる文字起こしと要約だけ。ミックスやエンコードは
    * ストリーム処理で、判定する意味がない。
    */
-  private async checkMemory(
-    step: PipelineStep,
-    { settings }: StepContext
-  ): Promise<ErrorReason | undefined> {
+  private async checkMemory(step: PipelineStep, { settings }: StepContext): Promise<ErrorReason | undefined> {
     if (settings.memoryProtection === 'off') return undefined
 
     const demand = await this.demandOf(step, settings)
@@ -266,16 +250,10 @@ export class ProcessRecording {
     })
   }
 
-  private async demandOf(
-    step: PipelineStep,
-    settings: Settings
-  ): Promise<MemoryDemand | undefined> {
+  private async demandOf(step: PipelineStep, settings: Settings): Promise<MemoryDemand | undefined> {
     switch (step) {
       case 'transcribe': {
-        const modelFileBytes = await this.modelBytes(
-          settings.transcription.modelPath,
-          'transcription-model'
-        )
+        const modelFileBytes = await this.modelBytes(settings.transcription.modelPath, 'transcription-model')
         if (modelFileBytes === undefined) return undefined
         return {
           bytes: estimateTranscriptionBytes({ modelFileBytes }),
@@ -285,10 +263,7 @@ export class ProcessRecording {
       case 'summarize': {
         // Apple Intelligence のモデルは OS のプロセスで動き、このアプリのメモリには載らない。
         if (summarizationProviderOf(settings) === 'apple-intelligence') return undefined
-        const modelFileBytes = await this.modelBytes(
-          settings.summarization.modelPath,
-          'summarization-model'
-        )
+        const modelFileBytes = await this.modelBytes(settings.summarization.modelPath, 'summarization-model')
         if (modelFileBytes === undefined) return undefined
         return {
           bytes: estimateSummarizationBytes({
@@ -319,11 +294,7 @@ export class ProcessRecording {
    * 開始時に読んだ録音をそのまま書き戻すとその編集を巻き戻してしまうので、
    * 毎回最新を読み直し、このユースケースが持ち主である steps と status だけを重ねる。
    */
-  private async saveSteps(
-    snapshot: Recording,
-    steps: StepStates,
-    status: RecordingStatus
-  ): Promise<Recording> {
+  private async saveSteps(snapshot: Recording, steps: StepStates, status: RecordingStatus): Promise<Recording> {
     const latest = (await this.deps.repository.find(snapshot.id)) ?? snapshot
     const merged: Recording = { ...latest, steps, status }
     await this.deps.repository.save(merged)
@@ -358,7 +329,6 @@ export class ProcessRecording {
    * どの WAV を誰として起こすかは transcriptionTargets が決める。
    */
   private async transcribe({ recording, settings, tracks, language }: StepContext): Promise<void> {
-
     // 直列に回す。whisper を 2 本同時に走らせてもメモリを食うだけで速くならない。
     const targets = transcriptionTargets(await this.requireTracks(recording, tracks))
     const tracked: TranscriptSegment[][] = []
@@ -488,10 +458,7 @@ export class ProcessRecording {
   }
 
   /** 読み込み済みならそれを使い、無ければ読む。どちらでも無ければ断る。 */
-  private async requireTracks(
-    recording: Recording,
-    loaded?: RecordingSource
-  ): Promise<RecordingSource> {
+  private async requireTracks(recording: Recording, loaded?: RecordingSource): Promise<RecordingSource> {
     const tracks = loaded ?? (await this.deps.artifacts.readTracks(recording))
     if (!tracks) {
       throw new PipelineStepError({ code: 'recordingDataMissing' })
@@ -551,19 +518,14 @@ const buildSpeakers = (
     if (isRemoteSpeakerId(segment.speakerId)) {
       const grouped = segment.speakerId === REMOTE_SPEAKER_ID
       const index = remoteIndex
-      const fallback = grouped
-        ? defaultRemoteGroupLabel(language)
-        : defaultRemoteLabel(index, language)
+      const fallback = grouped ? defaultRemoteGroupLabel(language) : defaultRemoteLabel(index, language)
       if (!grouped) remoteIndex += 1
 
       // 既に付いている名前が既定の採番そのものなら、利用者が付けたものではない。
       // そこだけ声紋の引き当てに譲る（声紋帳が育った後で話者識別をやり直せば、
       // 過去の録音にも名前が入る）。別の言語で付けた採番も既定とみなす。
       const given = named.get(segment.speakerId)
-      const userGiven =
-        given !== undefined &&
-        given !== fallback &&
-        (grouped || !isDefaultRemoteLabel(given, index))
+      const userGiven = given !== undefined && given !== fallback && (grouped || !isDefaultRemoteLabel(given, index))
       speakers.push({
         id: segment.speakerId,
         kind: 'remote',

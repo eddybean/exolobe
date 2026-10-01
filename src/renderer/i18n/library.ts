@@ -22,8 +22,7 @@ const en: typeof ja = {
     pendingProcessing: 'Playback becomes available once encoding finishes.'
   },
   voiceprint: {
-    summary: (samples, day) =>
-      `Learned from ${samples} ${samples === 1 ? 'recording' : 'recordings'} · ${day}`,
+    summary: (samples, day) => `Learned from ${samples} ${samples === 1 ? 'recording' : 'recordings'} · ${day}`,
     count: (count) => `${count} ${count === 1 ? 'voice' : 'voices'} remembered`
   },
   voiceLearned: {

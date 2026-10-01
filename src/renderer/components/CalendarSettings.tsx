@@ -107,7 +107,11 @@ export const CalendarSettings = ({
             <span className="permissions__purpose">{t.subjectPurpose}</span>
           </div>
           {view && (
-            <span className={view.ok ? 'permissions__state permissions__state--ok' : 'permissions__state permissions__state--ng'}>
+            <span
+              className={
+                view.ok ? 'permissions__state permissions__state--ok' : 'permissions__state permissions__state--ng'
+              }
+            >
               {view.label}
             </span>
           )}

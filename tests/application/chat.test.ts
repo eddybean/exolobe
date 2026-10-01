@@ -75,8 +75,7 @@ const build = async (options: { finder?: boolean } = {}): Promise<AskChat> => {
   })
 }
 
-const ask = async (askChat: AskChat, question: string) =>
-  askChat.execute({ question, history: [], onChunk: () => {} })
+const ask = async (askChat: AskChat, question: string) => askChat.execute({ question, history: [], onChunk: () => {} })
 
 describe('AskChat — 期間で絞る', () => {
   let askChat: AskChat

@@ -9,8 +9,7 @@ import { locale } from './i18n/locale'
  *
  * 録音中はまだ何も始まっておらず、止まった後の失敗は各欄に出すので、処理中だけ出す。
  */
-export const showsPipelineProgress = (recordingStatus: string): boolean =>
-  recordingStatus === 'processing'
+export const showsPipelineProgress = (recordingStatus: string): boolean => recordingStatus === 'processing'
 
 /** 1 つの録音について、いま動いているステップの割合の標本。 */
 export interface ProgressSample {
@@ -64,9 +63,7 @@ export const estimateRemainingMs = (
 
 /** 見積もりは粗いので、分単位で切り上げて「約」を付ける。 */
 export const formatRemaining = (ms: number): string =>
-  ms < 60_000
-    ? pipelineText().remainingUnderMinute
-    : pipelineText().remainingAbout(Math.ceil(ms / 60_000))
+  ms < 60_000 ? pipelineText().remainingUnderMinute : pipelineText().remainingAbout(Math.ceil(ms / 60_000))
 
 /**
  * ピルの文言。閉じたままでも用が足りるよう、いま動いているステップと残り時間を 1 行にする。
@@ -84,7 +81,6 @@ export const pipelinePillLabel = (
   if (!running) return pipelineText().queued
 
   const fraction = sample?.step === running ? ` ${Math.round(sample.fraction * 100)}%` : ''
-  const remaining =
-    remainingMs === undefined ? '' : `${pipelineText().separator}${formatRemaining(remainingMs)}`
+  const remaining = remainingMs === undefined ? '' : `${pipelineText().separator}${formatRemaining(remainingMs)}`
   return pipelineText().running(stepLabel(running, locale()), fraction, remaining)
 }
