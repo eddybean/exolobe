@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { mkdir, rename, rm, stat } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative } from 'node:path'
+import { dirname, isAbsolute, join, relative, win32 } from 'node:path'
 import { promisify } from 'node:util'
 import type { ModelStorePort } from '@application/usecases/models'
 import type { ManagedAsset, ManagedAssetId } from '@domain/ModelCatalog'
@@ -194,20 +194,8 @@ export class FileModelStore implements ModelStorePort {
     await rm(join(this.modelsDir, topLevel(previous)), { recursive: true, force: true })
   }
 
-  /**
-   * macOS の tar は bz2 を、ditto は zip を直接扱えるため、展開ライブラリを
-   * 持ち込まずに済む。
-   *
-   * zip に unzip ではなく ditto を使うのは、Apple 製の zip に入っている
-   * __MACOSX（AppleDouble のリソースフォーク）を models ディレクトリに
-   * 撒かないため。ditto は展開時にこれを本来の拡張属性へ戻して消す。
-   * unzip だと remove() が消し切れないゴミが残る。
-   */
   private async extract(archivePath: string, archive: NonNullable<ManagedAsset['archive']>): Promise<void> {
-    const [command, args] =
-      archive === 'zip'
-        ? (['/usr/bin/ditto', ['-x', '-k', archivePath, this.modelsDir]] as const)
-        : (['/usr/bin/tar', ['-xjf', archivePath, '-C', this.modelsDir]] as const)
+    const { command, args } = extractCommand(archive, archivePath, this.modelsDir)
 
     try {
       await execFileAsync(command, [...args])
@@ -215,6 +203,32 @@ export class FileModelStore implements ModelStorePort {
       throw new ModelStoreError({ code: 'modelExtractFailed', detail: toMessage(error) }, { cause: error })
     }
   }
+}
+
+/**
+ * アーカイブを展開するコマンド。OS 付属のコマンドで済ませ、展開ライブラリを持ち込まない。
+ *
+ * macOS の tar は bz2 を、ditto は zip を直接扱える。zip に unzip ではなく ditto を使うのは、
+ * Apple 製の zip に入っている __MACOSX（AppleDouble のリソースフォーク）を models ディレクトリに
+ * 撒かないため。ditto は展開時にこれを本来の拡張属性へ戻して消す。unzip だと remove() が
+ * 消し切れないゴミが残る。
+ *
+ * Windows は OS 付属の tar.exe（bsdtar）が形式を見分けて展開する。名前だけで呼ぶと PATH 上の
+ * Git の GNU tar に当たることがあり、そちらは bzip2 が無いと bz2 を読めないので、絶対パスで呼ぶ（ADR-048）。
+ */
+export const extractCommand = (
+  archive: NonNullable<ManagedAsset['archive']>,
+  archivePath: string,
+  destination: string,
+  platform: NodeJS.Platform = process.platform,
+  systemRoot: string = process.env['SystemRoot'] ?? 'C:\\Windows'
+): { command: string; args: readonly string[] } => {
+  if (platform === 'win32') {
+    return { command: win32.join(systemRoot, 'System32', 'tar.exe'), args: ['-xf', archivePath, '-C', destination] }
+  }
+  return archive === 'zip'
+    ? { command: '/usr/bin/ditto', args: ['-x', '-k', archivePath, destination] }
+    : { command: '/usr/bin/tar', args: ['-xjf', archivePath, '-C', destination] }
 }
 
 /** 展開先の最上位ディレクトリ名。'a/b/c.onnx' なら 'a'。 */
