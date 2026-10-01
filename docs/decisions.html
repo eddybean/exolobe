@@ -80,6 +80,7 @@
             <tr><td><a href="#adr-045">ADR-045</a></td><td>同梱バイナリの最低対応 OS と CI のランナー</td><td>同梱バイナリは <code>LSMinimumSystemVersion</code> 向けにビルドし、配布前に検査する。CI は macOS 27 SDK のある <code>xcode-27</code> で動かす</td></tr>
             <tr><td><a href="#adr-046">ADR-046</a></td><td>要約のモデルに Apple Intelligence を選べる</td><td>既定は Gemma のまま。macOS 27 以降で、精度が劣ることを見せたうえで選んだ人だけが使う。分割・統合は共用し、同梱の <code>applelm</code> が 1 回ずつ応答する</td></tr>
             <tr><td><a href="#adr-047">ADR-047</a></td><td>要約プロンプトの既定とカスタム</td><td>既定を使うかカスタムを使うかを <code>promptMode</code> で持ち、既定は全文を保存せず編集もさせない。アプリの更新で既定が変われば、触っていない人にはそのまま届く</td></tr>
+            <tr><td><a href="#adr-048">ADR-048</a></td><td>Windows 対応</td><td>OS ごとに別のインストーラを作り、違いは結線（container）で実装を選んで吸収する。音声の変換は Media Foundation、補助プログラムは Rust。最初の版は x64・署名なし・カレンダー連携なし</td></tr>
           </tbody>
         </table>
       </div>
@@ -4347,6 +4348,111 @@
         </ul>
       </div>
 
+      <h2 id="adr-048">ADR-048 Windows 対応（2026-10）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-048</span>
+          <p class="adr__title">Windows 版を作る。OS ごとに別のインストーラにし、OS の違いは結線（container）で実装を選んで吸収する。domain と application には OS の分岐を持ち込まない</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          録音・文字起こし・話者識別・要約をローカルで行う作りは Windows でも成り立つ。文字起こし以降の推論は port の裏にあり、
+          <code>sherpa-onnx-node</code> と <code>node-llama-cpp</code> は Windows 向けのビルド済みパッケージを持つ。
+          一方で、音声の入出力（audiotee・<code>afconvert</code>）と OS との連携（権限・通知・メニュー・同梱の Swift 製補助プログラム）は
+          macOS にしか無い。いくつかは port を通さず、IPC のハンドラから Electron の API や OS のコマンドを直接呼んでいた。
+          開発の道具（<code>postinstall</code> の bash、実際の <code>afconvert</code> を呼ぶテスト、<code>xcode-27</code> だけの CI）も
+          macOS が前提で、Windows では <code>npm ci</code> から通らなかった。
+        </p>
+
+        <h4>決定</h4>
+        <ul>
+          <li>
+            <strong>OS ごとに別のインストーラにする。</strong>macOS は dmg、Windows は NSIS。同梱バイナリは
+            <code>mac</code> / <code>win</code> の <code>extraResources</code> に分け、互いの配布物に混ぜない。ネイティブモジュールは
+            npm がその OS の分だけ入れるので、ビルドはそれぞれの OS の CI で行う（クロスビルドしない）。
+          </li>
+          <li>
+            <strong>OS の違いは結線で吸収する。</strong>どの実装を使うかを決めるのは <code>container.ts</code> とワーカーの container だけにし、
+            domain・application は OS を知らない。直接呼んでいたもの（マイクの権限、システム設定を開く、アーカイブの展開、
+            インストール元の判定）は port に切り出す。renderer には OS を preload から渡し、ショートカットの表記・フォント・
+            文言の出し分けに使う。文言は <a href="#adr-043">ADR-043</a> の表で OS ごとに持つ。
+          </li>
+          <li>
+            <strong>音声の変換は Windows 標準の Media Foundation で行う。</strong>ffmpeg は同梱しない。
+            <a href="#adr-030">ADR-030</a> と同じく「取り込める形式は OS の変換器が読めるもの」とし、取り込める拡張子の一覧は OS ごとに持つ。
+            HE-AAC は Windows の標準のエンコーダで使えない見込みなので、Windows では AAC-LC だけを選べるようにする
+            （<a href="#adr-005">ADR-005</a> の既定は macOS でも変えない）。
+          </li>
+          <li>
+            <strong>Windows 用の補助プログラムは Rust（<code>windows</code> crate）で書く。</strong>システム音声のキャプチャ（WASAPI loopback）、
+            音声の変換、マイク使用の見張りを、Swift 製と同じく stdout で話す単体の exe にする。ランタイムが要らず、
+            既存の取り決め（audiotee の PCM、<code>micwatch</code> の <code>1</code>/<code>0</code>）をそのまま守れば TypeScript 側の実装を共用できる。
+          </li>
+          <li>
+            <strong>GPU は Vulkan を使う。</strong>whisper-cli は Vulkan と CPU でビルドし、node-llama-cpp の CUDA 版は同梱しない
+            （数百 MB あり、Vulkan なら NVIDIA・AMD・Intel のどれでも動く）。Core ML のエンコーダは macOS だけの資産とし、Windows では取得させない。
+          </li>
+          <li>
+            <strong>最初の版は x64・署名なし・カレンダー連携なし。</strong>署名しないと SmartScreen が警告を出すが、
+            <a href="#adr-014">ADR-014</a> の ad-hoc 署名と同じ扱いにする。カレンダー連携が無いので、録音の自動開始
+            （<a href="#adr-041">ADR-041</a>）も Windows では働かない。Apple Intelligence（<a href="#adr-046">ADR-046</a>）は選択肢に出さない。
+          </li>
+          <li>
+            <strong>進め方は「macOS で抽象化し、Windows で実装する」。</strong>まず Windows の CI で typecheck / lint / fmt / test / build を
+            通るようにし（実際の OS のコマンドを呼ぶテストはその OS だけで走らせる）、次に OS の違いを結線の裏に寄せる。ここまでは macOS で
+            Fake を使って進められる。ネイティブの補助プログラムと実機での確認は Windows で行う。
+          </li>
+        </ul>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>論点</th><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>音声の変換</td>
+                <td>ffmpeg を同梱する</td>
+                <td>不採用</td>
+                <td>取り込める形式は増えるが、配布物が数十 MB 増え、ライセンス表示も要る。macOS と同じく OS の変換器に任せれば同梱物が増えない</td>
+              </tr>
+              <tr>
+                <td>補助プログラムの言語</td>
+                <td>C++ / C#（NativeAOT）</td>
+                <td>不採用</td>
+                <td>C++ は WASAPI の扱いが冗長で、メモリの誤りを起こしやすい。C# は単体 exe にすると大きく、COM の扱いも Rust の <code>windows</code> crate より手間</td>
+              </tr>
+              <tr>
+                <td>補助プログラムの形</td>
+                <td>Node のネイティブアドオンにする</td>
+                <td>不採用</td>
+                <td>Electron の版ごとにビルドし直しが要り、落ちると main プロセスごと落ちる。子プロセスなら隔離され、macOS と同じ作りで扱える</td>
+              </tr>
+              <tr>
+                <td>カレンダー連携</td>
+                <td>Microsoft Graph / Outlook COM</td>
+                <td>見送り</td>
+                <td>Windows には EventKit のようにローカルで完結する口が無い。Graph はクラウドへのサインインが要り（<a href="#adr-003">ADR-003</a> と相容れない）、新しい Outlook には COM が無い</td>
+              </tr>
+              <tr>
+                <td>GPU</td>
+                <td>CUDA 版も同梱する</td>
+                <td>不採用</td>
+                <td>NVIDIA でしか効かないのに配布物が数百 MB 増える。速さが足りないと分かってから任意ダウンロードを考える</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>残した判断</h4>
+        <ul>
+          <li>メモリの見積もり（<a href="#adr-024">ADR-024</a>）の係数は Mac の統合メモリで測った値。Windows の VRAM が別にある機体では合わないので、実機で測り直す。</li>
+          <li>文字起こしの評価は macOS の <code>say</code> で音声を作っている。Windows では録音済みの音声（<code>OMR_EVAL_EXTRA_DIR</code>）で測る。</li>
+          <li>新しい版の通知（<a href="#adr-044">ADR-044</a>）は OS 共通の Release を見るので、片方の OS だけの修正版でも両方に知らせる。</li>
+          <li>Windows の Media Foundation で HE-AAC が使えないこと、WASAPI loopback で自分のアプリの音を除けることは、実機で確かめていない。</li>
+        </ul>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -4483,6 +4589,14 @@
             <tr>
               <td><a href="#adr-038">ADR-038</a> 繰り返しの閾値（8 回・4 回・1 秒）</td>
               <td>実録音の計測モードで、本物の繰り返しが落ちている、またはループが残っていると分かったとき</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-048">ADR-048</a> Windows でカレンダー連携をしない</td>
+              <td>ローカルで完結する予定の取得手段が見つかったとき、または予定の連携のためにサインインしてよいという要求が出たとき</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-048">ADR-048</a> Windows は x64・署名なし・Vulkan のみ</td>
+              <td>ARM64 の Windows の利用者が出たとき。SmartScreen の警告で配布に困ったとき。Vulkan で速さが足りないと分かったとき</td>
             </tr>
             <tr>
               <td>arm64 のみのビルド</td>
