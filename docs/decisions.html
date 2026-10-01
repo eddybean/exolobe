@@ -4449,7 +4449,12 @@
           <li>メモリの見積もり（<a href="#adr-024">ADR-024</a>）の係数は Mac の統合メモリで測った値。Windows の VRAM が別にある機体では合わないので、実機で測り直す。</li>
           <li>文字起こしの評価は macOS の <code>say</code> で音声を作っている。Windows では録音済みの音声（<code>OMR_EVAL_EXTRA_DIR</code>）で測る。</li>
           <li>新しい版の通知（<a href="#adr-044">ADR-044</a>）は OS 共通の Release を見るので、片方の OS だけの修正版でも両方に知らせる。</li>
-          <li>Windows の Media Foundation で HE-AAC が使えないこと、WASAPI loopback で自分のアプリの音を除けることは、実機で確かめていない。</li>
+          <li>Windows の Media Foundation で HE-AAC が使えないことは、実機で確かめていない。</li>
+          <li>システム音声は WASAPI のプロセス loopback（Windows 10 2004 以降）の除外モードで、main の PID 以下の木（このアプリの音）を除いて録る。
+            実機で、他のプロセスが鳴らした 1 kHz は振幅 0.48 で入り、除いた木から鳴らした音は背景と同じ水準に収まった。
+            テスト録音は自分の確認音が入るかで判定するので、そのときだけ除かない。補助プログラムは stdin が閉じたら止まるので、
+            main が落ちてもパイプが閉じて孤児にならない（Job Object は使わない）。
+            録音の途中で既定の再生デバイスが変わったとき（ヘッドホンを挿すなど）に追従するかは、まだ確かめていない。</li>
         </ul>
       </div>
 
