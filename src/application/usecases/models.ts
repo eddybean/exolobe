@@ -53,7 +53,9 @@ export interface ManagedAssetStatus {
 export class GetModelStatus {
   constructor(
     private readonly settings: SettingsRepositoryPort,
-    private readonly store: ModelStorePort
+    private readonly store: ModelStorePort,
+    /** この環境で使えるもの（modelPackagesFor）。 */
+    private readonly packages: readonly ModelPackage[] = MODEL_PACKAGES
   ) {}
 
   /**
@@ -64,7 +66,7 @@ export class GetModelStatus {
     const settings = await this.settings.load()
 
     return Promise.all(
-      MODEL_PACKAGES.map(async (pkg) => {
+      this.packages.map(async (pkg) => {
         const files = pkg.assets.map((asset) => {
           const configured = configuredPath(settings, asset.id)
           return { asset, configured, path: configured || this.store.pathFor(asset) }
@@ -113,14 +115,16 @@ export class GetModelStatus {
 export class DownloadModel {
   constructor(
     private readonly settings: SettingsRepositoryPort,
-    private readonly store: ModelStorePort
+    private readonly store: ModelStorePort,
+    /** この環境で使えるもの（modelPackagesFor）。ここに無いものは知らないモデルとして断る。 */
+    private readonly packages: readonly ModelPackage[] = MODEL_PACKAGES
   ) {}
 
   async execute(params: {
     id: string
     onProgress?: (received: number, total: number | undefined) => void
   }): Promise<Settings> {
-    const pkg = packageOf(params.id)
+    const pkg = packageOf(params.id, this.packages)
     const { onProgress } = params
 
     const fetched: { asset: ManagedAsset; path: string }[] = []
@@ -196,18 +200,20 @@ export class UpdateModel {
   constructor(
     private readonly settings: SettingsRepositoryPort,
     private readonly store: ModelStorePort,
-    private readonly recordings: RecordingRepositoryPort
+    private readonly recordings: RecordingRepositoryPort,
+    /** この環境で使えるもの（modelPackagesFor）。 */
+    private readonly packages: readonly ModelPackage[] = MODEL_PACKAGES
   ) {}
 
   async execute(params: {
     id: string
     onProgress?: (received: number, total: number | undefined) => void
   }): Promise<Settings> {
-    packageOf(params.id)
+    packageOf(params.id, this.packages)
 
     await ensureModelsIdle(this.recordings, 'update')
 
-    return new DownloadModel(this.settings, this.store).execute(params)
+    return new DownloadModel(this.settings, this.store, this.packages).execute(params)
   }
 }
 
@@ -236,8 +242,8 @@ export class CancelModelDownload {
   }
 }
 
-const packageOf = (id: string): ModelPackage => {
-  const pkg = findPackage(id)
+const packageOf = (id: string, packages: readonly ModelPackage[] = MODEL_PACKAGES): ModelPackage => {
+  const pkg = packages.find((candidate) => candidate.id === id)
   if (!pkg) throw new ConfigurationError({ code: 'unknownModel', id })
   return pkg
 }

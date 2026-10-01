@@ -54,6 +54,7 @@ import { resolveMicWatchBinary } from '@infrastructure/mic/resolveMicWatchBinary
 import { EventKitCalendar } from '@infrastructure/calendar/EventKitCalendar'
 import { resolveCalendarBinary } from '@infrastructure/calendar/resolveCalendarBinary'
 import type { AppleIntelligenceStatus } from '@domain/AppleIntelligence'
+import { modelPackagesFor } from '@domain/ModelCatalog'
 import { appleIntelligenceStatus } from '@infrastructure/summarization/AppleLmSessionFactory'
 import { resolveAppleLmBinary } from '@infrastructure/summarization/resolveAppleLmBinary'
 import { FileModelStore } from '@infrastructure/download/FileModelStore'
@@ -163,6 +164,8 @@ export const createContainer = (): Container => {
   })
   // モデルは再取得できるキャッシュなので、録音の保存先とは分けて置く。
   const models = new FileModelStore(join(userData, 'models'))
+  // Core ML は macOS にしか無い。Windows では Core ML のエンコーダを一覧にも出さない（ADR-048）。
+  const modelPackages = modelPackagesFor({ coreMl: process.platform === 'darwin' })
   // 意味検索の索引も再生成できるキャッシュ。書き込みは検索ワーカーが行い、
   // main は容量の確認と一括削除にだけ使う。
   const searchIndex = new FileSearchIndex(join(userData, SEARCH_INDEX_DIR))
@@ -227,9 +230,9 @@ export const createContainer = (): Container => {
     moveRecordingToFolder: new MoveRecordingToFolder(folderDeps),
     updateSettings: new UpdateSettings(settings),
     getSetupState: new GetSetupState(settings),
-    getModelStatus: new GetModelStatus(settings, models),
-    downloadModel: new DownloadModel(settings, models),
-    updateModel: new UpdateModel(settings, models, repository),
+    getModelStatus: new GetModelStatus(settings, models, modelPackages),
+    downloadModel: new DownloadModel(settings, models, modelPackages),
+    updateModel: new UpdateModel(settings, models, repository, modelPackages),
     cancelModelDownload: new CancelModelDownload(models),
     deleteModel: new DeleteModel(settings, models, repository),
     getSearchIndexStatus: new GetSearchIndexStatus({
