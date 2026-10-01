@@ -1,3 +1,4 @@
+import type { AppPlatform } from '@shared/platform'
 import { localized } from './locale'
 
 /**
@@ -32,7 +33,8 @@ const ja = {
   /** 日時と長さの間の区切り。 */
   metaSeparator: ' ・ ',
   header: {
-    revealInFinder: 'Finder で表示',
+    revealInFileManager: (platform: AppPlatform): string =>
+      platform === 'windows' ? 'エクスプローラーで表示' : 'Finder で表示',
     delete: '削除'
   },
   transcript: {
@@ -102,7 +104,8 @@ const ja = {
 const en: typeof ja = {
   metaSeparator: ' · ',
   header: {
-    revealInFinder: 'Show in Finder',
+    revealInFileManager: (platform: AppPlatform): string =>
+      platform === 'windows' ? 'Show in File Explorer' : 'Show in Finder',
     delete: 'Delete'
   },
   transcript: {

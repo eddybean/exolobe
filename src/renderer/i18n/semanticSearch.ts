@@ -4,7 +4,7 @@ const ja = {
   enableLabel: '意味検索を使う',
   enableHint:
     '「天気の話をした会議」のような文章で録音を探せるようにします。文字起こし・要約・メモを' +
-    'この Mac の中でベクトル化して検索します。無効にするとインデックスは削除されます。',
+    'このパソコンの中でベクトル化して検索します。無効にするとインデックスは削除されます。',
   indexLabel: 'インデックス',
   checking: '確認中…',
   disabledWithRemainder: (count: number) => `無効（${count} 件分が残っています）`,
@@ -19,7 +19,7 @@ const en: typeof ja = {
   enableLabel: 'Use Semantic Search',
   enableHint:
     'Lets you find recordings with a phrase like “the meeting where we talked about the weather.” ' +
-    'The transcript, summary, and notes are turned into vectors and searched entirely on this Mac. Disabling this deletes the index.',
+    'The transcript, summary, and notes are turned into vectors and searched entirely on this computer. Disabling this deletes the index.',
   indexLabel: 'Index',
   checking: 'Checking…',
   disabledWithRemainder: (count: number) => `Off (${count} entries remain)`,

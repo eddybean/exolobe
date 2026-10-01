@@ -26,6 +26,7 @@ import { VoiceprintSettings } from '../components/VoiceprintSettings'
 import { SETTINGS_SECTIONS, type SettingsSectionId } from '../settingsSections'
 import { locale } from '../i18n/locale'
 import { settingsText } from '../i18n/settings'
+import { platform } from '../platform'
 
 /**
  * 設定画面。保存先とモデルの指定がここに集まる。左のナビで項目を選び、右にその項目だけを出す。
@@ -61,7 +62,7 @@ export const SettingsView = ({
   const usesGemma = summarizationProviderOf(settings) === 'llama-cpp'
   const customPrompt = settings.summarization.promptMode === 'custom'
   // OS に無い機能の設定は出さない（ADR-048）。
-  const features = platformFeatures(window.recorder.platform)
+  const features = platformFeatures(platform())
 
   const update = (patch: SettingsPatch): void => {
     setError(undefined)
@@ -116,7 +117,7 @@ export const SettingsView = ({
           </Field>
 
           <Field
-            label={t.recording.globalShortcutLabel(recordingShortcut(window.recorder.platform).label)}
+            label={t.recording.globalShortcutLabel(recordingShortcut(platform()).label)}
             hint={t.recording.globalShortcutHint}
           >
             <input

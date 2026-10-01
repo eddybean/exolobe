@@ -6,6 +6,7 @@ import {
   describeMicFailure
 } from '@renderer/audio/micErrors'
 import { setLocale } from '@renderer/i18n/locale'
+import { setPlatform } from '@renderer/platform'
 
 /** getUserMedia が投げる DOMException を name だけ再現する。 */
 const domError = (name: string): Error => {
@@ -94,5 +95,19 @@ describe('英語の UI', () => {
 
     const unknown = describeMicFailure(new Error('something is wrong'))
     expect(unknown.message).toContain('something is wrong')
+  })
+})
+
+describe('describeMicFailure（Windows）', () => {
+  afterEach(() => setPlatform('macos'))
+
+  it('Mac の機種の話はせず、Windows の設定アプリの場所を案内する', () => {
+    setPlatform('windows')
+
+    expect(describeMicFailure(domError('NotFoundError')).message).not.toContain('Mac')
+    expect(describeMicFailure(domError('NotAllowedError')).message).toContain(
+      '「設定 > プライバシーとセキュリティ > マイク」'
+    )
+    expect(describeMicFailure(domError('NotAllowedError')).message).not.toContain('システム設定')
   })
 })

@@ -111,7 +111,7 @@ const ja = {
   },
   appearance: {
     label: 'テーマ',
-    hint: '「OS の設定に合わせる」では、macOS の外観の切り替えに追従します。',
+    hint: '「OS の設定に合わせる」では、OS のライト・ダークの切り替えに追従します。',
     system: 'OS の設定に合わせる',
     light: 'ライト',
     dark: 'ダーク'
@@ -241,7 +241,7 @@ const en: typeof ja = {
   },
   appearance: {
     label: 'Theme',
-    hint: 'Match System follows the macOS appearance setting as it changes.',
+    hint: 'Match System follows your system’s light or dark setting as it changes.',
     system: 'Match System',
     light: 'Light',
     dark: 'Dark'

@@ -1,5 +1,6 @@
 import type { CalendarPermissionDto, MicPermissionDto, PrivacyPaneDto } from '@shared/ipc'
 import { permissionsText } from './i18n/permissions'
+import { platform } from './platform'
 import type { InputCheckOutcome, InputCheckResult } from './session/runInputCheck'
 
 export interface PermissionView {
@@ -70,8 +71,9 @@ export const inputCheckView = (result: InputCheckResult): InputCheckRow[] => {
   const t = permissionsText()
   return [
     row(t.systemAudioSubject, result.system, {
-      message: t.systemAudioMessage,
-      openSettings: 'system-audio'
+      message: t.systemAudioMessage(platform()),
+      // Windows はシステム音声の取り込みに許可が無い（ADR-048）。開く画面が無いので案内しない。
+      openSettings: platform() === 'windows' ? undefined : 'system-audio'
     }),
     row(t.micSubject, result.mic, {
       message: t.micMessage,

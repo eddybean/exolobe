@@ -5,14 +5,15 @@ import { startMicCapture } from '../audio/micCapture'
 import { messageOf } from '../errorMessage'
 import { permissionsText } from '../i18n/permissions'
 import { inputCheckView, micPermissionView, type InputCheckRow } from '../permissions'
+import { platform } from '../platform'
 import { runInputCheck } from '../session/runInputCheck'
 
 /**
  * 録音に必要な 2 つの許可（マイク・システム音声）の状態と、直し方への入口。
  *
- * マイクは macOS に状態を問い合わせられる。システム音声（Core Audio Tap、ADR-001）は
+ * マイクは OS に状態を問い合わせられる。macOS のシステム音声（Core Audio Tap、ADR-001）は
  * 問い合わせる公開 API が無く、許可が無くてもエラーにならず無音が流れるだけなので、
- * 状態は出さず、どこで確かめればよいかを案内する。
+ * 状態は出さず、どこで確かめればよいかを案内する。Windows のシステム音声は許可そのものが無い（ADR-048）。
  */
 export const RecordingPermissions = (): ReactElement => {
   const t = permissionsText()
@@ -107,7 +108,7 @@ export const RecordingPermissions = (): ReactElement => {
         )}
         {micView?.action === 'open-settings' && (
           <button type="button" onClick={() => openSettings('microphone')}>
-            {t.openSettings}
+            {t.openSettings(platform())}
           </button>
         )}
       </div>
@@ -117,12 +118,15 @@ export const RecordingPermissions = (): ReactElement => {
           <span className="permissions__name">{t.systemAudioName}</span>
           <span className="permissions__purpose">{t.systemAudioPurpose}</span>
         </div>
-        <span className="permissions__state">{t.systemAudioState}</span>
-        <button type="button" onClick={() => openSettings('system-audio')}>
-          {t.openSettings}
-        </button>
+        <span className="permissions__state">{t.systemAudioState(platform())}</span>
+        {/* Windows はシステム音声の取り込みに許可が無く、開く画面も無い（ADR-048）。 */}
+        {platform() === 'macos' && (
+          <button type="button" onClick={() => openSettings('system-audio')}>
+            {t.openSettings(platform())}
+          </button>
+        )}
       </div>
-      <p className="field__hint permissions__hint">{t.hint}</p>
+      <p className="field__hint permissions__hint">{t.hint(platform())}</p>
       <div className="permissions__test">
         <button type="button" onClick={runTest} disabled={testing}>
           {testing ? t.testing : t.testButton}
@@ -152,7 +156,7 @@ export const RecordingPermissions = (): ReactElement => {
               {row.message && <span className="permissions__result-message">{row.message}</span>}
               {row.openSettings && (
                 <button type="button" onClick={() => row.openSettings && openSettings(row.openSettings)}>
-                  {t.openSettings}
+                  {t.openSettings(platform())}
                 </button>
               )}
             </li>

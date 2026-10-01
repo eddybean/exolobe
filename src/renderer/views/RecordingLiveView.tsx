@@ -15,6 +15,7 @@ import { bookmarkShortcutLabel, isBookmarkKey } from '../keyboard'
 import { litSegments } from '../library/liveNotes'
 import { liveText } from '../i18n/live'
 import { intlLocale, locale } from '../i18n/locale'
+import { platform } from '../platform'
 
 /** メモの自動保存までの待ち時間。詳細画面のメモと揃える。 */
 const NOTE_SAVE_DELAY_MS = 600
@@ -106,7 +107,7 @@ export const RecordingLiveView = ({
   // メモを書いている最中でも印をつけられるよう、入力欄ではなく window で受ける。
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (!isBookmarkKey(event, window.recorder.platform)) return
+      if (!isBookmarkKey(event, platform())) return
       event.preventDefault()
       addBookmark()
     }
@@ -170,7 +171,7 @@ export const RecordingLiveView = ({
                 <FlagIcon />
                 {t.bookmark.button}
               </button>
-              <kbd className="live__kbd">{bookmarkShortcutLabel(window.recorder.platform)}</kbd>
+              <kbd className="live__kbd">{bookmarkShortcutLabel(platform())}</kbd>
             </div>
             <p className="live__hint">{t.bookmark.hint}</p>
             {bookmarks.length > 0 && (
