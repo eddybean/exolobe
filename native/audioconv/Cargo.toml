@@ -1,0 +1,26 @@
+[package]
+name = "audioconv"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Exolobe の Windows 版で、録音の保存（WAV から AAC の m4a）と音声の取り込み（16bit モノラル WAV）を Media Foundation で行う"
+
+[dependencies]
+windows-core = "0.62"
+
+[dependencies.windows]
+version = "0.62"
+features = [
+  "Win32_Foundation",
+  "Win32_Media_MediaFoundation",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant"
+]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
