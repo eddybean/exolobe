@@ -23,7 +23,7 @@ npm run build        # typecheck + electron-vite build
 npm run package      # build + whisper-cli / micwatch / calendarevents / applelm のビルド + electron-builder
 npm run setup        # macOS: whisper-cli を Homebrew で導入し、補助プログラムをビルド / Windows: 道具の有無を確かめる
 npm run build:whisper  # whisper.cpp をビルド（macOS: Metal と Core ML / Windows: Vulkan と CPU、Vulkan SDK が要る）。配布版はこちら
-npm run build:micwatch # micwatch（Swift）をビルド
+npm run build:micwatch # micwatch をビルド（macOS: Swift の main.swift / Windows: Rust、同じ native/micwatch に同居）
 npm run build:calendarevents # calendarevents（Swift、カレンダー連携）をビルド
 npm run build:applelm # applelm（Swift、Apple Intelligence での要約）をビルド
 npm run build:syscapture # syscapture（Rust、Windows のシステム音声の取り込み）をビルド。Windows 専用
@@ -116,7 +116,7 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 | utilityProcess（`pipeline-worker`） | 文字起こし・話者識別・要約。ネイティブのクラッシュを隔離し、ジョブは 1 件ずつ直列 |
 | utilityProcess（`search-worker`） | 意味検索（bge-m3 の埋め込み・索引の同期）。依頼は並行に受け、3 分使われなければ終了 |
 | utilityProcess（`chat-worker`） | ライブラリ全体へのチャット（要約と同じ Gemma を使う）。生成は 1 件ずつ、2 分使われなければ終了（ADR-033） |
-| 子プロセス（`micwatch`） | 他アプリのマイク使用を見張り、録音の開始忘れを知らせる（録音中は動かさない、ADR-027） |
+| 子プロセス（`micwatch`） | 他アプリのマイク使用を見張り、録音の開始忘れを知らせる（録音中は動かさない、ADR-027）。Windows 版は WASAPI の録音セッションを数え、親（main）以下のプロセスの木を除く |
 | 子プロセス（`syscapture`） | Windows でシステム音声を WASAPI のプロセス loopback で取り込み、PCM を stdout に流す。このアプリの音は除き、stdin が閉じたら止まる（ADR-048） |
 | 子プロセス（`calendarevents`） | 録音開始時に EventKit で重なる予定を引く。呼ぶたびに起動して終わる（ADR-040） |
 | 子プロセス（`applelm`） | 要約のモデルに Apple Intelligence を選んだとき、パイプラインのワーカーが 1 回の応答ごとに起動する。設定画面の可否の表示は main が `status` で聞く（ADR-046） |
@@ -333,7 +333,8 @@ npm run dev
 - システム音声の取り込み（`syscapture.exe`）と録音の保存・音声の取り込み（`audioconv.exe`）は `npm run setup` か
   `npm run build:syscapture` / `npm run build:audioconv` で作る（cargo が要る）。
   実機での取り込みは `npm run test:manual` で確かめる（CI のランナーには音声デバイスが無い）。
-- マイク使用の見張りの補助プログラムはまだ無いので、使えないのが正しい。
+- マイク使用の見張り（`micwatch.exe`）も `npm run setup` か `npm run build:micwatch` で作る。試すときは、マイクを使う側を
+  アプリの木の外で起動する（PowerShell の `Start-Process` など）。Node や Exolobe の子として起動すると、自分の使用として除かれる。
 - whisper-cli は `npm run build:whisper` で `resources/bin` に作る（Vulkan SDK が要る。`npm run setup` も SDK があれば呼ぶ）。
   開発中の Windows は、macOS と違って `resources/bin` の whisper-cli を使う（Homebrew に当たる入れ方が無いため）。
   バックエンドは DLL に分かれている（`ggml-vulkan.dll` / `ggml-cpu-*.dll`）。CPU だけで確かめるときは、

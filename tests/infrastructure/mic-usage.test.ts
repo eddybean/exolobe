@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -5,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { MicUsageProbe } from '../../src/infrastructure/mic/MicUsageProbe'
 import { parseMicUsageLine } from '../../src/infrastructure/mic/micUsageProtocol'
 import { resolveMicWatchBinary } from '../../src/infrastructure/mic/resolveMicWatchBinary'
-import { notMacOS } from '../platform'
+import { notMacOS, notWindows } from '../platform'
 
 describe('parseMicUsageLine', () => {
   it('1 と 0 を使用状態として読む', () => {
@@ -112,4 +113,33 @@ describe.skipIf(notMacOS)('MicUsageProbe', () => {
     expect(probe.available).toBe(false)
     expect(() => probe.start()).not.toThrow()
   })
+})
+
+/**
+ * Windows は実物の micwatch.exe（`npm run build:micwatch` で resources/bin に作る）を通す。
+ * Windows では `#!/bin/sh` の偽バイナリを spawn できないため。何がマイクを使っているかは機体次第なので、
+ * 最初の 1 行（起動直後に必ず出す）が届くことと、止めたら子が残らないことだけを見る。
+ */
+const micwatchExe = join(process.cwd(), 'resources', 'bin', 'micwatch.exe')
+
+describe.skipIf(notWindows || !existsSync(micwatchExe))('MicUsageProbe（Windows の実物）', () => {
+  it('起動直後に今の使用状態が 1 度届き、止めたら「使われていない」に戻る', async () => {
+    const probe = new MicUsageProbe(micwatchExe)
+    const seen: boolean[] = []
+    const first = new Promise<void>((resolve) => {
+      probe.onChange((inUse) => {
+        seen.push(inUse)
+        resolve()
+      })
+    })
+
+    probe.start()
+    await first
+    expect(seen).toHaveLength(1)
+    probe.stop()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // kill で落ちた子の exit を受けて「使われていない」に倒す。
+    expect(seen.at(-1)).toBe(false)
+  }, 15_000)
 })

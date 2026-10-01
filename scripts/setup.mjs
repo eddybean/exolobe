@@ -84,7 +84,7 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
   }
   // 補助プログラムは cargo があればここで作る。無ければ上で知らせたとおり、その機能だけが無効になる。
   if (onWindowsPath('cargo')) {
-    for (const helper of ['syscapture', 'audioconv']) {
+    for (const helper of ['syscapture', 'audioconv', 'micwatch']) {
       spawnSync(process.execPath, ['scripts/build-rust-helper.mjs', helper], { stdio: 'inherit' })
     }
   }

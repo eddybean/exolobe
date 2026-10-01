@@ -141,6 +141,13 @@ jobs:
         run: |
           npm run build:syscapture
           npm run build:audioconv
+          npm run build:micwatch
+
+      # 補助プログラムの純粋な判定（自分のプロセスの木の除外など）の Rust のテスト。
+      # crate のディレクトリで走らせる（.cargo/config.toml の設定をビルドと揃える）。
+      - name: 補助プログラムのテスト
+        working-directory: native/micwatch
+        run: cargo test --release --locked
 
       - name: テスト
         run: npm test

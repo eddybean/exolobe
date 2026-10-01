@@ -4456,6 +4456,11 @@
             変換とチャンネルの混ぜ合わせは Source Reader に任せた（左右に別の音を入れたステレオで、両方が残ることを確かめた）。
             読める形式は afconvert と違い、webm / mkv / mov / wma / avi を読み、ogg / opus / aiff / caf を読まない（実機で確認）。
             webm の Opus のように、ストアの拡張機能が入っているかで変わるものもある。</li>
+          <li>マイク使用の見張り（ADR-027）は Rust の micwatch.exe。有効な録音デバイスごとに WASAPI の音声セッションを列挙し、Active なものがあれば
+            使用中とする。親（main）とその子孫のセッションは除く（renderer や Chromium の音声サービスのマイク使用を数えない）。レジストリの
+            CapabilityAccessManager（LastUsedTimeStop が 0）も候補だったが、どのプロセスかが分からず自分の使用を除けないうえ、落ちたアプリの記録が
+            使用中のまま残りうるので採らなかった（実機で、木の外の ffmpeg には約 1 秒で 1 を出し、木の中の ffmpeg には反応しないことを確かめた）。
+            TypeScript 側は stdin を渡さないので、親のプロセスを自分で調べ、親が終わったら終わる。出力の取り決め（1 / 0）は macOS 版と同じ。</li>
           <li>whisper-cli は whisper.cpp の公式のリリース資産を使わず、自前でビルドする（x64 の Vulkan 版が無く、資産の付いたビルド番号も
             v1.9.x のタグと同じコミットではない）。バックエンドを DLL に分け（GGML_BACKEND_DL）、実行時に読み込む。Vulkan を静的に組み込むと、
             GPU ドライバの無い機体では vulkan-1.dll が無くて whisper-cli.exe 自体が起動しないため。CPU も命令セットごとの DLL を作り、
