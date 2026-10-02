@@ -1,6 +1,6 @@
 {
   "name": "exolobe",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "private": true,
   "description": "Web 会議の録音・文字起こし・話者識別・要約を Mac の中だけで実行するデスクトップアプリ",
   "license": "SEE LICENSE IN LICENSE",
