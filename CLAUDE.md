@@ -55,7 +55,9 @@ npx vitest run -t "テスト名の一部"
   確かめるときは `npm run build:whisper` のビルドを設定でパス指定する（ADR-007 / ADR-026）。
 - リリースは Actions の **Bump version**（手動実行）が版上げの PR を作り、マージで `tag-release.yml` が
   タグを打って `release.yml` を起動する（手元からの `v*` タグの push でも動く）。GITHUB_TOKEN の push は
-  他のワークフローを起動しないため、CI と Release は `gh workflow run` で明示的に起動している。
+  他のワークフローを起動しないため、Release は `gh workflow run` で明示的に起動している。版上げは版しか変えないので
+  CI を回さない（PR では起動せず、マージ後の main では `ci.yml` の `changes` が `scripts/version-bump.mjs` で見分けて飛ばす）。
+  node_modules のキャッシュのキーも、版を除いた lockfile から作る。
   whisper-cli と node_modules のキャッシュは **main の CI が作り、Release は読むだけ**（タグの実行が
   保存したキャッシュは次のタグから見えない）。キーは `ci.yml` と `release.yml` で揃える。Secrets に
   `MAC_CERT_P12_BASE64` / `MAC_CERT_PASSWORD`（署名）と `APPLE_ID` /

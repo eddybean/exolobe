@@ -34,7 +34,35 @@ env:
   VULKAN_SDK_VERSION: 1.4.363.0
 
 jobs:
+  # 版上げ（bump-version.yml の PR）のマージは package.json と package-lock.json の版しか変えず、
+  # 中身はマージ前の main と同じ。macOS と Windows のランナーで確かめ直さない（Release のビルドも
+  # 型チェックとテストを回す）。whisper-cli のキャッシュのキーは版に左右されないので作り直す必要もない。
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.check.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'push'
+
+      - name: 版だけの変更かを確かめる
+        id: check
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # 迷ったら CI を回す。新しいブランチの push（before が 0）や、before が取れないときも回す。
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] &&
+            git fetch --quiet --no-tags --depth=1 origin "$BEFORE" &&
+            [ "$(node scripts/version-bump.mjs only-version "$BEFORE")" = true ]; then
+            echo "::notice::版だけの変更なので、テストとビルドを飛ばします。"
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     # macOS ランナーが必須。テストは実際の /usr/bin/afconvert を通してエンコードを
     # 検証しており、postinstall も PlistBuddy と codesign を使う。
     # xcode-27 なのは、Apple のモデルでの要約（FoundationModels）に macOS 27 SDK が要るため。
@@ -54,12 +82,18 @@ jobs:
       # npm ci が CI の半分以上を占めていた。node_modules ごと保存し、lockfile が
       # 変わらない限り npm ci を飛ばす。postinstall でパッチ済みの Electron.app も
       # そのまま入っている。キーを変えるときは release.yml と揃える。
+      # キーは lockfile から版を除いた中身で作る。版上げのたびにキャッシュを外さないため（scripts/version-bump.mjs）。
+      - name: 依存のキーを求める
+        id: deps
+        shell: bash
+        run: node scripts/version-bump.mjs key >> "$GITHUB_OUTPUT"
+
       - name: node_modules のキャッシュを復元
         id: node-modules-cache
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.key }}
 
       - name: 依存関係をインストール
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -104,6 +138,8 @@ jobs:
   # Windows 版に向けて、OS に依存しない部分が Windows でも壊れていないことを確かめる（ADR-048）。
   # macOS のコマンドを実際に呼ぶテストは tests/platform.ts の notMacOS で飛ばしている。
   test-windows:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
 
     steps:
@@ -114,12 +150,18 @@ jobs:
           node-version: 24
 
       # キーに runner.os を含むので、macOS の node_modules とは混ざらない。
+      # キーは lockfile から版を除いた中身で作る。版上げのたびにキャッシュを外さないため（scripts/version-bump.mjs）。
+      - name: 依存のキーを求める
+        id: deps
+        shell: bash
+        run: node scripts/version-bump.mjs key >> "$GITHUB_OUTPUT"
+
       - name: node_modules のキャッシュを復元
         id: node-modules-cache
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.key }}
 
       - name: 依存関係をインストール
         if: steps.node-modules-cache.outputs.cache-hit != 'true'

@@ -71,12 +71,18 @@ jobs:
       # タグ上で保存したキャッシュは次のタグから見えないので、main の CI が作った分を
       # 読むだけにする（ここで保存しても使われず、後処理の時間だけがかかる）。
       # キーは ci.yml と揃える。
+      # キーは lockfile から版を除いた中身で作る。版上げのたびにキャッシュを外さないため（scripts/version-bump.mjs）。
+      - name: 依存のキーを求める
+        id: deps
+        shell: bash
+        run: node scripts/version-bump.mjs key >> "$GITHUB_OUTPUT"
+
       - name: node_modules のキャッシュを復元
         id: node-modules-cache
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.key }}
 
       - name: 依存関係をインストール
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -195,12 +201,18 @@ jobs:
           node-version: 24
 
       # main の CI（test-windows）が作ったキャッシュを読むだけにする。キーは ci.yml と揃える。
+      # キーは lockfile から版を除いた中身で作る。版上げのたびにキャッシュを外さないため（scripts/version-bump.mjs）。
+      - name: 依存のキーを求める
+        id: deps
+        shell: bash
+        run: node scripts/version-bump.mjs key >> "$GITHUB_OUTPUT"
+
       - name: node_modules のキャッシュを復元
         id: node-modules-cache
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.key }}
 
       - name: 依存関係をインストール
         if: steps.node-modules-cache.outputs.cache-hit != 'true'

@@ -22,7 +22,6 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
-  actions: write
 
 jobs:
   bump:
@@ -62,14 +61,9 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
-      # GITHUB_TOKEN による push や PR 作成は他のワークフローを起動しない（連鎖を防ぐ仕様）。
-      # PR のマージに要る必須チェック test を付けるため、CI を明示的に起動する。
-      # workflow_dispatch だけはこの制限の例外。チェックはコミットに付くので PR 側にも出る。
-      - name: CI を起動
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ steps.bump.outputs.branch }}
-        run: gh workflow run ci.yml --ref "$BRANCH"
+      # 版上げの PR では CI を起動しない。版しか変えておらず、中身は main と同じため。
+      # GITHUB_TOKEN による push や PR 作成は他のワークフローを起動しないので、ここで何もしなければ CI は走らない。
+      # main のルールセットに必須のチェックを足したら、マージできなくなるので gh workflow run ci.yml で起動し直す。
 
       # PR の作成はリポジトリ設定「Allow GitHub Actions to create and approve pull requests」が
       # 必要。無効なら作れないので、作成用のリンクを実行結果に残して手で開けるようにする。
