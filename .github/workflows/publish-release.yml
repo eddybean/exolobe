@@ -1,0 +1,78 @@
+name: Publish release
+
+# release.yml は Release を Draft で作る。成果物を手で確かめて公開したら、ここで Homebrew の cask を更新する。
+# Draft の成果物は公開の URL から落とせないので、Draft の間に cask を進めると brew upgrade が失敗する。
+# GITHUB_TOKEN での公開はこのワークフローを起動しないが、公開は手で行う前提なので問題にならない。
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'cask を合わせる公開済みのタグ名（例: v0.1.0）'
+        required: true
+        type: string
+
+concurrency:
+  group: homebrew-tap
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  homebrew:
+    # プレリリースは releases/latest にも出ないので、cask も進めない。
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    steps:
+      # 公式の homebrew/cask は公証されていないアプリを受け付けないので、自前の tap に置く。
+      # 書き込みは tap だけに効く deploy key で行い、fork など鍵の無い実行では飛ばす。
+      - name: Homebrew の cask を更新
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TAP_KEY" ]; then
+            echo "::warning::HOMEBREW_TAP_DEPLOY_KEY が無いため cask を更新しません。"
+            exit 0
+          fi
+
+          # 手で動かしたときに Draft のタグを渡すと、利用者が落とせない版に cask を進めてしまう。
+          if [ "$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft -q .isDraft)" = "true" ]; then
+            echo "::error::$TAG はまだ Draft です。公開してから実行してください。"
+            exit 1
+          fi
+
+          # cask の sha256 は、利用者が実際に落とす公開済みの dmg から求める（Draft の間に差し替えた場合も合う）。
+          VERSION="${TAG#v}"
+          DMG="exolobe-$VERSION-arm64.dmg"
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p "$DMG" -D dist
+          SHA=$(sha256sum "dist/$DMG" | cut -d' ' -f1)
+
+          # ssh-keyscan の結果を信じると経路上で差し替えられうるので、GitHub が公開している
+          # ホスト鍵を固定する。
+          mkdir -p ~/.ssh
+          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' >> ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          ssh-add - <<<"$TAP_KEY"
+
+          git clone --depth 1 git@github.com:eddybean/homebrew-tap.git tap
+          cd tap
+          sed -E -i \
+            -e "s/^  version \".*\"/  version \"$VERSION\"/" \
+            -e "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" \
+            Casks/exolobe.rb
+
+          # 同じタグで公開し直したときなど、中身が変わらなければ何もしない。
+          if git diff --quiet; then
+            echo "cask は既に $VERSION です。"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am "exolobe $VERSION"
+          git push origin HEAD
+          echo "Homebrew の cask を $VERSION に更新しました。" >> "$GITHUB_STEP_SUMMARY"

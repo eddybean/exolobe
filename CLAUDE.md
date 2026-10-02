@@ -61,7 +61,9 @@ npx vitest run -t "テスト名の一部"
   `MAC_CERT_P12_BASE64` / `MAC_CERT_PASSWORD`（署名）と `APPLE_ID` /
   `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`（公証）が揃えば正式に署名・公証し、
   無ければ ad-hoc 署名になる。Windows の NSIS のインストーラは `release.yml` の `build-windows` が作る（署名なし）。
-  Release は `prepare` が先に作り、`SHA256SUMS.txt` は `checksums` が両方の OS の成果物からまとめて作る。
+  Release は `prepare` が先に **Draft** で作り、`SHA256SUMS.txt` は `checksums` が両方の OS の成果物からまとめて作る。
+  成果物を手で確かめてから GitHub の画面で公開すると、`publish-release.yml` が Homebrew の cask を更新する
+  （Draft の dmg は公開の URL から落とせないので、cask は公開まで進めない。プレリリースでは更新しない）。
   手元で作るときは `npm run package:win`。
 - `npm run lint` は **oxlint**（`.oxlintrc.json`）。TypeScript 7 が従来の JS コンパイラ
   API を公開しなくなり typescript-eslint が動かないため、ESLint ではなく oxlint を使う。
