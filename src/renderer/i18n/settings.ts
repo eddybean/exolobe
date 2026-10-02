@@ -1,3 +1,4 @@
+import type { AppPlatform } from '@shared/platform'
 import { localized } from './locale'
 
 const ja = {
@@ -43,7 +44,10 @@ const ja = {
     vadModelLabel: '無音検出モデル',
     vadModelHint: 'whisper.cpp 向けの ggml 形式 Silero VAD（.bin）。',
     binaryPathLabel: 'whisper-cli のパス',
-    binaryPathHint: 'Homebrew で入れた場合は whisper-cli のままで動きます。'
+    binaryPathHint: (platform: AppPlatform): string =>
+      platform === 'windows'
+        ? 'whisper-cli のままなら同梱版を使います。別にビルドしたものを使うときだけパスを指定します。'
+        : 'Homebrew で入れた場合は whisper-cli のままで動きます。'
   },
   diarization: {
     speakerCardTitle: '話者の分け方',
@@ -173,7 +177,10 @@ const en: typeof ja = {
     vadModelLabel: 'Voice activity detection model',
     vadModelHint: 'A ggml-format Silero VAD (.bin) for whisper.cpp.',
     binaryPathLabel: 'whisper-cli path',
-    binaryPathHint: 'If installed via Homebrew, leaving this as whisper-cli works.'
+    binaryPathHint: (platform: AppPlatform): string =>
+      platform === 'windows'
+        ? 'Leave this as whisper-cli to use the bundled one. Set a path only to use a separate build.'
+        : 'If installed via Homebrew, leaving this as whisper-cli works.'
   },
   diarization: {
     speakerCardTitle: 'How speakers are split',

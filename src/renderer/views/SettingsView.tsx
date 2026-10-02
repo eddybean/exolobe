@@ -212,7 +212,7 @@ export const SettingsView = ({
             </div>
           </Field>
 
-          <Field label={t.transcription.binaryPathLabel} hint={t.transcription.binaryPathHint}>
+          <Field label={t.transcription.binaryPathLabel} hint={t.transcription.binaryPathHint(platform())}>
             <input
               type="text"
               defaultValue={settings.transcription.binaryPath}
