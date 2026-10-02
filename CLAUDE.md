@@ -60,7 +60,9 @@ npx vitest run -t "テスト名の一部"
   保存したキャッシュは次のタグから見えない）。キーは `ci.yml` と `release.yml` で揃える。Secrets に
   `MAC_CERT_P12_BASE64` / `MAC_CERT_PASSWORD`（署名）と `APPLE_ID` /
   `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`（公証）が揃えば正式に署名・公証し、
-  無ければ ad-hoc 署名になる。
+  無ければ ad-hoc 署名になる。Windows の NSIS のインストーラは `release.yml` の `build-windows` が作る（署名なし）。
+  Release は `prepare` が先に作り、`SHA256SUMS.txt` は `checksums` が両方の OS の成果物からまとめて作る。
+  手元で作るときは `npm run package:win`。
 - `npm run lint` は **oxlint**（`.oxlintrc.json`）。TypeScript 7 が従来の JS コンパイラ
   API を公開しなくなり typescript-eslint が動かないため、ESLint ではなく oxlint を使う。
   `react/set-state-in-effect` と一部の `jsx-a11y` は既知の未対応として警告に留めてある

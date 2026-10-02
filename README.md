@@ -40,6 +40,9 @@ Google Meet / Zoom などの Web 会議を Mac で録音し、**文字起こし�
 | メモリ | 16GB 以上を推奨 |
 | 空き容量 | 約 10GB（モデル用） |
 
+Windows 版（対応中）は、Windows 10 バージョン 2004 以降 / x64 で動きます。GPU は Vulkan で使い（NVIDIA・AMD・Intel）、
+GPU が無い機体では CPU で動きます。カレンダー連携と Apple Intelligence での要約は Windows にはありません。
+
 ## インストール方法
 
 Homebrewもしくは手動インストールどちらかをお選びください。
@@ -67,12 +70,22 @@ xattr -dr com.apple.quarantine "/Applications/Exolobe.app"
 
 この手順は .dmg に同梱した「はじめにお読みください.txt」と、Release の説明文にも書いてあります。
 
+### Windows
+
+[Releases ページ](https://github.com/eddybean/exolobe/releases/latest) から `exolobe-<版>-x64.exe` を
+ダウンロードして実行します。インストール先を選べ、スタートメニューに「Exolobe」が入ります。
+
+コード署名をしていないため、初回の実行で SmartScreen の「Windows によって PC が保護されました」が出ます。
+「詳細情報」を押し、「実行」を選んでください。アンインストールは、設定の「アプリ」から行えます
+（録音とモデルは消えません）。
+
 ### 更新
 
 新しい版が出ると、画面上部の右端に「新しい版」の札が出ます。押すと設定の
 「このアプリについて」に更新の手順が出ます（アプリが自分で更新を入れることはありません）。
 Homebrew で入れた場合は `brew update && brew upgrade --cask exolobe`、.dmg で入れた場合は
-Releases ページから新しい .dmg を取得してアプリを入れ替えてください。録音とモデルはそのまま残ります。
+Releases ページから新しい .dmg を取得してアプリを入れ替えてください。Windows は新しい .exe を実行すれば
+上書きで更新されます。録音とモデルはそのまま残ります。
 
 ## 使い始める
 
