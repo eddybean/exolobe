@@ -27,6 +27,8 @@ env:
 jobs:
   # macOS と Windows のジョブが並んで走るので、Release は先にここで 1 度だけ作る。各ジョブが
   # 「無ければ作る」をすると、両方が同時に作ろうとして片方が落ちる。
+  # Draft で作り、成果物を手で確かめてから公開する。公開すると publish-release.yml が Homebrew の cask を更新する。
+  # アプリの新しい版の通知（ADR-044）は releases/latest を見るので、Draft の間は誰にも届かない。
   prepare:
     runs-on: ubuntu-latest
     steps:
@@ -49,7 +51,7 @@ jobs:
           WINDOWS_NOTE=$'\n\n**Windows**（`exolobe-<版>-x64.exe`）: Windows 10 バージョン 2004 以降 / x64 向けのインストーラです。\n\n> **注意**: コード署名をしていないため、初回の実行で SmartScreen の「Windows によって PC が保護されました」が出ます。\n> 「詳細情報」を押し、「実行」を選んでください。'
 
           BODY="**macOS**（\`exolobe-<版>-arm64.dmg\`）: macOS 14.2 以上 / Apple Silicon 向けのビルドです。${MAC_NOTE}${WINDOWS_NOTE}"
-          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "$TAG" --notes "$BODY" --generate-notes --verify-tag
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "$TAG" --notes "$BODY" --generate-notes --verify-tag --draft
 
   build:
     needs: prepare
@@ -69,12 +71,18 @@ jobs:
       # タグ上で保存したキャッシュは次のタグから見えないので、main の CI が作った分を
       # 読むだけにする（ここで保存しても使われず、後処理の時間だけがかかる）。
       # キーは ci.yml と揃える。
+      # キーは lockfile から版を除いた中身で作る。版上げのたびにキャッシュを外さないため（scripts/version-bump.mjs）。
+      - name: 依存のキーを求める
+        id: deps
+        shell: bash
+        run: node scripts/version-bump.mjs key >> "$GITHUB_OUTPUT"
+
       - name: node_modules のキャッシュを復元
         id: node-modules-cache
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.key }}
 
       - name: 依存関係をインストール
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -176,47 +184,6 @@ jobs:
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: gh release upload "$TAG" ./release/*.dmg --clobber
 
-      # 公式の homebrew/cask は公証されていないアプリを受け付けないので、自前の tap に置く。
-      # 書き込みは tap だけに効く deploy key で行い、fork など鍵の無い実行では飛ばす。
-      - name: Homebrew の cask を更新
-        env:
-          TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-        run: |
-          set -euo pipefail
-          if [ -z "$TAP_KEY" ]; then
-            echo "::warning::HOMEBREW_TAP_DEPLOY_KEY が無いため cask を更新しません。"
-            exit 0
-          fi
-
-          VERSION="${TAG#v}"
-          SHA=$(shasum -a 256 "release/exolobe-$VERSION-arm64.dmg" | cut -d' ' -f1)
-
-          # ssh-keyscan の結果を信じると経路上で差し替えられうるので、GitHub が公開している
-          # ホスト鍵を固定する。
-          mkdir -p ~/.ssh
-          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' >> ~/.ssh/known_hosts
-          eval "$(ssh-agent -s)"
-          ssh-add - <<<"$TAP_KEY"
-
-          git clone --depth 1 git@github.com:eddybean/homebrew-tap.git tap
-          cd tap
-          sed -E -i '' \
-            -e "s/^  version \".*\"/  version \"$VERSION\"/" \
-            -e "s/^  sha256 \".*\"/  sha256 \"$SHA\"/" \
-            Casks/exolobe.rb
-
-          # 同じタグで Release を作り直したときなど、中身が変わらなければ何もしない。
-          if git diff --quiet; then
-            echo "cask は既に $VERSION です。"
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -am "exolobe $VERSION"
-          git push origin HEAD
-          echo "Homebrew の cask を $VERSION に更新しました。" >> "$GITHUB_STEP_SUMMARY"
-
   # Windows 版（ADR-048）。NSIS のインストーラを作り、prepare が作った Release に添付する。
   # 署名はしない（SmartScreen の案内は Release の本文と README にある）。
   build-windows:
@@ -234,12 +201,18 @@ jobs:
           node-version: 24
 
       # main の CI（test-windows）が作ったキャッシュを読むだけにする。キーは ci.yml と揃える。
+      # キーは lockfile から版を除いた中身で作る。版上げのたびにキャッシュを外さないため（scripts/version-bump.mjs）。
+      - name: 依存のキーを求める
+        id: deps
+        shell: bash
+        run: node scripts/version-bump.mjs key >> "$GITHUB_OUTPUT"
+
       - name: node_modules のキャッシュを復元
         id: node-modules-cache
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.key }}
 
       - name: 依存関係をインストール
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
