@@ -55,8 +55,7 @@ export class NodeLlamaChatSessionFactory implements ChatLlmSessionFactory {
     const { getLlama, LlamaChatSession } = await import('node-llama-cpp')
 
     try {
-      const options = llamaOptionsFor(config.protection, totalmem())
-      const llama = await (options ? getLlama(options) : getLlama())
+      const llama = await getLlama(llamaOptionsFor(config.protection, totalmem()))
       const model = await llama.loadModel({ modelPath: config.modelPath })
       const context = await model.createContext({ contextSize: config.contextSize })
       const session = new LlamaChatSession({ contextSequence: context.getSequence() })

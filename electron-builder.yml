@@ -22,6 +22,11 @@ files:
   - out/**
   - package.json
   - '!**/*.map'
+  # node-llama-cpp の CUDA 版（win-x64-cuda / -cuda-ext、合わせて約 530MB）は同梱しない（ADR-048）。
+  # Vulkan なら NVIDIA・AMD・Intel のどれでも動く。getLlama にも CUDA を除くよう指定している。
+  # Windows は x64 だけを配るので、Arm 版も入れない。
+  - '!**/node_modules/@node-llama-cpp/win-x64-cuda*/**'
+  - '!**/node_modules/@node-llama-cpp/win-arm64*/**'
 
 # 同梱バイナリは OS ごとに分け、互いの配布物に混ぜない（ADR-048）。resources/bin は
 # ビルドした機械の OS のものしか作られないが、別 OS の成果物が紛れても入らないよう拡張子で絞る。
