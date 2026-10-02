@@ -28,6 +28,33 @@ const ja = {
     view: '表示',
     openDocs: 'ドキュメントを開く'
   },
+  /**
+   * Windows のメニューバー。macOS は役割のメニューを OS が訳すが、Windows では Electron の既定（英語）の
+   * まま出るので、役割の項目にも名前を付ける。(&F) などは Alt キーで開くためのアクセスキー。
+   */
+  windowsMenu: {
+    file: 'ファイル(&F)',
+    recording: '録音(&R)',
+    edit: '編集(&E)',
+    view: '表示(&V)',
+    window: 'ウィンドウ(&W)',
+    help: 'ヘルプ(&H)',
+    quit: '終了',
+    undo: '元に戻す',
+    redo: 'やり直し',
+    cut: '切り取り',
+    copy: 'コピー',
+    paste: '貼り付け',
+    selectAll: 'すべて選択',
+    reload: '再読み込み',
+    toggleDevTools: '開発者ツール',
+    resetZoom: '実際のサイズ',
+    zoomIn: '拡大',
+    zoomOut: '縮小',
+    togglefullscreen: '全画面表示',
+    minimize: '最小化',
+    close: '閉じる'
+  },
   tray: {
     recording: (title: string) => `録音中: ${title}`,
     idle: '停止中',
@@ -110,6 +137,29 @@ const en: MainMessages = {
     showWindow: 'Show Window',
     view: 'View',
     openDocs: 'Open Documentation'
+  },
+  windowsMenu: {
+    file: '&File',
+    recording: '&Recording',
+    edit: '&Edit',
+    view: '&View',
+    window: '&Window',
+    help: '&Help',
+    quit: 'Exit',
+    undo: 'Undo',
+    redo: 'Redo',
+    cut: 'Cut',
+    copy: 'Copy',
+    paste: 'Paste',
+    selectAll: 'Select All',
+    reload: 'Reload',
+    toggleDevTools: 'Developer Tools',
+    resetZoom: 'Actual Size',
+    zoomIn: 'Zoom In',
+    zoomOut: 'Zoom Out',
+    togglefullscreen: 'Full Screen',
+    minimize: 'Minimize',
+    close: 'Close'
   },
   tray: {
     recording: (title: string) => `Recording: ${title}`,

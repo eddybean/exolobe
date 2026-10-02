@@ -8,6 +8,7 @@ import { registerIpcHandlers } from './ipc/handlers'
 import { createApplicationMenu } from './menu'
 import { createTray } from './tray'
 import { claimSingleInstance } from './singleInstance'
+import appIcon from '../../build/icon.png?asset'
 
 /**
  * アプリのエントリポイント。
@@ -42,6 +43,9 @@ const createWindow = (): BrowserWindow => {
     // macOS は信号機ボタンだけを残してナビゲーションをタイトルバーに重ねる。hiddenInset は macOS 専用で、
     // Windows に渡すと最小化・閉じるのボタンごと消えるので、Windows は標準の枠のままにする（ADR-048）。
     ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const } : {}),
+    // Windows はウィンドウの左上とタスクバーにアイコンを出す。指定しないと、開発中は Electron の既定のアイコンになる。
+    // macOS のウィンドウにはアイコンが出ず、Dock はアプリのアイコンを使うので渡さない。
+    ...(process.platform === 'darwin' ? {} : { icon: appIcon }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

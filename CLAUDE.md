@@ -365,7 +365,12 @@ agent-browser connect 9222
 - `HOME` の付け替えは要らない（Windows の userData は `--user-data-dir` だけで決まる）。
 - `electron out/main/index.js` で起動すると、「このアプリについて」の版は Electron の版になる
   （package.json の無い `out/main` がアプリのパスになるため）。`npm run dev` なら正しい。
-- ウィンドウ枠ごと撮る `screencapture` に当たるものは無い。ページの描画は `agent-browser screenshot` で撮る。
+- ウィンドウ枠ごと撮る `screencapture` に当たるものは無い。ページの描画は `agent-browser screenshot` で撮る。枠やメニューバーまで
+  見るときは、PowerShell で `GetWindowRect` と `Graphics.CopyFromScreen` を使い、**アプリのウィンドウの範囲だけ**を撮る
+  （画面全体を撮ると、利用者が開いている別の内容が写り込む）。
+- 通知は画面を撮らずに、`ToastNotificationManager.History.GetHistory('io.github.eddybean.exolobe')` で中身（本文・ボタン）を読む。
+- このセッションから送ったキー入力（`keybd_event` / SendKeys）では、グローバルショートカットが反応しなかった。登録できているかは、
+  同じ組み合わせを `RegisterHotKey` で取りに行き、失敗する（Exolobe が握っている）ことで確かめ、押したときの動きは手で確かめる。
 - **agent-browser の出力をパイプに通さない**（`| head` など）。最初の呼び出しで起動する常駐プロセスがパイプを
   握ったままになり、コマンドが返らない。見たいときはファイルへリダイレクトしてから読む。
 - `npm install -g agent-browser` を mise の Node で入れたら `mise reshim` する。しないと PATH に出てこない。

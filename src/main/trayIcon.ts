@@ -1,3 +1,5 @@
+import type { AppPlatform } from '@shared/platform'
+
 /**
  * メニューバー用のアイコン。アプリアイコンと同じ「二本の軌跡」で、
  * 中心線の上下に波形を分けて置く（上＝相手、下＝自分）。
@@ -29,9 +31,42 @@ export interface TrayIconChoice {
   readonly pngBase64: string
   /** テンプレート画像にすると OS が単色に塗り直すため、色を見せたいときは外す。 */
   readonly template: boolean
+  /** 白く塗ってから使う（whitenBitmap）。 */
+  readonly whiten: boolean
 }
 
-export const trayIconFor = (recording: boolean): TrayIconChoice =>
-  recording
-    ? { pngBase64: TRAY_ICON_RECORDING_PNG_BASE64, template: false }
-    : { pngBase64: TRAY_ICON_PNG_BASE64, template: true }
+/** アイコンを置く場所の見た目。Windows はタスクバー、macOS はメニューバー。 */
+export interface TrayAppearance {
+  readonly platform: AppPlatform
+  /** タスクバーがダークか。macOS は OS が塗り直すので見ない。 */
+  readonly darkTaskbar: boolean
+}
+
+/**
+ * 待機中と録音中で使う画像。
+ *
+ * macOS の待機中はテンプレート画像にして OS に明暗を合わせさせる。Windows は setTemplateImage が効かず、
+ * 黒いままだとダークのタスクバーで見えなくなるので、タスクバーの明暗に合わせて待機中だけ白く塗る（ADR-048）。
+ * 録音中は、どちらでも赤をそのまま見せる。
+ */
+export const trayIconFor = (recording: boolean, appearance: TrayAppearance): TrayIconChoice => {
+  if (recording) return { pngBase64: TRAY_ICON_RECORDING_PNG_BASE64, template: false, whiten: false }
+  if (appearance.platform === 'macos') return { pngBase64: TRAY_ICON_PNG_BASE64, template: true, whiten: false }
+  return { pngBase64: TRAY_ICON_PNG_BASE64, template: false, whiten: appearance.darkTaskbar }
+}
+
+/**
+ * 4 バイト 1 画素（BGRA）の画像を、形（透明度）を保ったまま白く塗る。
+ * 色は透明度と同じ値にする。nativeImage の画素が透明度を乗算済みでも、乗算前でも白く見える
+ * （乗算前なら縁がわずかに暗くなるだけで、ダークのタスクバーでは目立たない）。
+ */
+export const whitenBitmap = (bitmap: Buffer): Buffer => {
+  const out = Buffer.from(bitmap)
+  for (let i = 0; i + 3 < out.length; i += 4) {
+    const alpha = out[i + 3] ?? 0
+    out[i] = alpha
+    out[i + 1] = alpha
+    out[i + 2] = alpha
+  }
+  return out
+}

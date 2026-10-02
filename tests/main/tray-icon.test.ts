@@ -1,6 +1,11 @@
 import { inflateSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
-import { TRAY_ICON_PNG_BASE64, TRAY_ICON_RECORDING_PNG_BASE64, trayIconFor } from '../../src/main/trayIcon'
+import {
+  TRAY_ICON_PNG_BASE64,
+  TRAY_ICON_RECORDING_PNG_BASE64,
+  trayIconFor,
+  whitenBitmap
+} from '../../src/main/trayIcon'
 
 /**
  * メニューバーのアイコンが実際に描画できる PNG であることを確かめる。
@@ -158,8 +163,50 @@ describe('待機中と録音中の見分け', () => {
     expect(alphas(recording)).toEqual(alphas(idle))
   })
 
-  it('待機中はテンプレート画像、録音中は色付きの画像を使う', () => {
-    expect(trayIconFor(false)).toEqual({ pngBase64: TRAY_ICON_PNG_BASE64, template: true })
-    expect(trayIconFor(true)).toEqual({ pngBase64: TRAY_ICON_RECORDING_PNG_BASE64, template: false })
+  it('macOS の待機中はテンプレート画像（OS が明暗に合わせて塗る）、録音中は色付きの画像を使う', () => {
+    const macos = { platform: 'macos', darkTaskbar: false } as const
+    expect(trayIconFor(false, macos)).toEqual({ pngBase64: TRAY_ICON_PNG_BASE64, template: true, whiten: false })
+    expect(trayIconFor(true, macos)).toEqual({
+      pngBase64: TRAY_ICON_RECORDING_PNG_BASE64,
+      template: false,
+      whiten: false
+    })
+  })
+})
+
+/**
+ * Windows はテンプレート画像を塗り直さないので、黒いままだとダークのタスクバーで見えない。
+ * タスクバーの明暗に合わせて、待機中だけ白く塗る。
+ */
+describe('Windows のトレイのアイコン', () => {
+  it('ダークのタスクバーでは待機中のアイコンを白くする', () => {
+    expect(trayIconFor(false, { platform: 'windows', darkTaskbar: true })).toEqual({
+      pngBase64: TRAY_ICON_PNG_BASE64,
+      template: false,
+      whiten: true
+    })
+  })
+
+  it('ライトのタスクバーでは黒のまま見せる', () => {
+    expect(trayIconFor(false, { platform: 'windows', darkTaskbar: false })).toEqual({
+      pngBase64: TRAY_ICON_PNG_BASE64,
+      template: false,
+      whiten: false
+    })
+  })
+
+  it('録音中は明暗によらず赤のまま', () => {
+    expect(trayIconFor(true, { platform: 'windows', darkTaskbar: true })).toEqual({
+      pngBase64: TRAY_ICON_RECORDING_PNG_BASE64,
+      template: false,
+      whiten: false
+    })
+  })
+
+  it('白くするときは形（透明度）を変えず、色だけを透明度に合わせて塗る', () => {
+    // BGRA の 3 画素: 不透明の黒・半透明の黒・透明。乗算済みの画素でも壊れないよう、色は透明度と同じ値にする。
+    const bitmap = Buffer.from([0, 0, 0, 255, 0, 0, 0, 128, 0, 0, 0, 0])
+
+    expect([...whitenBitmap(bitmap)]).toEqual([255, 255, 255, 255, 128, 128, 128, 128, 0, 0, 0, 0])
   })
 })

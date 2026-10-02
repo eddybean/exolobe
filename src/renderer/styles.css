@@ -2210,6 +2210,12 @@ textarea:focus {
   margin-top: 12px;
 }
 
+/* 横に並ぶ説明が長い（英語）と、狭い幅でボタンの方が押し縮められて 2 行に折れる。折り返すのは説明だけにする。 */
+.permissions__test > button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .permissions__results {
   list-style: none;
   margin: 12px 0 0;
