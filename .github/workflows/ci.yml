@@ -34,26 +34,30 @@ env:
   VULKAN_SDK_VERSION: 1.4.363.0
 
 jobs:
-  # 版上げ（bump-version.yml の PR）のマージは package.json と package-lock.json の版しか変えず、
-  # 中身はマージ前の main と同じ。macOS と Windows のランナーで確かめ直さない（Release のビルドも
+  # 版上げ（bump-version.yml の PR）は package.json と package-lock.json の版しか変えず、中身は main と同じ。
+  # PR でもマージ後の main でも、macOS と Windows のランナーで確かめ直さない（Release のビルドも
   # 型チェックとテストを回す）。whisper-cli のキャッシュのキーは版に左右されないので作り直す必要もない。
+  # Actions が作った PR の CI は承認待ち（action_required）で止まるが、承認すればここで飛ぶ。
   changes:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.check.outputs.code }}
     steps:
       - uses: actions/checkout@v4
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
 
+      # push は直前の main と、PR は向き先と比べる。PR の checkout はマージ後の姿なので、向き先が
+      # 進んでいればその変更も差分に入り、CI を回す側に倒れる。
       - name: 版だけの変更かを確かめる
         id: check
         env:
-          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
-          # 迷ったら CI を回す。新しいブランチの push（before が 0）や、before が取れないときも回す。
-          if [ "$GITHUB_EVENT_NAME" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] &&
-            git fetch --quiet --no-tags --depth=1 origin "$BEFORE" &&
-            [ "$(node scripts/version-bump.mjs only-version "$BEFORE")" = true ]; then
+          # 迷ったら CI を回す。新しいブランチの push（before が 0）や、比べる元が取れないときも回す。
+          if { [ "$GITHUB_EVENT_NAME" = push ] || [ "$GITHUB_EVENT_NAME" = pull_request ]; } &&
+            [ -n "$BASE" ] && [ "$BASE" != 0000000000000000000000000000000000000000 ] &&
+            git fetch --quiet --no-tags --depth=1 origin "$BASE" &&
+            [ "$(node scripts/version-bump.mjs only-version "$BASE")" = true ]; then
             echo "::notice::版だけの変更なので、テストとビルドを飛ばします。"
             echo "code=false" >> "$GITHUB_OUTPUT"
           else

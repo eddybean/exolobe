@@ -62,8 +62,8 @@ jobs:
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
       # 版上げの PR では CI を起動しない。版しか変えておらず、中身は main と同じため。
-      # GITHUB_TOKEN による push や PR 作成は他のワークフローを起動しないので、ここで何もしなければ CI は走らない。
-      # main のルールセットに必須のチェックを足したら、マージできなくなるので gh workflow run ci.yml で起動し直す。
+      # Actions が作った PR の CI は承認待ち（action_required）になり、承認しても ci.yml の changes が飛ばす。
+      # main のルールセットに必須のチェックを足したら、承認待ちのままではマージできないので見直す。
 
       # PR の作成はリポジトリ設定「Allow GitHub Actions to create and approve pull requests」が
       # 必要。無効なら作れないので、作成用のリンクを実行結果に残して手で開けるようにする。
