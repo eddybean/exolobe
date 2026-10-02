@@ -89,8 +89,7 @@ export class NodeLlamaEmbeddingSessionFactory implements EmbeddingSessionFactory
     const { getLlama } = await import('node-llama-cpp')
 
     try {
-      const options = llamaOptionsFor(config.protection, totalmem())
-      const llama = await (options ? getLlama(options) : getLlama())
+      const llama = await getLlama(llamaOptionsFor(config.protection, totalmem()))
       const model = await llama.loadModel({ modelPath: config.modelPath })
       const context = await model.createEmbeddingContext({
         contextSize: CONTEXT_TOKENS,

@@ -4456,6 +4456,17 @@
             変換とチャンネルの混ぜ合わせは Source Reader に任せた（左右に別の音を入れたステレオで、両方が残ることを確かめた）。
             読める形式は afconvert と違い、webm / mkv / mov / wma / avi を読み、ogg / opus / aiff / caf を読まない（実機で確認）。
             webm の Opus のように、ストアの拡張機能が入っているかで変わるものもある。</li>
+          <li>要約・チャット・意味検索（node-llama-cpp）と話者識別（sherpa-onnx-node）を Windows 11（RTX 5090、RAM 64GB）で動かした（2026-10）。
+            54 分・3 話者の合成会議で、文字起こし・話者識別・要約・エンコードが通り、チャットは引用付きで答え、意味検索も答えた。
+            ワーカーはジョブの後・使われなくなった後に終わり、VRAM も元に戻る（ADR-008）。声紋の取り出し（enableExternalBuffer = false）も Electron の中で通った。
+            node-llama-cpp は getLlama に gpu: { type: 'auto', exclude: ['cuda'] } を渡し、CUDA 版のパッケージ（win-x64-cuda / -cuda-ext、約 530MB）と
+            Arm 版は electron-builder の files で配布物から外す。CUDA Toolkit の無い機体では自動選択でも Vulkan になるが、ある機体では開発中だけ CUDA を
+            選んで配布版と食い違うので、明示して揃える。外した配布物（electron-builder --dir）でも要約とチャットが通った。</li>
+          <li>メモリの見積もり（ADR-024）の係数は変えない。要約と同じ条件（Gemma 4 E4B・32K）で測ると、GPU 無しでは RAM が最大 5.66GB、
+            Vulkan では RAM 3.27GB と VRAM 4.80GB だった。見積もり（約 7.3GB）は GPU 無しの実測を上回るので「足りないのに走って落ちる」は起きない。
+            GPU のある機体では RAM を 4GB ほど多めに見るが、VRAM に載り切るかは読み込むまで分からず、載り切らなければ RAM 側に回るため、
+            多めのまま残す（断られたら理由が出て、メモリ保護をオフにすれば走らせられる）。Windows の空きは os.freemem()（「利用可能」と一致する）で測り、
+            vm_stat は macOS でだけ読む。</li>
           <li>マイク使用の見張り（ADR-027）は Rust の micwatch.exe。有効な録音デバイスごとに WASAPI の音声セッションを列挙し、Active なものがあれば
             使用中とする。親（main）とその子孫のセッションは除く（renderer や Chromium の音声サービスのマイク使用を数えない）。レジストリの
             CapabilityAccessManager（LastUsedTimeStop が 0）も候補だったが、どのプロセスかが分からず自分の使用を除けないうえ、落ちたアプリの記録が

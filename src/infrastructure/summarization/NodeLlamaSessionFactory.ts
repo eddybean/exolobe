@@ -5,9 +5,20 @@ import type { LlmSession, LlmSessionFactory } from './LlamaCppSummarizer'
 
 export class ModelLoadError extends AppError {}
 
+/** getLlama に渡すもの。node-llama-cpp の GetLlamaOptions のうち、ここで決める部分。 */
+export interface LlamaOptions {
+  readonly gpu: { type: 'auto'; exclude: 'cuda'[] }
+  readonly ramPadding?: number
+}
+
 /**
- * getLlama に渡す余白の指定。既定に任せる場合は undefined。
+ * getLlama に渡す指定。
  *
+ * GPU は CUDA を除いて自動で選ばせる。CUDA 版（@node-llama-cpp/win-x64-cuda*、数百 MB）は同梱しない
+ * （ADR-048）。開発中は node_modules にあるので、除かないと CUDA Toolkit のある機体で配布版（Vulkan）と
+ * 違う道筋を通り、確かめた振る舞いと配布版が食い違う。macOS は Metal を選ぶので影響しない。
+ *
+ * 余白は「保守的」のときだけ指定する。
  * node-llama-cpp は指定しなくても RAM の 25%（上限 6GB）と VRAM の 8%（上限 1.6GB）を
  * 余白として確保する。つまり内蔵ガードは既定で効いており、こちらの役目はそれを
  * 「締める」ことだけ。緩める方向には触らない。
@@ -15,18 +26,16 @@ export class ModelLoadError extends AppError {}
  * メモリ保護「オフ」でも既定のままにするのは、あの設定が外すのは事前チェックであって、
  * OS を守る余白そのものではないため。外せば OS が固まりやすくなり、目的に反する。
  */
-export const llamaOptionsFor = (
-  protection: MemoryProtection,
-  totalBytes: number
-): { ramPadding: number } | undefined => {
-  if (protection !== 'conservative') return undefined
+export const llamaOptionsFor = (protection: MemoryProtection, totalBytes: number): LlamaOptions => {
+  const gpu: LlamaOptions['gpu'] = { type: 'auto', exclude: ['cuda'] }
+  if (protection !== 'conservative') return { gpu }
 
   // 既定を下回る値を渡すと締めるどころか緩めてしまう。必ず大きい方を採る。
   const padding = Math.max(headroomBytes('conservative', totalBytes), libraryRamPadding(totalBytes))
-  return { ramPadding: Math.floor(padding) }
+  return { gpu, ramPadding: Math.floor(padding) }
 }
 
-/** node-llama-cpp の defaultLlamaRamPadding（macOS）と同じ式。 */
+/** node-llama-cpp の defaultLlamaRamPadding と同じ式（macOS と Windows。Linux だけ上限が 1GB）。 */
 const libraryRamPadding = (totalBytes: number): number => Math.min(totalBytes * 0.25, 6 * 1_024 ** 3)
 
 /**
@@ -44,8 +53,7 @@ export class NodeLlamaSessionFactory implements LlmSessionFactory {
     const { getLlama, LlamaChatSession } = await import('node-llama-cpp')
 
     try {
-      const options = llamaOptionsFor(config.protection, totalmem())
-      const llama = await (options ? getLlama(options) : getLlama())
+      const llama = await getLlama(llamaOptionsFor(config.protection, totalmem()))
       const model = await llama.loadModel({ modelPath: config.modelPath })
       const context = await model.createContext({ contextSize: config.contextSize })
       const session = new LlamaChatSession({ contextSequence: context.getSequence() })

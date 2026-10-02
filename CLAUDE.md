@@ -344,6 +344,9 @@ npm run dev
 - 補助プログラム（Rust）は C ランタイムを静的に組み込む（`native/*/.cargo/config.toml`）。whisper-cli は DLL に
   分かれているので、Visual C++ ランタイムの DLL を `resources/bin` に一緒に置く。どちらも、ランタイムが入っていない
   機体で起動しないのを避けるため。依存は `dumpbin /dependents` で確かめる。
+- node-llama-cpp は CUDA を除いて GPU を選ぶ（`llamaOptionsFor`）。CUDA 版のパッケージは開発中の node_modules にはあるが、
+  配布物からは外している（electron-builder.yml の files）。GPU 無しで確かめるときは `NODE_LLAMA_CPP_GPU=false` で起動する
+  （whisper-cli の Vulkan は別に動くので、VRAM の増減だけで要約が CPU だったと判断しない）。
 - 保存先が exFAT など所有者を記録しないドライブだと、git が `dubious ownership` で止まる（`gh` も巻き込まれる）。
   `git config --global --add safe.directory <パス>` を足すか、`gh` は `-R eddybean/exolobe` を付けて呼ぶ。
 

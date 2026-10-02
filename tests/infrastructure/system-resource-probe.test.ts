@@ -89,6 +89,31 @@ describe('NodeSystemResourceProbe', () => {
     expect(snapshot.availableBytes).toBeLessThanOrEqual(snapshot.totalBytes)
   })
 
+  it('macOS 以外では vm_stat を呼ばず、OS の「利用可能」（os.freemem）をそのまま使う', async () => {
+    let called = false
+    const windows = new NodeSystemResourceProbe({
+      platform: 'win32',
+      vmStat: async () => {
+        called = true
+        return ''
+      }
+    })
+
+    const snapshot = await windows.memory()
+
+    expect(called).toBe(false)
+    expect(snapshot.availableBytes).toBeGreaterThan(0)
+    expect(snapshot.availableBytes).toBeLessThanOrEqual(snapshot.totalBytes)
+  })
+
+  it('macOS では vm_stat の出力から求める', async () => {
+    const mac = new NodeSystemResourceProbe({ platform: 'darwin', vmStat: async () => VM_STAT })
+
+    const snapshot = await mac.memory()
+
+    expect(snapshot.availableBytes).toBe(parseVmStat(VM_STAT, snapshot.totalBytes))
+  })
+
   describe('fileSize', () => {
     let dir: string
 

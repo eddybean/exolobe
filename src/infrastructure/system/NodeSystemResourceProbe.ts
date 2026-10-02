@@ -47,16 +47,50 @@ export const parseVmStat = (output: string, totalBytes: number): number | undefi
   return Math.max(0, totalBytes - pages * pageSize)
 }
 
+export interface ResourceProbeOptions {
+  readonly platform?: NodeJS.Platform
+  /** vm_stat の出力を得る。テストで差し替える。 */
+  readonly vmStat?: () => Promise<string>
+}
+
+const readVmStat = async (): Promise<string> => (await run('/usr/bin/vm_stat')).stdout
+
 /**
  * OS のメモリ状況とファイルサイズを測る。
+ *
+ * 空きの数え方は OS 自身の見立てに合わせる。macOS は vm_stat から求め（parseVmStat）、それ以外は
+ * os.freemem() を使う。Windows の os.freemem() は「利用可能」（空きに、すぐ手放せるスタンバイを足した量。
+ * タスク マネージャーの「利用可能」と同じ）を返すので、macOS で os.freemem() を避けた理由（純粋な空き
+ * しか数えない）は当たらない（ADR-048）。
  *
  * `electron` を import しない。utilityProcess（electron API を持たない Node 環境）から
  * 使うため。
  */
 export class NodeSystemResourceProbe implements SystemResourcePort {
+  private readonly platform: NodeJS.Platform
+  private readonly vmStat: () => Promise<string>
+
+  constructor(options: ResourceProbeOptions = {}) {
+    this.platform = options.platform ?? process.platform
+    this.vmStat = options.vmStat ?? readVmStat
+  }
+
   async memory(): Promise<MemorySnapshot> {
     const totalBytes = totalmem()
-    return { totalBytes, availableBytes: await available(totalBytes) }
+    const availableBytes = this.platform === 'darwin' ? await this.availableOnMac(totalBytes) : freemem()
+    return { totalBytes, availableBytes }
+  }
+
+  /**
+   * vm_stat が使えなければ os.freemem() に退く。
+   * 過小に見えるぶんガードは厳しくなるが、測定不能を理由に処理を止めるよりはよい。
+   */
+  private async availableOnMac(totalBytes: number): Promise<number> {
+    try {
+      return parseVmStat(await this.vmStat(), totalBytes) ?? freemem()
+    } catch {
+      return freemem()
+    }
   }
 
   async fileSize(path: string): Promise<number | undefined> {
@@ -65,18 +99,5 @@ export class NodeSystemResourceProbe implements SystemResourcePort {
     } catch {
       return undefined
     }
-  }
-}
-
-/**
- * vm_stat が使えなければ os.freemem() に退く。
- * 過小に見えるぶんガードは厳しくなるが、測定不能を理由に処理を止めるよりはよい。
- */
-const available = async (totalBytes: number): Promise<number> => {
-  try {
-    const { stdout } = await run('/usr/bin/vm_stat')
-    return parseVmStat(stdout, totalBytes) ?? freemem()
-  } catch {
-    return freemem()
   }
 }
