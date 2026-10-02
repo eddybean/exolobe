@@ -133,3 +133,7 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
+  # アンインストールで %APPDATA% のアプリのデータ（models / work / search / settings.json）を消す。
+  # 新しい版での上書き（内部でアンインストールが走る）では消さない（electron-builder が isUpdated で分ける）。
+  # 会議の録音は利用者が選んだ保存先にあり、ここには無いので消えない（ADR-023 / ADR-048）。
+  deleteAppDataOnUninstall: true

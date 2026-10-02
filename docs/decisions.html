@@ -4461,6 +4461,9 @@
             （各ジョブが --clobber で上げると、後から終わった方が先の分を消す）。片方の OS が失敗しても、できた分で作る。署名しないので、
             SmartScreen の「詳細情報」→「実行」の手順を Release の本文と README に書く。新しい版の通知（ADR-044）は OS 共通の Release を見るので、
             片方の OS だけの修正でも両方に知らせる。どちらの OS にも同じ版の配布物が載るので、更新しても害は無い。
+            Windows のアンインストールでは %APPDATA% のアプリのデータ（models・work・search・settings.json）を消す
+            （deleteAppDataOnUninstall）。ADR-023 が自動のクリーンアップを見送ったのは macOS に消すきっかけが無いからで、
+            Windows にはアンインストーラがある。新しい版での上書きでは消さない。会議の録音は保存先にあり、消さない。
             macOS 専用の audiotee は Windows の配布物にも入るが、呼ばれないので残す（electron-builder の win の files は上の files を
             置き換えるので、外そうとするとリポジトリが丸ごと入る）。展開した中身は約 590MB で、大きいのは node-llama-cpp の CPU 版（47MB）と
             Vulkan 版（99MB）。どちらも要るので削らない（exFAT の上では du が実際より大きく出るので、--apparent-size で測る）。</li>
