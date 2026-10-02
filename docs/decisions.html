@@ -4456,6 +4456,17 @@
             変換とチャンネルの混ぜ合わせは Source Reader に任せた（左右に別の音を入れたステレオで、両方が残ることを確かめた）。
             読める形式は afconvert と違い、webm / mkv / mov / wma / avi を読み、ogg / opus / aiff / caf を読まない（実機で確認）。
             webm の Opus のように、ストアの拡張機能が入っているかで変わるものもある。</li>
+          <li>配布は NSIS のインストーラ（exolobe-&lt;版&gt;-x64.exe、約 160MB）。Release は prepare のジョブが先に 1 度だけ作り、macOS と Windows の
+            ジョブは成果物を添付するだけにする（両方が「無ければ作る」をすると競合する）。SHA256SUMS.txt は両方の成果物から最後のジョブがまとめて作る
+            （各ジョブが --clobber で上げると、後から終わった方が先の分を消す）。片方の OS が失敗しても、できた分で作る。署名しないので、
+            SmartScreen の「詳細情報」→「実行」の手順を Release の本文と README に書く。新しい版の通知（ADR-044）は OS 共通の Release を見るので、
+            片方の OS だけの修正でも両方に知らせる。どちらの OS にも同じ版の配布物が載るので、更新しても害は無い。
+            Windows のアンインストールでは %APPDATA% のアプリのデータ（models・work・search・settings.json）を消す
+            （deleteAppDataOnUninstall）。ADR-023 が自動のクリーンアップを見送ったのは macOS に消すきっかけが無いからで、
+            Windows にはアンインストーラがある。新しい版での上書きでは消さない。会議の録音は保存先にあり、消さない。
+            macOS 専用の audiotee は Windows の配布物にも入るが、呼ばれないので残す（electron-builder の win の files は上の files を
+            置き換えるので、外そうとするとリポジトリが丸ごと入る）。展開した中身は約 590MB で、大きいのは node-llama-cpp の CPU 版（47MB）と
+            Vulkan 版（99MB）。どちらも要るので削らない（exFAT の上では du が実際より大きく出るので、--apparent-size で測る）。</li>
           <li>画面・メニュー・トレイ・通知を Windows 11 の実機で見た（2026-10）。ウィンドウは標準の枠で、ナビとも重ならない。メニューバーは出したまま
             （autoHideMenuBar にしない。録音の操作をメニューからも辿れるようにするため）。Windows では役割のメニューが Electron の既定の英語のまま
             出て日英が混ざったので、役割の項目にも UI の言語の名前とアクセスキーを付ける（macOS は OS の訳に任せる）。トレイの待機中のアイコンは

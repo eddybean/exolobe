@@ -21,9 +21,38 @@ env:
   # scripts/build-whisper.sh が取得する whisper.cpp のバージョン。
   # ここを変えるとキャッシュも自動的に無効になる。
   WHISPER_VERSION: v1.9.4
+  # Windows の whisper-cli のビルドに使う Vulkan SDK の版。ci.yml と揃える。
+  VULKAN_SDK_VERSION: 1.4.363.0
 
 jobs:
+  # macOS と Windows のジョブが並んで走るので、Release は先にここで 1 度だけ作る。各ジョブが
+  # 「無ければ作る」をすると、両方が同時に作ろうとして片方が落ちる。
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release を用意
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          MAC_SIGNED: ${{ secrets.MAC_CERT_P12_BASE64 != '' }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG は既にあります。成果物の添付だけを行います。"
+            exit 0
+          fi
+
+          MAC_NOTE=""
+          if [ "$MAC_SIGNED" != "true" ]; then
+            MAC_NOTE=$'\n\n> **注意**: このビルドは Apple Developer 証明書で署名されていません。\n> 初回起動時に Gatekeeper に阻まれるため、次のコマンドで隔離属性を外してください。\n>\n> ```sh\n> xattr -dr com.apple.quarantine "/Applications/Exolobe.app"\n> ```'
+          fi
+          WINDOWS_NOTE=$'\n\n**Windows**（`exolobe-<版>-x64.exe`）: Windows 10 バージョン 2004 以降 / x64 向けのインストーラです。\n\n> **注意**: コード署名をしていないため、初回の実行で SmartScreen の「Windows によって PC が保護されました」が出ます。\n> 「詳細情報」を押し、「実行」を選んでください。'
+
+          BODY="**macOS**（\`exolobe-<版>-arm64.dmg\`）: macOS 14.2 以上 / Apple Silicon 向けのビルドです。${MAC_NOTE}${WINDOWS_NOTE}"
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "$TAG" --notes "$BODY" --generate-notes --verify-tag
+
   build:
+    needs: prepare
     # Apple Silicon 向けにビルドするため arm64 のランナーを使う。
     # whisper-cli はホストのアーキテクチャ向けにビルドされるため、
     # x64 版が必要になったら macos-13 のジョブを足して成果物を統合する。
@@ -133,43 +162,19 @@ jobs:
           # キャッシュの whisper-cli は electron-builder.yml の最低対応 OS を変えても作り直されないので、ここで拾う。
           bash scripts/check-min-macos.sh "$APP"/Contents/Resources/bin/{whisper-cli,micwatch,calendarevents,applelm}
 
-      - name: チェックサムを作成
-        working-directory: release
-        run: shasum -a 256 ./*.dmg > SHA256SUMS.txt
-
+      # チェックサムは checksums のジョブが、両方の OS の成果物からまとめて作る。
       - name: 成果物を保存
         uses: actions/upload-artifact@v4
         with:
           name: macos-arm64
-          path: |
-            release/*.dmg
-            release/SHA256SUMS.txt
+          path: release/*.dmg
           retention-days: 14
 
       - name: Release に添付
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          SIGNED: ${{ steps.signing.outputs.signed }}
-        run: |
-          set -euo pipefail
-
-          NOTE=""
-          if [ "$SIGNED" != "true" ]; then
-            NOTE=$'\n\n> **注意**: このビルドは Apple Developer 証明書で署名されていません。\n> 初回起動時に Gatekeeper に阻まれるため、次のコマンドで隔離属性を外してください。\n>\n> ```sh\n> xattr -dr com.apple.quarantine "/Applications/Exolobe.app"\n> ```'
-          fi
-
-          BODY="macOS 14.2 以上 / Apple Silicon 向けのビルドです。${NOTE}"
-
-          # 既存の Release があれば添付のみ、無ければ作成する。
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" ./release/*.dmg ./release/SHA256SUMS.txt --clobber
-          else
-            gh release create "$TAG" ./release/*.dmg ./release/SHA256SUMS.txt \
-              --title "$TAG" \
-              --notes "$BODY" \
-              --generate-notes
-          fi
+        run: gh release upload "$TAG" ./release/*.dmg --clobber
 
       # 公式の homebrew/cask は公証されていないアプリを受け付けないので、自前の tap に置く。
       # 書き込みは tap だけに効く deploy key で行い、fork など鍵の無い実行では飛ばす。
@@ -211,3 +216,141 @@ jobs:
           git commit -am "exolobe $VERSION"
           git push origin HEAD
           echo "Homebrew の cask を $VERSION に更新しました。" >> "$GITHUB_STEP_SUMMARY"
+
+  # Windows 版（ADR-048）。NSIS のインストーラを作り、prepare が作った Release に添付する。
+  # 署名はしない（SmartScreen の案内は Release の本文と README にある）。
+  build-windows:
+    needs: prepare
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # main の CI（test-windows）が作ったキャッシュを読むだけにする。キーは ci.yml と揃える。
+      - name: node_modules のキャッシュを復元
+        id: node-modules-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ hashFiles('package-lock.json') }}
+
+      - name: 依存関係をインストール
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: 型チェック
+        run: npm run typecheck
+
+      # 補助プログラムはテストより先に作る（audioconv の実物を通すテストが走る）。数十秒で済むので毎回作る。
+      - name: 補助プログラムをビルド
+        run: |
+          npm run build:syscapture
+          npm run build:audioconv
+          npm run build:micwatch
+
+      - name: テスト
+        run: npm test
+
+      # キーとパスは ci.yml の test-windows と揃える（ずれると毎回ビルドし直す）。
+      - name: whisper-cli のキャッシュを復元
+        id: whisper-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            resources/bin/whisper-cli.exe
+            resources/bin/whisper.dll
+            resources/bin/ggml*.dll
+            resources/bin/msvcp140.dll
+            resources/bin/vcruntime140*.dll
+          key: whisper-${{ runner.os }}-${{ runner.arch }}-${{ env.WHISPER_VERSION }}-${{ hashFiles('scripts/build-whisper.mjs') }}
+
+      - name: Vulkan SDK を入れる
+        if: steps.whisper-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'vulkansdk.exe'
+          curl.exe -L -o $installer "https://sdk.lunarg.com/sdk/download/$env:VULKAN_SDK_VERSION/windows/vulkansdk-windows-X64-$env:VULKAN_SDK_VERSION.exe"
+          & $installer --accept-licenses --default-answer --confirm-command install
+          Add-Content $env:GITHUB_ENV "VULKAN_SDK=C:/VulkanSDK/$env:VULKAN_SDK_VERSION"
+          Add-Content $env:GITHUB_PATH "C:/VulkanSDK/$env:VULKAN_SDK_VERSION/Bin"
+
+      - name: whisper-cli をビルド
+        if: steps.whisper-cache.outputs.cache-hit != 'true'
+        run: npm run build:whisper
+
+      - name: アプリをビルド
+        run: npx electron-vite build
+
+      - name: パッケージ（.exe）を作成
+        env:
+          # electron-builder の自動 publish は使わず、後段の gh で明示的に添付する。
+          GH_TOKEN: ''
+        run: npx electron-builder --config electron-builder.yml --win --publish never
+
+      # 同梱物が欠けてもアプリは起動してしまう（その機能だけが黙って無効になる）ので、ここで止める。
+      - name: 同梱物を確認
+        run: |
+          set -euo pipefail
+          BIN=release/win-unpacked/resources/bin
+          for file in whisper-cli.exe whisper.dll ggml-vulkan.dll vcruntime140.dll syscapture.exe audioconv.exe micwatch.exe; do
+            test -f "$BIN/$file" || { echo "::error::$file が同梱されていません"; exit 1; }
+          done
+          # app.asar は out と package.json だけで数 MB。files の指定が崩れるとリポジトリが丸ごと入って数百 MB になる。
+          ASAR=$(stat -c %s release/win-unpacked/resources/app.asar)
+          if [ "$ASAR" -gt 52428800 ]; then
+            echo "::error::app.asar が $ASAR バイトあります（files の指定を確かめてください）"; exit 1
+          fi
+          # CUDA 版の node-llama-cpp は同梱しない（数百 MB、ADR-048）。
+          if ls release/win-unpacked/resources/app.asar.unpacked/node_modules/@node-llama-cpp | grep -q cuda; then
+            echo "::error::node-llama-cpp の CUDA 版が同梱されています"; exit 1
+          fi
+          ls -la release/*.exe
+
+      - name: 成果物を保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: release/*.exe
+          retention-days: 14
+
+      - name: Release に添付
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: gh release upload "$TAG" release/*.exe --clobber
+
+  # 両方の OS の成果物から SHA256SUMS.txt をまとめて作る。各ジョブが自分の分だけを --clobber で
+  # 上げると、後から終わった方が先の分を消してしまう。片方が失敗しても、できた分で作る。
+  checksums:
+    needs: [build, build-windows]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 成果物を取得
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: チェックサムを作成して添付
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(*.dmg *.exe)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::成果物がありません"; exit 1
+          fi
+          sha256sum "${files[@]}" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          gh release upload "$TAG" SHA256SUMS.txt --clobber -R "$GITHUB_REPOSITORY"
