@@ -125,6 +125,8 @@ win:
       filter:
         - '*.exe'
         - '*.dll'
+  # files はここに書かない。win の files は上の files に足されず置き換わり、リポジトリが丸ごと入る
+  # （試したら app.asar が 600MB になった）。macOS 専用の audiotee が入るが、Windows では呼ばれない。
 
 nsis:
   # 管理者権限を求めず、利用者ごとに入れる。インストール先を選ばせ、スタートメニューに置く。
