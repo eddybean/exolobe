@@ -26,6 +26,10 @@ import Speech
 
 let stdoutLock = NSLock()
 func emit(_ object: [String: Any]) {
+  autoreleasepool { emitNow(object) }
+}
+
+private func emitNow(_ object: [String: Any]) {
   let data = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
   stdoutLock.lock()
   FileHandle.standardOutput.write(data)
@@ -179,13 +183,20 @@ func stream(_ localeId: String, sampleRate: Double) async -> Int32 {
     // stdin の読み取りは止まる呼び出しなので、協調スレッドを塞がないよう専用のスレッドで回す。
     await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
       Thread {
-        while let header = readExactly(5) {
-          let index = Int(header[header.startIndex])
-          let length = header.subdata(in: 1..<5).withUnsafeBytes {
-            Int(UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self)))
+        // 手で作った Thread には autorelease pool が無い。readData が返す NSData や変換のバッファが
+        // 解放されずに溜まり、60 分で 1GB を超えた。1 枠ごとに pool を空にする。
+        while true {
+          let more: Bool = autoreleasepool {
+            guard let header = readExactly(5) else { return false }
+            let index = Int(header[header.startIndex])
+            let length = header.subdata(in: 1..<5).withUnsafeBytes {
+              Int(UInt32(littleEndian: $0.loadUnaligned(as: UInt32.self)))
+            }
+            guard let pcm = readExactly(length) else { return false }
+            if index < tracks.count { tracks[index].push(pcm) }
+            return true
           }
-          guard let pcm = readExactly(length) else { break }
-          if index < tracks.count { tracks[index].push(pcm) }
+          if !more { break }
         }
         done.resume()
       }.start()
