@@ -268,6 +268,11 @@ describe('joinTokens', () => {
     expect(joinTokens([' ', '本', '日の', ' 会議'])).toBe('本日の会議')
   })
 
+  it('語彙に無い字はバイトのトークンで届くので、UTF-8 として戻す', () => {
+    // 「捗」= E6 8D 97。実録音で「進<0xE6><0x8D><0x97>」のまま残っていた。
+    expect(joinTokens(['進', '<0xE6>', '<0x8D>', '<0x97>', 'だと'])).toBe('進捗だと')
+  })
+
   it('英単語どうしの間の空白は残す', () => {
     expect(joinTokens(['次は', ' Google', ' Meet', ' で'])).toBe('次はGoogle Meetで')
   })

@@ -199,11 +199,22 @@ const at = (result: HaasRecognition, index: number): number => result.timestamps
  * 英単語どうしの間（「Google Meet」など）だけ残す。
  */
 export const joinTokens = (tokens: readonly string[]): string =>
-  tokens
-    .join('')
+  decodeByteTokens(tokens.join(''))
     .replace(/\s+/gu, ' ')
     .replace(/ (?=[^\x00-\x7F])|(?<=[^\x00-\x7F]) /gu, '')
     .trim()
+
+/**
+ * 語彙（3,072 語）に無い字は、SentencePiece の byte fallback で UTF-8 の 1 バイトずつ `<0xE6>` の形で届く。
+ * sherpa-onnx は全体の text では戻すが、トークンの列はそのままなので、文に分けて組み立てる側で戻す。
+ * 連なりの途中で切れて UTF-8 として不完全なら、置換文字（U+FFFD）になる。
+ */
+const BYTE_TOKENS = /(?:<0x[0-9A-Fa-f]{2}>)+/gu
+
+const decodeByteTokens = (text: string): string =>
+  text.replace(BYTE_TOKENS, (run) =>
+    new TextDecoder().decode(Uint8Array.from(run.match(/[0-9A-Fa-f]{2}(?=>)/gu) ?? [], (hex) => parseInt(hex, 16)))
+  )
 
 /** sherpa-onnx は [-1, 1] の Float32 を受け取る。 */
 const toFloat = (samples: Int16Array): Float32Array => {

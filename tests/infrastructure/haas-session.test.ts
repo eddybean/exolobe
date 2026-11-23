@@ -47,7 +47,7 @@ describe.skipIf(notMacOS || missing)('SherpaHaasSessionFactory（実モデル）
       'Kyoko',
       '-o',
       aiff,
-      '[[slnc 3000]] 本日の会議では、来月のリリース計画について確認します。'
+      '[[slnc 3000]] 本日の会議では、来月のリリース計画について確認します。進捗も報告します。'
     ])
     execFileSync('afconvert', ['-f', 'WAVE', '-d', `LEI16@${sampleRate}`, '-c', '1', aiff, wav])
     return wav
@@ -57,6 +57,8 @@ describe.skipIf(notMacOS || missing)('SherpaHaasSessionFactory（実モデル）
     const segments = await transcriber.transcribe({ wavPath: speech(16_000), language: 'ja', speakerId: 'remote' })
 
     expect(segments.map((segment) => segment.text).join('')).toContain('リリース計画')
+    // 「捗」は語彙に無くバイトのトークンで届く。文に分けて組み立てても字に戻っていること。
+    expect(segments.map((segment) => segment.text).join('')).toContain('進捗')
     expect(segments[0]?.startMs).toBeGreaterThan(2_500)
   }, 60_000)
 

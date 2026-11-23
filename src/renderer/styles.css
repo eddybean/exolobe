@@ -930,6 +930,10 @@ code {
 .settings__caution p {
   margin: 0;
 }
+/* 欄の間に置いたときは、次の欄と詰まらないようにする。 */
+div.settings__caution {
+  margin-bottom: 16px;
+}
 .settings__caution p + p {
   margin-top: 6px;
 }
