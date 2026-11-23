@@ -212,3 +212,15 @@ export const parseActionCandidates = (output: string): ActionCandidate[] => {
   }
   return candidates
 }
+
+const ACTION_NOTE_LABELS: Readonly<Record<MeetingLanguage, Record<ActionCandidate['kind'], string>>> = {
+  ja: { todo: 'ToDo', decision: '決定' },
+  en: { todo: 'TODO', decision: 'Decision' }
+}
+
+/**
+ * 候補を会議中のメモに足すときの 1 行。メモは要約に渡る会議の記録なので、UI ではなく会議の言語で書く（ADR-043）。
+ * 要約のプロンプトの「決定事項」「ToDo」の節に寄せた見出しにして、要約がそのまま拾えるようにする。
+ */
+export const actionNoteText = (candidate: ActionCandidate, language: MeetingLanguage): string =>
+  `${ACTION_NOTE_LABELS[language][candidate.kind]}: ${candidate.text}`

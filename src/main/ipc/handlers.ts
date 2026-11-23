@@ -29,6 +29,7 @@ import {
   type TranscriptHitDto,
   type VoiceprintDto,
   type SilenceAlertDto,
+  type LiveActionCandidateDto,
   type LiveAssistAvailabilityDto,
   type LiveAssistStatusDto,
   type LiveCaptionDto,
@@ -49,6 +50,7 @@ import { createUpdateChecker } from '../updateChecker'
 import { createSilenceMonitor } from '../silenceMonitor'
 import { LiveAssistController } from '../liveAssistController'
 import { meetingLanguageOf } from '@domain/MeetingLanguage'
+import { actionNoteText } from '@domain/LiveAssistPrompt'
 import { notifySilence } from '../silenceNotification'
 import { createMeetingLookup } from '../meetingLookup'
 import { createStartMonitor } from '../startMonitor'
@@ -660,7 +662,12 @@ export const registerIpcHandlers = (
   handle(IPC.getSystemAudioLevel, async () => container.recorder.systemLevel())
   handle(IPC.dismissSilenceAlert, async () => silence.dismiss(Date.now()))
   handle(IPC.liveSummarize, async () => liveAssist.summarize())
-  handle(IPC.liveExtractActions, async () => liveAssist.extractActions())
+  handle(IPC.liveExtractActions, async (): Promise<LiveActionCandidateDto[]> => {
+    const candidates = await liveAssist.extractActions()
+    const settings = await container.settings.load()
+    const language = meetingLanguageOf(settings.transcription.language, appLocale())
+    return candidates.map((candidate) => ({ ...candidate, noteText: actionNoteText(candidate, language) }))
+  })
   handle(IPC.dismissLiveSuggestion, async (recordingId: unknown) => {
     if (typeof recordingId !== 'string') throw new Error('recordingId must be a string')
     liveAssist.dismissSuggestion(recordingId)

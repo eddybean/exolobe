@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  actionNoteText,
   actionsPrompt,
   estimateTokens,
   fitTranscriptToBudget,
@@ -117,5 +118,14 @@ describe('parseActionCandidates', () => {
 
   it('「なし」や読めない出力なら空', () => {
     expect(parseActionCandidates('なし')).toEqual([])
+  })
+})
+
+describe('actionNoteText', () => {
+  it('メモに足す 1 行を会議の言語で作る', () => {
+    expect(actionNoteText({ kind: 'todo', text: '営業に連絡する' }, 'ja')).toBe('ToDo: 営業に連絡する')
+    expect(actionNoteText({ kind: 'decision', text: 'リリースは22日' }, 'ja')).toBe('決定: リリースは22日')
+    expect(actionNoteText({ kind: 'todo', text: 'Email sales' }, 'en')).toBe('TODO: Email sales')
+    expect(actionNoteText({ kind: 'decision', text: 'Ship on the 22nd' }, 'en')).toBe('Decision: Ship on the 22nd')
   })
 })

@@ -136,6 +136,8 @@ export interface LiveHeadlineDto {
 export interface LiveActionCandidateDto {
   readonly kind: 'todo' | 'decision'
   readonly text: string
+  /** 「メモに追加」で足す 1 行。会議の言語で書く（ADR-043）。 */
+  readonly noteText: string
 }
 
 /** 設定画面で、録音中のアシストのどの機能を出せるかを決める。 */
