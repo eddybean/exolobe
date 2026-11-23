@@ -14,6 +14,11 @@ import type {
   FolderRepositoryPort,
   IdGeneratorPort,
   InstallSourcePort,
+  LiveAssistModelPort,
+  LiveTranscriptionEvent,
+  LiveTranscriptionPort,
+  PastRecordingHit,
+  PastRecordingSearchPort,
   ProgressReporterPort,
   RecordingArtifactPort,
   RecordingFinderPort,
@@ -37,6 +42,7 @@ import type {
   VoiceprintRepositoryPort
 } from '@application/ports'
 import type { InstallSource } from '@domain/AppUpdate'
+import type { CaptionEvent, CaptionTrack } from '@domain/LiveCaption'
 import type { CalendarEvent } from '@domain/CalendarEvent'
 import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
@@ -559,5 +565,65 @@ export class FakeInstallSource implements InstallSourcePort {
   source: InstallSource = 'dmg'
   async detect(): Promise<InstallSource> {
     return this.source
+  }
+}
+
+/** 録音中のライブ字幕（ADR-050）。認識の結果は emit / caption で手で流す。 */
+export class FakeLiveTranscription implements LiveTranscriptionPort {
+  started?: { sampleRate: number; locale: string }
+  pushes: { track: CaptionTrack; bytes: number }[] = []
+  stops = 0
+  startError?: Error
+  private onEvent: ((event: LiveTranscriptionEvent) => void) | undefined
+
+  async start(params: {
+    sampleRate: number
+    locale: string
+    onEvent: (event: LiveTranscriptionEvent) => void
+  }): Promise<void> {
+    if (this.startError) throw this.startError
+    this.started = { sampleRate: params.sampleRate, locale: params.locale }
+    this.onEvent = params.onEvent
+  }
+
+  push(track: CaptionTrack, pcm: Uint8Array): void {
+    this.pushes.push({ track, bytes: pcm.length })
+  }
+
+  async stop(): Promise<void> {
+    this.stops += 1
+    this.onEvent = undefined
+  }
+
+  emit(event: LiveTranscriptionEvent): void {
+    this.onEvent?.(event)
+  }
+
+  caption(caption: CaptionEvent): void {
+    this.emit({ type: 'caption', caption })
+  }
+}
+
+export class FakeLiveAssistModel implements LiveAssistModelPort {
+  prompts: string[] = []
+  replies: string[] = []
+  error: Error | undefined
+
+  async respond(prompt: string): Promise<string> {
+    this.prompts.push(prompt)
+    if (this.error) throw this.error
+    return this.replies.shift() ?? ''
+  }
+}
+
+export class FakePastRecordingSearch implements PastRecordingSearchPort {
+  calls: { query: string; limit: number }[] = []
+  hits: PastRecordingHit[] = []
+  error?: Error
+
+  async search(query: string, limit: number): Promise<readonly PastRecordingHit[]> {
+    this.calls.push({ query, limit })
+    if (this.error) throw this.error
+    return this.hits
   }
 }
