@@ -216,6 +216,22 @@
         停止前に必ず流し切っています。
       </div>
 
+      <h2>録音中のアシスト</h2>
+      <p>
+        設定で有効にしたときだけ、<code>DualTrackRecorder</code> が受けた PCM を <code>onPcm</code> の購読者へも渡し、
+        main の <code>LiveAssistController</code> が同梱の <code>livetranscribe</code>（Swift、SpeechAnalyzer）の stdin へ
+        <code>[track 1B][長さ 4B LE][PCM]</code> の枠で流します。2 トラックは 1 プロセスで受け、解析器をトラックごとに持ちます。
+        結果は stdout の JSON 行で戻り、IPC（<code>liveAssist:*</code>）で renderer へ push します。見出し・要約・ToDo は
+        パイプラインと同じ <code>applelm</code> を 1 回の応答ごとに起こし、過去の会議は意味検索のワーカーに聞きます
+        （<a href="decisions.html#adr-050">ADR-050</a>）。
+      </p>
+      <div class="note">
+        録音の停止では、録音の停止と並べてアシストを止め始め、パイプラインへ渡す前に止まり終わるのを待ちます（最大 3 秒）。
+        <code>livetranscribe</code> は stdin が閉じれば自分で終わるので、main が落ちても孤児になりません。
+        ユースケース（<code>src/application/usecases/live-assist.ts</code>）は Fake の認識器と生成モデルだけで検証でき、
+        開発版は <code>OMR_LIVE_ASSIST_FAKE=1</code> で台本どおりに動く Fake を使って画面を確かめられます。
+      </div>
+
       <h2>停止後のパイプライン</h2>
       <p>
         ステップ同士は<strong>成果物ファイルを介してのみ</strong>つながります。次のステップは前の
