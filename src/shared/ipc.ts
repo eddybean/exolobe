@@ -93,9 +93,6 @@ export interface TransportStateDto {
   readonly active: boolean
 }
 
-/**
- * 無音が続いていることの知らせ。録音は止めず、UI に確認を出させる。
- */
 /** 録音中のライブ字幕の 1 件（ADR-050）。renderer が LiveCaption の状態に畳み込む。 */
 export interface LiveCaptionDto {
   readonly track: CaptionTrack
@@ -148,6 +145,9 @@ export interface LiveAssistAvailabilityDto {
   readonly appleIntelligence: AppleIntelligenceAvailability
 }
 
+/**
+ * 無音が続いていることの知らせ。録音は止めず、UI に確認を出させる。
+ */
 export interface SilenceAlertDto {
   readonly recordingId: string
   /** 無音とみなした継続時間（設定値）。 */

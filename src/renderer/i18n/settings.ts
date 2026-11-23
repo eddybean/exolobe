@@ -2,6 +2,31 @@ import type { AppPlatform } from '@shared/platform'
 import { localized } from './locale'
 
 const ja = {
+  liveAssist: {
+    title: '録音中のアシスト',
+    preview: 'リサーチプレビュー',
+    description:
+      '録音中に、端末内の音声認識（macOS の SpeechAnalyzer）で字幕を出し、今の話題の見出しや、過去の会議の該当箇所を示します。音声もテキストも外部に送りません。録音中も CPU を使うため、会議アプリが重くなったら切ってください。',
+    enabledLabel: '録音中のアシストを使う',
+    unavailable: {
+      'unsupported-os': 'macOS 26 以降で使えます。',
+      'unsupported-locale': '会議の言語（文字起こしの言語の設定）の音声認識に対応していません。',
+      unavailable: 'この Mac では音声認識を使えません。',
+      missing: '音声認識のプログラム（livetranscribe）が見つかりません。'
+    },
+    assetsHint: '初めて録音するとき、macOS が音声認識のモデルを取得します（初回だけ）。',
+    captionsLabel: 'ライブ字幕',
+    captionsHint: '相手と自分の発言を分けて出します。字幕は保存しません。',
+    pastRecordingsLabel: '過去の会議を示す',
+    pastRecordingsHint:
+      '「先週の〜の件」のように過去の会議に触れたとき、該当する録音の箇所をカードで 1 枚だけ示します。',
+    pastRecordingsNeedsSearch: '意味検索を有効にしてモデルを取得すると使えます。',
+    headlinesLabel: '今の話題の見出し',
+    headlinesHint: 'Apple Intelligence が字幕から、今の話題の見出しと要点を数分ごとに作ります。',
+    headlineIntervalLabel: '見出しを作り直す間隔（分）',
+    headlineIntervalHint: '2〜30 分。話が途切れたときは早めに作ります。',
+    actionsNote: '「ここまでの要約」と「ToDo・決定の候補」のボタンも Apple Intelligence を使います。'
+  },
   nav: {
     ariaLabel: '設定の項目'
   },
@@ -143,6 +168,33 @@ const ja = {
 }
 
 const en: typeof ja = {
+  liveAssist: {
+    title: 'Live Assist',
+    preview: 'Research Preview',
+    description:
+      'While recording, shows captions using on-device speech recognition (macOS SpeechAnalyzer), a headline for the current topic, and the relevant part of past meetings. No audio or text leaves your Mac. It uses CPU while recording, so turn it off if your meeting app slows down.',
+    enabledLabel: 'Use Live Assist while recording',
+    unavailable: {
+      'unsupported-os': 'Requires macOS 26 or later.',
+      'unsupported-locale':
+        'Speech recognition doesn’t support the meeting language (the transcription language setting).',
+      unavailable: 'Speech recognition isn’t available on this Mac.',
+      missing: 'The speech recognition program (livetranscribe) was not found.'
+    },
+    assetsHint: 'The first time you record, macOS downloads the speech recognition model (first time only).',
+    captionsLabel: 'Live captions',
+    captionsHint: 'Shows what you and the other participants say, separately. Captions aren’t saved.',
+    pastRecordingsLabel: 'Point to past meetings',
+    pastRecordingsHint:
+      'When someone mentions a past meeting (in Japanese, such as “先週の〜の件”), shows one card with the relevant part of that recording.',
+    pastRecordingsNeedsSearch: 'Turn on semantic search and download its model to use this.',
+    headlinesLabel: 'Current topic headline',
+    headlinesHint:
+      'Every few minutes, Apple Intelligence writes a headline and key points for the current topic from the captions.',
+    headlineIntervalLabel: 'Headline interval (minutes)',
+    headlineIntervalHint: '2 to 30 minutes. A new one comes sooner when the conversation pauses.',
+    actionsNote: 'The Summary So Far and To-dos & Decisions buttons also use Apple Intelligence.'
+  },
   nav: {
     ariaLabel: 'Settings sections'
   },

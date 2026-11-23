@@ -7,9 +7,13 @@ import {
   type Bookmark,
   type NoteLine
 } from '@domain/MeetingNotes'
+import type { LiveAssistSettings } from '@domain/Settings'
 import type { RecordingDetailDto } from '@shared/ipc'
 import { EditableTitle } from '../components/EditableTitle'
 import { FlagIcon } from '../components/FlagIcon'
+import { LiveAssistPanel } from '../components/LiveAssistPanel'
+import type { LiveAssist } from '../hooks/useLiveAssist'
+import { appendNoteLines } from '../library/liveAssist'
 import type { Transport } from '../hooks/useTransport'
 import { bookmarkShortcutLabel, isBookmarkKey } from '../keyboard'
 import { litSegments } from '../library/liveNotes'
@@ -26,16 +30,23 @@ const METER_SEGMENTS = 12
  *
  * メモは行ごとに書き始めの経過時間を覚え、note.md に `[hh:mm:ss]` で埋めて保存する。
  * 入力欄には時刻を出さない — 打っている最中に行頭が書き換わると書きにくい。
- * 録音中にするのは記録だけで、推論はしない（ADR-009）。
+ * 推論は、設定で録音中のアシストを有効にしたときだけ動かす（ADR-050 で ADR-009 を部分的に改めた）。
  */
 export const RecordingLiveView = ({
   detail,
   transport,
-  onChanged
+  assist,
+  assistSettings,
+  onChanged,
+  onOpenRecording
 }: {
   detail: RecordingDetailDto
   transport: Transport
+  assist: LiveAssist
+  /** 設定がまだ読めていなければ undefined。アシストを出さない。 */
+  assistSettings: LiveAssistSettings | undefined
   onChanged: () => void
+  onOpenRecording: (recordingId: string, startMs: number | undefined) => void
 }): ReactElement => {
   const recordingId = detail.recording.id
   const startedAtMs = transport.state.startedAtMs
@@ -164,6 +175,15 @@ export const RecordingLiveView = ({
             />
             <Meter label={t.meter.selfLabel} source={t.meter.selfSource} tone="self" level={transport.levels.mic} />
           </section>
+
+          {assistSettings && (
+            <LiveAssistPanel
+              assist={assist}
+              settings={assistSettings}
+              onAddToNotes={(texts) => setLines((current) => appendNoteLines(current, texts, elapsedNow()))}
+              onOpenRecording={onOpenRecording}
+            />
+          )}
 
           <section className="live__card" aria-label={t.bookmark.sectionAriaLabel}>
             <div className="live__mark-row">
