@@ -1,10 +1,10 @@
 import type { ReactElement } from 'react'
 import { recordingShortcut } from '@shared/shortcuts'
-import { autoStartedMessage, startAlertMessage } from '@shared/startAlert'
+import type { Toasts } from '../hooks/useToasts'
 import type { Transport } from '../hooks/useTransport'
 import { LevelTimeline } from './LevelTimeline'
+import { ToastStack } from './ToastStack'
 import { formatDuration } from '../format'
-import { locale } from '../i18n/locale'
 import { transportText } from '../i18n/transport'
 import { platform } from '../platform'
 
@@ -14,13 +14,15 @@ import { platform } from '../platform'
  */
 export const TransportBar = ({
   transport,
+  toasts,
   shortcutEnabled
 }: {
   transport: Transport
+  toasts: Toasts
   /** グローバルショートカットが有効なら、ボタンの横にキーを添えて存在を知らせる。 */
   shortcutEnabled: boolean
 }): ReactElement => {
-  const { state, elapsedMs, busy, warning, silenceAlert, startAlert, autoStarted } = transport
+  const { state, elapsedMs, busy, warning } = transport
   const active = state.active
   const t = transportText()
 
@@ -55,65 +57,16 @@ export const TransportBar = ({
       </div>
 
       {/* マイクが取れていないことは録音中ずっと見えていないと意味がないので、
-          閉じられるエラーとは別扱いにして出し続ける。 */}
+          時間で消えるトーストとは別に、短い札をフッターに残す。 */}
       {active && warning && (
-        <div className="transport__warning" role="status">
-          <span aria-hidden="true">⚠</span>
-          <span>{warning}</span>
-        </div>
-      )}
-
-      {/* 止め忘れの確認。通知を見逃してウィンドウへ戻ってきた場合でも
-          ここで気づけるよう、応答するまで出し続ける。 */}
-      {active && silenceAlert && (
-        <div className="transport__silence" role="alert">
-          <span>{t.silenceAlert(Math.round(silenceAlert.silentDurationMs / 60_000))}</span>
-          <button type="button" onClick={() => void transport.stop()} disabled={busy}>
-            {t.stopButton}
-          </button>
-          <button type="button" onClick={transport.keepRecording}>
-            {t.keepRecording}
-          </button>
-        </div>
-      )}
-
-      {/* 自動で始めた録音の取り消し口（ADR-041）。通知を見逃しても、録音中はここから破棄できる。 */}
-      {active && autoStarted && autoStarted.recordingId === state.recordingId && (
-        <div className="transport__start-alert" role="alert">
-          <span>{autoStartedMessage(autoStarted.eventTitle, locale())}</span>
-          <button type="button" onClick={() => void transport.discard()} disabled={busy}>
-            {t.stopAndDiscard}
-          </button>
-          <button type="button" onClick={transport.keepAutoStarted}>
-            {t.keepRecording}
-          </button>
-        </div>
-      )}
-
-      {/* 開始忘れの確認。通知を見逃してウィンドウへ戻ってきた場合でも
-          ここで気づけるよう、応答するまで出し続ける。 */}
-      {!active && startAlert && (
-        <div className="transport__start-alert" role="alert">
-          <span>{`${startAlertMessage(startAlert, locale())}${t.startAlertSuffix}`}</span>
-          <button type="button" onClick={() => void transport.start()} disabled={busy}>
-            {t.startNow}
-          </button>
-          <button type="button" onClick={transport.skipRecording}>
-            {t.skipForNow}
-          </button>
-        </div>
+        <span className="transport__mic-missing" role="status" title={warning}>
+          {t.micMissingBadge}
+        </span>
       )}
 
       <LevelTimeline active={active} readHistory={transport.levelHistory} title={t.meterTitle} />
 
-      {transport.error && (
-        <div className="transport__error" role="alert">
-          <span>{transport.error}</span>
-          <button type="button" onClick={transport.dismissError} aria-label={t.dismissError}>
-            ✕
-          </button>
-        </div>
-      )}
+      <ToastStack transport={transport} toasts={toasts} />
     </footer>
   )
 }

@@ -19,7 +19,9 @@ const ja = {
   startNow: '録音する',
   skipForNow: '今はしない',
   meterTitle: '入力レベルの推移（上：デスクトップ音声＝相手 / 下：マイク＝自分、直近 10 秒）',
-  dismissError: 'エラーを閉じる'
+  /** マイクが取れず相手の音声だけで録音しているときに、フッターへ残す札。全文は title とトーストに出す。 */
+  micMissingBadge: '⚠ マイク無し',
+  dismissToast: '閉じる'
 }
 
 const en: typeof ja = {
@@ -39,7 +41,8 @@ const en: typeof ja = {
   startNow: 'Record',
   skipForNow: 'Not Now',
   meterTitle: 'Input level, last 10 seconds (top: system audio = them / bottom: microphone = you)',
-  dismissError: 'Dismiss error'
+  micMissingBadge: '⚠ No Mic',
+  dismissToast: 'Dismiss'
 }
 
 export const transportText = localized({ ja, en })
