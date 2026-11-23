@@ -104,7 +104,7 @@ export const LiveAssistSettings = ({
             <span className="field__hint">
               {apple !== undefined && apple !== 'available'
                 ? appleIntelligenceUnavailableText(apple, locale())
-                : `${t.headlinesHint}${t.actionsNote}`}
+                : t.headlinesHint}
             </span>
           </label>
 

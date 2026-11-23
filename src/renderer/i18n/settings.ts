@@ -22,10 +22,11 @@ const ja = {
       '「先週の〜の件」のように過去の会議に触れたとき、該当する録音の箇所をカードで 1 枚だけ示します。',
     pastRecordingsNeedsSearch: '意味検索を有効にしてモデルを取得すると使えます。',
     headlinesLabel: '今の話題の見出し',
-    headlinesHint: 'Apple Intelligence が字幕から、今の話題の見出しと要点を数分ごとに作ります。',
+    // 2 文を別々の文言にしてつなぐと、英語で文の間の空白が抜ける。1 つにまとめて持つ。
+    headlinesHint:
+      'Apple Intelligence が字幕から、今の話題の見出しと要点を数分ごとに作ります。「ここまでの要約」と「ToDo・決定の候補」のボタンも Apple Intelligence を使います。',
     headlineIntervalLabel: '見出しを作り直す間隔（分）',
-    headlineIntervalHint: '2〜30 分。話が途切れたときは早めに作ります。',
-    actionsNote: '「ここまでの要約」と「ToDo・決定の候補」のボタンも Apple Intelligence を使います。'
+    headlineIntervalHint: '2〜30 分。話が途切れたときは早めに作ります。'
   },
   nav: {
     ariaLabel: '設定の項目'
@@ -192,8 +193,7 @@ const en: typeof ja = {
     headlinesHint:
       'Every few minutes, Apple Intelligence writes a headline and key points for the current topic from the captions.',
     headlineIntervalLabel: 'Headline interval (minutes)',
-    headlineIntervalHint: '2 to 30 minutes. A new one comes sooner when the conversation pauses.',
-    actionsNote: 'The Summary So Far and To-dos & Decisions buttons also use Apple Intelligence.'
+    headlineIntervalHint: '2 to 30 minutes. A new one comes sooner when the conversation pauses.'
   },
   nav: {
     ariaLabel: 'Settings sections'
