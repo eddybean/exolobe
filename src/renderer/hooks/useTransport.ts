@@ -10,6 +10,7 @@ import {
   type LevelSample
 } from '../session/levelHistory'
 import { readTrackLevels } from '../session/readInputLevel'
+import type { ToastTone } from '../toasts'
 import { startRecordingSession } from '../session/startRecordingSession'
 
 export interface TrackLevels {
@@ -30,8 +31,6 @@ export interface Transport {
    */
   levelHistory(): readonly LevelSample[]
   readonly busy: boolean
-  /** 録音を開始できなかった、あるいは停止に失敗した。 */
-  readonly error: string | undefined
   /** 録音は続いているが、利用者に知らせるべきこと（マイクが取れなかった等）。 */
   readonly warning: string | undefined
   /** 無音が続いていることの知らせ。応答するまで出し続ける。 */
@@ -50,8 +49,10 @@ export interface Transport {
   stop(): Promise<void>
   /** 録音を止め、何も残さずに消す（「停止して破棄」）。 */
   discard(): Promise<void>
-  dismissError(): void
 }
+
+/** 録音を開始できなかった、停止に失敗した、などをトーストで知らせる先。 */
+export type TransportNotify = (toast: { readonly tone: ToastTone; readonly text: string }) => void
 
 /**
  * 録音の開始・停止と、その最中の表示（経過時間・入力レベル）をまとめる。
@@ -60,13 +61,12 @@ export interface Transport {
  * Core Audio Tap から直接受け取る。開始時の方針（マイクが取れなくても録音は
  * 続ける）は startRecordingSession に切り出してテストで固定している。
  */
-export const useTransport = (sampleRate: number): Transport => {
+export const useTransport = (sampleRate: number, notify: TransportNotify): Transport => {
   const [state, setState] = useState<TransportStateDto>({ active: false })
   const [elapsedMs, setElapsedMs] = useState(0)
   const [levels, setLevels] = useState<TrackLevels>(SILENT)
   const history = useRef<readonly LevelSample[]>([])
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string>()
   const [warning, setWarning] = useState<string>()
   const [silenceAlert, setSilenceAlert] = useState<SilenceAlertDto>()
   const [startAlert, setStartAlert] = useState<StartAlertDto>()
@@ -159,7 +159,6 @@ export const useTransport = (sampleRate: number): Transport => {
     async (title?: string): Promise<void> => {
       if (busy) return
       setBusy(true)
-      setError(undefined)
       setWarning(undefined)
 
       try {
@@ -171,14 +170,18 @@ export const useTransport = (sampleRate: number): Transport => {
         })
 
         mic.current = outcome.micCapture
-        if (outcome.warning) setWarning(outcome.warning)
+        if (outcome.warning) {
+          setWarning(outcome.warning)
+          // フッターの札は短いので、何が起きたかの全文は一度トーストで見せる。
+          notify({ tone: 'info', text: outcome.warning })
+        }
       } catch (startError: unknown) {
-        setError(messageOf(startError))
+        notify({ tone: 'error', text: messageOf(startError) })
       } finally {
         setBusy(false)
       }
     },
-    [busy, sampleRate]
+    [busy, sampleRate, notify]
   )
 
   /**
@@ -208,11 +211,11 @@ export const useTransport = (sampleRate: number): Transport => {
       await window.recorder.stopRecording()
       setWarning(undefined)
     } catch (stopError: unknown) {
-      setError(messageOf(stopError))
+      notify({ tone: 'error', text: messageOf(stopError) })
     } finally {
       setBusy(false)
     }
-  }, [busy, releaseMic])
+  }, [busy, releaseMic, notify])
 
   const discard = useCallback(async (): Promise<void> => {
     if (busy) return
@@ -223,11 +226,11 @@ export const useTransport = (sampleRate: number): Transport => {
       await window.recorder.discardRecording()
       setWarning(undefined)
     } catch (discardError: unknown) {
-      setError(messageOf(discardError))
+      notify({ tone: 'error', text: messageOf(discardError) })
     } finally {
       setBusy(false)
     }
-  }, [busy, releaseMic])
+  }, [busy, releaseMic, notify])
 
   // main から回ってきた開始・停止（メニュー・トレイ・通知・ショートカット）は、
   // マイクの取得・解放を含むこの手順で行う。main が直接始めると自分の声が録れない。
@@ -247,12 +250,12 @@ export const useTransport = (sampleRate: number): Transport => {
           if (action === 'discard') return actions.current.discard()
           return undefined
         })
-        .catch((requestError: unknown) => setError(messageOf(requestError)))
+        .catch((requestError: unknown) => notify({ tone: 'error', text: messageOf(requestError) }))
     }
     // ウィンドウが無い状態からの開始は、読み込みを終えた今ここで受け取る。
     handle()
     return window.recorder.onTransportRequested(handle)
-  }, [])
+  }, [notify])
 
   // アンマウント時にマイクを掴んだままにしない。
   useEffect(() => () => void releaseMic(), [releaseMic])
@@ -263,7 +266,6 @@ export const useTransport = (sampleRate: number): Transport => {
     levels,
     levelHistory,
     busy,
-    error,
     warning,
     silenceAlert,
     startAlert,
@@ -273,7 +275,6 @@ export const useTransport = (sampleRate: number): Transport => {
     stop,
     discard,
     keepRecording,
-    skipRecording,
-    dismissError: () => setError(undefined)
+    skipRecording
   }
 }
