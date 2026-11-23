@@ -926,6 +926,14 @@ code {
   color: color-mix(in srgb, var(--warning) 55%, var(--text));
 }
 
+/* 注意が複数あるとき（Haas の言語・未取得など）は段落に分ける。 */
+.settings__caution p {
+  margin: 0;
+}
+.settings__caution p + p {
+  margin-top: 6px;
+}
+
 /* 失敗ではないが伝えておきたいこと（声紋を覚えられなかった等）。 */
 .detail__notice {
   margin: 0;

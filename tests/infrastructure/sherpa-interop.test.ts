@@ -41,3 +41,23 @@ describe('pickSherpaExports', () => {
     expect(pickSherpaExports(namespace).SpeakerEmbeddingExtractor).toBe(FakeExtractor)
   })
 })
+
+describe('pickSherpaExports（文字起こし）', () => {
+  class FakeRecognizer {}
+  class FakeVad {}
+  class FakeResampler {}
+
+  it('Haas に使う認識器・VAD・リサンプラも default から取り出す', () => {
+    const exports = pickSherpaExports({
+      default: {
+        OfflineRecognizer: FakeRecognizer,
+        Vad: FakeVad,
+        LinearResampler: FakeResampler
+      } as never
+    })
+
+    expect(exports.OfflineRecognizer).toBe(FakeRecognizer)
+    expect(exports.Vad).toBe(FakeVad)
+    expect(exports.LinearResampler).toBe(FakeResampler)
+  })
+})

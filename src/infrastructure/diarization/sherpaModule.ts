@@ -5,13 +5,16 @@ import { toMessage, type ErrorReason, type SherpaModel } from '@domain/errors'
 /**
  * sherpa-onnx-node（ネイティブアドオン）の読み込み口。
  *
- * 話者分割と声紋抽出の両方が同じモジュールを使うので、CJS の癖とモデルの
+ * 話者分割・声紋抽出・Haas の文字起こしが同じモジュールを使うので、CJS の癖とモデルの
  * 存在確認をここ 1 か所にまとめる。WASM 版から乗り換えた経緯は ADR-028。
  */
 
 export interface SherpaExports {
   OfflineSpeakerDiarization: typeof import('sherpa-onnx-node').OfflineSpeakerDiarization
   SpeakerEmbeddingExtractor: typeof import('sherpa-onnx-node').SpeakerEmbeddingExtractor
+  OfflineRecognizer: typeof import('sherpa-onnx-node').OfflineRecognizer
+  Vad: typeof import('sherpa-onnx-node').Vad
+  LinearResampler: typeof import('sherpa-onnx-node').LinearResampler
 }
 
 /** import() が返した名前空間。名前付き export はある場合と無い場合がある。 */
@@ -24,7 +27,10 @@ export type SherpaNamespace = Partial<SherpaExports> & { default: SherpaExports 
  */
 export const pickSherpaExports = (namespace: SherpaNamespace): SherpaExports => ({
   OfflineSpeakerDiarization: namespace.OfflineSpeakerDiarization ?? namespace.default.OfflineSpeakerDiarization,
-  SpeakerEmbeddingExtractor: namespace.SpeakerEmbeddingExtractor ?? namespace.default.SpeakerEmbeddingExtractor
+  SpeakerEmbeddingExtractor: namespace.SpeakerEmbeddingExtractor ?? namespace.default.SpeakerEmbeddingExtractor,
+  OfflineRecognizer: namespace.OfflineRecognizer ?? namespace.default.OfflineRecognizer,
+  Vad: namespace.Vad ?? namespace.default.Vad,
+  LinearResampler: namespace.LinearResampler ?? namespace.default.LinearResampler
 })
 
 /**

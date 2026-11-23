@@ -60,6 +60,74 @@ declare module 'sherpa-onnx-node' {
     process(samples: Float32Array): SpeakerDiarizationSegment[]
   }
 
+  /** 文字起こし（Haas-ja-v1.0、ADR-049）に使う範囲。 */
+  export interface OfflineRecognizerConfig {
+    featConfig: { sampleRate: number; featureDim: number }
+    modelConfig: {
+      transducer: { encoder: string; decoder: string; joiner: string }
+      tokens: string
+      numThreads?: number
+      provider?: string
+      debug?: number
+      modelType?: string
+    }
+    decodingMethod?: 'greedy_search' | 'modified_beam_search'
+  }
+
+  export interface OfflineStream {
+    acceptWaveform(params: { sampleRate: number; samples: Float32Array }): void
+  }
+
+  /** `OfflineRecognitionResult::AsJsonString()` の一部。時刻は秒。 */
+  export interface OfflineRecognizerResult {
+    text: string
+    tokens: string[]
+    timestamps: number[]
+    ys_log_probs: number[]
+  }
+
+  export class OfflineRecognizer {
+    constructor(config: OfflineRecognizerConfig)
+    createStream(): OfflineStream
+    decode(stream: OfflineStream): void
+    getResult(stream: OfflineStream): OfflineRecognizerResult
+  }
+
+  export interface VadConfig {
+    sileroVad: {
+      model: string
+      threshold?: number
+      minSilenceDuration?: number
+      minSpeechDuration?: number
+      windowSize?: number
+      maxSpeechDuration?: number
+    }
+    sampleRate: number
+    numThreads?: number
+    debug?: number
+    provider?: string
+  }
+
+  export interface SpeechSegment {
+    /** 先頭からのサンプル番号。 */
+    start: number
+    samples: Float32Array
+  }
+
+  export class Vad {
+    constructor(config: VadConfig, bufferSizeInSeconds: number)
+    acceptWaveform(samples: Float32Array): void
+    isEmpty(): boolean
+    pop(): void
+    front(enableExternalBuffer?: boolean): SpeechSegment
+    flush(): void
+  }
+
+  export class LinearResampler {
+    constructor(inputSampleRate: number, outputSampleRate: number)
+    flush(samples: Float32Array): Float32Array
+  }
+
   /**
    * CJS の `module.exports`。Node の `import()` は名前付き export を推測できず
    * こちら側にしか入らないため、実装ではまず default を見る。
@@ -67,6 +135,9 @@ declare module 'sherpa-onnx-node' {
   const sherpa: {
     OfflineSpeakerDiarization: typeof OfflineSpeakerDiarization
     SpeakerEmbeddingExtractor: typeof SpeakerEmbeddingExtractor
+    OfflineRecognizer: typeof OfflineRecognizer
+    Vad: typeof Vad
+    LinearResampler: typeof LinearResampler
   }
   export default sherpa
 }

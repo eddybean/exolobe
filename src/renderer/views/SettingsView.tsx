@@ -8,6 +8,8 @@ import {
   customSummaryPromptSeed,
   settingsSummaryPrompt,
   summarizationProviderOf,
+  TRANSCRIPTION_PROVIDERS,
+  transcriptionProviderOf,
   updateCheckIntervalOf,
   type Settings,
   type SettingsPatch
@@ -60,6 +62,7 @@ export const SettingsView = ({
   const settings = setup.settings
   const t = settingsText()
   const usesGemma = summarizationProviderOf(settings) === 'llama-cpp'
+  const usesHaas = transcriptionProviderOf(settings) === 'haas-ja'
   const customPrompt = settings.summarization.promptMode === 'custom'
   // OS に無い機能の設定は出さない（ADR-048）。
   const features = platformFeatures(platform())
@@ -159,6 +162,27 @@ export const SettingsView = ({
     transcription: (
       <>
         <SettingsCard title={t.transcription.methodCardTitle}>
+          <Field label={t.transcription.engineLabel} hint={t.transcription.engineHint}>
+            <select
+              value={transcriptionProviderOf(settings)}
+              onChange={(event) => {
+                const provider = TRANSCRIPTION_PROVIDERS.find((candidate) => candidate === event.target.value)
+                if (provider) update({ transcription: { provider } })
+              }}
+            >
+              <option value="whisper-cpp">{t.transcription.engineWhisper}</option>
+              <option value="haas-ja">{t.transcription.engineHaas}</option>
+            </select>
+          </Field>
+          {/* 選んでいる間はずっと見せる。日本語以外の録音が黙って whisper で起こされると、選んだ意味を疑わせる。 */}
+          {usesHaas && (
+            <div className="settings__caution">
+              <p>{t.transcription.haasCaution}</p>
+              {settings.transcription.language !== 'ja' && <p>{t.transcription.haasLanguageCaution}</p>}
+              {!settings.transcription.haasEncoderPath && <p>{t.transcription.haasModelMissing}</p>}
+            </div>
+          )}
+
           <Field label={t.transcription.languageLabel}>
             <select
               value={settings.transcription.language}

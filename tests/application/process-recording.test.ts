@@ -633,6 +633,34 @@ describe('ProcessRecording — メモリガード', () => {
     expect(result.steps.summarize.status).toBe('done')
   })
 
+  it('Haas で文字起こしするなら、whisper のモデルではなく Haas の大きさで見積もる', async () => {
+    const whisperPath = '/models/whisper.bin'
+    const haas = {
+      haasEncoderPath: '/models/haas/encoder.quantized.onnx',
+      provider: 'haas-ja' as const,
+      language: 'ja'
+    }
+    const ctx = await build({ transcription: { modelPath: whisperPath, ...haas } })
+    // whisper のモデルで見積もると 5GB 近くになり止まる大きさ。Haas は 1GB 余りで足りる。
+    ctx.system.sizes.set(whisperPath, 3 * GB)
+    ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 2.5 * GB }
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.transcribe.status).toBe('done')
+  })
+
+  it('Haas でも空きが足りなければ文字起こしを止める', async () => {
+    const ctx = await build({
+      transcription: { haasEncoderPath: '/models/haas/encoder.quantized.onnx', provider: 'haas-ja', language: 'ja' }
+    })
+    ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 0.5 * GB }
+
+    const result = await ctx.process.execute({ recordingId: 'rec-1' })
+
+    expect(result.steps.transcribe.reason).toMatchObject({ code: 'insufficientMemory', task: 'transcribe' })
+  })
+
   it('メモリ保護がオフなら空きが少なくても実行する', async () => {
     const ctx = await buildWithModels({ memoryProtection: 'off' })
     ctx.system.snapshot = { totalBytes: 16 * GB, availableBytes: 0 }

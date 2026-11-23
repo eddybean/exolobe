@@ -7,6 +7,8 @@ import {
   TRANSCRIPT_PLACEHOLDER,
   appearanceOf,
   summarizationProviderOf,
+  transcriptionEngineOf,
+  transcriptionProviderOf,
   updateCheckIntervalOf,
   customSummaryPromptSeed,
   isDefaultSummaryPrompt,
@@ -435,5 +437,45 @@ describe('settingsSummaryPrompt', () => {
     const settings = mergeSettings(defaultSettings('ja'), { transcription: { language: 'auto' } })
     expect(settingsSummaryPrompt(settings, 'en')).toBe(DEFAULT_SUMMARY_PROMPT_EN)
     expect(settingsSummaryPrompt(settings, 'ja')).toBe(DEFAULT_SUMMARY_PROMPT)
+  })
+})
+
+describe('文字起こしのエンジン', () => {
+  it('既定は whisper.cpp で、Haas のモデルは未取得', () => {
+    const { transcription } = defaultSettings('ja')
+
+    expect(transcription.provider).toBe('whisper-cpp')
+    expect(transcription.haasEncoderPath).toBe('')
+    expect(transcription.haasDecoderPath).toBe('')
+    expect(transcription.haasJoinerPath).toBe('')
+    expect(transcription.haasTokensPath).toBe('')
+    expect(transcription.haasVadModelPath).toBe('')
+  })
+
+  it('未知の値は保存前に弾く', () => {
+    const settings = mergeSettings(defaultSettings('ja'), {
+      transcription: { provider: 'cloud' as never }
+    })
+
+    expect(validateSettings(settings)).toEqual(['transcriptionProvider'])
+  })
+
+  it('読み込んだ値が未知なら whisper.cpp として扱う', () => {
+    const unknown = mergeSettings(defaultSettings('ja'), { transcription: { provider: 'cloud' as never } })
+    const haas = mergeSettings(defaultSettings('ja'), { transcription: { provider: 'haas-ja' } })
+
+    expect(transcriptionProviderOf(unknown)).toBe('whisper-cpp')
+    expect(transcriptionProviderOf(haas)).toBe('haas-ja')
+  })
+
+  it('Haas は日本語専用なので、会議の言語が日本語と決まっているときだけ使う', () => {
+    const haas = (language: string) =>
+      mergeSettings(defaultSettings('ja'), { transcription: { provider: 'haas-ja', language } })
+
+    expect(transcriptionEngineOf(haas('ja'))).toBe('haas-ja')
+    expect(transcriptionEngineOf(haas('en'))).toBe('whisper-cpp')
+    // auto は録音ごとに言語を判定する。日本語の UI でも英語の会議はありうる。
+    expect(transcriptionEngineOf(haas('auto'))).toBe('whisper-cpp')
+    expect(transcriptionEngineOf(defaultSettings('ja'))).toBe('whisper-cpp')
   })
 })

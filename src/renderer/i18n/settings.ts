@@ -28,6 +28,15 @@ const ja = {
   },
   transcription: {
     methodCardTitle: '文字起こしの方法',
+    engineLabel: 'エンジン',
+    engineHint: 'Haas は日本語専用で、日本語の認識の誤りが Whisper より少ないモデルです。',
+    engineWhisper: 'Whisper（large-v3-turbo）',
+    engineHaas: 'Haas（Haas-ja-v1.0）',
+    haasCaution:
+      'Haas では用語集が効かず、無音区間は設定に関わらず常に除きます（無音や BGM から文が生まれるのを防ぐため）。',
+    haasLanguageCaution:
+      '言語が「日本語」以外なので、録音は Whisper で文字起こしします。Haas を使うには言語を「日本語」にしてください。',
+    haasModelMissing: 'Haas のモデルがまだ取得されていません。「モデル」で取得してください。',
     languageLabel: '言語',
     languageOptionJa: '日本語',
     languageOptionEn: '英語',
@@ -161,6 +170,15 @@ const en: typeof ja = {
   },
   transcription: {
     methodCardTitle: 'Transcription method',
+    engineLabel: 'Engine',
+    engineHint: 'Haas is a Japanese-only model that makes fewer recognition errors in Japanese than Whisper.',
+    engineWhisper: 'Whisper (large-v3-turbo)',
+    engineHaas: 'Haas (Haas-ja-v1.0)',
+    haasCaution:
+      'With Haas, the glossary has no effect, and silent stretches are always skipped regardless of the setting (so silence and background music do not turn into sentences).',
+    haasLanguageCaution:
+      'The language is not set to Japanese, so recordings are transcribed with Whisper. Set the language to Japanese to use Haas.',
+    haasModelMissing: 'The Haas model has not been downloaded yet. Download it under Models.',
     languageLabel: 'Language',
     languageOptionJa: 'Japanese',
     languageOptionEn: 'English',

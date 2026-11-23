@@ -17,6 +17,7 @@ export type SettingsProblem =
   | 'updateCheck'
   | 'memoryProtection'
   | 'contextSize'
+  | 'transcriptionProvider'
   | 'summarizationProvider'
   | 'promptPlaceholder'
   | 'chatMaxRecordings'
@@ -80,6 +81,7 @@ export type ErrorReason =
   | { readonly code: 'wavClosed' }
   | { readonly code: 'encodeFailed'; readonly detail: string }
   | { readonly code: 'transcriptionModelNotConfigured' }
+  | { readonly code: 'haasModelNotConfigured' }
   | { readonly code: 'transcriptionOutputUnreadable' }
   | { readonly code: 'whisperNotFound'; readonly binaryPath: string }
   | { readonly code: 'whisperModelLoadFailed' }
