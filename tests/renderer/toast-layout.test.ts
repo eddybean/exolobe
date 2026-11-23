@@ -41,6 +41,14 @@ describe('トーストの配置', () => {
     expect(rule).toMatch(/overflow-wrap:\s*anywhere/)
   })
 
+  it('背景は少し透かし、後ろの画面が見えるようにする', () => {
+    const rule = ruleFor('.toast')
+
+    expect(rule).toMatch(/background:\s*color-mix\(in srgb, var\(--surface\) \d+%, transparent\)/)
+    // 後ろの文字がくっきり透けるとトーストの文と重なって読めないので、形が分かる程度にぼかす。
+    expect(rule).toMatch(/backdrop-filter:\s*blur\(\d+px\)/)
+  })
+
   it('メッセージの帯はフッターに残っていない', () => {
     for (const selector of [
       '.transport__error',

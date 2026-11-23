@@ -2481,7 +2481,10 @@ textarea:focus {
   border: 1px solid var(--border);
   border-left: 3px solid var(--toast-tone, var(--accent));
   border-radius: 8px;
-  background: var(--surface);
+  /* 塗りつぶすと後ろの画面が隠れて困るので少し透かす。後ろの文字がくっきり透けると
+     トーストの文と重なって読めないので、形が分かる程度にぼかす。 */
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  backdrop-filter: blur(2px);
   color: var(--text);
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.14);
   font-size: 12px;
