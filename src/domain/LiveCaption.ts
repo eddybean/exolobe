@@ -97,3 +97,23 @@ export const captionLines = (state: LiveCaptionState): CaptionLine[] =>
   [...state.finals, ...Object.values(state.pending).filter((line): line is CaptionLine => line !== undefined)].sort(
     (a, b) => a.startMs - b.startMs
   )
+
+/**
+ * ライブ字幕の認識器（SpeechAnalyzer）が使えるか（ADR-050）。設定画面で、使えない理由を出し分ける。
+ */
+export type LiveCaptionAvailability =
+  | 'available'
+  /** macOS 26 未満。SpeechAnalyzer が無い。 */
+  | 'unsupported-os'
+  /** 会議の言語を認識できない。 */
+  | 'unsupported-locale'
+  /** 上のどれでもない理由で使えない。 */
+  | 'unavailable'
+  /** 同梱の livetranscribe が無い（Windows や、開発環境でまだ作っていないなど）。 */
+  | 'missing'
+
+export interface LiveCaptionStatus {
+  readonly availability: LiveCaptionAvailability
+  /** 使えるときだけ。downloadable なら、初めて録音するときに OS がモデルを取得する。 */
+  readonly assets?: 'installed' | 'downloadable'
+}
