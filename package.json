@@ -58,15 +58,15 @@
     "vite": "^7.3.8",
     "vitest": "^5.1.0"
   },
-  "engines": {
-    "node": ">=22.12"
-  },
   "devEngines": {
     "packageManager": {
       "name": "npm",
       "version": ">=11.20.0",
       "onFail": "error"
     }
+  },
+  "engines": {
+    "node": ">=22.12"
   },
   "allowScripts": {
     "electron-winstaller": false,
