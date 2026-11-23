@@ -235,6 +235,46 @@ describe('DualTrackRecorder', () => {
     expect(peaks).toEqual([])
   })
 
+  it('届いた PCM をトラック付きで購読者へ渡す（録音中のライブ字幕、ADR-050）', async () => {
+    const pcms: { track: string; samples: number[] }[] = []
+    recorder.onPcm((track, pcm) =>
+      pcms.push({ track, samples: [...new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length / 2)] })
+    )
+
+    await start()
+    source.emit([1, 2])
+    await recorder.pushMicPcm(int16Buffer([3]))
+
+    expect(pcms).toEqual([
+      { track: 'remote', samples: [1, 2] },
+      { track: 'self', samples: [3] }
+    ])
+  })
+
+  it('PCM の購読者が例外を投げても録音は続く', async () => {
+    recorder.onPcm(() => {
+      throw new Error('helper crashed')
+    })
+
+    await start()
+    // 100ms 分。1 サンプルでは長さが 0ms に丸まる。
+    source.emit(Array.from({ length: 1_600 }, () => 16_384))
+    await recorder.pushMicPcm(int16Buffer(Array.from({ length: 1_600 }, () => 8_192)))
+    const result = await recorder.stop()
+
+    expect(result.durationMs).toBeGreaterThan(0)
+  })
+
+  it('録音していないときは PCM を渡さない', async () => {
+    const pcms: unknown[] = []
+    recorder.onPcm((track) => pcms.push(track))
+
+    await recorder.pushMicPcm(int16Buffer([1]))
+    source.emit([1])
+
+    expect(pcms).toEqual([])
+  })
+
   it('停止すると音声ソースも止める', async () => {
     await start()
     await recorder.stop()
