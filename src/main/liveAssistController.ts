@@ -68,7 +68,8 @@ export class LiveAssistController {
       const features: LiveAssistFeatures = {
         captions: liveAssist.captions,
         pastRecordings: liveAssist.pastRecordings && searchAvailable,
-        headlines: liveAssist.headlines && appleAvailable
+        headlines: liveAssist.headlines && appleAvailable,
+        onDemand: appleAvailable
       }
       const session = this.deps.createSession({
         model: appleAvailable,

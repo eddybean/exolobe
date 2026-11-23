@@ -102,7 +102,7 @@ describe('LiveAssistController', () => {
       sampleRate: 48_000,
       language: 'en',
       // 意味検索が無効なので過去の録音は出さない
-      features: { captions: true, pastRecordings: false, headlines: true }
+      features: { captions: true, pastRecordings: false, headlines: true, onDemand: true }
     })
     expect(sessions[0]?.model).toBe(true)
     expect(sessions[0]?.search).toBeUndefined()
@@ -122,14 +122,20 @@ describe('LiveAssistController', () => {
     await build().begin({ recordingId: 'r1' })
 
     expect(sessions[0]?.session.began?.features.headlines).toBe(false)
+    expect(sessions[0]?.session.began?.features.onDemand).toBe(false)
     expect(sessions[0]?.model).toBe(false)
   })
 
-  it('利用者が切った機能は出さない', async () => {
+  it('利用者が切った機能は出さないが、押したときの要約と ToDo は残す', async () => {
     enable({ liveAssist: { captions: false, headlines: false } })
     await build().begin({ recordingId: 'r1' })
 
-    expect(sessions[0]?.session.began?.features).toEqual({ captions: false, pastRecordings: false, headlines: false })
+    expect(sessions[0]?.session.began?.features).toEqual({
+      captions: false,
+      pastRecordings: false,
+      headlines: false,
+      onDemand: true
+    })
   })
 
   it('録音の PCM をセッションへ流す', async () => {

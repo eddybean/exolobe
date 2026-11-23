@@ -53,6 +53,11 @@ export interface LiveAssistFeatures {
   readonly captions: boolean
   readonly pastRecordings: boolean
   readonly headlines: boolean
+  /**
+   * ここまでの要約と ToDo（押したときだけ作る）。設定に切り替えは無く、Apple Intelligence が使えれば有効。
+   * 自動の 3 つをすべて切った人にも残す — 押さなければ生成は走らず、邪魔にならない。
+   */
+  readonly onDemand: boolean
 }
 
 export interface LiveSuggestion extends PastRecordingHit {
@@ -279,7 +284,7 @@ export class LiveAssistSession {
   }): Promise<void> {
     const { features, listener } = params
     this.params = { ...params, beganAtMs: this.deps.clock.now().getTime() }
-    if (!features.captions && !features.pastRecordings && !features.headlines) {
+    if (!features.captions && !features.pastRecordings && !features.headlines && !features.onDemand) {
       listener.status({ state: 'off' })
       return
     }

@@ -12,7 +12,7 @@ import { AppError } from '@domain/errors'
 import { FakeClock, FakeLiveAssistModel, FakeLiveTranscription, FakePastRecordingSearch } from './fakes'
 
 const NOW = new Date('2026-11-23T10:00:00+09:00')
-const ALL: LiveAssistFeatures = { captions: true, pastRecordings: true, headlines: true }
+const ALL: LiveAssistFeatures = { captions: true, pastRecordings: true, headlines: true, onDemand: true }
 
 let transcription: FakeLiveTranscription
 let model: FakeLiveAssistModel
@@ -129,7 +129,7 @@ describe('LiveAssistSession — 字幕', () => {
 
   it('字幕を切っていれば画面へは渡さないが、見出しのために認識は続ける', async () => {
     const session = build()
-    await begin(session, { captions: false, pastRecordings: false, headlines: true })
+    await begin(session, { captions: false, pastRecordings: false, headlines: true, onDemand: true })
     transcription.caption(final('それでは始めます。', 0))
 
     expect(transcription.started).toBeDefined()
@@ -138,10 +138,21 @@ describe('LiveAssistSession — 字幕', () => {
 
   it('どの機能も使わないなら認識器を起こさない', async () => {
     const session = build()
-    await begin(session, { captions: false, pastRecordings: false, headlines: false })
+    await begin(session, { captions: false, pastRecordings: false, headlines: false, onDemand: false })
 
     expect(transcription.started).toBeUndefined()
     expect(received.statuses).toEqual([{ state: 'off' }])
+  })
+
+  it('自動の機能をすべて切っても、押したときの要約と ToDo のために認識は続ける', async () => {
+    model.replies = ['- 日程は22日']
+    const session = build()
+    await begin(session, { captions: false, pastRecordings: false, headlines: false, onDemand: true })
+    transcription.caption(final('日程は22日にしましょう。', 0))
+
+    expect(transcription.started).toBeDefined()
+    expect(received.captions).toEqual([])
+    await expect(session.summarize()).resolves.toEqual(['日程は22日'])
   })
 
   it('録音の PCM を認識器へ流し、止めた後は流さない', async () => {
@@ -319,7 +330,7 @@ describe('LiveAssistSession — 見出し', () => {
 
   it('見出しを切っていれば作らない', async () => {
     const session = build()
-    await begin(session, { captions: true, pastRecordings: true, headlines: false })
+    await begin(session, { captions: true, pastRecordings: true, headlines: false, onDemand: true })
     talk(180)
     clock.advance(180_000)
     await session.tick()
