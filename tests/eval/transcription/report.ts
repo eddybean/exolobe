@@ -6,8 +6,11 @@ import type { DropReason } from '@infrastructure/transcription/WhisperCppTranscr
 /** 1 つのシナリオを 1 つの構成で起こした結果。指標はどれも小さいほど良い。 */
 export interface CaseResult {
   readonly scenario: string
-  /** VAD の有無。既定は vad。no-vad は VAD モデルが無いときの逃げ道（ADR-020）。 */
-  readonly config: 'vad' | 'no-vad'
+  /**
+   * whisper の VAD の有無（既定は vad。no-vad は VAD モデルが無いときの逃げ道、ADR-020）か、
+   * Haas-ja-v1.0（VAD は常に使う、ADR-049）。
+   */
+  readonly config: 'vad' | 'no-vad' | 'haas'
   readonly cer: number
   readonly hallucinatedChars: number
   readonly missedUtterances: number

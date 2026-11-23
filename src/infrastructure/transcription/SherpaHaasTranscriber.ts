@@ -46,13 +46,19 @@ export interface HaasSessionFactory {
 }
 
 export interface SherpaHaasConfig extends HaasModelPaths {
-  /**
-   * これを下回る平均対数確率のセグメントを落とす。未指定なら確信度では落とさない。
-   * whisper の -1 は whisper の確率の分布で決めた値で、Haas にそのまま当てはまる根拠が無い。
-   */
+  /** これを下回る平均対数確率の文を落とす。既定は `HAAS_MIN_AVG_LOGPROB`。 */
   readonly minAvgLogprob?: number
   readonly onDropped?: DroppedSegmentReporter
 }
+
+/**
+ * 発話区間の前後に足す余白（秒）。
+ *
+ * Silero VAD は発話の始まりを少し遅れて検出する。区間だけを渡すと語頭が削れ、評価の合成音声では
+ * 「ありがとうございます」が「視聴者ございます」、「三社に」が「生産者に」になり、文頭の「はい」も消えた。
+ * VAD が区間を分ける最短の無音（0.5 秒）の半分にとどめ、隣の区間の声を取り込まない。
+ */
+const SPEECH_PAD_SEC = 0.25
 
 /** 文末の記号。Haas は句読点を付けて出すので、長い発話区間はここで分ける。 */
 const SENTENCE_END = /[。．？！?!]$/u
@@ -64,10 +70,19 @@ const SENTENCE_END = /[。．？！?!]$/u
 const PAUSE_SEC = 0.6
 
 /**
- * Haas で頻出する定型句（小文字・末尾の句読点なしで書く）。whisper の一覧と同じく、
- * 会議では言われない、固有性の高い言い回しだけを載せる（ADR-049）。
+ * 文を落とす平均対数確率の下限（ADR-049）。
+ *
+ * 公開コーパスの人の声（FLEURS・Common Voice）で文ごとに測ると、普通の文はどれも -0.53 より上にあり、
+ * 下回ったのは息や雑音から出た「むぅ」「ん」のような 1〜3 字の断片だった（本物の語は「この」の -0.84 だけ）。
+ * 無音のクリップで VAD をすり抜けた区間から出た「下がり、」は -1.41。whisper と同じ -1 で、断片と作り話を落とし本物を残す。
  */
-const HAAS_BOILERPLATE: readonly string[] = []
+export const HAAS_MIN_AVG_LOGPROB = -1
+
+/**
+ * Haas が息や雑音から出す、会議の発言になりえない断片（小文字・末尾の句読点なしで書く）。
+ * 確信度の下限をすり抜けた分（-0.7 前後）の保険。「ん」「ふむ」は相づちや考え込む声として実際に言われうるので載せない。
+ */
+const HAAS_BOILERPLATE: readonly string[] = ['む', 'むぅ']
 
 /**
  * Haas-ja-v1.0 を sherpa-onnx-node で動かす文字起こし（ADR-049）。
@@ -103,12 +118,15 @@ export class SherpaHaasTranscriber implements TranscriptionPort {
       const samples = audio.sampleRate === session.sampleRate ? pcm : session.resample(pcm, audio.sampleRate)
       const pieces: Piece[] = []
 
+      const pad = Math.round(SPEECH_PAD_SEC * session.sampleRate)
       for (const span of session.detectSpeech(samples)) {
         params.signal?.throwIfAborted()
-        const startSec = span.startSample / session.sampleRate
-        const endSec = startSec + span.samples.length / session.sampleRate
-        pieces.push(...splitSentences(session.recognize(span.samples), startSec, endSec))
-        params.onProgress?.((span.startSample + span.samples.length) / samples.length)
+        const spanEnd = span.startSample + span.samples.length
+        const from = Math.max(0, span.startSample - pad)
+        const to = Math.min(samples.length, spanEnd + pad)
+        const recognized = session.recognize(samples.subarray(from, to))
+        pieces.push(...splitSentences(recognized, from / session.sampleRate, spanEnd / session.sampleRate))
+        params.onProgress?.(spanEnd / samples.length)
       }
       params.onProgress?.(1)
 
@@ -124,15 +142,14 @@ export class SherpaHaasTranscriber implements TranscriptionPort {
 
   /** whisper と同じ順で関門に掛ける。ループを縮めてから定型句と確信度を見る。 */
   private filter(pieces: readonly Piece[], speakerId: string): TranscriptSegment[] {
-    const { onDropped, minAvgLogprob } = this.config
+    const { onDropped, minAvgLogprob = HAAS_MIN_AVG_LOGPROB } = this.config
     const segments = pieces.flatMap((piece): TranscriptSegment[] => {
       const { text, removed } = collapseRepeats(piece.text)
       const segment = { startMs: piece.startMs, endMs: piece.endMs, speakerId, text }
       if (removed) onDropped?.({ ...segment, text: removed, reason: 'repetition' })
 
       const reason: DropReason | undefined =
-        textDropReason(text, HAAS_BOILERPLATE) ??
-        (minAvgLogprob !== undefined && piece.avgLogprob < minAvgLogprob ? 'low-confidence' : undefined)
+        textDropReason(text, HAAS_BOILERPLATE) ?? (piece.avgLogprob < minAvgLogprob ? 'low-confidence' : undefined)
       if (reason === undefined) return [segment]
 
       onDropped?.({ ...segment, reason, avgLogprob: piece.avgLogprob })
@@ -201,7 +218,7 @@ const at = (result: HaasRecognition, index: number): number => result.timestamps
 export const joinTokens = (tokens: readonly string[]): string =>
   decodeByteTokens(tokens.join(''))
     .replace(/\s+/gu, ' ')
-    .replace(/ (?=[^\x00-\x7F])|(?<=[^\x00-\x7F]) /gu, '')
+    .replace(/ (?=\P{ASCII})|(?<=\P{ASCII}) /gu, '')
     .trim()
 
 /**

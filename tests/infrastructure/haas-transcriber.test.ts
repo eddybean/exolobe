@@ -121,7 +121,7 @@ describe('SherpaHaasTranscriber', () => {
     expect(factory.created).toBe(0)
   })
 
-  it('発話区間ごとに認識し、区間の開始をトークンの時刻に足して録音の時刻にする', async () => {
+  it('発話区間の前後を 0.25 秒広げて認識し、広げた先頭からのトークンの時刻を録音の時刻にする', async () => {
     const session = new FakeSession(
       [span(2, 3), span(10, 2)],
       [
@@ -140,10 +140,11 @@ describe('SherpaHaasTranscriber', () => {
     const segments = await transcribe(session, await wav(15))
 
     expect(segments).toEqual([
-      { startMs: 2000, endMs: 5000, speakerId: 'remote', text: '本日は' },
-      { startMs: 10100, endMs: 12000, speakerId: 'remote', text: '以上です' }
+      { startMs: 1750, endMs: 5000, speakerId: 'remote', text: '本日は' },
+      { startMs: 9850, endMs: 12000, speakerId: 'remote', text: '以上です' }
     ])
-    expect(session.recognized).toEqual([48_000, 32_000])
+    // Silero VAD は語頭を遅れて検出し、そのまま渡すと「ありがとう」が「視聴者」のように削れて聞き違える。
+    expect(session.recognized).toEqual([56_000, 40_000])
     expect(session.disposed).toBe(true)
   })
 
@@ -166,9 +167,18 @@ describe('SherpaHaasTranscriber', () => {
     const segments = await transcribe(session, await wav(8))
 
     expect(segments).toEqual([
-      { startMs: 1100, endMs: 3400, speakerId: 'remote', text: '確認します。' },
-      { startMs: 3400, endMs: 7000, speakerId: 'remote', text: 'まず報告です。' }
+      { startMs: 850, endMs: 3150, speakerId: 'remote', text: '確認します。' },
+      { startMs: 3150, endMs: 7000, speakerId: 'remote', text: 'まず報告です。' }
     ])
+  })
+
+  it('録音の端を越えては広げない', async () => {
+    const session = new FakeSession([span(0, 5)], [recognition([['はい', 0.1]])])
+
+    const segments = await transcribe(session, await wav(5))
+
+    expect(session.recognized).toEqual([80_000])
+    expect(segments[0]?.startMs).toBe(100)
   })
 
   it('句点が無くても、0.6 秒以上の間があれば分ける', async () => {
@@ -208,13 +218,32 @@ describe('SherpaHaasTranscriber', () => {
     expect(dropped.map((d) => d.reason)).toEqual(['boilerplate', 'non-speech'])
   })
 
-  it('確信度の閾値は指定したときだけ使う', async () => {
-    const low = (): FakeSession => new FakeSession([span(0, 2)], [recognition([['ええと', 0.1]], -2)])
+  it('既定では平均対数確率が -1 を下回る文を落とす', async () => {
+    // 無音のクリップで VAD をすり抜けた区間から「下がり、」(-1.41) が出た。本物の発話の文は -0.53 より上だった。
+    const session = (logProb: number): FakeSession =>
+      new FakeSession([span(0, 2)], [recognition([['下がり', 0.1]], logProb)])
     const dropped: DroppedSegment[] = []
 
-    expect(await transcribe(low(), await wav(2))).toHaveLength(1)
-    expect(await transcribe(low(), await wav(2), { minAvgLogprob: -1, onDropped: (d) => dropped.push(d) })).toEqual([])
-    expect(dropped).toEqual([expect.objectContaining({ reason: 'low-confidence', avgLogprob: -2 })])
+    expect(await transcribe(session(-0.9), await wav(2))).toHaveLength(1)
+    expect(await transcribe(session(-1.4), await wav(2), { onDropped: (d) => dropped.push(d) })).toEqual([])
+    expect(dropped).toEqual([expect.objectContaining({ reason: 'low-confidence', avgLogprob: -1.4 })])
+  })
+
+  it('確信度の閾値は差し替えられる', async () => {
+    const session = new FakeSession([span(0, 2)], [recognition([['ええと', 0.1]], -0.5)])
+
+    expect(await transcribe(session, await wav(2), { minAvgLogprob: -0.3 })).toEqual([])
+  })
+
+  it('息や雑音から出る「む」「むぅ」は定型句として落とす', async () => {
+    const session = new FakeSession(
+      [span(0, 1), span(2, 1)],
+      [recognition([['むぅ', 0.1]], -0.8), recognition([['む', 0.1]], -0.8)]
+    )
+    const dropped: DroppedSegment[] = []
+
+    expect(await transcribe(session, await wav(4), { onDropped: (d) => dropped.push(d) })).toEqual([])
+    expect(dropped.map((d) => d.reason)).toEqual(['boilerplate', 'boilerplate'])
   })
 
   it('同じ文が続くループは繰り返しとして落とす', async () => {
