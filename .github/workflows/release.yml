@@ -66,7 +66,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26
 
       # タグ上で保存したキャッシュは次のタグから見えないので、main の CI が作った分を
       # 読むだけにする（ここで保存しても使われず、後処理の時間だけがかかる）。
@@ -82,7 +82,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.key }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node26-${{ steps.deps.outputs.key }}
 
       - name: 依存関係をインストール
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -199,7 +199,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26
 
       # main の CI（test-windows）が作ったキャッシュを読むだけにする。キーは ci.yml と揃える。
       # キーは lockfile から版を除いた中身で作る。版上げのたびにキャッシュを外さないため（scripts/version-bump.mjs）。
@@ -213,7 +213,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.key }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node26-${{ steps.deps.outputs.key }}
 
       - name: 依存関係をインストール
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
