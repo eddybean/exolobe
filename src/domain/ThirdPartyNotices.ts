@@ -28,6 +28,7 @@ export type NoticeNoteId =
   | 'systemAudioNoCopyright'
   | 'ggmlConversionByWhisperCpp'
   | 'onnxConversionBySherpa'
+  | 'onnxConversionByOboroge0'
   | 'ggufConversionByGgmlOrg'
 
 export interface ThirdPartyNotice {
@@ -149,7 +150,14 @@ const MODELS: readonly ThirdPartyNotice[] = [
     license: 'MIT',
     url: 'https://github.com/snakers4/silero-vad',
     copyright: 'Copyright (c) 2020-present Silero Team',
-    assetIds: ['vad-model']
+    assetIds: ['vad-model', 'haas-vad']
+  },
+  {
+    name: 'Haas-ja-v1.0',
+    license: 'Apache-2.0',
+    url: 'https://huggingface.co/third-intelligence/Haas-ja-v1.0',
+    noteId: 'onnxConversionByOboroge0',
+    assetIds: ['haas-encoder', 'haas-encoder-data', 'haas-decoder', 'haas-joiner', 'haas-tokens']
   },
   {
     name: 'Gemma',

@@ -5,6 +5,7 @@ import { AppError, toMessage, type ErrorReason } from '@domain/errors'
 import { glossaryPrompt } from '@domain/Glossary'
 import type { TranscriptSegment } from '@domain/TranscriptSegment'
 import { wavDurationMs } from '@infrastructure/audio/wav'
+import { textDropReason, type DropReason, type DroppedSegment, type DroppedSegmentReporter } from './segmentFilters'
 import { collapseRepeats, dropRepeatedSegments } from './repetition'
 
 export class TranscriptionError extends AppError {}
@@ -94,27 +95,8 @@ export const averageLogprob = (tokens: readonly { text?: string; p?: number }[] 
   return probs.reduce((sum, p) => sum + Math.log(p), 0) / probs.length
 }
 
-/** セグメントを落とした関門。閾値を見直すには、どこで落ちたかが要る。 */
-export type DropReason = 'non-speech' | 'boilerplate' | 'low-confidence' | 'repetition'
-
-/** 落としたセグメントの記録。計測モードでのみ作られる。 */
-export interface DroppedSegment {
-  readonly speakerId: string
-  readonly startMs: number
-  readonly endMs: number
-  readonly text: string
-  readonly reason: DropReason
-  /** 確率を持つトークンがあったときだけ入る。 */
-  readonly avgLogprob?: number
-}
-
-/**
- * 落としたセグメントの通知先。
- *
- * 出力先をここで決めないのは、`console` を持たない呼び出し元（テスト、将来の
- * ファイル出力）からも同じ経路で受け取れるようにするため。
- */
-export type DroppedSegmentReporter = (dropped: DroppedSegment) => void
+// 落とした記録の型はエンジンに依らないので共有モジュールに置き、既存の import のために出し直す。
+export type { DropReason, DroppedSegment, DroppedSegmentReporter } from './segmentFilters'
 
 /** `1:02:03.450` 形式。会議は 1 時間を超えるので時まで出す。 */
 const formatTimestamp = (ms: number): string => {
@@ -391,53 +373,11 @@ const splitAtVadGaps = (piece: SegmentPiece, spans: readonly VadSpan[]): Segment
 
 /** セグメントを落とす理由。落とさないなら undefined。 */
 const dropReason = (text: string, logprob: number | undefined): DropReason | undefined => {
-  if (NON_SPEECH.test(text)) return 'non-speech'
-  if (isHallucination(text)) return 'boilerplate'
+  const byText = textDropReason(text)
+  if (byText !== undefined) return byText
   if (logprob !== undefined && logprob < MIN_AVG_LOGPROB) return 'low-confidence'
   return undefined
 }
-
-/** whisper が挿入する非発話マーカー。 */
-const NON_SPEECH = /^(\[[^\]]*\]|\([^)]*\)|♪+|＊+)$/
-
-/**
- * 無音区間で whisper が生みやすい定型句。VAD をすり抜けた分の保険。
- *
- * whisper の学習データには字幕が大量に含まれるため、音声が無いと動画の
- * 締めの決まり文句を出力する。セグメント全体がこれらと一致したときだけ
- * 落とす（部分一致で消すと「資料の共有ありがとうございました」のような
- * 本物の発言まで失われる）。
- *
- * 載せるのは動画の文脈でしか出てこない固有性の高い言い回しに限る。
- * 「終わり」のような短く汎用的な語は、会議の締めで実際に発せられたものと
- * 区別がつかず、黙って消すほうが害が大きい。
- */
-const HALLUCINATIONS: readonly string[] = [
-  'ご視聴ありがとうございました',
-  'ご視聴ありがとうございます',
-  'ご清聴ありがとうございました',
-  'ご清聴ありがとうございます',
-  '最後までご視聴いただきありがとうございました',
-  'チャンネル登録よろしくお願いします',
-  'チャンネル登録高評価よろしくお願いします',
-  'この動画が良かったと思ったらチャンネル登録よろしくお願いします',
-  '次回の動画でお会いしましょう',
-  // 英語の会議でも無音から同じ種類の定型句が生まれる（ADR-043）。比較は小文字で行う。
-  'thank you for watching',
-  'thanks for watching',
-  'thank you so much for watching',
-  'thanks for watching and see you next time',
-  'please subscribe to my channel',
-  'please like and subscribe',
-  'see you in the next video'
-]
-
-/** 末尾の句読点や感嘆符は揺れるだけで意味を持たないため、比較前に落とす。 */
-const stripTrailingPunctuation = (text: string): string => text.replace(/[。．.、，,！!？?〜~…\s]+$/u, '')
-
-/** 英語は文頭の大文字が揺れる。日本語には影響しない。 */
-const isHallucination = (text: string): boolean =>
-  HALLUCINATIONS.includes(stripTrailingPunctuation(text).trim().toLowerCase())
 
 /**
  * サンプルを 1 つも持たない WAV かどうか。

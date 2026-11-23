@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { DiarizationPort, ProgressReporterPort, SpeakerEmbeddingPort } from '@application/ports'
+import type { DiarizationPort, ProgressReporterPort, SpeakerEmbeddingPort, TranscriptionPort } from '@application/ports'
 import { ExtractVoices } from '@application/usecases/ExtractVoices'
 import { ProcessRecording } from '@application/usecases/ProcessRecording'
 import { resolveAudioConvBinary } from '@infrastructure/audio/resolveAudioConvBinary'
@@ -19,10 +19,17 @@ import { NodeLlamaSessionFactory } from '@infrastructure/summarization/NodeLlama
 import { resolveAppleLmBinary } from '@infrastructure/summarization/resolveAppleLmBinary'
 import { NodeSystemResourceProbe } from '@infrastructure/system/NodeSystemResourceProbe'
 import { resolveBundledBinary } from '@infrastructure/system/resolveBundledBinary'
-import { WhisperCppTranscriber, droppedSegmentLogger } from '@infrastructure/transcription/WhisperCppTranscriber'
+import { SherpaHaasSessionFactory } from '@infrastructure/transcription/SherpaHaasSessionFactory'
+import { SherpaHaasTranscriber } from '@infrastructure/transcription/SherpaHaasTranscriber'
+import {
+  WhisperCppTranscriber,
+  droppedSegmentLogger,
+  type DroppedSegmentReporter
+} from '@infrastructure/transcription/WhisperCppTranscriber'
 import { resolveWhisperBinary } from '@infrastructure/transcription/resolveWhisperBinary'
 import {
   summarizationProviderOf,
+  transcriptionEngineOf,
   type DiarizationSettings,
   type Settings,
   type TranscriptionSettings
@@ -56,21 +63,48 @@ export const createPipeline = async (
     artifacts: new FileRecordingArtifactStore(locator, join(userDataPath, 'work')),
     mixer: new TrackMixer(),
     encoder: audioConverters().encoder,
-    transcriber: new WhisperCppTranscriber({
-      binaryPath: resolveWhisperBinary({
-        configured: current.transcription.binaryPath,
-        ...(bundled === undefined ? {} : { bundled })
-      }),
-      modelPath: current.transcription.modelPath,
-      vadModelPath: resolveVadModel(current.transcription),
-      glossary: current.transcription.glossary,
-      // 閾値を見直すための計測モード。既定では undefined が入り、何も記録しない。
-      ...(dropped === undefined ? {} : { onDropped: dropped })
-    }),
+    transcriber: createTranscriber(current, bundled, dropped),
     diarizer: createDiarizer(current.diarization),
     embedder: createEmbedder(current.diarization),
     voiceprints: new FileVoiceprintRepository(locator),
     summarizer: await createSummarizer(current)
+  })
+}
+
+/**
+ * 設定で選んだエンジンで文字起こしする（ADR-049）。Haas は会議の言語が日本語のときだけ使い、
+ * それ以外は whisper に任せる（判断は `transcriptionEngineOf`）。
+ */
+const createTranscriber = (
+  current: Settings,
+  bundled: string | undefined,
+  // 閾値を見直すための計測モード。既定では undefined が入り、何も記録しない。
+  dropped: DroppedSegmentReporter | undefined
+): TranscriptionPort => {
+  const config = current.transcription
+  if (transcriptionEngineOf(current) === 'haas-ja') {
+    return new SherpaHaasTranscriber(
+      {
+        encoderPath: config.haasEncoderPath,
+        decoderPath: config.haasDecoderPath,
+        joinerPath: config.haasJoinerPath,
+        tokensPath: config.haasTokensPath,
+        vadModelPath: config.haasVadModelPath,
+        ...(dropped === undefined ? {} : { onDropped: dropped })
+      },
+      new SherpaHaasSessionFactory()
+    )
+  }
+
+  return new WhisperCppTranscriber({
+    binaryPath: resolveWhisperBinary({
+      configured: config.binaryPath,
+      ...(bundled === undefined ? {} : { bundled })
+    }),
+    modelPath: config.modelPath,
+    vadModelPath: resolveVadModel(config),
+    glossary: config.glossary,
+    ...(dropped === undefined ? {} : { onDropped: dropped })
   })
 }
 

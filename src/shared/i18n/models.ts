@@ -2,7 +2,7 @@ import type { ManagedAssetId } from '@domain/ModelCatalog'
 import type { Locale } from './locale'
 
 /** 画面に名前を出すモデル。ファイル単位の資産と、話者識別の 2 ファイルをまとめたパッケージ。 */
-export type ModelTextId = ManagedAssetId | 'diarization'
+export type ModelTextId = ManagedAssetId | 'diarization' | 'haas-ja'
 
 interface ModelText {
   readonly label: string
@@ -45,6 +45,20 @@ const ja: ModelTexts = {
     label: '話者識別モデル（任意）',
     description:
       '参加者が複数人いるとき、相手側を話者ごとに分けます。話者分割と話者埋め込みの 2 つのファイルをまとめて取得します。'
+  },
+  'haas-encoder': { label: 'Haas エンコーダ', description: 'Haas-ja-v1.0 のエンコーダ（int8 / 4bit 量子化）。' },
+  'haas-encoder-data': { label: 'Haas エンコーダの重み', description: 'Haas-ja-v1.0 のエンコーダの重み。' },
+  'haas-decoder': { label: 'Haas デコーダ', description: 'Haas-ja-v1.0 の予測ネットワーク。' },
+  'haas-joiner': { label: 'Haas ジョイナー', description: 'Haas-ja-v1.0 の結合ネットワーク。' },
+  'haas-tokens': { label: 'Haas の語彙', description: 'Haas-ja-v1.0 のトークン一覧。' },
+  'haas-vad': {
+    label: 'Haas 用の無音検出モデル',
+    description: 'Silero VAD（ONNX）。Haas に喋っている区間だけを渡します。'
+  },
+  'haas-ja': {
+    label: '文字起こしモデル Haas（任意）',
+    description:
+      'Haas-ja-v1.0（日本語専用）。設定の「文字起こし」でエンジンに Haas を選ぶと使われます。モデルと無音検出のファイルをまとめて取得します。'
   }
 }
 
@@ -84,6 +98,20 @@ const en: ModelTexts = {
     label: 'Speaker identification model (optional)',
     description:
       'Separates the other side into individual speakers when several people take part. Downloads the segmentation and embedding files together.'
+  },
+  'haas-encoder': { label: 'Haas encoder', description: 'The Haas-ja-v1.0 encoder (int8 / 4-bit quantized).' },
+  'haas-encoder-data': { label: 'Haas encoder weights', description: 'The weights of the Haas-ja-v1.0 encoder.' },
+  'haas-decoder': { label: 'Haas decoder', description: 'The Haas-ja-v1.0 prediction network.' },
+  'haas-joiner': { label: 'Haas joiner', description: 'The Haas-ja-v1.0 joint network.' },
+  'haas-tokens': { label: 'Haas vocabulary', description: 'The Haas-ja-v1.0 token list.' },
+  'haas-vad': {
+    label: 'Voice activity detection for Haas',
+    description: 'Silero VAD (ONNX). Passes only the stretches where someone is speaking to Haas.'
+  },
+  'haas-ja': {
+    label: 'Haas transcription model (optional)',
+    description:
+      'Haas-ja-v1.0 (Japanese only). Used when you choose Haas as the engine under Transcription. Downloads the model and its voice activity detection file together.'
   }
 }
 

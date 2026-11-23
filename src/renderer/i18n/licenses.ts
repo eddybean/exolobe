@@ -33,6 +33,7 @@ const ja: {
       'システム音声の取り込みに使っています。配布元が著作権表示を掲げていないため、ライセンスの種別だけを示します。',
     ggmlConversionByWhisperCpp: 'ggml 形式への変換は whisper.cpp の配布物を使っています。',
     onnxConversionBySherpa: 'sherpa-onnx が配布する ONNX 変換版を使っています。',
+    onnxConversionByOboroge0: 'oboroge0 による ONNX 変換・量子化版（Haas-ja-v1.0-onnx-quantized）を使っています。',
     ggufConversionByGgmlOrg: 'GGUF 形式への変換は ggml-org の配布物を使っています。'
   }
 }
@@ -63,6 +64,7 @@ const en: typeof ja = {
       'Used to capture system audio. The distributor does not publish a copyright notice, so only the license type is shown.',
     ggmlConversionByWhisperCpp: 'The ggml conversion distributed by whisper.cpp is used.',
     onnxConversionBySherpa: 'The ONNX conversion distributed by sherpa-onnx is used.',
+    onnxConversionByOboroge0: 'The quantized ONNX conversion by oboroge0 (Haas-ja-v1.0-onnx-quantized) is used.',
     ggufConversionByGgmlOrg: 'The GGUF conversion distributed by ggml-org is used.'
   }
 }

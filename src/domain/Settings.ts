@@ -124,9 +124,21 @@ export const customSummaryPromptSeed = (settings: Settings, uiLanguage: MeetingL
  */
 export const DEFAULT_CLUSTERING_THRESHOLD = 0.5
 
+/**
+ * 文字起こしに使うエンジン（ADR-049）。
+ *
+ * `whisper-cpp` は同梱の whisper-cli（large-v3-turbo）。`haas-ja` は Haas-ja-v1.0 を
+ * sherpa-onnx-node で動かす。Haas は日本語専用なので、使うかどうかは `transcriptionEngineOf` が言語も見て決める。
+ */
+export type TranscriptionProvider = 'whisper-cpp' | 'haas-ja'
+
+export const TRANSCRIPTION_PROVIDERS: readonly TranscriptionProvider[] = ['whisper-cpp', 'haas-ja']
+
+const isTranscriptionProvider = (value: unknown): value is TranscriptionProvider =>
+  TRANSCRIPTION_PROVIDERS.includes(value as TranscriptionProvider)
+
 export interface TranscriptionSettings {
-  /** 差し替え可能にするための識別子。将来クラウド実装を足す際の分岐キー。 */
-  readonly provider: 'whisper-cpp'
+  readonly provider: TranscriptionProvider
   readonly binaryPath: string
   readonly modelPath: string
   /** whisper に渡す言語コード。`auto` で自動判定。 */
@@ -148,6 +160,19 @@ export interface TranscriptionSettings {
    * 変換の規則は `@domain/Glossary`。
    */
   readonly glossary: readonly string[]
+  /**
+   * Haas-ja-v1.0（sherpa-onnx 形式）の 4 ファイル。未取得なら空文字。
+   * encoder は隣の encoder.data を相対名で読むので、同じディレクトリに置かれている前提。
+   */
+  readonly haasEncoderPath: string
+  readonly haasDecoderPath: string
+  readonly haasJoinerPath: string
+  readonly haasTokensPath: string
+  /**
+   * Haas の前に掛ける VAD（ONNX 形式の Silero）。whisper 用の ggml 形式とは別のファイル。
+   * Haas は無音や BGM から文を作りうるので、`vadEnabled` に関わらず常に使う。
+   */
+  readonly haasVadModelPath: string
 }
 
 /**
@@ -300,6 +325,21 @@ export const updateCheckIntervalOf = (settings: Settings): UpdateCheckInterval =
 export const summarizationProviderOf = (settings: Settings): SummarizationProvider =>
   isSummarizationProvider(settings.summarization.provider) ? settings.summarization.provider : 'llama-cpp'
 
+/** 設定で選ばれている文字起こしのエンジン。知らない値（新しい版が足したもの）なら既定の whisper に倒す。 */
+export const transcriptionProviderOf = (settings: Settings): TranscriptionProvider =>
+  isTranscriptionProvider(settings.transcription.provider) ? settings.transcription.provider : 'whisper-cpp'
+
+/**
+ * 実際に文字起こしに使うエンジン。
+ *
+ * Haas は日本語でしか学習していないので、会議の言語が日本語と決まっているときだけ使う。
+ * `auto` は録音ごとに言語を判定する設定で、UI が日本語でも英語の会議はありうるため whisper に任せる。
+ */
+export const transcriptionEngineOf = (settings: Settings): TranscriptionProvider =>
+  transcriptionProviderOf(settings) === 'haas-ja' && settings.transcription.language === 'ja'
+    ? 'haas-ja'
+    : 'whisper-cpp'
+
 export interface Settings {
   /** ユーザーが初期設定で選ぶ保存先。未選択なら null。 */
   readonly storageDir: string | null
@@ -368,7 +408,12 @@ export const defaultSettings = (language: MeetingLanguage): Settings => ({
     language,
     vadEnabled: true,
     vadModelPath: '',
-    glossary: []
+    glossary: [],
+    haasEncoderPath: '',
+    haasDecoderPath: '',
+    haasJoinerPath: '',
+    haasTokensPath: '',
+    haasVadModelPath: ''
   },
   summarization: {
     provider: 'llama-cpp',
@@ -449,6 +494,7 @@ export const validateSettings = (settings: Settings): SettingsProblem[] => {
   if (!isUpdateCheckInterval(settings.updateCheck)) problems.push('updateCheck')
   if (!isMemoryProtection(settings.memoryProtection)) problems.push('memoryProtection')
   if (settings.summarization.contextSize < 1_024) problems.push('contextSize')
+  if (!isTranscriptionProvider(settings.transcription.provider)) problems.push('transcriptionProvider')
   if (!isSummarizationProvider(settings.summarization.provider)) {
     problems.push('summarizationProvider')
   }

@@ -36,7 +36,7 @@ import {
 } from '@domain/MemoryGuard'
 import { findAsset } from '@domain/ModelCatalog'
 import { meetingLanguageOf, type MeetingLanguage } from '@domain/MeetingLanguage'
-import { summarizationProviderOf, summaryPromptFor, type Settings } from '@domain/Settings'
+import { summarizationProviderOf, summaryPromptFor, transcriptionEngineOf, type Settings } from '@domain/Settings'
 import {
   REMOTE_SPEAKER_ID,
   SELF_SPEAKER_ID,
@@ -253,7 +253,10 @@ export class ProcessRecording {
   private async demandOf(step: PipelineStep, settings: Settings): Promise<MemoryDemand | undefined> {
     switch (step) {
       case 'transcribe': {
-        const modelFileBytes = await this.modelBytes(settings.transcription.modelPath, 'transcription-model')
+        const modelFileBytes =
+          transcriptionEngineOf(settings) === 'haas-ja'
+            ? haasModelBytes(settings)
+            : await this.modelBytes(settings.transcription.modelPath, 'transcription-model')
         if (modelFileBytes === undefined) return undefined
         return {
           bytes: estimateTranscriptionBytes({ modelFileBytes }),
@@ -541,4 +544,14 @@ const buildSpeakers = (
   }
 
   return speakers
+}
+
+/**
+ * Haas の重みの大きさ。encoder.data は encoder が隣から読むので設定にパスが無く、カタログの値で数える。
+ * 変換版の実測（20 秒前後の区間で RSS 約 1GB）は、whisper と同じ見積もりの式で安全側に収まる（ADR-049）。
+ */
+const haasModelBytes = (settings: Settings): number | undefined => {
+  if (!settings.transcription.haasEncoderPath) return undefined
+  const ids = ['haas-encoder', 'haas-encoder-data', 'haas-decoder', 'haas-joiner']
+  return ids.reduce((sum, id) => sum + (findAsset(id)?.bytes ?? 0), 0)
 }

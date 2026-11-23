@@ -89,7 +89,14 @@ describe('ModelCatalog', () => {
       { summarization: { modelPath: '/p' } },
       { diarization: { segmentationModelPath: '/p' } },
       { diarization: { embeddingModelPath: '/p' } },
-      { search: { modelPath: '/p' } }
+      { search: { modelPath: '/p' } },
+      { transcription: { haasEncoderPath: '/p' } },
+      // encoder.data は encoder が隣から読む。
+      {},
+      { transcription: { haasDecoderPath: '/p' } },
+      { transcription: { haasJoinerPath: '/p' } },
+      { transcription: { haasTokensPath: '/p' } },
+      { transcription: { haasVadModelPath: '/p' } }
     ])
   })
 

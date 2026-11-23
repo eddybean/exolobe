@@ -55,6 +55,7 @@ const SETTINGS_PROBLEMS: Readonly<Record<Locale, Readonly<Record<SettingsProblem
     clusteringThreshold: '話者を分ける近さは 0 より大きく 1 以下の値を指定してください。',
     appearance: 'テーマは「OS の設定に合わせる」「ライト」「ダーク」のいずれかを指定してください。',
     updateCheck: '更新の確認は「毎日」「毎週」「毎月」「確認しない」のいずれかを指定してください。',
+    transcriptionProvider: '文字起こしのエンジンは「Whisper」か「Haas」を指定してください。',
     summarizationProvider: '要約のモデルは「Gemma」か「Apple Intelligence」を指定してください。',
     memoryProtection: 'メモリ保護は「保守的」「標準」「オフ」のいずれかを指定してください。',
     contextSize: '要約モデルのコンテキスト長は 1024 以上を指定してください。',
@@ -71,6 +72,7 @@ const SETTINGS_PROBLEMS: Readonly<Record<Locale, Readonly<Record<SettingsProblem
     clusteringThreshold: 'The speaker separation threshold must be greater than 0 and at most 1.',
     appearance: 'Theme must be Match System, Light, or Dark.',
     updateCheck: 'Update checks must be Daily, Weekly, Monthly, or Never.',
+    transcriptionProvider: 'The transcription engine must be Whisper or Haas.',
     summarizationProvider: 'The summarization model must be Gemma or Apple Intelligence.',
     memoryProtection: 'Memory protection must be Conservative, Standard, or Off.',
     contextSize: 'The summarization model context length must be at least 1024.',
@@ -128,6 +130,8 @@ const ja: ReasonMessages = {
   wavClosed: () => 'クローズ済みの WAV には書き込めません。',
   encodeFailed: (r) => `音声のエンコードに失敗しました: ${r.detail}`,
   transcriptionModelNotConfigured: () => '文字起こしモデルが設定されていません。設定画面でモデルを選んでください。',
+  haasModelNotConfigured: () =>
+    'Haas のモデルが取得されていません。設定画面の「モデル」で取得するか、文字起こしのエンジンを Whisper に戻してください。',
   transcriptionOutputUnreadable: () => '文字起こし結果を読み取れませんでした。',
   whisperNotFound: (r) => `文字起こしに必要な ${r.binaryPath} が見つかりません。'npm run setup' を実行してください。`,
   whisperModelLoadFailed: () => 'whisper のモデルを読み込めませんでした。設定画面でモデルのパスを確認してください。',
@@ -233,6 +237,8 @@ const en: ReasonMessages = {
   wavClosed: () => 'Cannot write to a closed WAV file.',
   encodeFailed: (r) => `Audio encoding failed: ${r.detail}`,
   transcriptionModelNotConfigured: () => 'No transcription model is set. Choose a model in Settings.',
+  haasModelNotConfigured: () =>
+    'The Haas model has not been downloaded. Download it under Models in Settings, or switch the transcription engine back to Whisper.',
   transcriptionOutputUnreadable: () => 'Could not read the transcription result.',
   whisperNotFound: (r) => `${r.binaryPath}, which transcription needs, was not found. Run 'npm run setup'.`,
   whisperModelLoadFailed: () => 'Could not load the whisper model. Check the model path in Settings.',

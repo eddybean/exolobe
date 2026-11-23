@@ -12,6 +12,8 @@
  * - OMR_EVAL_UPDATE_BASELINE=1 … 今回の結果で baseline.json を書き換える
  * - OMR_EVAL_MODEL_DIR … モデルの置き場所（既定はアプリの models ディレクトリ）
  * - OMR_EVAL_WHISPER_CLI … whisper-cli のパス（既定は同梱版、無ければ PATH）
+ * - OMR_EVAL_HAAS_DIR … Haas-ja-v1.0 の 5 ファイルと silero_vad.onnx を置いたディレクトリ。
+ *   既定はアプリの models（haas-ja-v1.0/ と silero_vad.onnx）。無ければ Haas の行は飛ばす。
  * - OMR_EVAL_EXTRA_DIR … 手元の録音で評価する。`<名前>.wav` と、正解の
  *   `<名前>.json`（`{ "said": [{ "startMs", "endMs", "text" }] }`）を置く。
  *   本文を含むので結果は基準に書かず、リポジトリの外に置いたまま使う。
@@ -24,7 +26,10 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { findAsset } from '@domain/ModelCatalog'
 import { int16Buffer, readWav, WavFileWriter } from '@infrastructure/audio/wav'
+import { SherpaHaasSessionFactory } from '@infrastructure/transcription/SherpaHaasSessionFactory'
+import { SherpaHaasTranscriber, type HaasModelPaths } from '@infrastructure/transcription/SherpaHaasTranscriber'
 import { WhisperCppTranscriber, type DropReason } from '@infrastructure/transcription/WhisperCppTranscriber'
+import type { TranscriptionPort } from '@application/ports'
 import { composeScenario, SAMPLE_RATE, type Utterance } from './compose'
 import { characterErrorRate, hallucinatedChars, longestRepeatRun, missedUtterances } from './metrics'
 import {
@@ -55,6 +60,23 @@ const modelFile = findAsset('transcription-model')?.fileName ?? ''
 const vadFile = findAsset('vad-model')?.fileName ?? ''
 const bundledCli = resolve(macOS ? 'resources/bin/whisper-cli' : 'resources/bin/whisper-cli.exe')
 const whisperCli = process.env.OMR_EVAL_WHISPER_CLI ?? (existsSync(bundledCli) ? bundledCli : 'whisper-cli')
+
+/** アプリが置くのと同じ並び（models/haas-ja-v1.0/ と models/silero_vad.onnx）か、1 つのディレクトリに全部。 */
+const haasModel = ((): HaasModelPaths | undefined => {
+  const dir = process.env.OMR_EVAL_HAAS_DIR
+  const file = (id: string): string => {
+    const name = findAsset(id)?.fileName ?? ''
+    return dir === undefined ? join(modelDir, name) : join(dir, basename(name))
+  }
+  const paths = {
+    encoderPath: file('haas-encoder'),
+    decoderPath: file('haas-decoder'),
+    joinerPath: file('haas-joiner'),
+    tokensPath: file('haas-tokens'),
+    vadModelPath: file('haas-vad')
+  }
+  return Object.values(paths).every((path) => existsSync(path)) ? paths : undefined
+})()
 
 const hash = (value: string): string => createHash('sha1').update(value).digest('hex').slice(0, 12)
 
@@ -186,15 +208,19 @@ const evaluate = async (input: EvalInput, config: CaseResult['config']): Promise
     'low-confidence': 0,
     repetition: 0
   }
-  const transcriber = new WhisperCppTranscriber({
-    binaryPath: whisperCli,
-    modelPath: join(modelDir, modelFile),
-    ...(config === 'vad' ? { vadModelPath: join(modelDir, vadFile) } : {}),
-    glossary: [],
-    onDropped: (segment) => {
-      dropped[segment.reason] += 1
-    }
-  })
+  const onDropped = (segment: { reason: DropReason }): void => {
+    dropped[segment.reason] += 1
+  }
+  const transcriber: TranscriptionPort =
+    config === 'haas' && haasModel
+      ? new SherpaHaasTranscriber({ ...haasModel, onDropped }, new SherpaHaasSessionFactory())
+      : new WhisperCppTranscriber({
+          binaryPath: whisperCli,
+          modelPath: join(modelDir, modelFile),
+          ...(config === 'vad' ? { vadModelPath: join(modelDir, vadFile) } : {}),
+          glossary: [],
+          onDropped
+        })
   const output = await transcriber.transcribe({
     wavPath: input.wavPath,
     language: 'ja',
@@ -229,7 +255,7 @@ it('合成音声を文字起こしして基準と比べる', async () => {
 
   const results: CaseResult[] = []
   for (const input of [...synthetic, ...extra]) {
-    for (const config of ['vad', 'no-vad'] as const) {
+    for (const config of haasModel ? (['vad', 'no-vad', 'haas'] as const) : (['vad', 'no-vad'] as const)) {
       results.push(await evaluate(input, config))
     }
   }
@@ -238,6 +264,7 @@ it('合成音声を文字起こしして基準と比べる', async () => {
   const differences = baseline ? environmentDifferences(environment, baseline.environment) : []
   const report = [
     `whisper-cli: ${whisperCli}`,
+    `haas: ${haasModel ? dirname(haasModel.encoderPath) : '（モデルが無いので飛ばした）'}`,
     `environment: ${JSON.stringify(environment)}`,
     ...(baseline ? [] : ['基準（baseline.json）がありません。']),
     ...(differences.length > 0

@@ -19,6 +19,12 @@ export type ManagedAssetId =
   | 'diarization-segmentation'
   | 'diarization-embedding'
   | 'search-model'
+  | 'haas-encoder'
+  | 'haas-encoder-data'
+  | 'haas-decoder'
+  | 'haas-joiner'
+  | 'haas-tokens'
+  | 'haas-vad'
 
 export interface ManagedAsset {
   readonly id: ManagedAssetId
@@ -134,6 +140,72 @@ export const MANAGED_ASSETS: readonly ManagedAsset[] = [
     sha256: 'aa473d51f451a22f0fcf39ba3330c14bed38a385712b1113440f69df4047a173',
     optional: true,
     applyTo: (path) => ({ search: { modelPath: path } })
+  },
+  /**
+   * Haas-ja-v1.0 を文字起こしの別の選択肢にする（ADR-049）。
+   *
+   * 公式の重み（.nemo）は NVIDIA GPU と Triton が要り macOS で動かないので、sherpa-onnx の
+   * `nemo_transducer` で読める有志の量子化版を使う（Apache-2.0。CER は元の重みと差が無いと報告されている）。
+   * encoder.quantized.onnx は重みを隣の encoder.data から相対名で読むため、同じディレクトリに元の名前で置く。
+   */
+  {
+    id: 'haas-encoder',
+    url: 'https://huggingface.co/oboroge0/Haas-ja-v1.0-onnx-quantized/resolve/7f5ab0a4b1bf39db78afd6691eeecbc4f9d42e39/encoder.quantized.onnx',
+    fileName: 'haas-ja-v1.0/encoder.quantized.onnx',
+    bytes: 42_261_252,
+    sha256: 'aba291d61d3d594bc6fb8c7f90acbd980e7bc7bf6b7caaf3965ddc25e6f42fac',
+    optional: true,
+    applyTo: (path) => ({ transcription: { haasEncoderPath: path } })
+  },
+  {
+    id: 'haas-encoder-data',
+    url: 'https://huggingface.co/oboroge0/Haas-ja-v1.0-onnx-quantized/resolve/7f5ab0a4b1bf39db78afd6691eeecbc4f9d42e39/encoder.data',
+    fileName: 'haas-ja-v1.0/encoder.data',
+    bytes: 410_744_064,
+    sha256: '30befbf6aeb75383e6551f5e58de53efdb76972ddc7d0f76070c517899873586',
+    optional: true,
+    // encoder が自分で読むので、設定に書く項目が無い。
+    applyTo: () => ({})
+  },
+  {
+    id: 'haas-decoder',
+    url: 'https://huggingface.co/oboroge0/Haas-ja-v1.0-onnx-quantized/resolve/7f5ab0a4b1bf39db78afd6691eeecbc4f9d42e39/decoder.onnx',
+    fileName: 'haas-ja-v1.0/decoder.onnx',
+    bytes: 15_661_602,
+    sha256: '2947cb5512699cbba753fe45fe221428aadaa9856597debbb7aabe19cc253622',
+    optional: true,
+    applyTo: (path) => ({ transcription: { haasDecoderPath: path } })
+  },
+  {
+    id: 'haas-joiner',
+    url: 'https://huggingface.co/oboroge0/Haas-ja-v1.0-onnx-quantized/resolve/7f5ab0a4b1bf39db78afd6691eeecbc4f9d42e39/joiner.onnx',
+    fileName: 'haas-ja-v1.0/joiner.onnx',
+    bytes: 12_158_641,
+    sha256: '8a68320e750890ff9e944a794b41ae1c42c6f439ac4c273503458a6b42adc12d',
+    optional: true,
+    applyTo: (path) => ({ transcription: { haasJoinerPath: path } })
+  },
+  {
+    id: 'haas-tokens',
+    url: 'https://huggingface.co/oboroge0/Haas-ja-v1.0-onnx-quantized/resolve/7f5ab0a4b1bf39db78afd6691eeecbc4f9d42e39/tokens.txt',
+    fileName: 'haas-ja-v1.0/tokens.txt',
+    bytes: 28_704,
+    sha256: 'ec78b13c5d9f156cf0d5fdbd6b5aec5785680f319c92630c11d5d11b14b83a84',
+    optional: true,
+    applyTo: (path) => ({ transcription: { haasTokensPath: path } })
+  },
+  /**
+   * sherpa-onnx の VAD は ONNX 形式の Silero を読む。whisper 用の ggml 形式（vad-model）は使えない。
+   * Haas は無音や BGM から文を作りうるので、Haas と組でしか取得させない。
+   */
+  {
+    id: 'haas-vad',
+    url: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx',
+    fileName: 'silero_vad.onnx',
+    bytes: 643_854,
+    sha256: '9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6',
+    optional: true,
+    applyTo: (path) => ({ transcription: { haasVadModelPath: path } })
   }
 ]
 
@@ -172,19 +244,30 @@ const assetOf = (id: ManagedAssetId): ManagedAsset => {
  * 声紋の取り出しも両方が揃ったときだけ有効にしている。片方だけ取得・削除できても
  * 何も動かず、どちらが欠けているのかを利用者に考えさせるだけになる。
  */
-const diarization = [assetOf('diarization-segmentation'), assetOf('diarization-embedding')]
+const bundle = (id: string, ids: readonly ManagedAssetId[]): ModelPackage => {
+  const assets = ids.map(assetOf)
+  return {
+    id,
+    optional: assets.every((asset) => asset.optional),
+    bytes: assets.reduce((sum, file) => sum + file.bytes, 0),
+    assets
+  }
+}
 
+/**
+ * Haas の 5 ファイルと VAD をまとめる理由も同じ。どれが欠けても認識器が作れず、
+ * VAD 無しで動かすと無音や BGM から文が生まれる（ADR-049）。
+ */
+const BUNDLES: readonly ModelPackage[] = [
+  bundle('diarization', ['diarization-segmentation', 'diarization-embedding']),
+  bundle('haas-ja', ['haas-encoder', 'haas-encoder-data', 'haas-decoder', 'haas-joiner', 'haas-tokens', 'haas-vad'])
+]
+
+/** 束ねたパッケージは、先頭のファイルがあった位置に置く（一覧の並びを変えない）。 */
 export const MODEL_PACKAGES: readonly ModelPackage[] = MANAGED_ASSETS.flatMap((asset): ModelPackage[] => {
-  if (asset.id === 'diarization-embedding') return []
-  if (asset.id !== 'diarization-segmentation') return [single(asset)]
-  return [
-    {
-      id: 'diarization',
-      optional: true,
-      bytes: diarization.reduce((sum, file) => sum + file.bytes, 0),
-      assets: diarization
-    }
-  ]
+  const owner = BUNDLES.find((pkg) => pkg.assets.some((file) => file.id === asset.id))
+  if (owner === undefined) return [single(asset)]
+  return owner.assets[0]?.id === asset.id ? [owner] : []
 })
 
 /** 実行している環境で使えるもの。domain は OS を知らないので、結線が環境の能力として渡す。 */

@@ -81,6 +81,7 @@
             <tr><td><a href="#adr-046">ADR-046</a></td><td>要約のモデルに Apple Intelligence を選べる</td><td>既定は Gemma のまま。macOS 27 以降で、精度が劣ることを見せたうえで選んだ人だけが使う。分割・統合は共用し、同梱の <code>applelm</code> が 1 回ずつ応答する</td></tr>
             <tr><td><a href="#adr-047">ADR-047</a></td><td>要約プロンプトの既定とカスタム</td><td>既定を使うかカスタムを使うかを <code>promptMode</code> で持ち、既定は全文を保存せず編集もさせない。アプリの更新で既定が変われば、触っていない人にはそのまま届く</td></tr>
             <tr><td><a href="#adr-048">ADR-048</a></td><td>Windows 対応</td><td>OS ごとに別のインストーラを作り、違いは結線（container）で実装を選んで吸収する。音声の変換は Media Foundation、補助プログラムは Rust。最初の版は x64・署名なし・カレンダー連携なし</td></tr>
+            <tr><td><a href="#adr-049">ADR-049</a></td><td>文字起こしのエンジンに Haas-ja-v1.0 を選べる</td><td>既定は whisper のまま。有志の量子化版を sherpa-onnx-node で動かし、VAD で切り出した発話区間だけを認識する。会議の言語が日本語のときだけ使う</td></tr>
           </tbody>
         </table>
       </div>
@@ -4508,6 +4509,116 @@
         </ul>
       </div>
 
+      <h2 id="adr-049">ADR-049 文字起こしのエンジンに Haas-ja-v1.0 を選べる（2026-11）</h2>
+      <div class="adr">
+        <div class="adr__head">
+          <span class="adr__id">ADR-049</span>
+          <p class="adr__title">文字起こしのエンジンに Haas-ja-v1.0 を選べるようにする。既定は whisper のまま。有志の量子化版を sherpa-onnx-node で動かし、VAD で切り出した発話区間だけを認識する。会議の言語が日本語のときだけ使う</p>
+        </div>
+
+        <h4>背景</h4>
+        <p>
+          Haas-ja-v1.0（third-intelligence、Apache-2.0）は Parakeet-TDT 系の日本語専用モデル（FastConformer + TDT、616M）で、
+          予測ネットワークに Kimi Delta Attention（KDA）を使う。公開コーパスの人の声で測ると、whisper（large-v3-turbo + VAD）より
+          文字誤り率が低かった（ReazonSpeech 100 発話で 12.5% → 4.3%、FLEURS で 5.8% → 4.7%。Common Voice は 10.0% → 1.2% だが学習データの重なりを疑う）。
+          雑音・BGM・打鍵を挟んだ約 10 分の長尺でも、作り話は whisper と同じく 0 字だった。
+        </p>
+        <p>
+          一方で公式の重み（<code>.nemo</code>）と推論コード（haas-asr）は Linux と NVIDIA GPU が前提で、KDA の核が Triton/CUDA にしか無く、
+          macOS では動かない。出力は句読点つきのテキストで、時刻と確信度は公式の口からは得られない。whisper と違い、
+          無音や雑音の区間からも短い語を作ることがある（無音のクリップで「行くと。」、打鍵音の区間で「うん。」）。
+        </p>
+
+        <h4>決定</h4>
+        <ul>
+          <li>
+            <strong>有志の量子化版（oboroge0/Haas-ja-v1.0-onnx-quantized、約 480MB）を、話者識別と同じ <code>sherpa-onnx-node</code> で動かす。</strong>
+            sherpa-onnx の <code>nemo_transducer</code> として読め、CPU で実時間の 25 倍ほど速い。新しいバイナリもランタイムも要らず、Windows でも動く。
+            結果にトークンごとの時刻と対数確率が付くので、whisper と同じ形（区間ごとの文）で返せる。
+          </li>
+          <li>
+            <strong>VAD（sherpa-onnx の Silero、ONNX 形式）で切り出した発話区間だけを認識する。設定の「無音区間を文字起こししない」に関わらず常に使う。</strong>
+            無音・BGM の区間はそもそも認識器に入らない。区間は 20 秒で切り（Haas は 30 秒前後の発話で学習されている）、前後に 0.25 秒の余白を足して渡す。
+            余白が無いと VAD が遅れて検出した語頭が削れ、「ありがとうございます」が「視聴者ございます」、「三社に」が「生産者に」になった。
+            余白は VAD が区間を分ける最短の無音（0.5 秒）の半分にとどめ、隣の区間の声を取り込まない。
+          </li>
+          <li>
+            <strong>区間の認識結果は文末（句点）と 0.6 秒以上の間で文に分け、トークンの時刻から録音の時刻に戻す。</strong>
+            語彙に無い字はバイトのトークン（<code>&lt;0xE6&gt;</code>）で届くので、組み立てる側で UTF-8 に戻す（実機で「進捗」が化けた）。
+          </li>
+          <li>
+            <strong>テキストで判断する関門（非発話マーカー・動画の定型句・繰り返し）は whisper と共用し、確信度の下限は Haas の分布で決めた -1 にする。</strong>
+            公開コーパスの人の声を文ごとに測ると、普通の文はどれも -0.53 より上で、下回ったのは息や雑音から出た「むぅ」「ん」のような 1〜3 字の断片だった
+            （本物の語は「この」の -0.84 だけ）。無音のクリップで VAD をすり抜けた区間から出た「下がり、」は -1.41。下限をすり抜けた「む」「むぅ」は定型句として落とす。
+          </li>
+          <li>
+            <strong>会議の言語が日本語のときだけ使う。</strong>言語が <code>en</code> や <code>auto</code> の録音は whisper で起こす（<code>auto</code> は UI が日本語でも英語の会議がありうる）。
+            設定画面には、Haas を選んでいる間ずっと、日本語専用であること・用語集が効かないこと・VAD を常に使うことを出す。
+          </li>
+          <li>
+            <strong>既定は whisper のまま。</strong>Haas のモデルは任意のパッケージ（5 ファイルと VAD をまとめて取得）にし、選んだ人だけが取得する。
+          </li>
+        </ul>
+
+        <h4>選択肢</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>論点</th><th>案</th><th>判定</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>動かし方</td>
+                <td>公式の重みを NeMo で動かす</td>
+                <td>不採用</td>
+                <td>Linux と NVIDIA GPU が要り、macOS では動かない。Python の同梱も要る</td>
+              </tr>
+              <tr>
+                <td>動かし方</td>
+                <td>speech.cpp の GGUF 版（Metal / Vulkan、時刻と VAD を持つ CLI）</td>
+                <td>不採用</td>
+                <td>速く時刻も出せるが、whisper-cli と同じく新しいバイナリを両 OS 向けにビルドして同梱する手間が増える。sherpa-onnx-node は既に同梱している</td>
+              </tr>
+              <tr>
+                <td>動かし方</td>
+                <td>MLX 版 / Core ML 版</td>
+                <td>不採用</td>
+                <td>Apple Silicon 専用で Windows に使えない。MLX 版は Python が要る</td>
+              </tr>
+              <tr>
+                <td>重み</td>
+                <td>量子化していない fp32 版（約 2.4GB）</td>
+                <td>不採用</td>
+                <td>誤り率は量子化版と差が無く（公開コーパスで 3.8% と 3.6%）、メモリは約 3 倍使う</td>
+              </tr>
+              <tr>
+                <td>無音・BGM の対策</td>
+                <td>録音を丸ごと渡し、出力の文を除外語で落とす</td>
+                <td>不採用</td>
+                <td>作り話の語に決まった形が無く（「行くと」「下がり」）、一覧では捕まえられない。長い音声を一度に渡すとメモリも伸びる</td>
+              </tr>
+              <tr>
+                <td>用語集</td>
+                <td>sherpa-onnx の hotwords で効かせる</td>
+                <td>見送り</td>
+                <td>modified_beam_search でしか効かず、TDT と変換版の組み合わせで動くか確かめていない</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>残した判断</h4>
+        <ul>
+          <li>変換版は、TDT であることを encoder のメタデータ（<code>url</code> の <code>#tdt</code>）で sherpa-onnx に伝え、KDA の状態を LSTM の形のテンソルに詰めて渡している。
+            どちらも sherpa-onnx の内部の挙動に頼るので、sherpa-onnx-node を上げたら <code>OMR_HAAS_MODEL_DIR</code> を付けて
+            <code>tests/infrastructure/haas-session.test.ts</code> を走らせる（モデルが無いと skip される。CI では走らない）。</li>
+          <li>確信度の下限と「む」「むぅ」は、公開コーパスと合成音声で決めた。実際の会議（遠いマイク・相手の圧縮音声・BGM）で外れていないかは、
+            <code>OMR_LOG_DROPPED_SEGMENTS=1</code> で落とした文を見て確かめる。</li>
+          <li>アプリの評価（<code>npm run eval:transcription</code>）の合成音声では、Haas と whisper の差は表記の揺れ（「三社」と「3社」、「インデックス」と「index」）の範囲で、
+            どちらも作り話は 0 字だった。<code>say</code> の声は人の声より Haas に不利に出るので、エンジンの比較には公開コーパスの結果を使う。</li>
+          <li>Haas はフィラー（「えー」「あの」）を省きがちで、出力の文体も指定できない（モデルカード）。文頭の「はい」が落ちることがある。</li>
+          <li>メモリの見積もり（<a href="#adr-024">ADR-024</a>）は whisper と同じ式に Haas の重みの大きさを入れている（約 1.2GB）。変換版の作者の実測（20 秒前後の区間で RSS 約 1GB）より大きめ。</li>
+        </ul>
+      </div>
+
       <h2>今後見直す可能性がある判断</h2>
       <div class="table-wrap">
         <table>
@@ -4652,6 +4763,14 @@
             <tr>
               <td><a href="#adr-048">ADR-048</a> Windows は x64・署名なし・Vulkan のみ</td>
               <td>ARM64 の Windows の利用者が出たとき。SmartScreen の警告で配布に困ったとき。Vulkan で速さが足りないと分かったとき</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-049">ADR-049</a> Haas は有志の変換版を sherpa-onnx-node で動かす</td>
+              <td>sherpa-onnx-node を上げて変換版が読めなくなったとき。公式が ONNX や macOS で動く形を出したとき。速さが足りず speech.cpp（Metal）に移す価値が出たとき</td>
+            </tr>
+            <tr>
+              <td><a href="#adr-049">ADR-049</a> Haas の確信度の下限 -1 と定型句「む」「むぅ」</td>
+              <td>実録音の計測モードで、本物の発言が落ちている、または作り話が残っていると分かったとき</td>
             </tr>
             <tr>
               <td>arm64 のみのビルド</td>

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Exolobe** — macOS 向けの Web 会議録音アプリ（Electron + React + TypeScript）。録音・文字起こし・
 話者識別・要約をすべてローカルで実行し、音声もテキストも外部に送信しない。
 詳細な背景は `README.md` と `docs/`（`architecture.html` / `specification.html` /
-`decisions.html` = ADR-001〜048）にある。**設計の「なぜ」を変える変更をする前に
+`decisions.html` = ADR-001〜049）にある。**設計の「なぜ」を変える変更をする前に
 `docs/decisions.html` の該当 ADR を読むこと。**
 
 ## コマンド
@@ -246,6 +246,14 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   判定しない（`settings.json` は全体を保存するので、既定の文面を直すと触っていない人まで「書き換えた」ことになる）。
   既定の本文は画面で編集させず、既定の文面は `DEFAULT_SUMMARY_PROMPT(_EN)` を書き換えれば全員に届く。
   `isDefaultSummaryPrompt` は `promptMode` を持たない前の設定の読み替えにだけ使う。
+- 文字起こしのエンジンに Haas-ja-v1.0 を選べる（ADR-049）が、**既定は whisper のまま**にする。公式の重みは NVIDIA GPU
+  専用なので、有志の量子化版を `sherpa-onnx-node` の `nemo_transducer` で読む。変換版は TDT であることを encoder の
+  メタデータで伝え、予測ネットワーク（KDA）の状態を LSTM の形に詰めて渡している — **sherpa-onnx-node を上げたら、
+  `OMR_HAAS_MODEL_DIR` を付けて `tests/infrastructure/haas-session.test.ts` を走らせる**（無いと skip される）。
+  Haas は**会議の言語が `ja` のときだけ**使い（`transcriptionEngineOf`）、`auto` / `en` は whisper に任せる。
+  VAD は設定に関わらず常に掛け、喋っている区間だけを前後 0.25 秒の余白つきで認識する（無音や BGM から文を作らせない。
+  余白が無いと語頭が削れて聞き違える）。確信度の下限 -1 と除外語「む」「むぅ」は公開コーパスの分布で決めた。トークンは
+  byte fallback（`<0xE6>`）で届くことがあるので、文を組み立てる側で UTF-8 に戻す。用語集は効かない。
 - 取り込める拡張子は**変換器ごとに** `src/domain/AudioImport.ts` に持ち（afconvert / Media Foundation）、デコーダと組で
   `src/main/audioConverters.ts` が OS に応じて選ぶ。一覧を変えたら、実機でその形式を変換して確かめる（ADR-048）。
 - 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、

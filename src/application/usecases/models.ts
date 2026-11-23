@@ -266,5 +266,18 @@ const configuredPath = (settings: Settings, id: ManagedAssetId): string => {
       return settings.diarization.embeddingModelPath
     case 'search-model':
       return settings.search.modelPath
+    case 'haas-encoder':
+      return settings.transcription.haasEncoderPath
+    // encoder が隣から読むので、設定に対応する項目が無い。
+    case 'haas-encoder-data':
+      return ''
+    case 'haas-decoder':
+      return settings.transcription.haasDecoderPath
+    case 'haas-joiner':
+      return settings.transcription.haasJoinerPath
+    case 'haas-tokens':
+      return settings.transcription.haasTokensPath
+    case 'haas-vad':
+      return settings.transcription.haasVadModelPath
   }
 }
