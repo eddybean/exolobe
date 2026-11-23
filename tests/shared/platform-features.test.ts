@@ -3,10 +3,20 @@ import { platformFeatures } from '@shared/platform'
 
 describe('platformFeatures', () => {
   it('macOS ではすべて使える', () => {
-    expect(platformFeatures('macos')).toEqual({ appleIntelligence: true, heAac: true, calendar: true, liveAssist: true })
+    expect(platformFeatures('macos')).toEqual({
+      appleIntelligence: true,
+      heAac: true,
+      calendar: true,
+      liveAssist: true
+    })
   })
 
   it('Windows では Apple Intelligence・HE-AAC・カレンダー連携を使わない（ADR-048）', () => {
-    expect(platformFeatures('windows')).toEqual({ appleIntelligence: false, heAac: false, calendar: false, liveAssist: false })
+    expect(platformFeatures('windows')).toEqual({
+      appleIntelligence: false,
+      heAac: false,
+      calendar: false,
+      liveAssist: false
+    })
   })
 })
