@@ -81,21 +81,21 @@ afterEach(() => {
 
 describe('LiveAssistController', () => {
   it('設定で有効にしていなければ何も起こさない', async () => {
-    await build().begin({ recordingId: 'r1', sampleRate: 16_000 })
+    await build().begin({ recordingId: 'r1' })
 
     expect(sessions).toEqual([])
   })
 
   it('macOS 以外では何も起こさない', async () => {
     enable()
-    await build({ platform: 'win32' }).begin({ recordingId: 'r1', sampleRate: 16_000 })
+    await build({ platform: 'win32' }).begin({ recordingId: 'r1' })
 
     expect(sessions).toEqual([])
   })
 
-  it('会議の言語と、使える機能だけを渡して始める', async () => {
-    enable({ transcription: { language: 'en' } })
-    await build().begin({ recordingId: 'r1', sampleRate: 48_000 })
+  it('会議の言語と録音のサンプルレート、使える機能だけを渡して始める', async () => {
+    enable({ transcription: { language: 'en' }, audio: { sampleRate: 48_000 } })
+    await build().begin({ recordingId: 'r1' })
 
     expect(sessions[0]?.session.began).toMatchObject({
       recordingId: 'r1',
@@ -110,7 +110,7 @@ describe('LiveAssistController', () => {
 
   it('意味検索のモデルがあれば過去の録音を出す', async () => {
     enable({ search: { enabled: true, modelPath: '/models/bge-m3.gguf' } })
-    await build().begin({ recordingId: 'r1', sampleRate: 16_000 })
+    await build().begin({ recordingId: 'r1' })
 
     expect(sessions[0]?.session.began?.features.pastRecordings).toBe(true)
     expect(sessions[0]?.search).toBe(search)
@@ -119,7 +119,7 @@ describe('LiveAssistController', () => {
   it('Apple Intelligence が使えなければ見出しを出さず、モデルも渡さない', async () => {
     enable()
     apple = { availability: 'apple-intelligence-not-enabled' }
-    await build().begin({ recordingId: 'r1', sampleRate: 16_000 })
+    await build().begin({ recordingId: 'r1' })
 
     expect(sessions[0]?.session.began?.features.headlines).toBe(false)
     expect(sessions[0]?.model).toBe(false)
@@ -127,7 +127,7 @@ describe('LiveAssistController', () => {
 
   it('利用者が切った機能は出さない', async () => {
     enable({ liveAssist: { captions: false, headlines: false } })
-    await build().begin({ recordingId: 'r1', sampleRate: 16_000 })
+    await build().begin({ recordingId: 'r1' })
 
     expect(sessions[0]?.session.began?.features).toEqual({ captions: false, pastRecordings: false, headlines: false })
   })
@@ -136,7 +136,7 @@ describe('LiveAssistController', () => {
     enable()
     const controller = build()
     controller.push('remote', new Uint8Array(2))
-    await controller.begin({ recordingId: 'r1', sampleRate: 16_000 })
+    await controller.begin({ recordingId: 'r1' })
     controller.push('remote', new Uint8Array(2))
     await controller.end()
     controller.push('remote', new Uint8Array(2))
@@ -148,7 +148,7 @@ describe('LiveAssistController', () => {
     vi.useFakeTimers()
     enable()
     const controller = build()
-    await controller.begin({ recordingId: 'r1', sampleRate: 16_000 })
+    await controller.begin({ recordingId: 'r1' })
     await vi.advanceTimersByTimeAsync(15_000)
     await controller.end()
     await vi.advanceTimersByTimeAsync(15_000)
@@ -160,7 +160,7 @@ describe('LiveAssistController', () => {
     vi.useFakeTimers()
     enable()
     const controller = build({ endTimeoutMs: 3_000 })
-    await controller.begin({ recordingId: 'r1', sampleRate: 16_000 })
+    await controller.begin({ recordingId: 'r1' })
     const session = sessions[0]?.session
     if (session) session.endDelayMs = 60_000
 
@@ -174,7 +174,7 @@ describe('LiveAssistController', () => {
   it('始めている途中で止められたら、始め終わった後に止める', async () => {
     enable()
     const controller = build()
-    const beginning = controller.begin({ recordingId: 'r1', sampleRate: 16_000 })
+    const beginning = controller.begin({ recordingId: 'r1' })
     await controller.end()
     await beginning
 
@@ -185,8 +185,8 @@ describe('LiveAssistController', () => {
   it('続けて録音を始めたら、前のセッションを止めてから作り直す', async () => {
     enable()
     const controller = build()
-    await controller.begin({ recordingId: 'r1', sampleRate: 16_000 })
-    await controller.begin({ recordingId: 'r2', sampleRate: 16_000 })
+    await controller.begin({ recordingId: 'r1' })
+    await controller.begin({ recordingId: 'r2' })
 
     expect(sessions.map(({ session }) => session.ends)).toEqual([1, 0])
   })

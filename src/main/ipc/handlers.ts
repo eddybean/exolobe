@@ -1,5 +1,5 @@
 import { basename } from 'node:path'
-import { BrowserWindow, dialog, ipcMain, nativeTheme, shell, systemPreferences, type FileFilter } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell, systemPreferences, type FileFilter } from 'electron'
 import type { PipelineStep, Recording } from '@domain/Recording'
 import { ConfigurationError, RecordingStateError, reasonOf, type ErrorReason } from '@domain/errors'
 import type { ImportFormats } from '@domain/AudioImport'
@@ -29,6 +29,11 @@ import {
   type TranscriptHitDto,
   type VoiceprintDto,
   type SilenceAlertDto,
+  type LiveAssistAvailabilityDto,
+  type LiveAssistStatusDto,
+  type LiveCaptionDto,
+  type LiveHeadlineDto,
+  type LiveSuggestionDto,
   type StartAlertDto,
   type AutoStartedDto,
   type TransportStateDto,
@@ -42,6 +47,8 @@ import { createVoiceLearning } from '../voiceLearning'
 import { createSearchSyncScheduler } from '../searchSyncScheduler'
 import { createUpdateChecker } from '../updateChecker'
 import { createSilenceMonitor } from '../silenceMonitor'
+import { LiveAssistController } from '../liveAssistController'
+import { meetingLanguageOf } from '@domain/MeetingLanguage'
 import { notifySilence } from '../silenceNotification'
 import { createMeetingLookup } from '../meetingLookup'
 import { createStartMonitor } from '../startMonitor'
@@ -242,6 +249,56 @@ export const registerIpcHandlers = (
     search.releaseWhenIdle()
   }
 
+  /**
+   * 録音中のアシスト（ADR-050）。録音の開始で起こし、停止・破棄・終了で止める。
+   * 過去の録音は意味検索のワーカーに聞く。メモリの確認はワーカーの中で行う（ADR-024）。
+   */
+  const scriptedLiveAssist = container.liveAssist.scripted
+  const liveAssist = new LiveAssistController({
+    settings: container.settings,
+    appleIntelligence: scriptedLiveAssist
+      ? async () => ({ availability: 'available', contextSize: 8192 })
+      : container.appleIntelligence,
+    createSession: container.liveAssist.createSession,
+    search: scriptedLiveAssist?.search ?? {
+      search: async (query, limit) => {
+        const hits = await search.search(query, limit)
+        // 前の録音の後処理が動いていれば、答えたらすぐに埋め込みモデルの分を返す。
+        if (pipeline.isBusy()) search.releaseWhenIdle()
+        return hits.map((hit) => ({
+          recordingId: hit.recordingId,
+          title: hit.title,
+          startedAt: new Date(hit.startedAt),
+          excerpt: hit.excerpt,
+          ...(hit.startMs === undefined ? {} : { startMs: hit.startMs })
+        }))
+      }
+    },
+    ...(scriptedLiveAssist ? { searchAvailable: () => true } : {}),
+    listener: {
+      caption: (event) => send(IPC.liveCaption, event satisfies LiveCaptionDto),
+      status: (status) => send(IPC.liveAssistStatus, status satisfies LiveAssistStatusDto),
+      suggestion: (suggestion) =>
+        send(IPC.liveSuggestion, {
+          recordingId: suggestion.recordingId,
+          title: suggestion.title,
+          startedAt: suggestion.startedAt.toISOString(),
+          excerpt: suggestion.excerpt,
+          ...(suggestion.startMs === undefined ? {} : { startMs: suggestion.startMs }),
+          ...(suggestion.rangeLabel === undefined ? {} : { rangeLabel: suggestion.rangeLabel })
+        } satisfies LiveSuggestionDto),
+      headline: (headline) =>
+        send(IPC.liveHeadline, { title: headline.title, points: [...headline.points] } satisfies LiveHeadlineDto)
+    },
+    uiLanguage: appLocale(),
+    platform: process.platform
+  })
+  container.recorder.onPcm((track, pcm) => liveAssist.push(track, pcm))
+  // 終了の間際は待てないが、stdin を閉じれば livetranscribe は自分で終わる（main が落ちたときも同じ）。
+  app.on('will-quit', () => {
+    void liveAssist.end()
+  })
+
   pipeline.onBusyChange((busy) => {
     if (busy) {
       yieldSearch()
@@ -436,6 +493,7 @@ export const registerIpcHandlers = (
       } catch (error: unknown) {
         // 開始に失敗したなら録音していない状態のままなので、見張りを戻す。
         void startStartWatch()
+        void liveAssist.end()
         throw error
       }
 
@@ -446,6 +504,8 @@ export const registerIpcHandlers = (
         silenceDurationMs: await startSilenceWatch()
       }
       yieldSearch()
+      // 待たない。設定と Apple Intelligence の可否を聞く間、録音の開始を待たせない。
+      void liveAssist.begin({ recordingId: recording.id })
       notifyTransport()
       send(IPC.recordingsChanged)
 
@@ -471,11 +531,16 @@ export const registerIpcHandlers = (
       if (!activeId) throw new RecordingStateError({ code: 'notRecording' })
 
       stopSilenceWatch()
+      // 録音の停止と並べて止め始める。PCM はこの時点で流れなくなる。
+      const liveAssistEnded = liveAssist.end()
       const { recording } = await container.stopRecording.execute(activeId)
       active = undefined
       notifyTransport()
       send(IPC.recordingsChanged)
 
+      // 認識器と検索のワーカーを片付けてからパイプラインに渡す。whisper と要約のメモリを空けておく。
+      await liveAssistEnded
+      yieldSearch()
       void runPipeline(recording.id)
       void resumeStartWatch()
 
@@ -487,11 +552,13 @@ export const registerIpcHandlers = (
       if (!activeId) throw new RecordingStateError({ code: 'notRecording' })
 
       stopSilenceWatch()
+      const liveAssistEnded = liveAssist.end()
       // パイプラインにはかけない。処理中の録音を消すと、処理側の書き戻しで一覧に戻りうる。
       await container.discardRecording.execute(activeId)
       active = undefined
       notifyTransport()
       send(IPC.recordingsChanged)
+      await liveAssistEnded
       void resumeStartWatch()
     },
 
@@ -592,6 +659,25 @@ export const registerIpcHandlers = (
   handle(IPC.getTransportState, async () => transportState())
   handle(IPC.getSystemAudioLevel, async () => container.recorder.systemLevel())
   handle(IPC.dismissSilenceAlert, async () => silence.dismiss(Date.now()))
+  handle(IPC.liveSummarize, async () => liveAssist.summarize())
+  handle(IPC.liveExtractActions, async () => liveAssist.extractActions())
+  handle(IPC.dismissLiveSuggestion, async (recordingId: unknown) => {
+    if (typeof recordingId !== 'string') throw new Error('recordingId must be a string')
+    liveAssist.dismissSuggestion(recordingId)
+  })
+  handle(IPC.getLiveAssistAvailability, async (): Promise<LiveAssistAvailabilityDto> => {
+    const settings = await container.settings.load()
+    const language = meetingLanguageOf(settings.transcription.language, appLocale())
+    const [captions, apple] = await Promise.all([
+      container.liveAssist.status(language),
+      scriptedLiveAssist ? Promise.resolve({ availability: 'available' as const }) : container.appleIntelligence()
+    ])
+    return {
+      captions: captions.availability,
+      ...(captions.assets === undefined ? {} : { assets: captions.assets }),
+      appleIntelligence: apple.availability
+    }
+  })
 
   handle(IPC.dismissStartAlert, async () => startWatch.dismiss())
 

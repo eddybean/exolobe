@@ -6,6 +6,8 @@ import type { CaptionTrack } from '@domain/LiveCaption'
 import { meetingLanguageOf, type MeetingLanguage } from '@domain/MeetingLanguage'
 import type { Settings } from '@domain/Settings'
 
+const semanticSearchReady = (settings: Settings): boolean => settings.search.enabled && settings.search.modelPath !== ''
+
 /** テストで差し替えられるよう、セッションの公開面だけを取り出す。 */
 export type LiveAssistSessionLike = Pick<
   LiveAssistSession,
@@ -21,6 +23,8 @@ export interface LiveAssistControllerDeps {
     search: PastRecordingSearchPort | undefined
   }) => LiveAssistSessionLike
   readonly search: PastRecordingSearchPort
+  /** 意味検索が使えるか。既定は「有効でモデルを取得済み」。開発用の台本（OMR_LIVE_ASSIST_FAKE）だけが差し替える。 */
+  readonly searchAvailable?: (settings: Settings) => boolean
   readonly listener: LiveAssistListener
   readonly uiLanguage: MeetingLanguage
   readonly platform: NodeJS.Platform
@@ -45,7 +49,7 @@ export class LiveAssistController {
 
   constructor(private readonly deps: LiveAssistControllerDeps) {}
 
-  async begin(params: { recordingId: string; sampleRate: number }): Promise<void> {
+  async begin(params: { recordingId: string }): Promise<void> {
     // 待つより先に番号を取る。前のセッションを止めている間に end が来ても、この begin を取り消せる。
     const generation = ++this.generation
     await this.release()
@@ -56,7 +60,7 @@ export class LiveAssistController {
       const { liveAssist } = settings
       if (!liveAssist.enabled) return
 
-      const searchAvailable = settings.search.enabled && settings.search.modelPath !== ''
+      const searchAvailable = (this.deps.searchAvailable ?? semanticSearchReady)(settings)
       // 見出しを切っていても、ここまでの要約と ToDo のために可否は聞く。
       const appleAvailable = (await this.deps.appleIntelligence()).availability === 'available'
       if (generation !== this.generation) return
@@ -74,7 +78,8 @@ export class LiveAssistController {
 
       await session.begin({
         recordingId: params.recordingId,
-        sampleRate: params.sampleRate,
+        // 録音と同じ設定から読む。呼ぶ側で読んでから渡すと、読む間に止められたときに取り消せない。
+        sampleRate: settings.audio.sampleRate,
         language: meetingLanguageOf(settings.transcription.language, this.deps.uiLanguage),
         features,
         headlineIntervalMin: liveAssist.headlineIntervalMin,
