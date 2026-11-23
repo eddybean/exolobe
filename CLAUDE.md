@@ -76,6 +76,14 @@ npx vitest run -t "テスト名の一部"
   `@voidzero-dev/vite-plus-core` に差し替える前提で、electron-vite 5 の peerDependencies
   （`vite ^5 || ^6 || ^7`）と合わないため入れていない。electron-vite が Vite 8 に対応したら見直す。
   一括整形のコミットは `.git-blame-ignore-revs` に載せてある（`git config blame.ignoreRevsFile .git-blame-ignore-revs`）。
+- **依存の install スクリプトは走らせない**。npm 11.20 以降は `package.json` の `allowScripts` に許可したものだけを
+  走らせるので、今は全部を `false` にしてある（`esbuild` / `node-llama-cpp` / `fsevents` / `electron-winstaller`。
+  どれもビルド済みバイナリが optionalDependencies で入るか、使っていない Squirrel 用で、止めても動く）。
+  古い npm は `allowScripts` を無視して全部走らせるため、`devEngines` で npm 11.20 未満を止めている。
+  ルートの `postinstall`（`install-electron` とパッチ）は自分のスクリプトなので走る。依存を足して
+  `npm warn install-scripts` が出たら、中身を読んでから `npm install-scripts approve <pkg>`（版を固定して許可）か
+  `deny` にする。`.npmrc` の `min-release-age=7` で公開から 7 日未満の版は入らない（乗っ取られた版の多くは数日で取り下げられる）。
+  依存を上げたら lockfile の `resolved` がレジストリだけか、増えたパッケージは何か、`npm audit signatures` が通るかを見る。
 - `dev` / `typecheck` / `test` の前に `scripts/check-node-modules.mjs` が走り、
   `node_modules` が `package-lock.json` と食い違っていれば止める。worktree を別ブランチに
   使い回すと lockfile だけが進み、古い依存（例: Electron 33 のまま）が型エラーなど
