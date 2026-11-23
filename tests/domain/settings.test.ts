@@ -479,3 +479,32 @@ describe('文字起こしのエンジン', () => {
     expect(transcriptionEngineOf(defaultSettings('ja'))).toBe('whisper-cpp')
   })
 })
+
+describe('録音中のアシスト（ADR-050）', () => {
+  it('既定では無効。有効にしたときの各機能は既定で入れておく', () => {
+    expect(defaultSettings('ja').liveAssist).toEqual({
+      enabled: false,
+      captions: true,
+      pastRecordings: true,
+      headlines: true,
+      headlineIntervalMin: 3
+    })
+  })
+
+  it('保存されていない項目は既定で補う', () => {
+    const merged = mergeSettings(defaultSettings('ja'), { liveAssist: { enabled: true } })
+
+    expect(merged.liveAssist.enabled).toBe(true)
+    expect(merged.liveAssist.headlineIntervalMin).toBe(3)
+  })
+
+  it('見出しの間隔は 2〜30 分', () => {
+    const withInterval = (headlineIntervalMin: number) =>
+      validateSettings(mergeSettings(defaultSettings('ja'), { liveAssist: { headlineIntervalMin } }))
+
+    expect(withInterval(1)).toContain('liveHeadlineInterval')
+    expect(withInterval(31)).toContain('liveHeadlineInterval')
+    expect(withInterval(2)).toEqual([])
+    expect(withInterval(30)).toEqual([])
+  })
+})

@@ -20,12 +20,13 @@ npm run fmt          # oxfmt で整形（CI は npm run fmt:check）
 npm test             # vitest run
 npm run test:watch
 npm run build        # typecheck + electron-vite build
-npm run package      # build + whisper-cli / micwatch / calendarevents / applelm のビルド + electron-builder
+npm run package      # build + whisper-cli / micwatch / calendarevents / applelm / livetranscribe のビルド + electron-builder
 npm run setup        # macOS: whisper-cli を Homebrew で導入し、補助プログラムをビルド / Windows: 道具の有無を確かめる
 npm run build:whisper  # whisper.cpp をビルド（macOS: Metal と Core ML / Windows: Vulkan と CPU、Vulkan SDK が要る）。配布版はこちら
 npm run build:micwatch # micwatch をビルド（macOS: Swift の main.swift / Windows: Rust、同じ native/micwatch に同居）
 npm run build:calendarevents # calendarevents（Swift、カレンダー連携）をビルド
 npm run build:applelm # applelm（Swift、Apple Intelligence での要約）をビルド
+npm run build:livetranscribe # livetranscribe（Swift、録音中のライブ字幕の SpeechAnalyzer）をビルド
 npm run build:syscapture # syscapture（Rust、Windows のシステム音声の取り込み）をビルド。Windows 専用
 npm run build:audioconv  # audioconv（Rust、Windows の録音の保存と音声の取り込み、Media Foundation）をビルド。Windows 専用
 npm run eval:transcription  # 文字起こしの評価（合成音声、数分。CI では走らない）
@@ -125,7 +126,8 @@ electron API を持たないため、パスは `OMR_USER_DATA` / `OMR_RESOURCES`
 | 子プロセス（`micwatch`） | 他アプリのマイク使用を見張り、録音の開始忘れを知らせる（録音中は動かさない、ADR-027）。Windows 版は WASAPI の録音セッションを数え、親（main）以下のプロセスの木を除く |
 | 子プロセス（`syscapture`） | Windows でシステム音声を WASAPI のプロセス loopback で取り込み、PCM を stdout に流す。このアプリの音は除き、stdin が閉じたら止まる（ADR-048） |
 | 子プロセス（`calendarevents`） | 録音開始時に EventKit で重なる予定を引く。呼ぶたびに起動して終わる（ADR-040） |
-| 子プロセス（`applelm`） | 要約のモデルに Apple Intelligence を選んだとき、パイプラインのワーカーが 1 回の応答ごとに起動する。設定画面の可否の表示は main が `status` で聞く（ADR-046） |
+| 子プロセス（`applelm`） | 要約のモデルに Apple Intelligence を選んだとき、パイプラインのワーカーが 1 回の応答ごとに起動する。設定画面の可否の表示は main が `status` で聞く（ADR-046）。録音中のアシストの見出し・要約・ToDo では main が起動する（ADR-050） |
+| 子プロセス（`livetranscribe`） | 録音中のアシストを有効にしたとき、録音の間だけ main が起動する。2 トラックの PCM を stdin に枠付きで受け、SpeechAnalyzer の字幕を JSON 行で返す。stdin が閉じたら終わる（ADR-050） |
 
 パイプラインのワーカーは `PipelineClient` が必要時に fork し、ジョブが片付いたら終了させて次の依頼で
 作り直す。要約も話者識別も数 GB を使うネイティブコードで、プロセスごと終わらせるのが
@@ -171,8 +173,8 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   チャンクの位置と 8 ビット量子化したベクトルだけ。削除済み録音の分は同期時に消える）
 - 設定 → `userData/settings.json`、録音中の中間 WAV と `tracks.json` → `userData/work/`
   （パイプライン完了時に消える）
-- 同梱バイナリ → `resources/bin/`（`whisper-cli` / `micwatch` / `calendarevents` / `applelm` / `ggml-metal.metal`、Windows は `syscapture.exe` / `audioconv.exe`）。
-  ソースは `native/micwatch/` と `native/calendarevents/` と `native/applelm/`（Swift）、`native/syscapture/` と `native/audioconv/`（Rust）。配置は `scripts/build-*` が行う。パスの解決は
+- 同梱バイナリ → `resources/bin/`（`whisper-cli` / `micwatch` / `calendarevents` / `applelm` / `livetranscribe` / `ggml-metal.metal`、Windows は `syscapture.exe` / `audioconv.exe`）。
+  ソースは `native/micwatch/` と `native/calendarevents/` と `native/applelm/` と `native/livetranscribe/`（Swift）、`native/syscapture/` と `native/audioconv/`（Rust）。配置は `scripts/build-*` が行う。パスの解決は
   `resolve*Binary.ts` が開発時とパッケージ時で切り替える（ADR-016）
 
 ディレクトリ名は `slugForRecording()` が `YYYY-MM-DD_HHmm-<id先頭8桁>` で作る。
@@ -254,6 +256,13 @@ IPC ハンドラは `src/main/ipc/handlers.ts`、公開は `src/preload/index.ts
   VAD は設定に関わらず常に掛け、喋っている区間だけを前後 0.25 秒の余白つきで認識する（無音や BGM から文を作らせない。
   余白が無いと語頭が削れて聞き違える）。確信度の下限 -1 と除外語「む」「むぅ」は公開コーパスの分布で決めた。トークンは
   byte fallback（`<0xE6>`）で届くことがあるので、文を組み立てる側で UTF-8 に戻す。用語集は効かない。
+- 録音中のアシスト（ADR-050）は**設定で有効にしたときだけ**動かし、既定は無効のまま。**字幕は保存しない**（録音後の文字起こしが正本）。
+  自動で出すのは字幕・過去の会議のカード・見出しだけで、要約と ToDo は押したときだけ作る。**メモへの書き込みは renderer が
+  「メモに追加」で行う** — main から `note.md` へ書くと画面の自動保存が上書きする。どの発言が過去を指すか・期間は
+  `src/domain/LiveTopicTrigger.ts` の純粋関数で決め、LLM に任せない（ADR-032）。録音の停止・破棄・開始の失敗・終了の**どの経路でも
+  `liveAssist.end()` を呼び、停止ではパイプラインの前に止まり終わるのを待つ**。録音中の生成に Gemma を使わない（16GB の機体で会議アプリを巻き込む）。
+  画面は `OMR_LIVE_ASSIST_FAKE=1`（開発版だけ）で台本どおりに動く Fake を使って確かめる。`livetranscribe` の読み取りのような
+  **手で作った Thread では autorelease pool を自分で空にする**（無いと 60 分で 1GB を超えて増えた）。
 - 取り込める拡張子は**変換器ごとに** `src/domain/AudioImport.ts` に持ち（afconvert / Media Foundation）、デコーダと組で
   `src/main/audioConverters.ts` が OS に応じて選ぶ。一覧を変えたら、実機でその形式を変換して確かめる（ADR-048）。
 - 取り込んだ音声は**全体を相手側（remote）として扱う**。自分の声を推定して `self` に割り当てると、

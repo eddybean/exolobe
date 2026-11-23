@@ -47,6 +47,9 @@ bash "$(dirname "$0")/build-calendarevents.sh"
 # Apple Intelligence での要約に使う applelm。無ければ要約のモデルに Apple Intelligence を選べないだけ。
 bash "$(dirname "$0")/build-applelm.sh"
 
+# 録音中のライブ字幕に使う livetranscribe。無ければ録音中のアシストを有効にできないだけ。
+bash "$(dirname "$0")/build-livetranscribe.sh"
+
 echo
 echo "[setup] 完了しました。'npm run dev' でアプリを起動できます。"
 echo "[setup] モデル（文字起こし・要約）はアプリの初期設定画面からダウンロードできます。"

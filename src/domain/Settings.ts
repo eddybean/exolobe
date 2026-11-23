@@ -293,6 +293,24 @@ export interface ChatSettings {
 }
 
 /**
+ * 録音中のアシスト（ADR-050、macOS のみのリサーチプレビュー）。
+ *
+ * 録音中に端末内の音声認識と Apple Intelligence を動かすので、既定では無効。有効にした人には
+ * 各機能を既定で出し、要らないものだけ外してもらう。字幕は表示だけで保存しない。
+ */
+export interface LiveAssistSettings {
+  readonly enabled: boolean
+  /** 2 トラックのライブ字幕。 */
+  readonly captions: boolean
+  /** 過去の会議を指す発言から、該当する録音の箇所を提示する。意味検索が要る。 */
+  readonly pastRecordings: boolean
+  /** 今の話題の見出しと要点を作る。Apple Intelligence が要る。 */
+  readonly headlines: boolean
+  /** 見出しを作り直す間隔（分）。 */
+  readonly headlineIntervalMin: number
+}
+
+/**
  * 画面の明暗。`system` は OS の設定（外観）に従う。
  *
  * 会議中に画面共有するとき、OS はダークのままアプリだけ明るくしたい、という使い方がある。
@@ -359,6 +377,7 @@ export interface Settings {
   readonly audio: AudioSettings
   readonly search: SearchSettings
   readonly chat: ChatSettings
+  readonly liveAssist: LiveAssistSettings
 }
 
 /**
@@ -378,6 +397,7 @@ export type SettingsPatch = {
   readonly audio?: Partial<AudioSettings>
   readonly search?: Partial<SearchSettings>
   readonly chat?: Partial<ChatSettings>
+  readonly liveAssist?: Partial<LiveAssistSettings>
 }
 
 /**
@@ -448,6 +468,14 @@ export const defaultSettings = (language: MeetingLanguage): Settings => ({
     // 8 件。32K のコンテキストで 1 件あたり数千字を割け、週次の問いはこれで足りる。
     // 増やすほど 1 件あたりが薄まり、どの会議の話か曖昧な答えになる。
     maxRecordings: 8
+  },
+  liveAssist: {
+    enabled: false,
+    captions: true,
+    pastRecordings: true,
+    headlines: true,
+    // 3 分。会議の話題は数分で移り、これより短いと同じ話題の見出しを作り直すだけになる。
+    headlineIntervalMin: 3
   }
 })
 
@@ -472,7 +500,8 @@ export const mergeSettings = (base: Settings, patch: SettingsPatch): Settings =>
   diarization: mergeGroup(base.diarization, patch.diarization),
   audio: mergeGroup(base.audio, patch.audio),
   search: mergeGroup(base.search, patch.search),
-  chat: mergeGroup(base.chat, patch.chat)
+  chat: mergeGroup(base.chat, patch.chat),
+  liveAssist: mergeGroup(base.liveAssist, patch.liveAssist)
 })
 
 /** 保存前に呼ぶ。問題があれば、その種類を並べて返す（文言は表示側が引く）。 */
@@ -507,6 +536,11 @@ export const validateSettings = (settings: Settings): SettingsProblem[] => {
   }
   if (settings.chat.maxRecordings < 1 || settings.chat.maxRecordings > 30) {
     problems.push('chatMaxRecordings')
+  }
+  // 2 分未満は、話が途切れたときの前倒し（最短 90 秒）と区別が付かない。
+  const interval = settings.liveAssist.headlineIntervalMin
+  if (!Number.isFinite(interval) || interval < 2 || interval > 30) {
+    problems.push('liveHeadlineInterval')
   }
 
   return problems

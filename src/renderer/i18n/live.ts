@@ -2,6 +2,53 @@ import { localized } from './locale'
 
 const ja = {
   sectionAriaLabel: '録音中',
+  assist: {
+    ariaLabel: '録音中のアシスト',
+    heading: 'アシスト',
+    preview: 'リサーチプレビュー',
+    status: {
+      starting: '字幕を準備しています…',
+      downloading: '音声認識のモデルを取得しています（初回だけ）…',
+      unavailable: {
+        missing: '音声認識のプログラムが見つかりません。',
+        'unsupported-os': 'この macOS では使えません（macOS 26 以降）。',
+        'unsupported-locale': '会議の言語の音声認識に対応していません。',
+        crashed: '音声認識が止まりました。録音は続いています。'
+      }
+    },
+    captions: {
+      ariaLabel: 'ライブ字幕',
+      empty: '話し始めると、ここに字幕が出ます',
+      remote: '相手',
+      self: '自分',
+      note: '字幕は保存しません。録音を止めたあと、改めて文字起こしを作ります。'
+    },
+    headline: {
+      ariaLabel: '今の話題',
+      label: '今の話題',
+      show: '要点を表示',
+      hide: '要点を隠す'
+    },
+    suggestion: {
+      ariaLabel: '関係しそうな過去の会議',
+      label: '過去の会議',
+      open: '開く',
+      dismiss: '閉じる',
+      at: (time: string) => `${time} 付近`
+    },
+    actions: {
+      summarize: 'ここまでの要約',
+      extract: 'ToDo・決定の候補',
+      working: '作成中…',
+      empty: '見つかりませんでした。',
+      addToNotes: 'メモに追加',
+      added: '追加済み',
+      close: '閉じる',
+      todo: 'ToDo',
+      decision: '決定',
+      caution: 'Apple Intelligence が字幕から作るため、誤りを含むことがあります。'
+    }
+  },
   status: {
     ariaLabel: '録音の状態',
     label: '録音中',
@@ -37,6 +84,53 @@ const ja = {
 
 const en: typeof ja = {
   sectionAriaLabel: 'Recording',
+  assist: {
+    ariaLabel: 'Live assist',
+    heading: 'Assist',
+    preview: 'Research Preview',
+    status: {
+      starting: 'Preparing captions…',
+      downloading: 'Downloading the speech recognition model (first time only)…',
+      unavailable: {
+        missing: 'The speech recognition program was not found.',
+        'unsupported-os': 'Not available on this version of macOS (requires macOS 26 or later).',
+        'unsupported-locale': 'Speech recognition doesn’t support the meeting language.',
+        crashed: 'Speech recognition stopped. Recording continues.'
+      }
+    },
+    captions: {
+      ariaLabel: 'Live captions',
+      empty: 'Captions appear here once people start talking.',
+      remote: 'Them',
+      self: 'You',
+      note: 'Captions aren’t saved. A full transcript is made after you stop recording.'
+    },
+    headline: {
+      ariaLabel: 'Current topic',
+      label: 'Current topic',
+      show: 'Show key points',
+      hide: 'Hide key points'
+    },
+    suggestion: {
+      ariaLabel: 'Related past meeting',
+      label: 'Past meeting',
+      open: 'Open',
+      dismiss: 'Dismiss',
+      at: (time: string) => `around ${time}`
+    },
+    actions: {
+      summarize: 'Summary So Far',
+      extract: 'To-dos & Decisions',
+      working: 'Working…',
+      empty: 'Nothing found.',
+      addToNotes: 'Add to Notes',
+      added: 'Added',
+      close: 'Close',
+      todo: 'To-do',
+      decision: 'Decision',
+      caution: 'Apple Intelligence generates these from the captions, so they may contain mistakes.'
+    }
+  },
   status: {
     ariaLabel: 'Recording status',
     label: 'Recording',

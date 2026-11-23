@@ -16,6 +16,7 @@ import {
 } from '@domain/Settings'
 import type { SetupStateDto, UpdateStatusDto } from '@shared/ipc'
 import { platformFeatures } from '@shared/platform'
+import { LiveAssistSettings } from '../components/LiveAssistSettings'
 import { recordingShortcut } from '@shared/shortcuts'
 import { CalendarSettings } from '../components/CalendarSettings'
 import { LicenseNotices } from '../components/LicenseNotices'
@@ -157,6 +158,8 @@ export const SettingsView = ({
             onAutoStartChange={(autoStartEnabled) => update({ recording: { autoStartEnabled } })}
           />
         )}
+
+        {features.liveAssist && <LiveAssistSettings settings={settings} onChange={update} />}
       </>
     ),
     transcription: (

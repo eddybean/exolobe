@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AudioCapturePort, DualTrackSource } from '@application/ports'
 import { AppError } from '@domain/errors'
+import type { CaptionTrack } from '@domain/LiveCaption'
 import { WavFileWriter } from './wav'
 
 export class CaptureError extends AppError {}
@@ -60,6 +61,9 @@ export class DualTrackRecorder implements AudioCapturePort {
    */
   private readonly peakListeners: ((peak: number) => void)[] = []
 
+  /** 届いた PCM を渡す先。録音中のライブ字幕（ADR-050）が認識器へ流す。 */
+  private readonly pcmListeners: ((track: CaptionTrack, pcm: Buffer) => void)[] = []
+
   constructor(
     private readonly source: SystemAudioSource,
     private readonly now: MonotonicClock = () => performance.now()
@@ -74,6 +78,10 @@ export class DualTrackRecorder implements AudioCapturePort {
 
   onPeak(listener: (peak: number) => void): void {
     this.peakListeners.push(listener)
+  }
+
+  onPcm(listener: (track: CaptionTrack, pcm: Buffer) => void): void {
+    this.pcmListeners.push(listener)
   }
 
   isActive(): boolean {
@@ -132,6 +140,7 @@ export class DualTrackRecorder implements AudioCapturePort {
 
     state.micFirstChunkAt ??= this.now()
     this.notifyPeak(peakOf(pcm))
+    this.notifyPcm('self', pcm)
     this.enqueue(state, () => state.mic.write(pcm))
     await state.writes
   }
@@ -144,11 +153,25 @@ export class DualTrackRecorder implements AudioCapturePort {
     const peak = peakOf(pcm)
     state.systemPeak = Math.max(state.systemPeak, peak)
     this.notifyPeak(peak)
+    this.notifyPcm('remote', pcm)
     this.enqueue(state, () => state.system.write(pcm))
   }
 
   private notifyPeak(peak: number): void {
     for (const listener of this.peakListeners) listener(peak)
+  }
+
+  /**
+   * 購読者の失敗は録音に波及させない。字幕は無くても困らないが、録音が止まると取り返しがつかない。
+   */
+  private notifyPcm(track: CaptionTrack, pcm: Buffer): void {
+    for (const listener of this.pcmListeners) {
+      try {
+        listener(track, pcm)
+      } catch {
+        // 握りつぶす。字幕の側が自分の状態で知らせる。
+      }
+    }
   }
 
   /**

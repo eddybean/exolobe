@@ -15,6 +15,7 @@ import { recordingToOpen, showsLiveView } from './library/liveNotes'
 import { TransportBar } from './components/TransportBar'
 import { useToasts } from './hooks/useToasts'
 import { useTransport } from './hooks/useTransport'
+import { useLiveAssist } from './hooks/useLiveAssist'
 import { useUpdateStatus } from './hooks/useUpdateStatus'
 import { updateText } from './i18n/update'
 import { ChatView } from './views/ChatView'
@@ -64,6 +65,7 @@ export const App = (): ReactElement => {
 
   const toasts = useToasts()
   const transport = useTransport(setup?.settings.audio.sampleRate ?? 16_000, toasts.notify)
+  const liveAssist = useLiveAssist(transport.state.active)
   // 会話は画面を切り替えても残す。引用から録音へ飛ぶとチャット画面は外れるので、
   // チャット側に持たせると戻ったときに会話が消える。
   const chat = useChat()
@@ -344,7 +346,15 @@ export const App = (): ReactElement => {
                 key={detail.recording.id}
                 detail={detail}
                 transport={transport}
+                assist={liveAssist}
+                assistSettings={setup?.settings.liveAssist}
                 onChanged={() => void refreshDetail()}
+                onOpenRecording={(recordingId, startMs) => {
+                  setSelectedId(recordingId)
+                  setFocus((current) =>
+                    startMs === undefined ? undefined : { recordingId, startMs, nonce: (current?.nonce ?? 0) + 1 }
+                  )
+                }}
               />
             ) : detail ? (
               <RecordingDetailView

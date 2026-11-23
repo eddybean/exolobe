@@ -21,6 +21,7 @@ export type SettingsProblem =
   | 'summarizationProvider'
   | 'promptPlaceholder'
   | 'chatMaxRecordings'
+  | 'liveHeadlineInterval'
 
 /** 話者識別・声紋抽出が読むモデル。 */
 export type SherpaModel = 'segmentation' | 'embedding'

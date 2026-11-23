@@ -1964,6 +1964,245 @@ div.settings__caution {
   color: var(--text-muted);
 }
 
+/* ── 録音中のアシスト（ADR-050） ───────────── */
+
+.live-assist__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.live-assist__badge {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: color-mix(in srgb, var(--accent) 75%, var(--text));
+  white-space: nowrap;
+}
+
+.live-assist__warning {
+  margin: 0;
+  color: color-mix(in srgb, var(--warning) 70%, var(--text));
+}
+
+.live-assist__captions-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 高さを固定する。字幕が増えても左列の他の部品（印・ボタン）を押し下げない。 */
+.live-assist__captions {
+  height: 168px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.live-assist__captions-empty {
+  margin: auto 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.live-assist__caption {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.live-assist__speaker {
+  font-size: 11px;
+  font-weight: 600;
+  padding-top: 1px;
+  white-space: nowrap;
+}
+
+/* メーターと同じく、自分は 0 番・相手は 1 番の色。 */
+.live-assist__caption--self .live-assist__speaker {
+  color: var(--tone-0);
+}
+
+.live-assist__caption--remote .live-assist__speaker {
+  color: color-mix(in srgb, var(--tone-1) 80%, var(--text));
+}
+
+.live-assist__caption--pending {
+  color: var(--text-muted);
+}
+
+.live-assist__note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.live-assist__label {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.live-assist__headline,
+.live-assist__suggestion,
+.live-assist__result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.live-assist__headline-row,
+.live-assist__suggestion-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.live-assist__headline-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.live-assist__toggle {
+  font-size: 11px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.live-assist__points {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.live-assist__suggestion {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+
+.live-assist__range {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.live-assist__dismiss {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  padding: 0 4px;
+  color: var(--text-muted);
+  line-height: 1;
+  font-size: 16px;
+}
+
+.live-assist__suggestion-open {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.live-assist__suggestion-open:hover:not(:disabled) {
+  background: transparent;
+}
+
+.live-assist__suggestion-open:hover .live-assist__open {
+  text-decoration: underline;
+}
+
+.live-assist__suggestion-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.live-assist__excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.live-assist__open {
+  color: var(--accent);
+}
+
+.live-assist__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.live-assist__candidates {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.live-assist__candidates li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.live-assist__candidates button {
+  font-size: 11px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.live-assist__kind {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.live-assist__kind--todo {
+  color: var(--tone-0);
+}
+
+.live-assist__kind--decision {
+  color: color-mix(in srgb, var(--success) 80%, var(--text));
+}
+
+.live-assist__candidate-text {
+  overflow-wrap: anywhere;
+}
+
+.live-assist__result-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-assist__caution {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* ── 録音後の詳細: メモの時刻と印（ADR-042） ───── */
 
 /* メモ欄の上に出す「時刻から飛ぶ」一覧。長くなってもメモの入力欄を押し潰さない。 */

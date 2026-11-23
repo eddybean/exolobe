@@ -2,6 +2,7 @@ import type { AppleIntelligenceAvailability } from '@domain/AppleIntelligence'
 import type { InstallSource } from '@domain/AppUpdate'
 import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
+import type { CaptionTrack, LiveCaptionAvailability } from '@domain/LiveCaption'
 import type { Bookmark } from '@domain/MeetingNotes'
 import type { PipelineStep, Recording, RecordingStatus } from '@domain/Recording'
 import type { Settings, SettingsPatch } from '@domain/Settings'
@@ -90,6 +91,58 @@ export interface TransportStateDto {
   readonly title?: string
   readonly startedAtMs?: number
   readonly active: boolean
+}
+
+/** 録音中のライブ字幕の 1 件（ADR-050）。renderer が LiveCaption の状態に畳み込む。 */
+export interface LiveCaptionDto {
+  readonly track: CaptionTrack
+  readonly kind: 'volatile' | 'final'
+  readonly text: string
+  readonly startMs: number
+  readonly endMs: number
+}
+
+export type LiveAssistStatusDto =
+  | { readonly state: 'off' }
+  | { readonly state: 'starting' }
+  | { readonly state: 'downloading' }
+  | { readonly state: 'running' }
+  | {
+      readonly state: 'unavailable'
+      readonly reason: 'missing' | 'unsupported-os' | 'unsupported-locale' | 'crashed'
+    }
+
+/** 過去の会議を指す発言から引いた録音の箇所（カード 1 枚）。 */
+export interface LiveSuggestionDto {
+  readonly recordingId: string
+  readonly title: string
+  /** ISO 8601 文字列。 */
+  readonly startedAt: string
+  readonly excerpt: string
+  /** 文字起こしで当たったときの箇所。押すとその時刻で開く。 */
+  readonly startMs?: number
+  /** 発言が期間を指していればその表記（「先週（11/16〜11/22）」）。 */
+  readonly rangeLabel?: string
+}
+
+export interface LiveHeadlineDto {
+  readonly title: string
+  readonly points: readonly string[]
+}
+
+export interface LiveActionCandidateDto {
+  readonly kind: 'todo' | 'decision'
+  readonly text: string
+  /** 「メモに追加」で足す 1 行。会議の言語で書く（ADR-043）。 */
+  readonly noteText: string
+}
+
+/** 設定画面で、録音中のアシストのどの機能を出せるかを決める。 */
+export interface LiveAssistAvailabilityDto {
+  readonly captions: LiveCaptionAvailability
+  /** 認識のモデルが未取得なら、初めての録音で OS が取得する。 */
+  readonly assets?: 'installed' | 'downloadable'
+  readonly appleIntelligence: AppleIntelligenceAvailability
 }
 
 /**
@@ -415,6 +468,13 @@ export interface RendererApi {
   requestCalendarPermission(): Promise<CalendarPermissionDto>
   /** Apple Intelligence が要約に使えるか。設定画面を開くたびに読み直す（有効にして戻ってくる）。 */
   getAppleIntelligenceAvailability(): Promise<AppleIntelligenceAvailabilityDto>
+  getLiveAssistAvailability(): Promise<LiveAssistAvailabilityDto>
+  /** 録音中のアシスト: ここまでの要約。Apple Intelligence が使えなければ理由つきで失敗する。 */
+  liveSummarize(): Promise<readonly string[]>
+  /** 録音中のアシスト: ToDo と決定事項の候補。書き込みは renderer がメモに足すときだけ。 */
+  liveExtractActions(): Promise<readonly LiveActionCandidateDto[]>
+  /** 録音中のアシスト: カードを閉じた。その録音は同じ録音中にもう出さない。 */
+  dismissLiveSuggestion(recordingId: string): Promise<void>
   /**
    * テスト録音のうちシステム音声の側。録音とは別に短い間だけ取り込み、届いた音の
    * 最大の大きさ（0〜1）を返す。録音中は断る。
@@ -483,6 +543,10 @@ export interface RendererApi {
   onFoldersChanged(listener: () => void): () => void
   onTransportChanged(listener: (state: TransportStateDto) => void): () => void
   onSilenceAlert(listener: (event: SilenceAlertDto) => void): () => void
+  onLiveCaption(listener: (event: LiveCaptionDto) => void): () => void
+  onLiveAssistStatus(listener: (status: LiveAssistStatusDto) => void): () => void
+  onLiveSuggestion(listener: (suggestion: LiveSuggestionDto) => void): () => void
+  onLiveHeadline(listener: (headline: LiveHeadlineDto) => void): () => void
   onStartAlert(listener: (event: StartAlertDto) => void): () => void
   onAutoStarted(listener: (event: AutoStartedDto) => void): () => void
   /** 録音の開始・停止の依頼が置かれた。中身は takeTransportRequest で受け取る。 */
@@ -540,6 +604,14 @@ export const IPC = {
   getTransportState: 'transport:state',
   getSystemAudioLevel: 'transport:systemLevel',
   silenceAlert: 'transport:silenceAlert',
+  liveCaption: 'liveAssist:caption',
+  liveAssistStatus: 'liveAssist:status',
+  liveSuggestion: 'liveAssist:suggestion',
+  liveHeadline: 'liveAssist:headline',
+  liveSummarize: 'liveAssist:summarize',
+  liveExtractActions: 'liveAssist:extractActions',
+  dismissLiveSuggestion: 'liveAssist:dismissSuggestion',
+  getLiveAssistAvailability: 'liveAssist:availability',
   dismissSilenceAlert: 'transport:dismissSilenceAlert',
   startAlert: 'transport:startAlert',
   dismissStartAlert: 'transport:dismissStartAlert',

@@ -1,4 +1,5 @@
 import type { InstallSource } from '@domain/AppUpdate'
+import type { CaptionEvent, CaptionTrack } from '@domain/LiveCaption'
 import type { CalendarEvent } from '@domain/CalendarEvent'
 import type { ErrorReason } from '@domain/errors'
 import type { Folder } from '@domain/Folder'
@@ -378,4 +379,55 @@ export interface UpdateCheckStorePort {
 /** このアプリをどこから入れたか。 */
 export interface InstallSourcePort {
   detect(): Promise<InstallSource>
+}
+
+/**
+ * 録音中のライブ字幕の認識器（ADR-050）。実体は SpeechAnalyzer を動かす同梱の livetranscribe。
+ *
+ * 2 トラックを 1 つの口で受ける。認識の本体は OS のデーモン側にあり、トラックごとに
+ * プロセスを分けても隔離の得が小さい。止めるときに確定を待ち切れなくても録音には響かない。
+ */
+export type LiveTranscriptionEvent =
+  | { readonly type: 'caption'; readonly caption: CaptionEvent }
+  /** 初回だけ、OS が認識のモデルを取得している。 */
+  | { readonly type: 'downloading' }
+  | { readonly type: 'ready' }
+  /** 認識器が途中で止まった。録音は続ける。 */
+  | { readonly type: 'failed'; readonly reason: LiveTranscriptionFailure }
+
+export type LiveTranscriptionFailure = 'missing' | 'unsupported-os' | 'unsupported-locale' | 'crashed'
+
+export interface LiveTranscriptionPort {
+  start(params: {
+    readonly sampleRate: number
+    /** BCP 47 の言語（ja-JP / en-US）。 */
+    readonly locale: string
+    readonly onEvent: (event: LiveTranscriptionEvent) => void
+  }): Promise<void>
+  /** 16bit リトルエンディアンのモノラル PCM。 */
+  push(track: CaptionTrack, pcm: Uint8Array): void
+  /** 確定を少し待ってから止める。待ち切れなければ打ち切る。何度呼んでもよい。 */
+  stop(): Promise<void>
+}
+
+/**
+ * 録音中のアシストが使う生成モデル（ADR-050）。実体は Apple Intelligence（applelm）。
+ * 1 回の応答ごとに新しいセッションで、前の応答を持ち越さない（コンテキストが 8192 トークンしかない）。
+ */
+export interface LiveAssistModelPort {
+  respond(prompt: string): Promise<string>
+}
+
+/** 過去の録音の意味検索（ADR-029）。録音中のアシストが、過去の会議を指す発言から引く。 */
+export interface PastRecordingHit {
+  readonly recordingId: string
+  readonly title: string
+  readonly startedAt: Date
+  readonly excerpt: string
+  /** 文字起こしで当たったときの箇所。 */
+  readonly startMs?: number
+}
+
+export interface PastRecordingSearchPort {
+  search(query: string, limit: number): Promise<readonly PastRecordingHit[]>
 }

@@ -60,7 +60,8 @@ const SETTINGS_PROBLEMS: Readonly<Record<Locale, Readonly<Record<SettingsProblem
     memoryProtection: 'メモリ保護は「保守的」「標準」「オフ」のいずれかを指定してください。',
     contextSize: '要約モデルのコンテキスト長は 1024 以上を指定してください。',
     promptPlaceholder: `要約プロンプトには文字起こしの差し込み位置 ${TRANSCRIPT_PLACEHOLDER} を含めてください。`,
-    chatMaxRecordings: 'チャットで参照する録音の件数は 1〜30 の範囲で指定してください。'
+    chatMaxRecordings: 'チャットで参照する録音の件数は 1〜30 の範囲で指定してください。',
+    liveHeadlineInterval: '見出しを作り直す間隔は 2〜30 分の範囲で指定してください。'
   },
   en: {
     sampleRate: `Sample rate must be one of ${SUPPORTED_SAMPLE_RATES.join(', ')}.`,
@@ -77,7 +78,8 @@ const SETTINGS_PROBLEMS: Readonly<Record<Locale, Readonly<Record<SettingsProblem
     memoryProtection: 'Memory protection must be Conservative, Standard, or Off.',
     contextSize: 'The summarization model context length must be at least 1024.',
     promptPlaceholder: `The summary prompt must contain ${TRANSCRIPT_PLACEHOLDER}, where the transcript is inserted.`,
-    chatMaxRecordings: 'The number of recordings chat refers to must be between 1 and 30.'
+    chatMaxRecordings: 'The number of recordings chat refers to must be between 1 and 30.',
+    liveHeadlineInterval: 'The headline interval must be between 2 and 30 minutes.'
   }
 }
 

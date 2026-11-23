@@ -58,6 +58,18 @@ import { resolveMicWatchBinary } from '@infrastructure/mic/resolveMicWatchBinary
 import { EventKitCalendar } from '@infrastructure/calendar/EventKitCalendar'
 import { resolveCalendarBinary } from '@infrastructure/calendar/resolveCalendarBinary'
 import type { AppleIntelligenceStatus } from '@domain/AppleIntelligence'
+import type { PastRecordingSearchPort } from '@application/ports'
+import { LiveAssistSession } from '@application/usecases/live-assist'
+import type { LiveCaptionStatus } from '@domain/LiveCaption'
+import type { MeetingLanguage } from '@domain/MeetingLanguage'
+import { AppleLiveTranscriber, liveTranscribeStatus } from '@infrastructure/live/AppleLiveTranscriber'
+import { AppleLmLiveModel } from '@infrastructure/live/AppleLmLiveModel'
+import { resolveLiveTranscribeBinary } from '@infrastructure/live/resolveLiveTranscribeBinary'
+import {
+  ScriptedLiveAssistModel,
+  ScriptedLiveTranscriber,
+  ScriptedPastRecordingSearch
+} from '@infrastructure/live/scripted'
 import { modelPackagesFor } from '@domain/ModelCatalog'
 import { appleIntelligenceStatus } from '@infrastructure/summarization/AppleLmSessionFactory'
 import { resolveAppleLmBinary } from '@infrastructure/summarization/resolveAppleLmBinary'
@@ -89,6 +101,17 @@ export interface Container {
   readonly calendar: EventKitCalendar
   /** 要約に Apple Intelligence を選べるか（ADR-046）。要約そのものはパイプラインのワーカーが呼ぶ。 */
   readonly appleIntelligence: () => Promise<AppleIntelligenceStatus>
+  /** 録音中のアシスト（ADR-050）。録音を始めるたびにセッションを作る。 */
+  readonly liveAssist: {
+    readonly createSession: (params: {
+      model: boolean
+      search: PastRecordingSearchPort | undefined
+    }) => LiveAssistSession
+    /** 設定画面に出す、ライブ字幕の認識器の可否。 */
+    readonly status: (language: MeetingLanguage) => Promise<LiveCaptionStatus>
+    /** 開発用の台本で動かしているとき（OMR_LIVE_ASSIST_FAKE=1）の、過去の録音の代わり。 */
+    readonly scripted?: { readonly search: PastRecordingSearchPort }
+  }
   readonly startRecording: StartRecording
   readonly stopRecording: StopRecording
   readonly importAudioFile: ImportAudioFile
@@ -180,6 +203,47 @@ export const createContainer = (): Container => {
     packaged: app.isPackaged,
     resourcesPath: process.resourcesPath
   })
+  const liveTranscribe = resolveLiveTranscribeBinary({
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath
+  })
+  // 画面を確かめるための台本。配布版では環境変数があっても効かせない。
+  const scripted = !app.isPackaged && process.env.OMR_LIVE_ASSIST_FAKE === '1'
+  const clock = { now: () => new Date() }
+  const liveAssist: Container['liveAssist'] = {
+    createSession: ({ model, search }) =>
+      new LiveAssistSession({
+        transcription: scripted ? new ScriptedLiveTranscriber() : new AppleLiveTranscriber(liveTranscribe),
+        clock,
+        ...(model ? { model: scripted ? new ScriptedLiveAssistModel() : new AppleLmLiveModel(appleLm) } : {}),
+        ...(search ? { search } : {})
+      }),
+    status: async (language) =>
+      scripted
+        ? { availability: 'available', assets: 'installed' }
+        : liveTranscribeStatus(liveTranscribe, language === 'en' ? 'en-US' : 'ja-JP'),
+    ...(scripted
+      ? {
+          scripted: {
+            // 台本の「先週の〜の件」に当たるよう、最新の録音を 1 週間前のものとして返す。
+            search: new ScriptedPastRecordingSearch(async () => {
+              const latest = (await repository.list())
+                .filter((recording) => recording.status !== 'recording')
+                .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())[0]
+              return latest
+                ? {
+                    recordingId: latest.id,
+                    title: latest.title,
+                    startedAt: new Date(Date.now() - 7 * 24 * 60 * 60_000),
+                    excerpt: 'ログイン画面のバグは、セッションの有効期限の計算が原因でした。',
+                    startMs: 60_000
+                  }
+                : undefined
+            })
+          }
+        }
+      : {})
+  }
   // モデルは再取得できるキャッシュなので、録音の保存先とは分けて置く。
   const models = new FileModelStore(join(userData, 'models'))
   // Core ML は macOS にしか無い。Windows では Core ML のエンコーダを一覧にも出さない（ADR-048）。
@@ -201,6 +265,7 @@ export const createContainer = (): Container => {
     micUsage,
     calendar,
     appleIntelligence: () => appleIntelligenceStatus(appleLm),
+    liveAssist,
     startRecording: new StartRecording({
       settings,
       repository,

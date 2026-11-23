@@ -14,9 +14,11 @@ export interface PlatformFeatures {
   readonly heAac: boolean
   /** カレンダー連携（ADR-040）。Windows にはローカルで完結する予定の取得手段が無い。 */
   readonly calendar: boolean
+  /** 録音中のアシスト（ADR-050）。認識に macOS の SpeechAnalyzer を使う。 */
+  readonly liveAssist: boolean
 }
 
 export const platformFeatures = (platform: AppPlatform): PlatformFeatures => {
   const mac = platform === 'macos'
-  return { appleIntelligence: mac, heAac: mac, calendar: mac }
+  return { appleIntelligence: mac, heAac: mac, calendar: mac, liveAssist: mac }
 }
