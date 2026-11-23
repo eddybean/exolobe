@@ -79,7 +79,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26
 
       # npm の tarball キャッシュ（setup-node の cache: npm）では、postinstall が
       # 落とす Electron 本体や node-llama-cpp のバイナリは毎回取り直しになり、
@@ -97,7 +97,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.key }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node26-${{ steps.deps.outputs.key }}
 
       - name: 依存関係をインストール
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -151,7 +151,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26
 
       # キーに runner.os を含むので、macOS の node_modules とは混ざらない。
       # キーは lockfile から版を除いた中身で作る。版上げのたびにキャッシュを外さないため（scripts/version-bump.mjs）。
@@ -165,7 +165,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node24-${{ steps.deps.outputs.key }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node26-${{ steps.deps.outputs.key }}
 
       - name: 依存関係をインストール
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
